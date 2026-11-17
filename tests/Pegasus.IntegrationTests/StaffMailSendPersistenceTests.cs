@@ -613,6 +613,70 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Null(otherActor);
     }
 
+    /// <summary>
+    /// A message's latest operation is its newest send (R1128): an Unknown
+    /// send with nothing after it reads Unknown, a later send that reached
+    /// Sent reads Sent, and a send still under way comes first as before,
+    /// even when it is the older.
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownSendGivesWayToANewerSendButNotToOneStillUnderWay()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var mailboxId = Guid.NewGuid();
+        var retainedMessageId = Guid.NewGuid();
+        await SeedRetainedMessageAsync(database, mailboxId, retainedMessageId);
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var unknown = await store.PrepareAsync(
+            ReplyCommand(actor, mailboxId, retainedMessageId, "unknown-reply"), new string('A', 64),
+            new DateTimeOffset(2026, 11, 17, 10, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        unknown = await store.TransitionAsync(
+            actor.SubjectId, unknown.Id, unknown.Version,
+            StaffMailState.DraftCreating, StaffMailAttemptStage.CreateDraft,
+            null, null, null, null, CancellationToken.None);
+        unknown = await store.TransitionAsync(
+            actor.SubjectId, unknown.Id, unknown.Version,
+            StaffMailState.Unknown, StaffMailAttemptStage.CreateDraft,
+            null, null, null, "provider_outcome_unknown", CancellationToken.None);
+        var alone = await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, CancellationToken.None);
+        Assert.Equal(unknown.Id, alone!.Id);
+        Assert.Equal(StaffMailState.Unknown, alone.State);
+
+        var sent = await store.PrepareAsync(
+            ReplyCommand(actor, mailboxId, retainedMessageId, "sent-reply"), new string('B', 64),
+            new DateTimeOffset(2026, 11, 17, 10, 5, 0, TimeSpan.Zero), CancellationToken.None);
+        sent = await MoveToTerminalAsync(store, actor.SubjectId, sent, StaffMailState.Sent);
+        var newer = await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, CancellationToken.None);
+        Assert.Equal(sent.Id, newer!.Id);
+        Assert.Equal(StaffMailState.Sent, newer.State);
+
+        var underWay = await store.PrepareAsync(
+            ReplyCommand(actor, mailboxId, retainedMessageId, "submitted-reply"), new string('C', 64),
+            new DateTimeOffset(2026, 11, 17, 9, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        underWay = await store.TransitionAsync(
+            actor.SubjectId, underWay.Id, underWay.Version, StaffMailState.DraftCreating,
+            StaffMailAttemptStage.CreateDraft, null, null, null, null, CancellationToken.None);
+        underWay = await store.TransitionAsync(
+            actor.SubjectId, underWay.Id, underWay.Version, StaffMailState.DraftReady,
+            StaffMailAttemptStage.Attach, "draft-id", null, null, null, CancellationToken.None);
+        underWay = await store.TransitionAsync(
+            actor.SubjectId, underWay.Id, underWay.Version, StaffMailState.Sending,
+            StaffMailAttemptStage.Send, "draft-id", null, null, null, CancellationToken.None);
+        underWay = await store.TransitionAsync(
+            actor.SubjectId, underWay.Id, underWay.Version, StaffMailState.Submitted,
+            StaffMailAttemptStage.ObserveSent, "draft-id", DateTimeOffset.UtcNow, null, null,
+            CancellationToken.None);
+        var first = await store.GetLatestForOriginalAsync(
+            actor.SubjectId, retainedMessageId, CancellationToken.None);
+        Assert.Equal(underWay.Id, first!.Id);
+        Assert.Equal(StaffMailState.Submitted, first.State);
+    }
+
     [Fact]
     public async Task ASecondReplyIsAcceptedWhileTheFirstIsUnresolved()
     {
