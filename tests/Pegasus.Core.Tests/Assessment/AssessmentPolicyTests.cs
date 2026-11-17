@@ -973,6 +973,18 @@ public sealed class AssessmentPolicyTests
     }
 
     [Theory]
+    [InlineData(AssessmentVocabulary.DamageMarkers, "[]", true)]
+    [InlineData(AssessmentVocabulary.Impacts, "[]", true)]
+    [InlineData(AssessmentVocabulary.ImpactsSkipped, "false", true)]
+    [InlineData(AssessmentVocabulary.ImpactsSkipped, "true", false)]
+    [InlineData(AssessmentVocabulary.DamageMarkers, "[{\"x\":0.5,\"y\":0.1,\"r\":0.12}]", false)]
+    [InlineData(AssessmentVocabulary.LegalStatus, "false", false)]
+    public void OnlyWhatAnUntouchedDamageControlPostsIsUnchosen(string path, string value, bool unchosen)
+    {
+        Assert.Equal(unchosen, AssessmentPolicy.IsUnchosen(path, value));
+    }
+
+    [Theory]
     [InlineData(CaseDataFieldNames.ClaimantName, "Claimant name", "the Claim section")]
     [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference", "the Case details section")]
     [InlineData(CaseDataFieldNames.IncidentDate, "Incident date", "the Case details section")]

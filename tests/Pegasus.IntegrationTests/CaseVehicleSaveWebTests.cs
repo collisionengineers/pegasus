@@ -736,11 +736,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The record form defaults the unit to miles when the Case carries neither
-    /// part of an odometer reading.
+    /// A mileage with no stated unit is in miles: the page shows Miles and
+    /// the save records no unit of staff's, since nobody chose one (operator,
+    /// 16 November 2026, R1080; #2109).
     /// </summary>
     [Fact]
-    public async Task TypingAMileageSavesItInMiles()
+    public async Task ATypedMileageIsInMilesAndRecordsNoUnitOfStaffs()
     {
         using var factory = new IntakeWebApplicationFactory(
             useIntegrationTestAuthentication: true);
@@ -756,7 +757,13 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
             .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
-        Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
+        Assert.Null(data.Vehicle.MileageUnit.Confirmed);
+        Assert.Null(data.Vehicle.MileageUnit.Fact);
+
+        var saved = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("miles", SelectValue(saved, "vehicleMileageUnit"));
+        // The read cell says Miles too, where it said Not recorded.
+        Assert.Contains(">Miles</div>", saved, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -785,6 +792,15 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.NotNull(data);
         Assert.Equal(42000L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("kilometres", data.Vehicle.MileageUnit.Confirmed?.Value);
+
+        // Back to Miles is back to the default: staff's unit goes (R1080).
+        await SaveMileageAsync(client, caseId, "42000", "Changed the odometer unit back to miles.", "miles");
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var restored = await after.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(42000L, restored!.Vehicle.Mileage.Confirmed?.Value);
+        Assert.Null(restored.Vehicle.MileageUnit.Confirmed);
     }
 
     /// <summary>

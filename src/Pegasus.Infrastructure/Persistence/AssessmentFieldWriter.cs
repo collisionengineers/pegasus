@@ -81,6 +81,19 @@ internal static class AssessmentWriteSet
             StringComparer.Ordinal);
         var toWrite = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
         AssessmentPolicy.CompleteCoupledWrites(toWrite, merged);
+        // What an untouched control posts over no row is nobody's choice: it
+        // is neither written nor counted as a change to the report (#2109).
+        var unchosen = toWrite
+            .Where(item => item.Value is { } value
+                && !merged.ContainsKey(item.Key)
+                && AssessmentPolicy.IsUnchosen(item.Key, value))
+            .Select(item => item.Key)
+            .ToArray();
+        foreach (var path in unchosen)
+        {
+            toWrite.Remove(path);
+        }
+
         foreach (var (path, value) in toWrite)
         {
             if (value is null)

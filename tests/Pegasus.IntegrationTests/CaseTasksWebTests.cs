@@ -113,7 +113,7 @@ public sealed class CaseTasksWebTests
             1,
             html.Split("name=\"vehicleMileageUnit\"", StringSplitOptions.None).Length - 1);
         Assert.Contains(
-            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
+            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\" data-typed-with=\"edit-mileage\">",
             html,
             StringComparison.Ordinal);
 

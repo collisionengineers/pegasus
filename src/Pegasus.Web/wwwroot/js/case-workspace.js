@@ -561,7 +561,16 @@
     // until what is typed is: a save here changes nothing on the Case, and
     // the redraw that follows it would put the choice back on whichever one
     // the record matches. Left unsent, the choice holds its section.
+    // A choice that qualifies a value still to be typed (the mileage's unit
+    // with no mileage) is saved with that value, never alone (R1119): chosen
+    // first it commits nothing, and no commit of another field makes it sent.
+    function awaitsTypedValue(control) {
+        var partner = control.getAttribute('data-typed-with');
+        var typed = partner ? document.getElementById(partner) : null;
+        return !!typed && typed.value.trim() === '';
+    }
     function typedChoice(control) {
+        if (awaitsTypedValue(control)) { return true; }
         var chosen = control.tagName === 'SELECT' ? control.options[control.selectedIndex]
             : control.checked ? control : null;
         return !!chosen && chosen.hasAttribute('data-typed-choice');
@@ -1194,6 +1203,7 @@
     function markSent(sent) {
         (sent || []).forEach(function (state) {
             var control = state.control;
+            if (awaitsTypedValue(control)) { return; }
             if (control.type === 'checkbox' || control.type === 'radio') {
                 if (control.checked === state.checked) { control.defaultChecked = state.checked; }
             } else if (control.tagName === 'SELECT') {

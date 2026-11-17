@@ -361,7 +361,7 @@ public sealed class CaseDetailsWebTests
         }
         Assert.Equal(0, Occurrences(html, "name=\"instructionDate\""));
         Assert.Contains(
-            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
+            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\" data-typed-with=\"edit-mileage\">",
             html,
             StringComparison.Ordinal);
         // The Inspection section's control is the record form's entry for the

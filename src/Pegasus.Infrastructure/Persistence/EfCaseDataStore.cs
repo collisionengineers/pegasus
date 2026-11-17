@@ -330,6 +330,33 @@ internal static class CaseDataFieldWriter
             SetConfirmed(context, snapshot, name, CaseDataCodes.Integer, Integer(value), actor, now);
         void Day(string name, DateOnly? value) =>
             SetConfirmed(context, snapshot, name, CaseDataCodes.Date, Date(value), actor, now);
+        // A mileage with no stated unit is in miles: the default, never
+        // staff's choice (R1080). Staff's row holds a unit only where it
+        // differs from the one standing without it (CaseOdometer.UnitWrite).
+        void MileageUnit(string? unit)
+        {
+            const string name = CaseDataFieldNames.VehicleMileageUnit;
+            if (unit is null)
+            {
+                Text(name, null);
+                return;
+            }
+
+            var staff = snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
+            var extracted = snapshot.Fields.SingleOrDefault(
+                item => item.FieldName == name && item.ValueKind == CaseDataCodes.Fact);
+            var write = CaseOdometer.UnitWrite((staff ?? extracted)?.Value, extracted?.Value, unit);
+            if (write == CaseOdometerUnitWrite.RecordStaffValue)
+            {
+                Text(name, unit);
+            }
+            else if (write == CaseOdometerUnitWrite.RemoveStaffValue && staff is not null)
+            {
+                context.CaseDataFields.Remove(staff);
+                snapshot.Fields.Remove(staff);
+            }
+        }
 
         Text(CaseDataFieldNames.ClaimantName, data.ClaimantName);
         Text(CaseDataFieldNames.ClaimantContactNumber, data.ClaimantContactNumber);
@@ -340,7 +367,7 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.VehicleModel, data.VehicleModel);
         Text(CaseDataFieldNames.VehicleYear, data.VehicleYear);
         Whole(CaseDataFieldNames.VehicleMileage, data.VehicleMileage);
-        Text(CaseDataFieldNames.VehicleMileageUnit, data.VehicleMileageUnit);
+        MileageUnit(data.VehicleMileageUnit);
         Text(CaseDataFieldNames.AccidentCircumstances, data.AccidentCircumstances);
         Day(CaseDataFieldNames.IncidentDate, data.IncidentDate);
         Text(CaseDataFieldNames.VatStatus, data.VatStatus);
@@ -434,7 +461,11 @@ internal static class CaseDataFieldWriter
         AcceptedText(snapshot, CaseDataFieldNames.VehicleMake),
         AcceptedText(snapshot, CaseDataFieldNames.VehicleModel),
         AcceptedLong(snapshot, CaseDataFieldNames.VehicleMileage),
-        AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
+        // A mileage with no stated unit is in miles (R1080), so an unrelated
+        // save neither changes the unit nor names it in history.
+        CaseOdometer.UnitOf(
+            AcceptedLong(snapshot, CaseDataFieldNames.VehicleMileage),
+            AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit)),
         AcceptedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
         AcceptedDate(snapshot, CaseDataFieldNames.IncidentDate),
         AcceptedText(snapshot, CaseDataFieldNames.VatStatus),

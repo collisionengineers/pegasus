@@ -250,6 +250,21 @@ public static class AssessmentPolicy
         AssessmentVocabulary.SalvageValue,
     ];
 
+    /// <summary>
+    /// The value an untouched control posts for a path nothing is recorded
+    /// on: the empty list for the damage markers and the impacts, and false
+    /// for the impacts' skip. The one Case Save posts every control, so saved
+    /// over no row such a value records nothing (#2109); every reader already
+    /// reads no row as that value.
+    /// </summary>
+    public static bool IsUnchosen(string path, string value) => path switch
+    {
+        AssessmentVocabulary.DamageMarkers or AssessmentVocabulary.Impacts =>
+            string.Equals(value, "[]", StringComparison.Ordinal),
+        AssessmentVocabulary.ImpactsSkipped => string.Equals(value, "false", StringComparison.Ordinal),
+        _ => false
+    };
+
     public static bool IsWritableState(CaseLifecycleState state) =>
         state is CaseLifecycleState.NotReady
             or CaseLifecycleState.Review

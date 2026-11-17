@@ -71,6 +71,49 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     }
 
     /// <summary>
+    /// The Case Save posts every control, so a first save used to post an
+    /// empty list for the damage markers and the impacts and false for the
+    /// skip, and each became a row nobody chose (#2109). Over no row they
+    /// record nothing; over a row, an emptied list is a change.
+    /// </summary>
+    [Fact]
+    public async Task WhatAnUntouchedDamageControlPostsOverNoRowRecordsNothing()
+    {
+        await using var harness = await Harness.CreateAsync(shared);
+        var outcome = await harness.AcceptAsync("assessment-unchosen-damage");
+        var caseId = outcome.Identity.CaseId;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.AutomationActor, "unchosen-lease-1");
+        var untouched = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, lease.Version, harness.AutomationActor, "unchosen-save-1", "Save with nothing chosen.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Impacts] = "[]",
+                [AssessmentVocabulary.DamageMarkers] = "[]",
+                [AssessmentVocabulary.ImpactsSkipped] = "false"
+            }), CancellationToken.None);
+
+        Assert.Null(untouched.Field(AssessmentVocabulary.Impacts));
+        Assert.Null(untouched.Field(AssessmentVocabulary.DamageMarkers));
+        Assert.Null(untouched.Field(AssessmentVocabulary.ImpactsSkipped));
+
+        const string marker = "[{\"x\":0.5,\"y\":0.1,\"r\":0.12}]";
+        var marked = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, untouched.CaseVersion, harness.AutomationActor, "unchosen-save-2", "Mark the damage.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageMarkers] = marker
+            }), CancellationToken.None);
+        var emptied = await harness.SaveAssessment.ExecuteAsync(new(
+            caseId, marked.CaseVersion, harness.AutomationActor, "unchosen-save-3", "Remove the marker.", lease.Token,
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.DamageMarkers] = "[]"
+            }), CancellationToken.None);
+
+        Assert.Equal("[]", emptied.Field(AssessmentVocabulary.DamageMarkers)?.Value);
+    }
+
+    /// <summary>
     /// Skip impacts is recorded only while no impact row exists (v47 items B
     /// and D; R649): a save that would leave it ticked beside a row, complete
     /// or not, is refused and writes nothing; unticking it with the row saves.

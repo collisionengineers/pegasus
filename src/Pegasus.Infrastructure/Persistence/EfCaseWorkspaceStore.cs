@@ -929,7 +929,9 @@ public sealed class EfCaseWorkspaceStore(
             VehicleMake: Current(CaseDataFieldNames.VehicleMake),
             VehicleModel: Current(CaseDataFieldNames.VehicleModel),
             VehicleMileage: CurrentLong(CaseDataFieldNames.VehicleMileage),
-            VehicleMileageUnit: Current(CaseDataFieldNames.VehicleMileageUnit),
+            VehicleMileageUnit: CaseOdometer.UnitOf(
+                CurrentLong(CaseDataFieldNames.VehicleMileage),
+                Current(CaseDataFieldNames.VehicleMileageUnit)),
             IncidentDate: CurrentDate(CaseDataFieldNames.IncidentDate),
             InspectionDate: CurrentDate(CaseDataFieldNames.InspectionDate),
             InspectionAddress: Current(CaseDataFieldNames.InspectionAddress),
