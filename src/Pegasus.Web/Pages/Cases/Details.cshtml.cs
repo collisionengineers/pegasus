@@ -2393,7 +2393,6 @@ public sealed partial class DetailsModel(
 
         string? bankStatus = null;
         string? bankError = null;
-        string? saveError = null;
         string? savedEstimate = null;
         CaseDataProjection? savedData = null;
         var result = await ExecuteCaseCommandAsync(
@@ -2418,7 +2417,7 @@ public sealed partial class DetailsModel(
 
                 if (!ModelState.IsValid)
                 {
-                    throw new InvalidOperationException("A submitted Case field is invalid.");
+                    throw new InvalidOperationException(UnreadableValueMessage());
                 }
 
                 if (assessmentFields.Keys.Any(path => !EditorLabels.IsAssessmentField(path)))
@@ -2428,15 +2427,7 @@ public sealed partial class DetailsModel(
                 CaseWorkspaceEstimate? estimate = null;
                 if (carriesEstimate)
                 {
-                    try
-                    {
-                        estimate = await EstimateEditorPartAsync(id, actor, cancellationToken);
-                    }
-                    catch (InvalidOperationException exception)
-                    {
-                        saveError = MutationRefusalMessage(exception, string.Empty);
-                        throw;
-                    }
+                    estimate = await EstimateEditorPartAsync(id, actor, cancellationToken);
 
                     // Until the save lands, the page keeps the specification it showed.
                     savedEstimate = estimate.EstimateId?.ToString("D") ?? "new";
@@ -2627,79 +2618,67 @@ public sealed partial class DetailsModel(
                 List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
                     ? GuideEntriesToRecord(guideEntries, recordedCards)
                     : [];
-                SaveCaseWorkspaceResult workspaceSave;
-                try
+                var workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                 {
-                    workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
-                    {
-                        Work = work,
-                        // Save as you go: the session's lease is kept and its
-                        // next token issued inside the save (R770).
-                        ContinuesSession = true,
-                        Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
-                            ? null
-                            : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
-                        Estimate = estimate,
-                        Overview = !overviewSubmitted ? null : new(
-                            Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
-                            Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
-                            Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
-                            Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
-                            Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
-                            Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
-                            Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
-                            linkedRepairer?.Address
-                                ?? Submitted(nameof(repairerAddress), repairerAddress,
-                                    Accepted(data.Inspection.RepairerAddress)?.Value),
-                            claimSource,
-                            repairer,
-                            Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
-                            Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
-                            Submitted(
-                                nameof(dueBy),
-                                dueBy,
-                                current.Workflow.DueWork?.DueBy
-                                    ?? Accepted(data.Inspection.Deadline)?.Value)),
-                        Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
-                            Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
-                            Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
-                            Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
-                            persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
-                            persisted?.InspectionNotes,
-                            Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
-                            Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
-                        Vehicle = !vehicleSubmitted ? null : new(
-                            Submitted(nameof(vehicleRegistration), vehicleRegistration, Accepted(data.Vehicle.Registration)?.Value),
-                            Submitted(nameof(vehicleMake), vehicleMake, Accepted(data.Vehicle.Make)?.Value),
-                            Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
-                            new(mileageValue,
-                                originalUnit,
-                                persisted?.VehicleMileageDisplayUnit),
-                            vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
-                            Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
-                        Damage = !damageSubmitted ? null : new(markers, damageFields),
-                        ImagePreparation = !preparationSubmitted ? null : new(
-                            [.. preparationEdits!.Select(edit => edit.ToRequest())]),
-                        Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
-                        Report = !reportSubmitted ? null : new(reportFields,
-                            Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
-                            Submitted(nameof(reportDate), reportDate, recordedDate)),
-                        // v28 P30: wording that reads the same as the composed
-                        // sentence is no change, so the block keeps tracking its
-                        // fields. The composed sentence is read here rather than
-                        // posted back, so the form cannot claim one it never saw.
-                        ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
-                            id, actor, work, wordingEdits!, cancellationToken)
-                    }, cancellationToken);
-                }
-                catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
-                {
-                    // A refusal names its own reason (a spec line, a valuation
-                    // figure, a calculation that cannot be recorded); a lost lease
-                    // or a changed Case keeps the shared one.
-                    saveError = MutationRefusalMessage(exception, string.Empty);
-                    throw;
-                }
+                    Work = work,
+                    // Save as you go: the session's lease is kept and its
+                    // next token issued inside the save (R770).
+                    ContinuesSession = true,
+                    Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
+                        ? null
+                        : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
+                    Estimate = estimate,
+                    Overview = !overviewSubmitted ? null : new(
+                        Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
+                        Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
+                        Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
+                        Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
+                        Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
+                        Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
+                        Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
+                        linkedRepairer?.Address
+                            ?? Submitted(nameof(repairerAddress), repairerAddress,
+                                Accepted(data.Inspection.RepairerAddress)?.Value),
+                        claimSource,
+                        repairer,
+                        Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
+                        Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
+                        Submitted(
+                            nameof(dueBy),
+                            dueBy,
+                            current.Workflow.DueWork?.DueBy
+                                ?? Accepted(data.Inspection.Deadline)?.Value)),
+                    Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
+                        Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
+                        Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
+                        Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
+                        persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
+                        persisted?.InspectionNotes,
+                        Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
+                        Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
+                    Vehicle = !vehicleSubmitted ? null : new(
+                        Submitted(nameof(vehicleRegistration), vehicleRegistration, Accepted(data.Vehicle.Registration)?.Value),
+                        Submitted(nameof(vehicleMake), vehicleMake, Accepted(data.Vehicle.Make)?.Value),
+                        Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
+                        new(mileageValue,
+                            originalUnit,
+                            persisted?.VehicleMileageDisplayUnit),
+                        vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
+                        Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
+                    Damage = !damageSubmitted ? null : new(markers, damageFields),
+                    ImagePreparation = !preparationSubmitted ? null : new(
+                        [.. preparationEdits!.Select(edit => edit.ToRequest())]),
+                    Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
+                    Report = !reportSubmitted ? null : new(reportFields,
+                        Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
+                        Submitted(nameof(reportDate), reportDate, recordedDate)),
+                    // v28 P30: wording that reads the same as the composed
+                    // sentence is no change, so the block keeps tracking its
+                    // fields. The composed sentence is read here rather than
+                    // posted back, so the form cannot claim one it never saw.
+                    ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
+                        id, actor, work, wordingEdits!, cancellationToken)
+                }, cancellationToken);
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion, workspaceSave.Version);
                 savedData = workspaceSave.Data;
                 if (workspaceSave.SessionLease is { } keptLease)
@@ -2738,16 +2717,16 @@ public sealed partial class DetailsModel(
             // the reclaim stays for a replay that handed no lease back. Done
             // releases it.
             caseId => RedirectToSection(caseId, section, savedEstimate),
-            keepEditing: true);
+            keepEditing: true,
+            // A refusal names its own reason (a field's value, a spec line, a
+            // valuation figure); a lost lease or a changed Case keeps the
+            // shared one.
+            refusal: SaveRefusalMessage);
 
         if (bankError is not null)
         {
             Say(StatusTempDataKey, null);
             Say(ErrorTempDataKey, bankError);
-        }
-        else if (!string.IsNullOrEmpty(saveError))
-        {
-            Say(ErrorTempDataKey, saveError);
         }
         else if (bankStatus is not null)
         {
@@ -5237,6 +5216,57 @@ public sealed partial class DetailsModel(
         return estimates.Any(estimate => estimate.SpecificationId == estimateId && estimate.IsCurrent)
             ? Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported
             : Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.AlreadyImported;
+    }
+
+    private static readonly HashSet<string> CaseDataMembers = typeof(CaseEditableData)
+        .GetProperties()
+        .Select(property => property.Name)
+        .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// What a refused Case save tells staff (FRD-16; operator, 17 November
+    /// 2026, R1118): Core's own sentence for the value it refused, with the
+    /// field's label in front when the sentence names no field. A lost lease
+    /// or a changed Case gives none here and keeps the shared sentence.
+    /// </summary>
+    private static string SaveRefusalMessage(Exception exception)
+    {
+        if (exception is not ArgumentException argument || exception is ArgumentNullException)
+        {
+            return MutationRefusalMessage(exception, string.Empty);
+        }
+
+        if (argument.ParamName is not { Length: > 0 } member)
+        {
+            return argument.Message;
+        }
+
+        // The parameter is Core's own name for the value, never one staff sent.
+        var sentence = argument.Message.Replace(
+            $" (Parameter '{member}')", string.Empty, StringComparison.Ordinal);
+        if (!CaseDataMembers.Contains(member))
+        {
+            return sentence;
+        }
+
+        var label = FieldLabel(char.ToLowerInvariant(member[0]) + member[1..]);
+        return sentence.Contains(label, StringComparison.OrdinalIgnoreCase)
+            ? sentence
+            : $"{label}: {sentence}";
+    }
+
+    /// <summary>
+    /// The refusal for a value the server could not read into its box, such
+    /// as 1e5 in Mileage: "Mileage is invalid." (R1118). A value inside a
+    /// composite row has no label of its own and keeps the general sentence.
+    /// </summary>
+    private string UnreadableValueMessage()
+    {
+        var field = ModelState
+            .Where(entry => entry.Value is { Errors.Count: > 0 })
+            .Select(entry => entry.Key)
+            .FirstOrDefault(key => key.Length > 0 && key.All(char.IsAsciiLetterOrDigit));
+        return field is null ? "A submitted Case field is invalid." : $"{FieldLabel(field)} is invalid.";
     }
 
     private static string MutationRefusalMessage(Exception exception, string fallback) =>

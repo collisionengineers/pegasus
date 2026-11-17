@@ -683,6 +683,38 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         Assert.Equal("Vauxhall", data!.Vehicle.Make.Confirmed?.Value);
     }
 
+    /// <summary>
+    /// A save refused for one field's value says which (#2111; operator, 17
+    /// November 2026, R1118): Core's own sentence for a registration it will
+    /// not take, and "Mileage is invalid." for a number the server cannot
+    /// read. Neither points at the lease, and nothing lands.
+    /// </summary>
+    [Theory]
+    [InlineData("vehicleRegistration", "AB-12.CDE", "The vehicle registration can contain only letters, digits and spaces.")]
+    [InlineData("vehicleMileage", "1e5", "Mileage is invalid.")]
+    public async Task ASaveRefusedForOneFieldsValueNamesTheField(string field, string value, string notice)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, $"accept-case-refusal-{field}", withMileage: false);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        (string Name, string Value)[] posted =
+        [
+            .. CurrentCaseSaveValues(editing, caseId)
+                .Select(item => item.Name == field ? (item.Name, value) : item)
+        ];
+
+        var refused = await CommitAsync(client, editing, caseId, posted, script: true);
+
+        Assert.Equal(HttpStatusCode.OK, refused.Status);
+        Assert.DoesNotMatch("data-editor-commit=\"[^\"]+\"", refused.Body);
+        Assert.Contains(notice, refused.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("The case action was not applied", refused.Body, StringComparison.Ordinal);
+    }
+
     private static async Task<(HttpStatusCode Status, string Body, string? Location)> CommitAsync(
         HttpClient client,
         string antiforgeryHtml,
