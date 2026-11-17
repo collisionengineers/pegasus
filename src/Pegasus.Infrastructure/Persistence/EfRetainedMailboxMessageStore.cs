@@ -436,7 +436,8 @@ internal sealed class EfRetainedMailboxMessageStore(
             await ClassificationDossierAsync(
                 context,
                 receipt?.Decision,
-                cancellationToken));
+                cancellationToken),
+            StaffForwardBodyCleaner.FreshBody(body, isStaffForward));
     }
 
     /// <summary>

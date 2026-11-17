@@ -103,10 +103,12 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             }
             if (forwardedBody)
             {
-                var text = StaffForwardBodyCleaner.SplitForwardedHeader(
-                    StaffForwardBodyCleaner.Clean(fragment.Text, isStaffForward: true)).Body;
-                var olderMessage = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(text);
-                yield return fragment with { Text = olderMessage.Success ? text[..olderMessage.Index] : text };
+                yield return fragment with
+                {
+                    Text = StaffForwardBodyCleaner.FreshBody(
+                        StaffForwardBodyCleaner.Clean(fragment.Text, isStaffForward: true),
+                        isStaffForward: true)
+                };
             }
             else
             {

@@ -154,6 +154,56 @@ describe("open_triage (#1890)", () => {
     assert.equal(run.outcomes.verdicts.size, 0);
   });
 
+  it("refuses a registration written only in the quoted history (R1076)", async () => {
+    const detail = mail({
+      outcome: "Classified", category: "triage-request", subject: "Triage request",
+      body: "Please assess the car.\n\nFrom: Desk\nSent: 1 November 2026\nTo: Sender\nSubject: An older job\n\nThe older vehicle was ZZ99 ZZZ.",
+      freshBody: "Please assess the car.\n",
+    });
+    const run = harness([candidate(detail)]);
+    const result = await run.call("open_triage", {
+      messageId: detail.summary.id, vehicleRegistration: "ZZ99ZZZ", source: "body", reason: "The body names ZZ99 ZZZ.",
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.text, /does not appear in the e-mail's body/);
+    assert.equal(run.pegasus.writes.length, 0);
+    assert.equal(run.outcomes.verdicts.size, 0);
+  });
+
+  it("opens with a registration written in the fresh body or an attachment's text", async () => {
+    const inBody = mail({
+      outcome: "Classified", category: "triage-request", subject: "Triage request",
+      body: "Please assess AB12 CDE.\n\nFrom: Desk\nSent: 1 November 2026\nTo: Sender\nSubject: An older job\n\nThanks.",
+      freshBody: "Please assess AB12 CDE.\n",
+    });
+    const inAttachment = mail({
+      outcome: "Classified", category: "triage-request", subject: "Triage request",
+      attachments: [{ fileName: "request.pdf", mediaType: "application/pdf" }],
+    });
+    const run = harness([candidate(inBody), candidate(inAttachment, { attachmentTexts: ["Vehicle: CD34 EFG"] })]);
+
+    const fromBody = await run.call("open_triage", {
+      messageId: inBody.summary.id, vehicleRegistration: "AB12CDE", source: "body", reason: "The body names AB12 CDE.",
+    });
+    assert.equal(fromBody.isError, false, fromBody.text);
+    const fromAttachment = await run.call("open_triage", {
+      messageId: inAttachment.summary.id, vehicleRegistration: "CD34EFG", source: "attachment", attachmentOrdinal: 0,
+      reason: "The attached request names CD34 EFG.",
+    });
+    assert.equal(fromAttachment.isError, false, fromAttachment.text);
+    assert.deepEqual(run.pegasus.writes.map((write) => [write.kind, write.detail]), [["triage", "AB12CDE"], ["triage", "CD34EFG"]]);
+  });
+
+  it("refuses a body read when Pegasus gives no fresh body", async () => {
+    const detail = mail({ outcome: "Classified", category: "triage-request", subject: "Triage request", body: "Please assess AB12 CDE.", freshBody: null });
+    const run = harness([candidate(detail)]);
+    const result = await run.call("open_triage", {
+      messageId: detail.summary.id, vehicleRegistration: "AB12CDE", source: "body", reason: "The body names AB12 CDE.",
+    });
+    assert.equal(result.isError, true);
+    assert.equal(run.pegasus.writes.length, 0);
+  });
+
   it("opens from photographs only with the plate Pegasus's reader agreed on", async () => {
     const detail = triageRequest("Triage request");
     const reads = { state: "read" as const, registration: "AB12CDE", readRegistrations: ["AB12CDE"] };

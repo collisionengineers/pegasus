@@ -95,6 +95,7 @@ internal sealed record MailToolDetail(
     IReadOnlyList<string> ToAddresses,
     IReadOnlyList<string> CcAddresses,
     string? BodyPlainText,
+    string? FreshBodyPlainText,
     IReadOnlyList<MailToolAttachment> Attachments,
     IReadOnlyList<MailToolThreadEntry> Thread,
     string? ClassificationOutcome,
@@ -377,7 +378,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
+    [Description("Gets one retained message: recipients, body text and its fresh text (what the sender wrote, without the history quoted beneath it), attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
         [Description(MessageIdDescription)] Guid messageId,
         CancellationToken cancellationToken = default)
@@ -852,6 +853,7 @@ internal sealed class MailMcpTools(
             detail.ToAddresses,
             detail.CcAddresses,
             detail.BodyPlainText,
+            detail.FreshBodyPlainText,
             detail.Attachments.Select(item => new MailToolAttachment(
                 item.FileName,
                 item.MediaType,
