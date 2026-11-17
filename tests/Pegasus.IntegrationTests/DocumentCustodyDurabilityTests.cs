@@ -1684,7 +1684,7 @@ public sealed class DocumentCustodyDurabilityTests
                     Guid.NewGuid(), "QDOS001", 0, CaseLifecycleState.ReportPreparation, null, [], [],
                     new AssessmentCaseOwnedData(
                         null, null, null, null, null, null, "tbc", null, new DateOnly(2031, 5, 6),
-                        null, null, null, null, null)),
+                        null, null, null, null)),
                 null,
                 null,
                 [],

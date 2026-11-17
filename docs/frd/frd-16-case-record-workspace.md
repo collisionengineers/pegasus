@@ -567,9 +567,9 @@ Inspection shows the recorded inspect-at value with its fast-update choice:
 Image Based Assessment, Claimant address, Repairer location, Storage
 location, the Principal's reviewed locations, previous addresses used for
 this principal, Manual entry. An option
-without a value is disabled. Reading and editing show one row per fact
-not already implied by the row above it: Inspection type (the mode, read
-once), Inspection date (the date the report says the damage was assessed,
+without a value is left out ([R1117](../rulings.md)). Reading and editing show one row per fact
+not already implied by the row above it: Inspection type (Image Based
+Assessment on every Case, [R1078](../rulings.md)), Inspection date (the date the report says the damage was assessed,
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)),
 Inspect at, the recorded address or `Image Based Assessment` with its
 source tag, Principal default only when it differs from the recorded value,

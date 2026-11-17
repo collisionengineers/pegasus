@@ -2338,7 +2338,6 @@ public sealed partial class DetailsModel(
         DateOnly? inspectionDate,
         DateOnly? inspectionDeadline,
         string? inspectionAddress,
-        CaseInspectionMode? inspectionMode,
         string? claimantContactNumber,
         string? claimantAddress,
         string? storageLocation,
@@ -2499,7 +2498,7 @@ public sealed partial class DetailsModel(
                 var persisted = data.Workspace;
                 var address = Submitted(nameof(inspectionAddress), inspectionAddress, Accepted(data.Inspection.Address)?.Value);
                 var treatment = CaseDetailsSaveRules.InspectionTreatment(
-                    null, Posted(nameof(inspectionAddress)), persisted?.InspectionAddressTreatment, address);
+                    Posted(nameof(inspectionAddress)), persisted?.InspectionAddressTreatment, address);
                 var mileageValue = Submitted(nameof(vehicleMileage), vehicleMileage, Accepted(data.Vehicle.Mileage)?.Value);
                 var mileageUnit = Submitted(nameof(vehicleMileageUnit), vehicleMileageUnit, Accepted(data.Vehicle.MileageUnit)?.Value);
                 CaseOdometerUnit? originalUnit = null;
@@ -5459,7 +5458,6 @@ public sealed partial class DetailsModel(
             "inspectionDate" => Accepted(data.Inspection.InspectionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionDeadline" => Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionAddress" => Accepted(data.Inspection.Address)?.Value,
-            "inspectionMode" => Accepted(data.Inspection.Mode)?.Value.ToString(),
             "storageLocation" => Accepted(data.Inspection.StorageLocation)?.Value,
             "claimSourceContactName" => data.Workspace?.ClaimSource?.OverrideContactName,
             "claimSourceContactTelephone" => data.Workspace?.ClaimSource?.OverrideContactTelephone,
@@ -5494,7 +5492,6 @@ public sealed partial class DetailsModel(
         "inspectionDate" => "Inspection date",
         "inspectionDeadline" => "Inspection deadline",
         "inspectionAddress" => "Inspection address",
-        "inspectionMode" => "Inspection mode",
         "storageLocation" => Labels.CaseWorkspace.StorageLocation,
         "claimSourceContactName" => FrameLabels.ContactName,
         "claimSourceContactTelephone" => FrameLabels.ContactPhone,

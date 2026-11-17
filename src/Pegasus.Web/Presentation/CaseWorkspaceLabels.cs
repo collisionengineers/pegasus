@@ -313,8 +313,7 @@ public static class CaseWorkspaceLabels
                 AssessmentVocabulary.ReportDate => "report",
                 // Storage per day and the recovery charge are recorded in Decisions (v36 item G).
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge => "settlement",
-                CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
-                    or CaseDataFieldNames.InspectionAddress => "inspection",
+                CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionAddress => "inspection",
                 CaseDataFieldNames.ClaimantName => "claim",
                 CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
                 _ => null
@@ -507,7 +506,6 @@ public static class CaseWorkspaceLabels
             CaseDataFieldNames.IncidentDate,
             CaseDataFieldNames.ClaimantName,
             CaseDataFieldNames.InspectionDate,
-            CaseDataFieldNames.InspectionMode,
             CaseDataFieldNames.InspectionAddress,
             CaseDataFieldNames.VehicleRegistration,
             AssessmentVocabulary.VehicleType,

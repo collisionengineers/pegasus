@@ -485,7 +485,7 @@ public sealed class CaseDamageAndViewerWebTests
                     : [new(AssessmentVocabulary.ImpactsSkipped, skipped, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow)])
             ],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null,
                 null, "Alex Example", "P-100"));
 
         private CaseSectionFrame Frame()

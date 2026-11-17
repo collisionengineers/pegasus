@@ -353,7 +353,6 @@ public sealed class CaseDetailsWebTests
             "inspectionDate",
             "inspectionDeadline",
             "inspectionAddress",
-            "inspectionMode",
             "storageLocation"
         })
         {
@@ -536,7 +535,7 @@ public sealed class CaseDetailsWebTests
                 "vehicle-lookup",
                 new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null));
         store.FocusedAssessment = assessment;
         var assessmentWorkspace = new CountingAssessmentWorkspace(
             AssessmentWorkspaceTestData.Create(assessment));

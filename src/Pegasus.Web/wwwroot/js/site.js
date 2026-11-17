@@ -842,8 +842,7 @@
         root.querySelectorAll('[data-inspection-address-choice]').forEach(function (select) {
             if (select.dataset.inspectionAddressBound === 'true') return;
             var input = document.querySelector('[data-inspection-address-input]');
-            var mode = document.querySelector('input[name="inspectionMode"]');
-            if (!input || !mode) return;
+            if (!input) return;
 
             select.dataset.inspectionAddressBound = 'true';
             function choose() {
@@ -859,12 +858,8 @@
                     return;
                 }
                 input.value = option.dataset.address || '';
-                mode.value = option.value === 'ImageBasedAssessment' ? 'ImageBasedAssessment' : 'PhysicalAddress';
             }
             select.addEventListener('change', choose);
-            input.addEventListener('input', function () {
-                mode.value = input.value.trim() ? 'PhysicalAddress' : '';
-            });
         });
     }
     bind(document);

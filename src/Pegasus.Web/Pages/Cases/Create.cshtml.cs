@@ -872,8 +872,8 @@ public sealed partial class CreateModel(
         if (PrincipalIsImageBased)
         {
             // The principal's own recorded mode, not something derived from the
-            // document. The address panel says as much, and a physical address
-            // can still be recorded on the case afterwards with a reason.
+            // document. The address panel says as much, and Inspect at can
+            // still be changed on the Case afterwards (R1079).
             return IntakeCaseCreation.ImageBasedInspectionAddress(AddressResolution);
         }
 

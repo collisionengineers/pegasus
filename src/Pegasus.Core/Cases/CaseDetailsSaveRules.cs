@@ -67,20 +67,18 @@ public static class CaseDetailsSaveRules
     }
 
     /// <summary>
-    /// How the report treats the inspection address: the mode the caller
-    /// named; else the Case's recorded treatment while the address is not
-    /// named; else the treatment the address itself implies.
+    /// How the report treats the inspection address: the Case's recorded
+    /// treatment while the address is not named; else what the address is,
+    /// the words Image Based Assessment or a place. Inspect at is the one
+    /// thing a caller states (R1078).
     /// </summary>
     public static CaseReportAddressTreatment InspectionTreatment(
-        CaseInspectionMode? namedMode,
         bool addressNamed,
         CaseReportAddressTreatment? held,
         string? address) =>
-        namedMode is not null
-            ? TreatmentOf(namedMode)
-            : !addressNamed && held is { } recorded
-                ? recorded
-                : TreatmentOf(CaseDataPolicy.InferInspectionMode(address));
+        !addressNamed && held is { } recorded
+            ? recorded
+            : TreatmentOf(CaseDataPolicy.InferInspectionMode(address));
 
     /// <summary>The report's address treatment for an inspection mode; none is Undetermined.</summary>
     public static CaseReportAddressTreatment TreatmentOf(CaseInspectionMode? mode) => mode switch

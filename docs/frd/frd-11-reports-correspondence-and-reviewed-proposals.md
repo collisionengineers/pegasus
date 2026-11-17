@@ -788,7 +788,7 @@ Each fact is recorded in one section of the Case record
 | A Sign-off Engineer chosen for the Case | Case details |
 | The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
-| Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
+| The inspection address, a place or `Image Based Assessment` ([R1114](../rulings.md)); the Inspection date, printed as the date the damage was assessed | Inspection details |
 | At least one damage marker (R650); an impact naming a severity and a location, or Skip impacts (R647–R649); unrelated damage when its switch is on ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)) | Damage |
 | The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines, a labour rate and a repairer VAT status the report can word ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report)) | Repair Spec |

@@ -42,25 +42,34 @@ came from and can be reviewed.
 
 ### Inspection address
 
-**What the report says.** The report records one of two things: the physical
-location of the vehicle or repairer, when that location was supplied or
-confirmed by a person, or the exact value `Image Based Assessment`. Collision
-Engineers does desktop assessments only. The report never claims anyone
-attended. The address field is blank, `Image Based Assessment`, or a chosen
-physical location with its source recorded.
+**What the report says.** Every Case's inspection type is Image Based
+Assessment (operator, 16 November 2026, [R1078](../rulings.md)). Collision
+Engineers does desktop assessments only, the report never claims anyone
+attended, and every report carries the Desktop Assessment section. What
+varies is Inspect at: the physical location of the vehicle or repairer, when
+that location was supplied or confirmed by a person, or the exact value
+`Image Based Assessment`. The report prints it after "Vehicle located at:"
+(operator, 17 November 2026, [R1116](../rulings.md)). The address field is
+blank, `Image Based Assessment`, or a chosen physical location with its
+source recorded. With the address blank the report is not ready: the blocker
+reads "Inspection address — No inspection address is recorded for the report
+to print. Choose Inspect at on the Inspection details section."
+([R1114](../rulings.md), [R1115](../rulings.md)).
 
-**Which mode applies.** The Principal record carries an inspection-mode
+**What fills Inspect at.** The Principal record carries an inspection-mode
 setting ([ADR-0018](../adr/0018-provider-inspection-mode-database-setting.md)).
-Instruction documents never contain the literal value, so the mode is never
-read from text.
+Instruction documents never contain the literal value, so it is never read
+from text. With nothing below to fill it, Inspect at stays empty
+([R1113](../rulings.md)).
 
 - For an always-image-based Principal (QDOS is set up this way), Pegasus
-  fills `Image Based Assessment` at Case creation even if the instruction
-  shows a physical location. Authorised staff may override it on that Case to
-  the supplied or confirmed location, with a reason recorded against them.
+  fills `Image Based Assessment` at Inspect at and the inspection address at
+  Case creation even if the instruction shows a physical location
+  ([R1078](../rulings.md)). Staff may change Inspect at on that Case to the
+  supplied or confirmed location, as an ordinary edit.
 - For a physical-address Principal, the location is extracted from the
-  instruction and confirmed by an operator. The setting picks the default
-  mode; it never invents or picks an address. A Robert James (RJS) letter
+  instruction and confirmed by an operator. The setting never invents or
+  picks an address. A Robert James (RJS) letter
   names the address its client "is available at"; that address is the
   inspection address unless the letter names an inspection or vehicle
   location itself (operator, 5 November 2026, [R715](../rulings.md)).
@@ -82,18 +91,19 @@ read from text.
 The Principal-domain reference package holds no address and no mode default.
 No address is ever inferred from a Principal or domain match.
 
-**Reasons and history.** Choosing `Image Based Assessment` by hand, or
-overriding the filled mode, needs a staff reason in permanent Case history.
-The automatic fill records its Principal-setting source and its own permanent
-history event.
+**History.** Changing Inspect at is an ordinary edit, recorded in Case
+history like any other with who and when; no reason is asked (operator, 16
+November 2026, [R1079](../rulings.md)). The automatic fill records its
+Principal-setting source and its own permanent history event.
 
 **Inspect at.** The Case record's Inspection section offers a quick choice:
 `Image Based Assessment`, Claimant address, Repairer location, Storage
 location, the Principal's reviewed locations, the previous addresses used
 for this Principal, and Manual entry.
-An option whose value is not on the Case is disabled, never shown empty. The
+An option whose value is not on the Case is left out of the list, never
+shown empty (operator, 17 November 2026, [R1117](../rulings.md)). The
 Case stores its storage location as its own field. Choosing an option records
-that value under the source and reason rules above. The choice never invents
+that value under the source rules above. The choice never invents
 an address. Manual entry is no value of its own: choosing it records nothing
 and leaves the address as it is, selected to type over, until an address is
 typed (operator, 12 November 2026, [R1020](../rulings.md)). The Case does not
