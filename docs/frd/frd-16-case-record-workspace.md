@@ -270,7 +270,13 @@ nothing is in flight; after a save that landed it catches up once nothing
 waits on the queue either. It reads the Case again and draws afresh the
 ribbon, the notices, the aside, the dialogs (unless one is open) and each
 section that holds no value not yet sent and no open dialog, keeping the
-place, the focused control and what is typed in it. A section holding a value not yet sent stays as the
+place, the focused control and what is typed in it. A redraw the operator
+did not ask for (a save's answer or a catch up) also keeps the menus that are
+open, the scroll of the aside and of its Report not ready list, and a guide
+card's notice, its retail sentence and the calculation's failure or refusal
+until the card is acted on again or the Case supersedes it: the card is drawn
+holding other figures, or a calculation is worked out or recorded (operator,
+17 November 2026, [R1125](../rulings.md)). A section holding a value not yet sent stays as the
 operator has it. When a colleague now holds the Case, every section stays as
 it is, so what the operator typed remains to copy. The ribbon has **Done**, which ends editing and releases
 the lease; there is no Save and no Cancel, because nothing is unsaved: a
