@@ -354,7 +354,7 @@ public sealed class EfCaseWorkspaceStore(
         var evaluation = CaseCompletenessPolicy.Evaluate(
             afterCompleteness,
             configuration,
-            CaseCompletenessPolicy.MileageGateOpen(state, CaseInstructionCompleteness.Mileage(snapshot)));
+            CaseInstructionCompleteness.VehicleGate(snapshot, state));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;

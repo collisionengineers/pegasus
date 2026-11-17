@@ -28,6 +28,9 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class TriageQueuesWebTests
 {
+    /// <summary>The registration a Not ready fixture Case holds when it has one (R1081).</summary>
+    private const string FixtureRegistration = "QN21REG";
+
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.User]);
@@ -35,9 +38,10 @@ public sealed class TriageQueuesWebTests
     /// <summary>
     /// The Not ready list has no Missing filter: every Case is listed whatever
     /// it lacks, and each row's Missing column says what that is: the
-    /// requirements the configuration names, the mileage among them (R759),
-    /// or what else holds a Case that lacks none of those, a failed document
-    /// storage first (R929). "Review pending" is left for a Case nothing holds.
+    /// requirements the configuration names, the registration and the
+    /// mileage among them (R759, R1081), or what else holds a Case that lacks
+    /// none of those, a failed document storage first (R929). "Review
+    /// pending" is left for a Case nothing holds.
     /// </summary>
     [Fact]
     public async Task NotReadyListsEveryCaseAndNamesWhatEachLacks()
@@ -55,6 +59,8 @@ public sealed class TriageQueuesWebTests
         var mileageAndImages = $"QDOSE{ticks}";
         var storageFailed = $"QDOSF{ticks}";
         var nothingMissing = $"QDOSG{ticks}";
+        var registrationOnly = $"QDOSH{ticks}";
+        var registrationAndMileage = $"QDOSJ{ticks}";
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "instruction-only.pdf"),
@@ -67,7 +73,8 @@ public sealed class TriageQueuesWebTests
             imagesOnly,
             instructionComplete: true,
             imagesComplete: false,
-            mileageRecorded: true);
+            mileageRecorded: true,
+            registration: FixtureRegistration);
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "both-missing.pdf"),
@@ -77,12 +84,14 @@ public sealed class TriageQueuesWebTests
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "mileage-only.pdf"),
-            mileageOnly);
+            mileageOnly,
+            registration: FixtureRegistration);
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "mileage-and-images.pdf"),
             mileageAndImages,
-            imagesComplete: false);
+            imagesComplete: false,
+            registration: FixtureRegistration);
         await SeedNotReadyCaseAsync(
             services,
             await StoreMinimalReceiptAsync(services, "storage-failed.pdf"),
@@ -92,7 +101,19 @@ public sealed class TriageQueuesWebTests
             services,
             await StoreMinimalReceiptAsync(services, "nothing-missing.pdf"),
             nothingMissing,
+            mileageRecorded: true,
+            registration: FixtureRegistration);
+        // R1081: a Case with no registration names it, and its recorded
+        // mileage does not leave it reading "Review pending".
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "registration-only.pdf"),
+            registrationOnly,
             mileageRecorded: true);
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "registration-and-mileage.pdf"),
+            registrationAndMileage);
 
         using var response = await client.GetAsync("/Cases?tab=not_ready");
         var html = await response.Content.ReadAsStringAsync();
@@ -116,7 +137,14 @@ public sealed class TriageQueuesWebTests
             CaseWorkflowConfiguration.VehicleMileageRequirement, storageFailedRow, StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Pages.Cases.IndexModel.ReviewPending, RowOf(html, nothingMissing), StringComparison.Ordinal);
-        foreach (var named in new[] { instructionOnly, imagesOnly, bothMissing, mileageOnly, mileageAndImages, storageFailed })
+        var registrationOnlyRow = RowOf(html, registrationOnly);
+        Assert.Contains(CaseWorkflowConfiguration.VehicleRegistrationRequirement, registrationOnlyRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(" and vehicle mileage", registrationOnlyRow, StringComparison.Ordinal);
+        Assert.Contains(
+            "Vehicle registration and vehicle mileage", RowOf(html, registrationAndMileage), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            CaseWorkflowConfiguration.VehicleRegistrationRequirement, RowOf(html, mileageOnly), StringComparison.Ordinal);
+        foreach (var named in new[] { instructionOnly, imagesOnly, bothMissing, mileageOnly, mileageAndImages, storageFailed, registrationOnly, registrationAndMileage })
         {
             Assert.DoesNotContain(
                 Pegasus.Web.Pages.Cases.IndexModel.ReviewPending, RowOf(html, named), StringComparison.Ordinal);
@@ -1552,7 +1580,8 @@ public sealed class TriageQueuesWebTests
         bool instructionComplete = true,
         bool imagesComplete = true,
         bool mileageRecorded = false,
-        string custodyState = "pending")
+        string custodyState = "pending",
+        string? registration = null)
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -1590,6 +1619,18 @@ public sealed class TriageQueuesWebTests
                 WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileageUnit, ValueKind = CaseDataCodes.Confirmed,
                 ValueType = CaseDataCodes.Text, Value = "miles", SourceKind = "intake_evidence",
                 SourceIdentity = "mileage-unit", SourceLabel = "not ready fixture",
+                PolicyKey = "not-ready-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+            await context.SaveChangesAsync();
+        }
+        if (registration is not null)
+        {
+            context.CaseDataFields.Add(new()
+            {
+                WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleRegistration, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = registration, SourceKind = "intake_evidence",
+                SourceIdentity = "registration", SourceLabel = "not ready fixture",
                 PolicyKey = "not-ready-fixture", PolicyVersion = 1,
                 ConfirmedByActor = "staff", ConfirmedAtUtc = now
             });

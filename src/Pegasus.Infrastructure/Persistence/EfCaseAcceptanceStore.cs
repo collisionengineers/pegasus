@@ -293,13 +293,15 @@ public sealed class EfCaseAcceptanceStore(
                 standaloneAuditEvidence.OriginalReportAsset.FileName);
         }
         // A new Case with no mileage is created Not ready on every route, the
-        // automatic one included (R759): the accepted data answers it, not
-        // the command. A lookup, a staff edit or the original report's stated
-        // mileage (R930) that fills it moves the Case on.
+        // automatic one included (R759), and so is one with no registration,
+        // which the automatic route's waiver does not cover (R1081): the
+        // accepted data answers it, not the command. A lookup, a staff edit
+        // or the original report's stated mileage (R930) that fills the
+        // mileage moves the Case on once it has its registration.
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(
             request.Completeness,
             workflowConfiguration,
-            CaseCompletenessPolicy.MileageGateOpen(null, CaseInstructionCompleteness.Mileage(dataSnapshot)));
+            CaseInstructionCompleteness.VehicleGate(dataSnapshot, null));
         var initialState = completenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;

@@ -191,7 +191,7 @@ public sealed class PrincipalInspectionModeAcceptanceTests
             CaseType.Inspection,
             "QDOS",
             new(true, true),
-            CaseCompletenessPolicy.Evaluate(new(true, true), configuration, mileageRecorded: true),
+            CaseCompletenessPolicy.Evaluate(new(true, true), configuration, CaseVehicleGate.Open),
             configuration,
             CaseInspectionMode.PhysicalAddress,
             AcceptedInspectionDeadline: FixtureInspectionDate);

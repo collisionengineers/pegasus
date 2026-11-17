@@ -5,33 +5,40 @@ namespace Pegasus.Core.Cases;
 
 public static class CaseCompletenessPolicy
 {
-    /// <param name="mileageRecorded">Whether the mileage gate is open (<see cref="MileageGateOpen"/>).</param>
+    /// <param name="vehicleGate">The Case's vehicle gate (<see cref="VehicleGate"/>).</param>
     public static CaseCompletenessEvaluation Evaluate(
         CaseCompleteness completeness,
         CaseWorkflowConfiguration configuration,
-        bool mileageRecorded)
+        CaseVehicleGate vehicleGate)
     {
         CaseDataPolicy.ValidateCompleteness(completeness);
-        return EvaluateAcceptanceCommand(completeness, configuration, mileageRecorded);
+        return EvaluateAcceptanceCommand(completeness, configuration, vehicleGate);
     }
 
     /// <summary>
-    /// Whether the mileage gate lets a Case into Review: a Case with no
-    /// mileage stays Not ready, and a new Case with none is created Not
-    /// ready, on every route (operator, 8 November 2026; R759). The gate
-    /// stands only on the way in: a Case already past Not ready has passed
-    /// it, so clearing its mileage, or reading a Case that reached Review
-    /// before the gate, never sends it back (as R631 has it for the
+    /// What the vehicle gate lets into Review: a Case with no mileage stays
+    /// Not ready, and a new Case with none is created Not ready, on every
+    /// route (operator, 8 November 2026; R759); so does a Case with no
+    /// registration, even when its mileage is recorded, the one exception to
+    /// the automatic route's waiver (operator, 16 November 2026; R1081). The
+    /// gate stands only on the way in: a Case already past Not ready has
+    /// passed it, so clearing either fact, or reading a Case that reached
+    /// Review before the gate, never sends it back (as R631 has it for the
     /// instruction).
     /// </summary>
     /// <param name="state">The Case's state, or null for a Case being created.</param>
-    public static bool MileageGateOpen(CaseLifecycleState? state, long? mileage) =>
-        mileage is not null || state is not (null or CaseLifecycleState.NotReady);
+    public static CaseVehicleGate VehicleGate(CaseLifecycleState? state, string? registration, long? mileage)
+    {
+        var passed = state is not (null or CaseLifecycleState.NotReady);
+        return new(
+            passed || !string.IsNullOrWhiteSpace(registration),
+            passed || mileage is not null);
+    }
 
     internal static CaseCompletenessEvaluation EvaluateAcceptanceCommand(
         CaseCompleteness completeness,
         CaseWorkflowConfiguration configuration,
-        bool mileageRecorded)
+        CaseVehicleGate vehicleGate)
     {
         ArgumentNullException.ThrowIfNull(completeness);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -42,7 +49,7 @@ public static class CaseCompletenessPolicy
                 "The current case-workflow policy identity is invalid.");
         }
 
-        var missingRequirements = configuration.MissingRequirements(completeness, mileageRecorded);
+        var missingRequirements = configuration.MissingRequirements(completeness, vehicleGate);
 
         return new(
             missingRequirements.Count == 0,

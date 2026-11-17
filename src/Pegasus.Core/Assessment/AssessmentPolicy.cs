@@ -442,7 +442,7 @@ public static class AssessmentPolicy
         // confirmed. The former item could only fire when staff recorded a
         // source for a mileage they had not entered, which is no longer
         // possible. A Case with no mileage is held before Review instead
-        // (R759, CaseCompletenessPolicy.MileageGateOpen).
+        // (R759, CaseCompletenessPolicy.VehicleGate).
 
         if (fields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
             && string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal)

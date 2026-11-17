@@ -2224,8 +2224,10 @@ public sealed class CustodyOutboxIntegrationTests
         var fixtureId = Guid.NewGuid().ToString("N");
         var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
             claimantName: $"End To End {fixtureId}", claimNumber: $"E2E-{fixtureId}",
+            // With its registration and its mileage: without either the Case
+            // would stay Not ready (R759, R1081).
+            registration: "AB12CDE",
             notificationTitle: "AUDIT REPORT NOTIFICATION",
-            // With its mileage: no mileage would keep the Case Not ready (R759).
             additionalLines: ["Vehicle Mileage: 41200"]);
         var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
             notificationTitle: "ORIGINAL BODYSHOP REPORT",

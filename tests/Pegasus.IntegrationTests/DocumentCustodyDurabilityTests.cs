@@ -608,8 +608,8 @@ public sealed class DocumentCustodyDurabilityTests
 
     /// <summary>
     /// The Case's instruction and images complete and its data snapshot
-    /// recorded, with the instruction's mileage or none, so only the mileage
-    /// gate keeps it Not ready (R759).
+    /// recorded with the instruction's registration, and its mileage or none,
+    /// so only the mileage gate keeps it Not ready (R759, R1081).
     /// </summary>
     private static async Task SeedCompleteButForMileageAsync(
         LocalDbTestDatabase database,
@@ -628,6 +628,7 @@ public sealed class DocumentCustodyDurabilityTests
             CompletenessPolicySatisfied = false,
             AcceptedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
         };
+        AddInstructionFact(CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, "AB12CDE");
         if (instructionMileage is { } miles)
         {
             AddInstructionFact(CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, miles.ToString(CultureInfo.InvariantCulture));

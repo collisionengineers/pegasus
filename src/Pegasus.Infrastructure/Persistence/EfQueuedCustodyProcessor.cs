@@ -848,14 +848,14 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
         // Use the same factual completeness rule as intake acceptance, the
-        // mileage gate included (R759).
+        // vehicle gate included (R759, R1081).
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
             caseEntity.ImagesComplete);
         if (authority.Workflow is { } workflow
             && workflow.State == CaseLifecycleState.NotReady.ToString()
             && completeness.IsReadyForReview(
-                await CaseInstructionCompleteness.MileageGateOpenAsync(
+                await CaseInstructionCompleteness.StoredVehicleGateAsync(
                     context, caseEntity.Id, workflow.State, cancellationToken)))
         {
             workflow.State = CaseLifecycleState.Review.ToString();
