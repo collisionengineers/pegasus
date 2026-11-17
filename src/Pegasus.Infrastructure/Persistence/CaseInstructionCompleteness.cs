@@ -31,15 +31,18 @@ internal static class CaseInstructionCompleteness
     /// Case with no registration or no mileage stays Not ready; one past Not
     /// ready has passed the gate.
     /// </summary>
-    internal static CaseVehicleGate VehicleGate(CaseDataSnapshotEntity snapshot, CaseLifecycleState? state)
+    /// <param name="garage">The Case's garage facts (<see cref="CaseGarage"/>; R1141, R1144).</param>
+    internal static CaseVehicleGate VehicleGate(
+        CaseDataSnapshotEntity snapshot, CaseLifecycleState? state, CaseGarageFacts garage)
     {
         var data = CaseDataFieldWriter.ReadEditable(snapshot);
-        return CaseCompletenessPolicy.VehicleGate(state, data.VehicleRegistration, data.VehicleMileage);
+        return CaseCompletenessPolicy.VehicleGate(state, data.VehicleRegistration, data.VehicleMileage, garage);
     }
 
     /// <summary>The vehicle gate of a Case from its stored workflow state.</summary>
-    internal static CaseVehicleGate StoredVehicleGate(CaseDataSnapshotEntity snapshot, string workflowState) =>
-        VehicleGate(snapshot, Enum.Parse<CaseLifecycleState>(workflowState));
+    internal static CaseVehicleGate StoredVehicleGate(
+        CaseDataSnapshotEntity snapshot, string workflowState, CaseGarageFacts garage) =>
+        VehicleGate(snapshot, Enum.Parse<CaseLifecycleState>(workflowState), garage);
 
     /// <summary>The vehicle gate (<see cref="StoredVehicleGate"/>) read from the Case's stored data.</summary>
     internal static async Task<CaseVehicleGate> StoredVehicleGateAsync(
@@ -48,7 +51,8 @@ internal static class CaseInstructionCompleteness
         var snapshot = await EfCaseDataStore.SnapshotQuery(db, tracking: false)
             .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new InvalidDataException("The Case has no data snapshot.");
-        return StoredVehicleGate(snapshot, workflowState);
+        return StoredVehicleGate(
+            snapshot, workflowState, await CaseGarage.ReadAsync(db, caseId, cancellationToken));
     }
 
     /// <summary>
@@ -84,12 +88,14 @@ internal static class CaseInstructionCompleteness
         // The chase to stop or reschedule is the Case's stored one.
         await db.Entry(workflow).Reference(item => item.DueWork).LoadAsync(cancellationToken);
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
+        var garage = await CaseGarage.ReadAsync(
+            db, snapshot.Work.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
         var evaluation = CaseCompletenessPolicy.Evaluate(
             new CaseCompleteness(
                 snapshot.Work.Case.InstructionComplete,
                 snapshot.Work.Case.ImagesComplete),
             configuration,
-            StoredVehicleGate(snapshot, workflow.State));
+            StoredVehicleGate(snapshot, workflow.State, garage));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;

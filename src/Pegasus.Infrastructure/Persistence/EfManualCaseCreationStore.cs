@@ -122,7 +122,12 @@ public sealed class EfManualCaseCreationStore(
         var evaluation = CaseCompletenessPolicy.Evaluate(
             completeness,
             configuration,
-            CaseCompletenessPolicy.VehicleGate(null, request.Data.VehicleRegistration, request.Data.VehicleMileage));
+            CaseCompletenessPolicy.VehicleGate(
+                null,
+                request.Data.VehicleRegistration,
+                request.Data.VehicleMileage,
+                // A new Garage authorisation and invoice Audit has no External estimate yet (R1141).
+                CaseGarage.ForNewCase(request.CaseType, principal.AuditWorkflow)));
         var initialState = evaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;

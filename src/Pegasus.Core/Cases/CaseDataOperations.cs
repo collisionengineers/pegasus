@@ -26,13 +26,38 @@ public static class CaseCompletenessPolicy
     /// Review before the gate, never sends it back (as R631 has it for the
     /// instruction).
     /// </summary>
+    /// <remarks>
+    /// A Garage authorisation and invoice Audit has two more waits (operator,
+    /// 17 November 2026). On its way into Review it also needs a confirmed
+    /// External estimate (R1141), a gate that likewise stands only on the way
+    /// in. Once its garage is authorised it is Not ready again until a
+    /// confirmed Repair invoice is filed (R1144): that Case passed the other
+    /// gates when it reached Review, so only the invoice is asked of it, and
+    /// not even that when its Outcome is total loss or cash in lieu (R1143).
+    /// </remarks>
     /// <param name="state">The Case's state, or null for a Case being created.</param>
-    public static CaseVehicleGate VehicleGate(CaseLifecycleState? state, string? registration, long? mileage)
+    /// <param name="garage">The Case's garage facts; <see cref="CaseGarageFacts.None"/> for any other Case.</param>
+    public static CaseVehicleGate VehicleGate(
+        CaseLifecycleState? state,
+        string? registration,
+        long? mileage,
+        CaseGarageFacts garage) =>
+        VehicleGate(state, !string.IsNullOrWhiteSpace(registration), mileage is not null, garage);
+
+    /// <summary>The same gate, for a reader that holds whether each vehicle fact is recorded.</summary>
+    public static CaseVehicleGate VehicleGate(
+        CaseLifecycleState? state,
+        bool registrationRecorded,
+        bool mileageRecorded,
+        CaseGarageFacts garage)
     {
-        var passed = state is not (null or CaseLifecycleState.NotReady);
-        return new(
-            passed || !string.IsNullOrWhiteSpace(registration),
-            passed || mileage is not null);
+        var awaitsRepairInvoice = garage.AwaitsRepairInvoice(state);
+        var passed = awaitsRepairInvoice || state is not (null or CaseLifecycleState.NotReady);
+        return new(passed || registrationRecorded, passed || mileageRecorded)
+        {
+            ExternalEstimateFiled = passed || !garage.Applies || garage.ExternalEstimateFiled,
+            RepairInvoiceFiled = !awaitsRepairInvoice || garage.Waived || garage.RepairInvoiceFiled
+        };
     }
 
     internal static CaseCompletenessEvaluation EvaluateAcceptanceCommand(

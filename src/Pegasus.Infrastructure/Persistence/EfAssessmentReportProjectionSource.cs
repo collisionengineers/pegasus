@@ -83,6 +83,10 @@ internal sealed class EfAssessmentReportProjectionSource(
                 item.Case.AuditReference,
                 item.Case.CustodyRootRemoteId,
                 item.Case.AuditCustodyRemoteId,
+                // What a Garage authorisation and invoice Audit's report waits for (R1151).
+                CaseTypeCode = item.Case.Type,
+                AuditWorkflowCode = item.Case.AuditWorkflow,
+                item.GarageAuthorisedAtUtc,
             })
             .SingleOrDefaultAsync(cancellationToken);
         if (workflow is null)
@@ -232,7 +236,14 @@ internal sealed class EfAssessmentReportProjectionSource(
             workspace.CurrentSpecification,
             latestApplied,
             preparations,
-            ConfirmedImageSources(confirmed));
+            ConfirmedImageSources(confirmed),
+            await CaseGarage.ReadAsync(
+                context,
+                caseId,
+                workflow.CaseTypeCode,
+                workflow.AuditWorkflowCode,
+                workflow.GarageAuthorisedAtUtc,
+                cancellationToken));
 
         if (reuse is not { CallerRechecksVersion: true })
         {

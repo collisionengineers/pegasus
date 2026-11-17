@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
@@ -676,6 +677,420 @@ public sealed class AutomationCaseLifecycleIngressTests
         Assert.Equal(nameof(ActorKind.Automation), change.ActorKind);
         Assert.Equal(ClientId, change.ActorSubjectId);
         Assert.Null((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).EditLeaseHolder);
+    }
+
+    /// <summary>
+    /// The garage authorisation milestone of a Garage authorisation and
+    /// invoice Audit, end to end (operator, 17 November 2026; R1141 to R1144,
+    /// R1159, R1161): the Case is Not ready until a confirmed External
+    /// estimate is filed, the Engineer marks the garage authorised with no
+    /// reason, the Case then waits Not ready with its Engineer for the repair
+    /// invoice, and a confirmed Repair invoice returns it to With Engineer.
+    /// Undo takes a reason and returns a waiting Case to With Engineer.
+    /// </summary>
+    [Fact]
+    public async Task AGarageAuditWaitsForItsEstimateItsAuthorisationAndItsRepairInvoice()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(
+            mcpFactory,
+            caseType: CaseType.Audit,
+            principalAuditWorkflowCode: PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var engineerId = await SeedEngineerAsync(mcpFactory, "garage-engineer");
+
+        // With its registration and mileage recorded, only the garage's
+        // estimate keeps the Case Not ready (R1141).
+        using (var details = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_update_details", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:garage-mileage",
+            reason = "Recorded the vehicle mileage.",
+            vehicleRegistration = "AB12CDE",
+            vehicleMileage = 44_200,
+            vehicleMileageUnit = "miles",
+        })))
+        {
+            _ = await ReadStructuredContentAsync(details);
+        }
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Equal(CaseLifecycleState.NotReady, await StateAsync(mcpFactory, caseId));
+        var created = await GetCaseAsync(client, token, caseId, 2);
+        Assert.Equal(
+            nameof(AuditWorkflowKind.GarageAuthorisationAndInvoice),
+            created.GetProperty("auditWorkflow").GetString());
+        Assert.Equal([CaseWorkflowConfiguration.ExternalEstimateRequirement], MissingRequirements(created));
+        Assert.False(created.GetProperty("holds").GetProperty("originalReportMissing").GetBoolean());
+
+        // Authorise garage is the Engineer's act once the Case is With Engineer.
+        using (var early = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:garage-authorise-early",
+            action = "authorise_garage",
+        })))
+        {
+            Assert.Contains(
+                GarageAuthorisationPolicy.AuthoriseNotOffered,
+                await ReadErrorTextAsync(early),
+                StringComparison.Ordinal);
+        }
+
+        await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 4, "ExternalEstimate", "garage-estimate.pdf");
+        Assert.Equal(1, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Equal(CaseLifecycleState.Review, await StateAsync(mcpFactory, caseId));
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+
+        using (var assigned = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:garage-assign",
+            action = "assign_engineer",
+            engineerId,
+        })))
+        {
+            Assert.Equal(
+                nameof(CaseLifecycleState.ReportPreparation),
+                (await ReadStructuredContentAsync(assigned)).GetProperty("state").GetString());
+        }
+
+        // Mark done: no reason from the caller, and the Case waits Not ready,
+        // keeping its Engineer, chased for the repair invoice (R1142, R1144).
+        Assert.Equal(
+            nameof(CaseLifecycleState.NotReady),
+            await GarageActionAsync(mcpFactory, client, token, caseId, 6, "authorise_garage", "mcp:garage-authorise"));
+        var waiting = await GetCaseAsync(client, token, caseId, 7);
+        Assert.Equal([CaseWorkflowConfiguration.RepairInvoiceRequirement], MissingRequirements(waiting));
+        Assert.Equal(JsonValueKind.String, waiting.GetProperty("garageAuthorisedAtUtc").ValueKind);
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(engineerId, workflow.AssignedEngineerId);
+            Assert.NotNull(workflow.GarageAuthorisedAtUtc);
+            Assert.Null(workflow.EditLeaseHolder);
+            var due = await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(GarageAuthorisationPolicy.AwaitingRepairInvoice, due.MissingMaterialReason);
+            Assert.Equal(nameof(Pegasus.Core.Tasks.CaseDueWorkState.Scheduled), due.State);
+            Assert.NotNull(due.NextChaseAtUtc);
+            var authorised = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == caseId
+                    && row.EventType == GarageAuthorisationPolicy.AuthorisedEventType);
+            Assert.Equal("Garage authorised.", authorised.Reason);
+            Assert.Equal(nameof(ActorKind.Automation), authorised.ActorKind);
+        }
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+
+        // Undo takes a reason and returns the waiting Case to With Engineer,
+        // keeping an Engineer whose account is enabled (R1142, R1159).
+        using (var noReason = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:garage-undo-no-reason",
+            action = "undo_garage_authorisation",
+        })))
+        {
+            Assert.Contains("needs a reason", await ReadErrorTextAsync(noReason), StringComparison.Ordinal);
+        }
+        Assert.Equal(
+            nameof(CaseLifecycleState.ReportPreparation),
+            await GarageActionAsync(
+                mcpFactory, client, token, caseId, 9, "undo_garage_authorisation", "mcp:garage-undo",
+                "Marked before the garage answered."));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(engineerId, workflow.AssignedEngineerId);
+            Assert.Null(workflow.GarageAuthorisedAtUtc);
+        }
+
+        // Authorised again, the Case waits until a confirmed Repair invoice
+        // is filed, then returns to With Engineer with its Engineer (R1144).
+        Assert.Equal(
+            nameof(CaseLifecycleState.NotReady),
+            await GarageActionAsync(
+                mcpFactory, client, token, caseId, 10, "authorise_garage", "mcp:garage-authorise-again"));
+        await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 11, "RepairInvoice", "repair-invoice.pdf");
+        Assert.Equal(1, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(mcpFactory, caseId));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(engineerId, workflow.AssignedEngineerId);
+            Assert.NotNull(workflow.GarageAuthorisedAtUtc);
+            var returned = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == caseId
+                    && row.EventType == GarageAuthorisationPolicy.ReturnedEventType);
+            Assert.Equal(GarageAuthorisationPolicy.RepairInvoiceFiledReason, returned.Reason);
+            Assert.Equal(workflow.Version, returned.AfterVersion);
+            var due = await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Equal(nameof(Pegasus.Core.Tasks.CaseDueWorkState.Stopped), due.State);
+        }
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Empty(MissingRequirements(await GetCaseAsync(client, token, caseId, 12)));
+
+        // The garage is authorised once.
+        using var twice = await PostMcpAsync(client, token, ToolCallPayload(13, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:garage-authorise-twice",
+            action = "authorise_garage",
+        }));
+        Assert.Contains(
+            GarageAuthorisationPolicy.AuthoriseNotOffered,
+            await ReadErrorTextAsync(twice),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A Case that is not a Garage authorisation and invoice Audit has no
+    /// garage to authorise, and files of those types do not move it.
+    /// </summary>
+    [Fact]
+    public async Task AuthoriseGarageIsRefusedOnACaseWithoutTheMilestone()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var engineerId = await SeedEngineerAsync(mcpFactory, "inspection-engineer");
+        using (var assigned = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:no-garage-assign",
+            action = "assign_engineer",
+            engineerId,
+        })))
+        {
+            _ = await ReadStructuredContentAsync(assigned);
+        }
+
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:no-garage-authorise",
+            action = "authorise_garage",
+        })))
+        {
+            Assert.Contains(
+                GarageAuthorisationPolicy.AuthoriseNotOffered,
+                await ReadErrorTextAsync(refused),
+                StringComparison.Ordinal);
+        }
+        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(mcpFactory, caseId),
+            operationKey = "mcp:no-garage-undo",
+            action = "undo_garage_authorisation",
+            reason = "There is nothing to undo.",
+        })))
+        {
+            Assert.Contains(
+                GarageAuthorisationPolicy.UndoNotOffered,
+                await ReadErrorTextAsync(refused),
+                StringComparison.Ordinal);
+        }
+
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(mcpFactory, caseId));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            Assert.Null((await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId))
+                .GarageAuthorisedAtUtc);
+            Assert.False(await db.CaseWorkflowEvents.AsNoTracking().AnyAsync(row =>
+                row.CaseId == caseId
+                && (row.EventType == GarageAuthorisationPolicy.AuthorisedEventType
+                    || row.EventType == GarageAuthorisationPolicy.UndoneEventType)));
+        }
+        var read = await GetCaseAsync(client, token, caseId, 4);
+        Assert.Equal(
+            nameof(AuditWorkflowKind.OriginalEngineerReport),
+            read.GetProperty("auditWorkflow").GetString());
+    }
+
+    /// <summary>
+    /// The Case page's half of the milestone (R1142): the Next action is
+    /// Authorise garage with one Mark done button that posts with no reason,
+    /// the waiting Case names its Repair invoice, and the Actions menu's Undo
+    /// garage authorisation posts its reason.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageMarksTheGarageAuthorisedInOnePostAndUndoesItWithAReason()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var caseId = await SeedAcceptedCaseAsync(
+            factory,
+            caseType: CaseType.Audit,
+            principalAuditWorkflowCode: PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode);
+        var engineerId = await SeedEngineerAsync(factory, "garage-page-engineer");
+        // The fixture puts the Case With Engineer with its Engineer; the way
+        // there is the test above's.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)}, AssignedEngineerId = {engineerId} WHERE CaseId = {caseId}");
+        }
+        using var staff = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var withEngineer = await CaseWebTestSupport.GetHtmlAsync(staff, $"/Cases/{caseId:D}");
+        var markDone = System.Text.RegularExpressions.Regex.Match(
+            withEngineer,
+            "<form[^>]*data-authorise-garage[^>]*>.*?</form>",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        Assert.True(markDone.Success, "The Next action must draw Authorise garage's Mark done form.");
+        Assert.Contains(
+            $"/Cases/{caseId:D}/Workflow?handler=AuthoriseGarage",
+            System.Net.WebUtility.HtmlDecode(markDone.Value),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">Mark done</button>", markDone.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", markDone.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<strong data-next-label>Authorise garage</strong>", withEngineer, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-undo-garage-authorisation-dialog", withEngineer, StringComparison.Ordinal);
+
+        using (var posted = await staff.PostAsync(
+            $"/Cases/{caseId:D}/Workflow?handler=AuthoriseGarage",
+            CaseWebTestSupport.Form(
+                CaseWebTestSupport.AntiforgeryValue(withEngineer),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", CaseWebTestSupport.InputValue(markDone.Value, "expectedVersion")),
+                ("operationKey", CaseWebTestSupport.InputValue(markDone.Value, "operationKey")))))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.Redirect, posted.StatusCode);
+        }
+        Assert.Equal(CaseLifecycleState.NotReady, await StateAsync(factory, caseId));
+
+        var waiting = await CaseWebTestSupport.GetHtmlAsync(staff, $"/Cases/{caseId:D}");
+        Assert.DoesNotContain("data-authorise-garage", waiting, StringComparison.Ordinal);
+        Assert.Contains("Repair invoice incomplete", waiting, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-dialog-open=\"case-undo-garage-authorisation-dialog\"", waiting, StringComparison.Ordinal);
+        var undo = System.Text.RegularExpressions.Regex.Match(
+            waiting,
+            "<div id=\"case-undo-garage-authorisation-dialog\".*?</form>",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        Assert.True(undo.Success, "The Case page must draw the Undo garage authorisation dialog.");
+        Assert.Contains(
+            $"/Cases/{caseId:D}/Workflow?handler=UndoGarageAuthorisation",
+            System.Net.WebUtility.HtmlDecode(undo.Value),
+            StringComparison.OrdinalIgnoreCase);
+
+        using (var posted = await staff.PostAsync(
+            $"/Cases/{caseId:D}/Workflow?handler=UndoGarageAuthorisation",
+            CaseWebTestSupport.Form(
+                CaseWebTestSupport.AntiforgeryValue(waiting),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", CaseWebTestSupport.InputValue(undo.Value, "expectedVersion")),
+                ("operationKey", CaseWebTestSupport.InputValue(undo.Value, "operationKey")),
+                ("Reason", "Marked on the wrong Case."))))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.Redirect, posted.StatusCode);
+        }
+        Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(factory, caseId));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var workflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
+            Assert.Null(workflow.GarageAuthorisedAtUtc);
+            Assert.Equal(engineerId, workflow.AssignedEngineerId);
+            var undone = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == caseId
+                    && row.EventType == GarageAuthorisationPolicy.UndoneEventType);
+            Assert.Equal("Marked on the wrong Case.", undone.Reason);
+            Assert.Equal(nameof(ActorKind.Staff), undone.ActorKind);
+        }
+    }
+
+    private static async Task<int> ReconcileGarageWaitsAsync(WebApplicationFactory<Program> factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<ReconcileGarageWaits>()
+            .ExecuteAsync(25, CancellationToken.None);
+    }
+
+    private static async Task<JsonElement> GetCaseAsync(HttpClient client, string token, Guid caseId, int rpcId)
+    {
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId,
+            "pegasus_case_get", new { caseId, limit = 1 }));
+        return await ReadStructuredContentAsync(response);
+    }
+
+    private static string?[] MissingRequirements(JsonElement read) =>
+        read.GetProperty("holds").GetProperty("missingRequirements")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .ToArray();
+
+    /// <summary>One garage act under its own one-command lease; returns the Case's state after it.</summary>
+    private static async Task<string?> GarageActionAsync(
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        string token,
+        Guid caseId,
+        int rpcId,
+        string action,
+        string operationKey,
+        string? reason = null)
+    {
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_case_action", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(factory, caseId),
+            operationKey,
+            action,
+            reason,
+        }));
+        var result = await ReadStructuredContentAsync(response);
+        Assert.Equal(action, result.GetProperty("action").GetString());
+        return result.GetProperty("state").GetString();
+    }
+
+    /// <summary>Files one document of <paramref name="semanticRole"/> under a one-command lease.</summary>
+    private static async Task AddGarageDocumentAsync(
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        string token,
+        Guid caseId,
+        int rpcId,
+        string semanticRole,
+        string fileName)
+    {
+        using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_document_add", new
+        {
+            caseId,
+            fileName,
+            mediaType = "application/pdf",
+            contentBase64 = Convert.ToBase64String(Encoding.ASCII.GetBytes($"%PDF-1.4 {fileName}")),
+            semanticRole,
+            expectedCaseVersion = await GetWorkflowVersionAsync(factory, caseId),
+            operationKey = $"mcp:garage-file-{rpcId}",
+        }));
+        _ = await ReadStructuredContentAsync(response);
     }
 
     private static async Task<CaseLifecycleState> StateAsync(WebApplicationFactory<Program> factory, Guid caseId)

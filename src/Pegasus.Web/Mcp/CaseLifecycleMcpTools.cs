@@ -38,6 +38,8 @@ internal sealed class CaseLifecycleMcpTools(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
+    AuthoriseGarage authoriseGarage,
+    UndoGarageAuthorisation undoGarageAuthorisation,
     ICreateLinkedReplacement createLinkedReplacement,
     ICloseCase closeCase,
     IReopenCase reopenCase,
@@ -57,6 +59,7 @@ internal sealed class CaseLifecycleMcpTools(
         "hold", "release_hold", "return_to_review", "assign_engineer", "return_to_engineer",
         "close", "reopen", "archive", "create_linked_replacement", "create_audit",
         "vehicle_lookup", "vehicle_history_check", "manual_chase",
+        "authorise_garage", "undo_garage_authorisation",
     ];
 
     [McpServerTool(
@@ -67,13 +70,13 @@ internal sealed class CaseLifecycleMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup), vehicle_history_check (registration; runs one Experian check of the current work's accepted registration for write-off records and replaces its Vehicle history text with the result, as the Case page's Run Experian check does; fails when Experian is not connected or cannot answer) or manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work). Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version; each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
+    [Description("Takes one Case lifecycle act a member of staff takes from the Case's Actions menu: hold (reason, optional reviewOn), release_hold (reason), return_to_review (reason; from With Engineer or Report sent, when the Case's own completeness facts allow), assign_engineer (optional engineerId, omitted for Unassigned; from Review, moving the Case to With Engineer, or within With Engineer; no reason, Core records who it went to), return_to_engineer (reason; from Report sent), close (reason, outcome), reopen (reason, destination), archive (reason; a closed Case whose custody is confirmed), create_linked_replacement (reason, replacementPrincipalCode; for a Case created in error), create_audit (an Inspection + Audit Case gains its Audit work), vehicle_lookup (registration; queues one DVLA/DVSA lookup), vehicle_history_check (registration; runs one Experian check of the current work's accepted registration for write-off records and replaces its Vehicle history text with the result, as the Case page's Run Experian check does; fails when Experian is not connected or cannot answer), manual_chase (chaseChannel, chaseRecipient, chaseOutcome, optional chaseNote; a Not ready Case's due work), authorise_garage (no reason; on a Garage authorisation and invoice Audit that is With Engineer with an Engineer, not yet authorised and without a total loss or cash in lieu outcome; the Case then waits Not ready for its repair invoice, or stays With Engineer when a confirmed Repair invoice is already filed) or undo_garage_authorisation (reason; once the garage is authorised; a Case waiting for its repair invoice returns to With Engineer). pegasus_case_get shows auditWorkflow and garageAuthorisedAtUtc. Queries are pegasus_case_query. A Case is never deleted. Needs the expected case version; each act ends the lease it ran under. Returns the Case's new version and state and any identifier the act created.")]
     public async Task<CaseActionToolResult> ActAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key with the same inputs returns the same outcome.")] string operationKey,
-        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check or manual_chase.")] string action,
-        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup, vehicle_history_check and manual_chase, which take none.")] string? reason = null,
+        [Description("The act: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase, authorise_garage or undo_garage_authorisation.")] string action,
+        [Description("Why (case history reason, at most 500 characters). Required for every act except assign_engineer, create_audit, vehicle_lookup, vehicle_history_check, manual_chase and authorise_garage, which take none.")] string? reason = null,
         [Description("assign_engineer: the staff identifier of the Engineer to assign, from pegasus_vocabulary_get staff; the account must exist and be enabled. Omitted, the Case is Unassigned.")] Guid? engineerId = null,
         [Description("hold: the optional date, yyyy-MM-dd (Europe/London, today or later), to look at the Case again; it is the held Case's due date in the Work Centre. Nothing is sent on it.")] string? reviewOn = null,
         [Description("close: the terminal outcome, one of PrincipalCancelled, CollisionEngineersRejected, CreatedInError or SourceEmailUnlinked. Which outcomes the Case's state allows is Core's decision.")] string? outcome = null,
@@ -105,7 +108,9 @@ internal sealed class CaseLifecycleMcpTools(
                 var reasonText = verb switch
                 {
                     // Core composes Assign Engineer's history reason.
-                    "create_audit" or "vehicle_lookup" or "vehicle_history_check" or "manual_chase" or "assign_engineer" => string.Empty,
+                    // And Authorise garage's (R1161).
+                    "create_audit" or "vehicle_lookup" or "vehicle_history_check" or "manual_chase" or "assign_engineer"
+                        or "authorise_garage" => string.Empty,
                     _ => string.IsNullOrWhiteSpace(reason)
                         ? throw new McpException($"The {verb} action needs a reason.")
                         : reason,
@@ -169,6 +174,16 @@ internal sealed class CaseLifecycleMcpTools(
                                 return Created.None;
                             case "return_to_engineer":
                                 await returnToEngineer.ExecuteAsync(
+                                    new(caseId, expectedVersion, actor, key, reasonText, token),
+                                    cancellationToken);
+                                return Created.None;
+                            case "authorise_garage":
+                                await authoriseGarage.ExecuteAsync(
+                                    new(caseId, expectedVersion, actor, key, reasonText, token),
+                                    cancellationToken);
+                                return Created.None;
+                            case "undo_garage_authorisation":
+                                await undoGarageAuthorisation.ExecuteAsync(
                                     new(caseId, expectedVersion, actor, key, reasonText, token),
                                     cancellationToken);
                                 return Created.None;

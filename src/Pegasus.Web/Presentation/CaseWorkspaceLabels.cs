@@ -94,6 +94,11 @@ public static class CaseWorkspaceLabels
         public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
+        // The garage authorisation milestone of a Garage authorisation and
+        // invoice Audit (operator, 17 November 2026; R1142): the Next action's
+        // one-click button and the Actions menu's item with its reason dialog.
+        public const string MarkGarageAuthorised = "Mark done";
+        public const string UndoGarageAuthorisation = "Undo garage authorisation";
 
         /// <summary>
         /// Return to work on a closed Case (R157, FRD-13; v41 K10, signed off
@@ -440,6 +445,8 @@ public static class CaseWorkspaceLabels
             {
                 Requirement: CaseReportReadiness.OverviewImageRequirement
                     or CaseReportReadiness.ImageSourceRequirement
+                    // The repairer's invoice is filed on Files (R1151).
+                    or CaseReportReadiness.RepairInvoiceRequirement
             } => "files",
             _ => null
         };

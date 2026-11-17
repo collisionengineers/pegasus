@@ -79,7 +79,10 @@ A Principal's standalone Audits may instead follow the **Garage authorisation
 & invoice** workflow (operator, 17 November 2026;
 [R1138](docs/rulings.md)): the Audit of a garage's repair, which has no
 original report and never shows Original report missing. A standalone Audit
-takes its Principal's workflow when it is created and keeps it.
+takes its Principal's workflow when it is created and keeps it. Such an Audit
+waits for the garage's External estimate before Review, for the Engineer's
+**Authorise garage** With Engineer, and then, Not ready, for the Repair
+invoice ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
 _Avoid_: Triage, sorting

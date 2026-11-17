@@ -477,6 +477,15 @@ public static class DependencyInjection
         services.AddScoped<UpdateApprovedMailbox>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        // The garage authorisation milestone of a Garage authorisation and
+        // invoice Audit (R1141 to R1144): its two acts and the reconciliation
+        // the Worker's sweep runs.
+        services.AddScoped<IGarageAuthorisationStore>(
+            provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IGarageWaitStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<AuthoriseGarage>();
+        services.AddScoped<UndoGarageAuthorisation>();
+        services.AddScoped<ReconcileGarageWaits>();
         services.AddScoped<IAutomationSwitchStore, EfAutomationSwitchStore>();
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());

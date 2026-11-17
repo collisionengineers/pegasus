@@ -82,7 +82,14 @@ internal sealed record CaseGetToolResult(
     string? NextDocumentCursor,
     IReadOnlyList<CaseHistoryToolItem> RecentHistory,
     string? NextHistoryCursor,
-    string CorrelationId);
+    string CorrelationId)
+{
+    [Description("What a standalone Audit works from: OriginalEngineerReport, or GarageAuthorisationAndInvoice, which waits for the garage's estimate, the Engineer's authorisation of the garage and the repairer's invoice and has no original report. Every other Case type reads OriginalEngineerReport.")]
+    public string AuditWorkflow { get; init; } = nameof(AuditWorkflowKind.OriginalEngineerReport);
+
+    [Description("When the garage was marked authorised on a Garage authorisation and invoice Audit (pegasus_case_action authorise_garage); null until then and after undo_garage_authorisation.")]
+    public DateTimeOffset? GarageAuthorisedAtUtc { get; init; }
+}
 
 /// <summary>
 /// Automation Actor Case reads (MCP-02): thin adapters over the same Core
@@ -252,7 +259,11 @@ internal sealed class CaseMcpTools(
                     documentPage.NextCursor,
                     history,
                     historyPage.NextCursor,
-                    context.TraceIdentifier);
+                    context.TraceIdentifier)
+                {
+                    AuditWorkflow = header.Workflow.AuditWorkflow.ToString(),
+                    GarageAuthorisedAtUtc = header.Workflow.GarageAuthorisedAtUtc
+                };
             },
             cancellationToken);
     }

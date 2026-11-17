@@ -230,7 +230,27 @@
                             <strong data-next-label>@first.Requirement</strong>
                             <small>@first.Source · @first.WhyOutstanding</small>
                             @* No sentence on how to resolve it: the control below is the how (v36 item AB, 9 October 2026). *@
-                            @if (firstFocus is not null)
+                            @if (nextRow.MarksGarageAuthorised)
+                            {
+                                @* Authorise garage: the Engineer authorises the garage
+                                   outside Pegasus and marks it done here in one step,
+                                   with no dialog and no reason (operator, 17 November
+                                   2026; R1142). While a colleague is editing, the step
+                                   is its words alone, as the Actions menu's items are. *@
+                                @if (!Model.ColleagueIsEditing)
+                                {
+                                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AuthoriseGarage" data-authorise-garage>
+                                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                                        @if (!string.IsNullOrWhiteSpace(Model.LeaseToken)) { <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" /> }
+                                        <input type="hidden" name="view" value="@Model.ViewRoute" />
+                                        <input type="hidden" name="section" value="@Model.Section" />
+                                        <button type="submit" class="@StepButton" data-busy-label="@OperatorLabels.Busy.Marking">@Frame.MarkGarageAuthorised</button>
+                                    </form>
+                                }
+                            }
+                            else if (firstFocus is not null)
                             {
                                 <partial name="Cases/Shared/_CaseBlockerEdit" model="new CaseBlockerEditView(Model, firstFocus, repairSpecLabel, StepButton)" />
                             }

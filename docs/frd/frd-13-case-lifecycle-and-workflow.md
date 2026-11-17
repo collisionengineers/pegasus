@@ -390,6 +390,59 @@ report is being
 prepared, image intake association and evidence promotion are open again, as
 for any Case before its report is sent.
 
+### Garage authorisation
+
+A Garage authorisation & invoice Audit
+([FRD-01](frd-01-case-identity-and-lifecycle.md)) has three waits of its own
+(operator, 17 November 2026).
+
+**The garage's estimate.** On its way into Review the Case also needs a
+confirmed **External estimate** among its files, beside its instruction, its
+images, its registration and its mileage ([R1141](../rulings.md)). Until one
+is filed the Case is Not ready with the requirement **External estimate
+incomplete**, which opens Files. Like the mileage, the gate stands only on
+the way in: a Case already in Review or later is not sent back when the file
+is removed or its type is changed.
+
+**Authorise garage.** With Engineer, with an Engineer, the Next action is
+**Authorise garage** with one button, **Mark done**, which asks for no dialog
+and no reason ([R1142](../rulings.md)). The Engineer authorises the garage
+outside Pegasus and marks it here. The history records who marked it and
+when, with the reason "Garage authorised." ([R1161](../rulings.md)). The Case
+then waits in Not ready, keeping its Engineer, with the requirement **Repair
+invoice incomplete**, which opens Files, and is chased on the standard
+schedule with the reason "Awaiting repair invoice"
+([R1144](../rulings.md); [Due work and chasing](#due-work-and-chasing)). A
+Case whose confirmed Repair invoice is already filed has nothing to wait for
+and stays With Engineer.
+
+**The repair invoice.** Once a confirmed **Repair invoice** is among its
+files the waiting Case returns to With Engineer by itself, with its Engineer
+([R1144](../rulings.md)). The Worker makes the move on its one-minute sweep,
+whichever way the file arrived or took its type, and so does it move a Not
+ready Case into Review once its External estimate is confirmed; each move is
+a line in the Case's history. A Case somebody is editing waits until the
+edit session ends.
+
+**Total loss and cash in lieu.** A recorded Outcome of Total loss or Cash in
+lieu waives both: Authorise garage is not asked, a Case already waiting for
+its invoice returns to With Engineer on the same sweep, and neither holds
+the report ([R1143](../rulings.md)).
+
+**Undo garage authorisation** is in the Actions menu once the garage is
+authorised, on an open Case that is not held, and records a reason
+([R1142](../rulings.md)). A Case waiting for its invoice returns to With
+Engineer, keeping its Engineer while that account is enabled and Unassigned
+otherwise ([R1159](../rulings.md)); in any other state only the
+authorisation is taken back.
+
+**The report.** Report readiness lists **Authorise garage** and **Repair
+invoice** until both are met, unless the Outcome waives them
+([R1151](../rulings.md);
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+The Automation Actor takes both acts through `pegasus_case_action`
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).
+
 ### Sign-off Engineer
 
 Sign-off Engineer is a Case field beside Engineer. Only enabled staff accounts
@@ -515,7 +568,7 @@ Automation Actor action.
 
 | From | To | Trigger |
 | --- | --- | --- |
-| Not ready | Review | Every required item present (automatic) |
+| Not ready | Review | Every required item present (automatic); on a Garage authorisation & invoice Audit a confirmed External estimate too ([R1141](../rulings.md)) |
 | Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
 | With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
@@ -523,6 +576,8 @@ Automation Actor action.
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R705) |
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |
+| With Engineer | Not ready, keeping the Engineer | Authorise garage's Mark done on a Garage authorisation & invoice Audit with no confirmed Repair invoice ([R1142](../rulings.md)) |
+| Not ready, garage authorised | With Engineer | A confirmed Repair invoice, or an Outcome of Total loss or Cash in lieu (automatic, [R1143](../rulings.md), [R1144](../rulings.md)); Undo garage authorisation (reason, [R1159](../rulings.md)) |
 | Not ready, Review, With Engineer, Report sent | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
 | any open state | same state, query open | A Query e-mail joining a Report sent Case; Open query; Log query on a Report sent Case |
 | any open state, query open | same state, that query Done | Mark done; a reply with Mark query done reaching Sent, for that message's query |
@@ -537,6 +592,10 @@ Automation Actor action.
 ## Edge cases and fail-closed behaviour
 
 - A readiness claim posted from a screen is ignored; only stored facts count.
+- Authorise garage on a Case that is not a Garage authorisation & invoice
+  Audit, is not With Engineer with an Engineer, is already authorised or has
+  a waiving Outcome is refused, and so is Undo garage authorisation on a Case
+  whose garage is not authorised.
 - Pending or failed filing never clears the Images blocker.
 - A stale lease, stale version or unauthorised actor changes nothing.
 - Close case with an unknown outcome is refused.
@@ -554,9 +613,11 @@ Automation Actor action.
 
 Core tests cover every transition in the table above, readiness from stored
 facts, chase scheduling across the Held boundary, the four dispositions, and
-Create audit's offer and refusal in each state. Integration tests cover Assign
+Create audit's offer and refusal in each state, and the garage authorisation
+milestone's gate, offers and waits. Integration tests cover Assign
 Engineer under a lease, Mark report sent against retained Sent evidence,
-Create audit with its replay and refusals, and Archive. Deployment and live
+Create audit with its replay and refusals, the garage authorisation milestone
+end to end, and Archive. Deployment and live
 acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

@@ -88,6 +88,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new PrepareDocumentThumbnails(thumbnailCandidates, new UnreachableDocumentThumbnails()),
             new RecogniseFiledEstimates(estimateCandidates, new UnreachableDocumentReads(), []),
             NoDeferredOriginalReports(),
+            NoGarageWaits(),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -420,6 +421,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new RecogniseFiledEstimates(
                 estimateCandidates ?? new RecordingEstimateCandidates(), new UnreachableDocumentReads(), []),
             NoDeferredOriginalReports(),
+            NoGarageWaits(),
             logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, cancellationToken);
     }
@@ -443,6 +445,15 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
     private static RetryDeferredOriginalReportRecognition NoDeferredOriginalReports() =>
         new(new NoOriginalReportRecognitionDeferrals(), new EmptyIntakeReceiptQueries());
+
+    /// <summary>A garage wait reconciliation with no Case waiting.</summary>
+    private static Pegasus.Core.Lifecycle.ReconcileGarageWaits NoGarageWaits() =>
+        new(new EmptyGarageWaitStore());
+
+    private sealed class EmptyGarageWaitStore : Pegasus.Core.Lifecycle.IGarageWaitStore
+    {
+        public Task<int> ReconcileAsync(int limit, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
 
     private sealed class NoOriginalReportRecognitionDeferrals : IOriginalReportRecognitionDeferrals
     {

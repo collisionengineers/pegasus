@@ -304,7 +304,7 @@ public sealed class EfCaseAcceptanceStore(
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(
             request.Completeness,
             workflowConfiguration,
-            CaseInstructionCompleteness.VehicleGate(dataSnapshot, null));
+            CaseInstructionCompleteness.VehicleGate(dataSnapshot, null, CaseGarage.ForNewCase(caseEntity)));
         var initialState = completenessEvaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;
