@@ -1036,10 +1036,22 @@ public sealed class SendCaseReport(
             ? null
             : new ReportSendReadinessRequest(
                 request.Actor, request.CaseId, second.Id, second.Version, secondAttachments);
-        var operation = await send.SendAsync(new(mail, report, secondReadiness), cancellationToken).ConfigureAwait(false);
         // What the e-mail carries, as the recipient sees it (R703). A replayed
         // key returns its operation only when the payload, attachments
         // included, is the same, so these are the names it was sent with.
-        return operation with { AttachmentFileNames = [.. named.Select(attachment => attachment.FileName)] };
+        IReadOnlyList<string> fileNames = [.. named.Select(attachment => attachment.FileName)];
+        StaffMailOperation operation;
+        try
+        {
+            operation = await send.SendAsync(new(mail, report, secondReadiness), cancellationToken).ConfigureAwait(false);
+        }
+        catch (StaffMailOutcomeUnknownException unknown)
+        {
+            // An Unknown send carries the same names a returned one does (R1123).
+            throw new StaffMailOutcomeUnknownException(
+                unknown.Operation with { AttachmentFileNames = fileNames },
+                unknown.InnerException ?? unknown);
+        }
+        return operation with { AttachmentFileNames = fileNames };
     }
 }

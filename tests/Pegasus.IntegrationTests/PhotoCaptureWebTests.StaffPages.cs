@@ -422,6 +422,114 @@ public sealed partial class PhotoCaptureWebTests
     }
 
     /// <summary>
+    /// A photo link e-mail whose provider answer is ambiguous (a Graph server
+    /// error or a timeout, which the engine records Unknown and throws) keeps
+    /// staff on Send a photo link with the link, "The send result is not yet
+    /// known." and its Unknown Send status, never the error page (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SendByEmailWithAnUnknownOutcomeShowsTheLinkAndItsStatus(bool timedOut)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(baseFactory);
+        await SeedCaseRegistrationAsync(baseFactory, caseId, "AB12 CDE");
+        await SeedSendableMailboxAsync(baseFactory);
+        var mail = new SentStaffMailSend { ProviderFault = AmbiguousProviderAnswer(timedOut) };
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            CaseWebTestSupport.Substitute<Pegasus.Core.Operations.IStaffMailSend>(services, mail)));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var send = $"/PhotoCapture/Send/{caseId:D}";
+        var html = await IntakeWebDriver.GetHtmlAsync(client, send);
+        var from = Regex.Match(html, "<option value=\"(?<id>[^\"]+)\"[^>]*>photo-link-sender@collisionengineers.co.uk</option>");
+        Assert.True(from.Success, "From does not offer the sending mailbox.");
+        var body = TextareaValue(html, "Body");
+
+        using var posted = await PostStaffFormAsync(client, send, new Dictionary<string, string>
+        {
+            ["OperationKey"] = InputValue(html, "OperationKey"),
+            ["CustomerName"] = "Sam Taylor",
+            ["Email"] = "sam.taylor@example.com",
+            ["Mode"] = nameof(PhotoCaptureMode.Guided),
+            ["Days"] = "7",
+            ["LiveCameraOnly"] = "true",
+            ["OriginalsInBackground"] = "true",
+            ["FromMailboxId"] = from.Groups["id"].Value,
+            ["Subject"] = InputValue(html, "Subject"),
+            ["Body"] = body,
+            ["StandardBody"] = body,
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.SendModel.ByEmail
+        });
+
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        var page = WebUtility.HtmlDecode(await posted.Content.ReadAsStringAsync());
+        AssertUnknownSendShown(page);
+        Assert.Single(mail.Commands);
+    }
+
+    /// <summary>
+    /// The Resend composer's e-mail, its provider answer ambiguous, keeps
+    /// staff on the composer with the link, the sentence and its Unknown Send
+    /// status, never the error page (R1123).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResendByEmailWithAnUnknownOutcomeShowsTheLinkAndItsStatus(bool timedOut)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = await AssociatedMailEvidenceIntegrationTests.SeedCaseAsync(baseFactory);
+        await SeedCaseRegistrationAsync(baseFactory, caseId, "AB12 CDE");
+        await SeedSendableMailboxAsync(baseFactory);
+        var link = await IssueLinkToAsync(baseFactory, caseId, "Sam Taylor", "sam.taylor@example.com");
+        var mail = new SentStaffMailSend { ProviderFault = AmbiguousProviderAnswer(timedOut) };
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            CaseWebTestSupport.Substitute<Pegasus.Core.Operations.IStaffMailSend>(services, mail)));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var listPath = "/PhotoCapture?scope=all";
+        var composer = $"/PhotoCapture/{link.Capture.Id:D}/Resend";
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"{composer}?returnUrl={Uri.EscapeDataString(listPath)}");
+        var from = Regex.Match(html, "<option value=\"(?<id>[^\"]+)\"[^>]*>photo-link-sender@collisionengineers.co.uk</option>");
+        Assert.True(from.Success, "From does not offer the sending mailbox.");
+        var body = TextareaValue(html, "Body");
+
+        using var posted = await PostStaffFormAsync(client, composer, new Dictionary<string, string>
+        {
+            ["OperationKey"] = InputValue(html, "OperationKey"),
+            ["ReturnUrl"] = listPath,
+            ["FromMailboxId"] = from.Groups["id"].Value,
+            ["Subject"] = InputValue(html, "Subject"),
+            ["Body"] = body,
+            ["StandardBody"] = body,
+            ["Submit"] = Pegasus.Web.Pages.PhotoCapture.ResendModel.ByEmail
+        });
+
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        var page = WebUtility.HtmlDecode(await posted.Content.ReadAsStringAsync());
+        AssertUnknownSendShown(page);
+        Assert.Single(mail.Commands);
+    }
+
+    /// <summary>The link, the Unknown sentence and the Send status beside it, and no sent notice.</summary>
+    private static void AssertUnknownSendShown(string page)
+    {
+        Assert.Contains("data-photo-link-issued", page, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.ReportDelivery.SendUnknown, page, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.PhotoCapture.SendStatus, page, StringComparison.Ordinal);
+        Assert.Contains(
+            OperatorLabels.StaffMail.State(Pegasus.Core.Operations.StaffMailState.Unknown),
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.PhotoCapture.LinkSentTo("Sam Taylor"), page, StringComparison.Ordinal);
+    }
+
+    /// <summary>What Graph answers that leaves a send's outcome unknown: a 503, or no answer in time.</summary>
+    private static Exception AmbiguousProviderAnswer(bool timedOut) => timedOut
+        ? new TaskCanceledException("The request timed out.", new TimeoutException())
+        : new HttpRequestException("Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable);
+
+    /// <summary>
     /// Create link to copy on the composer makes a fresh link and shows it
     /// once, sending nothing; with no staff send composed the composer offers
     /// no Send by e-mail. A Case link with no reminder due is not counted as
@@ -800,10 +908,16 @@ public sealed partial class PhotoCaptureWebTests
         return html[start..end];
     }
 
-    /// <summary>A staff send that records each message and reports it sent at once.</summary>
+    /// <summary>
+    /// A staff send that records each message and reports it sent at once;
+    /// with <see cref="ProviderFault"/>, it records it Unknown and throws as
+    /// the engine does when the provider's answer is ambiguous.
+    /// </summary>
     private sealed class SentStaffMailSend : Pegasus.Core.Operations.IStaffMailSend
     {
         private readonly List<Pegasus.Core.Operations.StaffMailSendCommand> commands = [];
+
+        public Exception? ProviderFault { get; init; }
 
         public IReadOnlyList<Pegasus.Core.Operations.StaffMailSendCommand> Commands
         {
@@ -827,7 +941,7 @@ public sealed partial class PhotoCaptureWebTests
             }
 
             var now = IntakeWebApplicationFactory.FixedUtcNow;
-            return Task.FromResult(new Pegasus.Core.Operations.StaffMailOperation(
+            var sent = new Pegasus.Core.Operations.StaffMailOperation(
                 Guid.NewGuid(),
                 Pegasus.Core.Operations.StaffMailState.Sent,
                 Pegasus.Core.Operations.StaffMailAttemptStage.ObserveSent,
@@ -844,7 +958,21 @@ public sealed partial class PhotoCaptureWebTests
                 command.Purpose,
                 command.ContextId,
                 command.ExpectedContextVersion,
-                null));
+                null);
+            if (ProviderFault is { } fault)
+            {
+                throw new Pegasus.Core.Operations.StaffMailOutcomeUnknownException(
+                    sent with
+                    {
+                        State = Pegasus.Core.Operations.StaffMailState.Unknown,
+                        AttemptStage = Pegasus.Core.Operations.StaffMailAttemptStage.Send,
+                        SubmittedAtUtc = null,
+                        ObservedSentAtUtc = null,
+                        FailureCode = "provider_outcome_unknown"
+                    },
+                    fault);
+            }
+            return Task.FromResult(sent);
         }
 
         public Task<Pegasus.Core.Operations.StaffMailOperation?> GetAsync(

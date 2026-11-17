@@ -170,6 +170,17 @@ public sealed class ChaserModel(
         {
             return Forbid();
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // Recorded Unknown: staff stay on the composer with the sentence
+            // and its Send status (R1069, R1123). The form keeps this
+            // operation key, so sending it again replays the Unknown send.
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, exception.Operation.Id, sender.Mailbox.Id, exception);
+            Operation = exception.Operation;
+            ModelState.AddModelError(string.Empty, CaseWorkspaceLabels.ReportDelivery.SendUnknown);
+            return Page();
+        }
 
         // Only a terminal Sent outcome is a success notice. Anything else —
         // Submitted (still in flight) or Unknown (ambiguous, never resend) —

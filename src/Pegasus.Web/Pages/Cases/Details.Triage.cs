@@ -799,6 +799,14 @@ public sealed partial class DetailsModel
         {
             return Forbid();
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // Recorded Unknown: the record says so beside its Latest send
+            // status, never the error page (R1069).
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, exception.Operation.Id, exception.Operation.ApprovedMailboxId, exception);
+            TempData["TriageStatus"] = CaseWorkspaceLabels.ReportDelivery.SendUnknown;
+        }
         catch (ArgumentException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
@@ -1318,11 +1326,17 @@ public sealed partial class DetailsModel
             && Guid.TryParseExact(value[prefix.Length..], "N", out _);
     }
 
+    /// <summary>
+    /// A send still under way blocks another reply. An Unknown send does not:
+    /// it stays Unknown until the Sent Items check finds it, and staff may send
+    /// again under a new operation key, as on the Inbox reply (R1070, R1122).
+    /// </summary>
     private static bool IsActiveTriageMailOperation(StaffMailOperation? operation) =>
         operation is not null
             && operation.State is not StaffMailState.Sent
                 and not StaffMailState.Failed
-                and not StaffMailState.Cancelled;
+                and not StaffMailState.Cancelled
+                and not StaffMailState.Unknown;
 
     /// <summary>
     /// The reply answers the message's Reply-To, or From without one; a

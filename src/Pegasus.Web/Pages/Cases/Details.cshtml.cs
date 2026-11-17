@@ -3309,6 +3309,13 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // Recorded Unknown: shown as a returned Unknown is (R1069).
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, exception.Operation.Id, exception.Operation.ApprovedMailboxId, exception);
+            operation = exception.Operation;
+        }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or KeyNotFoundException)

@@ -1563,6 +1563,18 @@ public sealed class MessageModel(
             ModelState.AddModelError(string.Empty, exception.Message);
             return await ReloadAsync(actor, id, cancellationToken);
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // The provider's answer was ambiguous and the send is recorded
+            // Unknown: staff stay on this page with the sentence and the
+            // send's status (R1069). The composer keeps this operation key,
+            // so sending it again replays the Unknown send.
+            StaffMailSendLog.OutcomeUnknown(logger, exception.Operation.Id, sender!.Id, exception);
+            CorrespondenceOperation = exception.Operation;
+            CorrespondenceOperationId = exception.Operation.Id;
+            ModelState.AddModelError(string.Empty, CaseWorkspaceLabels.ReportDelivery.SendUnknown);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
 
         return LandOn(id, ModeCode(mode), CorrespondenceOperation?.Id);
     }
