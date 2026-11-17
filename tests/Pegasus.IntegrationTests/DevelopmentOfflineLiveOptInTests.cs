@@ -242,6 +242,7 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     [InlineData("Features:LiveBoxCustody")]
     [InlineData("Features:LiveGlass")]
     [InlineData("Features:LiveGuideValuation")]
+    [InlineData("Features:LiveExperian")]
     [InlineData("Features:PasswordSignIn")]
     [InlineData("Features:LiveGraphMail")]
     public void ProductionRefusesTheLocalLiveOptIns(string key)
