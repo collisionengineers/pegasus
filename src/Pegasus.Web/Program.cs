@@ -1300,7 +1300,7 @@ if (automationMcpOptions is not null)
         // resolver refused because its client is stopped has written the
         // client-disabled event and writes that event only (R1097). A stopped
         // client's token request is refused before the client is read, and
-        // writes the token-rejected event alone, as before (R1113).
+        // writes the token-rejected event alone, as before (R1133).
         var status = context.Response.StatusCode;
         var isDenied = isTokenEndpoint
             ? status is StatusCodes.Status400BadRequest

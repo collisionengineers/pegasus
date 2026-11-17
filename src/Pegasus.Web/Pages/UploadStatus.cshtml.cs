@@ -177,7 +177,7 @@ public sealed class UploadStatusModel(
                     : null;
                 var awaitsDecision = AwaitsDecision(status, outcome);
                 ImageMatchLeaveFile[] files = [LeaveFile(outcome, receipt)];
-                // An upload already left is answered as done (R1110).
+                // An upload already left is answered as done (R1130).
                 if (group.ImageMatchDeclined is not null || ImageMatchLeave.IsOffered(awaitsDecision, files))
                 {
                     await declineImageMatch.ExecuteAsync(group.Id, awaitsDecision, files, actor, cancellationToken);

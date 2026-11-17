@@ -650,7 +650,7 @@ short labels; then the folded **History**, which names who acted:
 sent · name" (R921). An act the Automation Actor made reads "Automation"
 there and in Sent by (operator, 16 November 2026; [R1093](../rulings.md)),
 and a link records a member of staff as its sender only when one sent it
-([R1116](../rulings.md)). Resend on an
+([R1136](../rulings.md)). Resend on an
 expired link is refused with "The link has expired; extend it first.", and
 on a cancelled link with "The link was cancelled; send a new one from the
 Case." (operator, 10 November 2026; R863). A live link on a Case also offers
@@ -663,7 +663,7 @@ acts from (operator, 16 November 2026; [R1092](../rulings.md)); the page
 then shows "The action was not applied because the item changed or the
 action is not permitted. Reload and try again.", and a repeat of an act
 already recorded is answered as done (operator, 17 November 2026;
-[R1110](../rulings.md), [R1111](../rulings.md)). Paperwork and video a capture with no
+[R1130](../rulings.md), [R1131](../rulings.md)). Paperwork and video a capture with no
 Case received stay kept and unfiled, and each opens from the link's page as
 any received file opens; nothing new is filed, chased or deleted, and a
 capture that sent only paperwork stays on Standing links (operator, 9 November

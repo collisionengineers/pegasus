@@ -174,7 +174,7 @@ internal sealed class UploadGroupMcpTools(
                             throw new McpException("leave takes no other parameter.");
                         }
 
-                        // Leave on an upload already left is answered as done (R1110).
+                        // Leave on an upload already left is answered as done (R1130).
                         if (!state.AlreadyLeft && !state.OffersLeave)
                         {
                             throw new McpException(

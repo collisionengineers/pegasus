@@ -338,7 +338,7 @@ once. What a link offers is one Core rule, which the page, its own handlers
 and the tool all follow (operator, 16 November 2026;
 [R1092](../rulings.md)); a call that repeats an operation key which already
 recorded that act is answered as the first was, whatever the link now offers
-(operator, 17 November 2026; [R1110](../rulings.md)). Sending a link by e-mail or text is `pegasus_photo_link_send`,
+(operator, 17 November 2026; [R1130](../rulings.md)). Sending a link by e-mail or text is `pegasus_photo_link_send`,
 under `automation.send` ([Sending](#sending)). Standing and website links
 are managed by Administrators only. With `Features:PhotoCapture` off every
 photo link tool refuses.
@@ -507,8 +507,8 @@ history and replays by its operation key.
   `dismiss_reading` on any other pending reading is refused with
   "dismiss_reading is not offered on this reading; pegasus_unidentified_get
   lists the readings that offer it." (operator, 17 November 2026;
-  [R1112](../rulings.md)). A reading already decided answers the operation
-  key that decided it ([R1110](../rulings.md)). Unidentified reason codes on the
+  [R1132](../rulings.md)). A reading already decided answers the operation
+  key that decided it ([R1130](../rulings.md)). Unidentified reason codes on the
   wire are the Core list under `unidentified`.
 - `pegasus_image_intake_list` lists the Image Intake records (staff label
   Vehicle images) awaiting instruction with no Case, as the Cases page does;
@@ -528,11 +528,11 @@ history and replays by its operation key.
   [R1094](../rulings.md)). `leave` is offered, by one Core rule the upload
   pages, their handlers and the tool follow, only while the upload awaits
   its decision and every file is a possible match and image-only
-  ([R1092](../rulings.md), [R1115](../rulings.md)): `pegasus_upload_group_get`
+  ([R1092](../rulings.md), [R1135](../rulings.md)): `pegasus_upload_group_get`
   says so (`canLeave`), and `leave` on any other upload is refused with
   "leave is not offered on this upload; pegasus_upload_group_get says whether
-  it is." ([R1112](../rulings.md)); an upload already left answers as done
-  ([R1110](../rulings.md)). Any member of staff who does casework may decide any upload, so
+  it is." ([R1132](../rulings.md)); an upload already left answers as done
+  ([R1130](../rulings.md)). Any member of staff who does casework may decide any upload, so
   the Automation Actor may too.
 - The Automation Actor reads, reclassifies and links mail through the mail
   tools in scope `automation.mail` (operator ruling, 15 October 2026).
@@ -753,7 +753,7 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   `automation_token_rejected`, because Stop removes the client's token
   permissions and the request is refused before the client is read
   (operator, 16 and 17 November 2026; [R1097](../rulings.md),
-  [R1113](../rulings.md)).
+  [R1133](../rulings.md)).
 - A lifecycle, report or document act the Case's state does not allow is
   refused with Core's reason and writes nothing; an act missing an input it
   needs is refused before any lease is claimed.

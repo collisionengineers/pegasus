@@ -48,7 +48,7 @@ public interface IDeclineImageMatch
 /// <see cref="ReconcileGroupedImageIntake"/> is the backstop. A missing,
 /// discarded or non-manual upload is left alone, an upload already left is
 /// answered as done (its members re-driven, the decline as first recorded;
-/// R1110), and any other is refused where
+/// R1130), and any other is refused where
 /// <see cref="ImageMatchLeave.IsOffered"/> does not offer Leave (R1092).
 /// </summary>
 public sealed class DeclineImageMatch(
@@ -80,7 +80,7 @@ public sealed class DeclineImageMatch(
         }
 
         // An upload already left is answered as done: the decline stays as
-        // first recorded and its members are re-driven, as before (R1110).
+        // first recorded and its members are re-driven, as before (R1130).
         if (group.ImageMatchDeclined is null && !ImageMatchLeave.IsOffered(awaitsDecision, files))
         {
             throw new InvalidOperationException("Leave is not offered on this upload.");

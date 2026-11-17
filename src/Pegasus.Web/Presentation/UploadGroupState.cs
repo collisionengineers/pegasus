@@ -59,7 +59,7 @@ public sealed record UploadGroupState(
             && !Members.Any(member => UploadReviewFile.AwaitsCustody(member.Receipt)),
         LeaveFiles);
 
-    /// <summary>Whether the upload was already left, a repeat of which is answered as done (R1110).</summary>
+    /// <summary>Whether the upload was already left, a repeat of which is answered as done (R1130).</summary>
     public bool AlreadyLeft => Group.ImageMatchDeclined is not null;
 
     /// <summary>
