@@ -249,7 +249,12 @@ version, the lease and the key the next save sends, and the Files section
 when a crop or rotation was recorded. A save that ends editing redirects to
 the page, as every other command does. A refusal refuses the whole save, keeps
 every typed value in its box, says why in the ribbon's status word and as a
-notice, and the next change tries again. A decision's partner field (the
+notice, and the next change tries again. A save refused for one field's
+value says which: the notice is Core's own sentence for the value, with the
+field's label in front when the sentence names no field ("Claim number: The
+value cannot exceed 100 characters."), and a value the server cannot read
+into its box reads "Mileage is invalid." (operator, 17 November 2026,
+[R1118](../rulings.md)). A decision's partner field (the
 salvage category and value of a total loss, the reason a vehicle is
 unroadworthy, the agreed sum of a contract repair) is a readiness item, never
 a save refusal, so each field saves as it is left (operator, 6 October 2026).
