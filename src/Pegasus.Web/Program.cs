@@ -1296,10 +1296,11 @@ if (automationMcpOptions is not null)
 
         // Transport-level denials on the automation surface are material and
         // become attributable security events. Tool-level denials (scope,
-        // kill switch) are written by the actor resolver instead. A request
-        // refused because its client is stopped has written the
-        // client-disabled event, from the resolver or the token endpoint, and
-        // writes that event only, on every address (R1097).
+        // kill switch) are written by the actor resolver instead. A request the
+        // resolver refused because its client is stopped has written the
+        // client-disabled event and writes that event only (R1097). A stopped
+        // client's token request is refused before the client is read, and
+        // writes the token-rejected event alone, as before (R1113).
         var status = context.Response.StatusCode;
         var isDenied = isTokenEndpoint
             ? status is StatusCodes.Status400BadRequest

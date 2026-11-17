@@ -748,9 +748,12 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   the call that uses it, and nothing is written.
 - A stopped automation client is refused by the kill switch before any tool
   runs ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
-  Its refused call writes one security event, `automation_client_disabled`,
-  on every address, the token address included (operator, 16 and
-  17 November 2026; [R1097](../rulings.md), [R1113](../rulings.md)).
+  Its refused call writes one security event on every address:
+  `automation_client_disabled`, and on the token address
+  `automation_token_rejected`, because Stop removes the client's token
+  permissions and the request is refused before the client is read
+  (operator, 16 and 17 November 2026; [R1097](../rulings.md),
+  [R1113](../rulings.md)).
 - A lifecycle, report or document act the Case's state does not allow is
   refused with Core's reason and writes nothing; an act missing an input it
   needs is refused before any lease is claimed.

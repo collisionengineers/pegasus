@@ -57,10 +57,11 @@ public static class AutomationMcp
     public const string GrantIdentityClaim = "pegasus_automation_grant";
 
     /// <summary>
-    /// The <c>HttpContext.Items</c> key set on a request refused because its
-    /// client is stopped, once <c>automation_client_disabled</c> is written for
-    /// it: that refusal writes the client-disabled event only, on every
-    /// address, so the transport denial is not recorded again (R1097).
+    /// The <c>HttpContext.Items</c> key the actor resolver sets on a request
+    /// it refuses because its client is stopped, once
+    /// <c>automation_client_disabled</c> is written for it: that refusal
+    /// writes the client-disabled event only, so the transport denial is not
+    /// recorded again (R1097).
     /// </summary>
     public const string ClientDisabledRecordedItem = "Pegasus.AutomationMcp.ClientDisabledRecorded";
     /// <summary>The rate limit's permits a minute, partitioned per IP address (ADR-0087).</summary>

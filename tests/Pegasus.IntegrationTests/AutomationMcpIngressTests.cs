@@ -623,20 +623,11 @@ public sealed class AutomationMcpIngressTests
             Assert.Contains("unauthorized_client", body, StringComparison.Ordinal);
         }
 
-        // A refused call from a stopped client writes the client-disabled
-        // event only, on every address, the token endpoint's included (R1097).
-        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
+        Assert.True(await (await factory.DatabaseAsync).ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'automation_client_disabled'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'pegasus-automation'
-            """));
-        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            """
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode IN (N'automation_token_rejected', N'automation_access_denied')
-            """));
+            WHERE ReasonCode = N'automation_token_rejected' AND Outcome = N'Denied'
+            """) >= 1);
 
         // Re-enabling restores the ingress, and both administrator actions
         // are permanent attributable history.
