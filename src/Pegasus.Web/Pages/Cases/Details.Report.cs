@@ -5,6 +5,30 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Net.Http.Headers;
+using Pegasus.Core.AiWork;
+using Pegasus.Core.Actors;
+using Pegasus.Core.Address;
+using Pegasus.Core.Documents;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Glass;
+using Pegasus.Infrastructure.Email;
+using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
+using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
+using FrameLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame;
+using Labels = Pegasus.Web.Presentation.OperatorLabels;
+using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -349,6 +373,710 @@ public sealed partial class DetailsModel
 
     private static string TitleOf(string kind, string? registration) =>
         string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";
+
+    public AssessmentReportDraftPreparation? ReportDraftPreparation
+    {
+        get => reportDraftPreparation;
+        private set
+        {
+            reportDraftPreparation = value;
+            reportDraftReasons = null;
+        }
+    }
+
+    private AssessmentReportDraftPreparation? reportDraftPreparation;
+
+    private IReadOnlyList<AssessmentReadinessItem>? reportDraftReasons;
+
+    /// <summary>
+    /// The report's narrative blocks as the Report section offers them (v28
+    /// P30), the ones taken off the report among them. Empty while the Case
+    /// cannot yet be projected into a report: the readiness rail already
+    /// states what is outstanding.
+    /// </summary>
+    public IReadOnlyList<ReportWordingBlock> ReportWording { get; private set; } = [];
+
+    /// <summary>The addresses the delivery form offers beside its fields (v28 P21).</summary>
+    public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
+
+    /// <summary>
+    /// Who the report leaves as: the Outgoing mailboxes staff choose from,
+    /// starting on the default sender (R655).
+    /// </summary>
+    public CaseMailSenderOptions ReportSenders { get; private set; } = CaseMailSenderOptions.None;
+
+    /// <summary>What the Case's report has already been sent (v28 P23).</summary>
+    public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;
+
+    /// <summary>
+    /// What each offered block says when nobody has written their own, so
+    /// Recompose puts the composed sentence back without a round trip.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReportWordingComposed { get; private set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The heading each offered block carries when the Engineer has not
+    /// renamed it. With <see cref="ReportWordingComposed"/> it lets the page
+    /// send a block it still shows as drawn as no change, so a section kept
+    /// on screen while the Case moved on stores nothing the Engineer did not
+    /// write (issue 2042).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReportWordingHeadings { get; private set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The accepted statement of truth in its printed parts, from Core, shown
+    /// read-only as Report wording's last block in every state the workspace
+    /// loads (v45 D, I). Null only when the report inputs cannot be read.
+    /// </summary>
+    public ReportStatementParts? StatementParts { get; private set; }
+
+    public string? ReportDraftCondition { get; private set; }
+
+    public bool ReportDraftNotReady => ReportDraftPreparation is { CanGenerate: false };
+
+    /// <summary>
+    /// The report blockers in the order the page shows what clears them,
+    /// ordered once per preparation.
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> ReportDraftReasons =>
+        reportDraftReasons ??=
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.Report.InPageOrder(ReportDraftPreparation?.Reasons ?? []);
+
+    /// <summary>
+    /// The Case's current generated report snapshot (B05): the newest
+    /// generation that no later material change has superseded, with every
+    /// artifact it was asked for. Null until the first generation.
+    /// </summary>
+    public CaseReportGenerationRecord? CurrentReportGeneration { get; private set; }
+
+    private const string OpenReportKey = "CaseOpenReport";
+
+    /// <summary>
+    /// The report Generate report has just stored, carried to the one page
+    /// that follows so that page opens it in the viewer. Null on every later
+    /// read of the Case.
+    /// </summary>
+    public Guid? OpenReportArtifactId => TempData[OpenReportKey] switch
+    {
+        // TempData materializes Guid-shaped strings as Guid values.
+        Guid artifactId => artifactId,
+        string text when Guid.TryParse(text, out var artifactId) => artifactId,
+        _ => null,
+    };
+
+    /// <summary>The dispatch facts of the shown generation: the Principal's rules read with the Case.</summary>
+    public ReportDispatchFacts? DeliveryRecipientSuggestions { get; private set; }
+
+    /// <summary>
+    /// The one plan the delivery form follows, made once when the page loads
+    /// with no answers; Send report plans again with staff's answers.
+    /// </summary>
+    public ReportDispatchPlan? DeliveryDispatchPlan { get; private set; }
+
+    public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateFeeNoteOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateRepairSpecOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
+
+    public string SendReportOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>
+    /// The report's wording blocks for a Case whose report can be projected:
+    /// the snapshot the blocks compose from, and every block the section
+    /// offers. A Case that cannot yet be projected has neither.
+    /// </summary>
+    private (AssessmentReportSnapshot? Snapshot, IReadOnlyList<ReportWordingBlock> Offered) WordingOf(
+        AssessmentReportProjectionInput projection) =>
+        Pegasus.Web.Presentation.ReportWordingEdits.Offered(projection, clock.GetUtcNow());
+
+    /// <summary>
+    /// The working preview, exactly as the report would be generated: the
+    /// report followed by its fee note.
+    /// </summary>
+    public Task<IActionResult> OnGetPreviewReportDraftAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+
+    /// <summary>
+    /// The included images as they would print (v28 P42): the same working
+    /// snapshot the report preview renders, as the image pack alone. Nothing
+    /// is persisted; a Case with no image in the report has none to show.
+    /// </summary>
+    public Task<IActionResult> OnGetPreviewImagePackAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        PreviewReportDraftAsync(id, CaseReportArtifactKind.ImagePack, cancellationToken);
+
+    private async Task<IActionResult> PreviewReportDraftAsync(
+        Guid id,
+        CaseReportArtifactKind kind,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        GenerateCaseAssessmentReportDraftResult result;
+        try
+        {
+            result = await HttpContext.RequestServices
+                .GetRequiredService<GenerateCaseAssessmentReportDraft>()
+                .ExecuteAsync(id, actor, kind, cancellationToken);
+        }
+        catch (ReportRenderRejectedException exception)
+        {
+            LogCaseCommandFailed(logger, id, "preview_report", exception);
+            // An image pack of a Case whose report uses no image is refused
+            // rather than rendered empty.
+            return Request.Headers.ContainsKey("X-Pegasus-Document-Preview")
+                ? EnhancedPreviewRefusal(exception.Message)
+                : RedirectToReport(id);
+        }
+        switch (result.Outcome)
+        {
+            case GenerateCaseAssessmentReportDraftOutcome.NotFound:
+                return NotFound();
+            case GenerateCaseAssessmentReportDraftOutcome.NotReady:
+                var detail = "The report draft is not ready. " + string.Join(
+                    " ",
+                    result.Reasons.Select(reason =>
+                        $"{reason.Requirement}: {reason.WhyOutstanding}"));
+                if (Request.Headers.ContainsKey("X-Pegasus-Document-Preview"))
+                {
+                    return EnhancedPreviewRefusal(detail);
+                }
+                // The Report section lists each blocker with its section.
+                return RedirectToReport(id);
+            default:
+                // DOCS-014: an inline preview of the unretained working
+                // draft is a view, never a completed download — recorded
+                // only once the draft actually rendered, at most once per
+                // Case, artifact kind, staff member and day.
+                await reportGenerations.RecordDraftPreviewedAsync(
+                    new(actor, id, kind, DateTimeOffset.UtcNow),
+                    cancellationToken);
+                return File(result.Draft!.Pdf, "application/pdf");
+        }
+    }
+
+    /// <summary>
+    /// B05's immutable generation: freezes the accepted snapshot inside the
+    /// store's short transaction and renders through the registered
+    /// renderer, one artifact per request. The draft handlers above stay for
+    /// the labelled ungenerated working preview; this is the real report.
+    /// The report always ends with its fee note, and the same button makes
+    /// the separate fee note from the same frozen snapshot once the report is
+    /// confirmed (operator, 7 October 2026). A report still being filed to
+    /// Box makes its fee note on the next Generate report.
+    /// </summary>
+    public Task<IActionResult> OnPostGenerateReportAsync(
+        Guid id,
+        string operationKey,
+        string feeNoteOperationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.AssessmentReport,
+            targetGenerationId: null, cancellationToken, feeNoteOperationKey);
+
+    /// <summary>
+    /// The two companion documents a delivery may attach (v28 P22). Each is a
+    /// separate artifact of the generation that is already confirmed, so it
+    /// carries that generation's own facts: the Repair Spec is the estimate
+    /// the generation pinned, the images are the ones its report prints.
+    /// </summary>
+    public Task<IActionResult> OnPostGenerateRepairSpecAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.RepairSpecification,
+            targetGenerationId, cancellationToken);
+
+    public Task<IActionResult> OnPostGenerateImagePackAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.ImagePack,
+            targetGenerationId, cancellationToken);
+
+    /// <summary>
+    /// Every Generate, in or out of edit mode: the report (operator, 26
+    /// September 2026) and its companion documents (issue 912, 28 September
+    /// 2026). Without a lease the handler claims one for the generation.
+    /// Posted from the Inspection view, it makes the Inspection report of a
+    /// Case that has its Audit (operator, 1 October 2026). The report's
+    /// separate fee note runs under the same lease.
+    /// </summary>
+    private async Task<IActionResult> GenerateArtifactAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        Guid? targetGenerationId,
+        CancellationToken cancellationToken,
+        string? feeNoteOperationKey = null)
+    {
+        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return await GenerateWithOneOffLeaseAsync(
+                id, operationKey, expectedCaseVersion, kind,
+                targetGenerationId, feeNoteOperationKey, cancellationToken);
+        }
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        return await GenerateAsync(
+            actor, id, operationKey, editLeaseToken, expectedCaseVersion,
+            kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
+    }
+
+    /// <summary>
+    /// A Generate outside edit mode: the handler claims the Case's edit lease
+    /// for this one generation and releases it after, the way Work Centre
+    /// actions do. A colleague's live lease refuses the claim with the
+    /// claim's own wording. A generation never consumes the lease, so the
+    /// release runs whatever the outcome.
+    /// </summary>
+    private async Task<IActionResult> GenerateWithOneOffLeaseAsync(
+        Guid id,
+        string operationKey,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        Guid? targetGenerationId,
+        string? feeNoteOperationKey,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardSectionCommandAsync(
+            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
+            requireLease: false);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        OneCommandEditClaim lease;
+        try
+        {
+            lease = await OneCommandEdit.ClaimAsync(
+                id, isTriageCase: false, expectedCaseVersion, actor, NewOperationKey(), cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
+            return RedirectToReport(id);
+        }
+
+        return await OneCommandEdit.RunClaimedAsync(lease, actor, () => GenerateAsync(
+            actor, id, operationKey, lease.Token, expectedCaseVersion,
+            kind, targetGenerationId, feeNoteOperationKey, cancellationToken));
+    }
+
+    /// <summary>
+    /// The generation itself, once guarded. The report goes on to make its
+    /// separate fee note from the generation it confirmed (operator, 7 October
+    /// 2026); a report not yet confirmed leaves the fee note to the next
+    /// Generate report, which replays the report's operation key.
+    /// </summary>
+    private async Task<IActionResult> GenerateAsync(
+        ActionActor actor,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        Guid? targetGenerationId,
+        string? feeNoteOperationKey,
+        CancellationToken cancellationToken)
+    {
+        // One custody batch around the report and its fee note: the Case
+        // folder is proved once for both (FRD-05, #1952). Opened here, in the
+        // flow that awaits both generations, so it reaches each filing.
+        var generator = HttpContext.RequestServices.GetRequiredService<IGenerateCaseReport>();
+        await using var batch = generator.BeginBatch();
+        var request = CaseReportActs.RequestFor(
+            actor, id, expectedCaseVersion, editLeaseToken, operationKey, kind, targetGenerationId, WorkSelector);
+        var (result, outcome) = await GenerateOneAsync(generator, request, cancellationToken);
+        if (outcome is not null)
+        {
+            return outcome;
+        }
+        if (!string.IsNullOrWhiteSpace(feeNoteOperationKey)
+            && CaseReportActs.FeeNoteRequestAfter(request, result!, feeNoteOperationKey) is { } feeNoteRequest)
+        {
+            // The report stands whatever the fee note's outcome; a fee note
+            // that is not generated says so beside the report's confirmation.
+            var (_, feeNoteOutcome) = await GenerateOneAsync(generator, feeNoteRequest, cancellationToken);
+            if (feeNoteOutcome is ForbidResult or NotFoundResult)
+            {
+                return feeNoteOutcome;
+            }
+        }
+        return RedirectToReport(id);
+    }
+
+    /// <summary>
+    /// One artifact's generation: the request, and how each outcome reads
+    /// back. A generated artifact answers its result and no action; every
+    /// other outcome answers the action that ends the request.
+    /// </summary>
+    private async Task<(CaseReportGenerationResult? Result, IActionResult? Outcome)> GenerateOneAsync(
+        IGenerateCaseReport generator,
+        GenerateCaseReportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var id = request.CaseId;
+        var kind = request.Kind;
+        CaseReportGenerationResult result;
+        try
+        {
+            result = await generator.ExecuteAsync(request, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return (null, Forbid());
+        }
+        catch (Exception exception) when (IsGenerationFailure(exception))
+        {
+            LogCaseCommandFailed(logger, id, "generate_report", exception);
+            TempData["CaseError"] = exception switch
+            {
+                // A render refusal says what stopped it, as the preview does.
+                ReportRenderRejectedException => exception.Message,
+                OperationCanceledException or TimeoutException =>
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.TookTooLong(kind),
+                HttpRequestException or IOException =>
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.NotStoredInBox(kind),
+                _ => MutationRefusalMessage(exception, NotGenerated(kind)),
+            };
+            return (null, RedirectToReport(id));
+        }
+
+        switch (result.Outcome)
+        {
+            case CaseReportGenerationOutcome.NotFound:
+                return (result, NotFound());
+            case CaseReportGenerationOutcome.NotReady:
+                TempData["CaseError"] = string.Join(
+                    " ",
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationNotReady + ":",
+                    string.Join("; ", result.Reasons.Select(reason =>
+                        $"{reason.Requirement}: {reason.WhyOutstanding}")));
+                return (result, RedirectToReport(id));
+            case CaseReportGenerationOutcome.Pending:
+                // Not yet stored is not success: the page says so in amber.
+                TempData["CaseWarning"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
+                return (result, RedirectToReport(id));
+            case CaseReportGenerationOutcome.Failed:
+                TempData["CaseError"] = NotGenerated(kind);
+                return (result, RedirectToReport(id));
+            default:
+                ClearLeaseState();
+                if (kind == CaseReportArtifactKind.AssessmentReport
+                    && result.Generation?.Artifacts.FirstOrDefault(artifact => artifact is
+                    {
+                        Kind: CaseReportArtifactKind.AssessmentReport,
+                        Filing: CaseReportArtifactFiling.Stored,
+                    }) is { } stored)
+                {
+                    TempData[OpenReportKey] = stored.Id.ToString("D");
+                }
+                // The fee note follows its report, whose confirmation stands.
+                if (kind != CaseReportArtifactKind.FeeNote)
+                {
+                    TempData["CaseStatus"] = kind switch
+                    {
+                        CaseReportArtifactKind.AssessmentReport =>
+                            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated,
+                        CaseReportArtifactKind.RepairSpecification =>
+                            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
+                        _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
+                    };
+                }
+                return (result, null);
+        }
+    }
+
+    /// <summary>
+    /// The faults a generation tells staff about: a refusal, a file that could
+    /// not be read or stored, and a generation that ran out of time. A request
+    /// the browser abandoned is none of them, and goes on as cancelled.
+    /// </summary>
+    private bool IsGenerationFailure(Exception exception) => exception switch
+    {
+        OperationCanceledException => !HttpContext.RequestAborted.IsCancellationRequested,
+        ArgumentException
+            or InvalidOperationException
+            or IOException
+            or InvalidDataException
+            or TimeoutException
+            or HttpRequestException
+            or ReportRenderRejectedException => true,
+        _ => false,
+    };
+
+    /// <summary>The document that was not generated, named as staff know it.</summary>
+    private static string NotGenerated(CaseReportArtifactKind kind) => kind switch
+    {
+        CaseReportArtifactKind.AssessmentReport =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportNotGenerated,
+        CaseReportArtifactKind.FeeNote =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteNotGenerated,
+        CaseReportArtifactKind.RepairSpecification =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecNotGenerated,
+        _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesNotGenerated,
+    };
+
+    /// <summary>
+    /// Reopens a confirmed artifact's immutable bytes — never a regeneration
+    /// and never a Pending, Failed or Unknown artifact (the store refuses
+    /// those; the page does not decide).
+    /// </summary>
+    public async Task<IActionResult> OnGetGeneratedArtifactAsync(
+        Guid id,
+        Guid generationId,
+        Guid artifactId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var content = await generatedArtifacts.OpenAsync(
+            actor, id, generationId, artifactId, cancellationToken);
+        // The file result owns and disposes the stream once the body is
+        // written; disposing here would close it before MVC reads it.
+        return File(content.Content, content.MediaType, content.FileName);
+    }
+
+    /// <summary>
+    /// Sends the current generation's report in one step (operator, 6 October
+    /// 2026): the staff-reviewed recipients, the documents chosen and the
+    /// message submitted go to A's staff send transport under this form's
+    /// operation key, so a repeated submission of one form replays one send.
+    /// The send boundary re-checks the generation and the attachment hashes.
+    /// A's returned state is mapped truthfully: only observation says sent,
+    /// and an Unknown outcome never claims one.
+    /// </summary>
+    public async Task<IActionResult> OnPostSendReportAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid generationId,
+        long expectedGenerationVersion,
+        string? coveringMessage,
+        string[]? toRecipients,
+        string[]? ccRecipients,
+        CaseReportArtifactKind[]? attach,
+        Guid? fromMailboxId,
+        Guid? secondGenerationId,
+        long? secondExpectedGenerationVersion,
+        CaseReportArtifactKind[]? secondAttach,
+        string? dispatchFingerprint,
+        string? stopOverrideReason,
+        string[]? holdsDone,
+        string? subject,
+        bool deleteCaseCorrespondence,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            CaseReportDeliveryPolicy.CoveringMessage(coveringMessage);
+        }
+        catch (ArgumentException)
+        {
+            TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.MessageRefused;
+            return RedirectToReport(id, reopenSend: true);
+        }
+
+        StaffMailOperation operation;
+        try
+        {
+            operation = await sendCaseReport.ExecuteAsync(
+                new(
+                    actor,
+                    id,
+                    expectedCaseVersion,
+                    editLeaseToken!,
+                    generationId,
+                    expectedGenerationVersion,
+                    operationKey,
+                    coveringMessage!,
+                    new(toRecipients ?? [], ccRecipients ?? []),
+                    attach,
+                    WorkSelector,
+                    fromMailboxId,
+                    // The other work's report, when its tick is on: always
+                    // its report, with the documents of it ticked.
+                    secondGenerationId is { } secondId && secondExpectedGenerationVersion is { } secondVersion
+                        ? new(secondId, secondVersion,
+                            [CaseReportArtifactKind.AssessmentReport, .. (secondAttach ?? [])],
+                            PostedAttachmentNames("secondFileName"))
+                        : null,
+                    DispatchFingerprint: dispatchFingerprint,
+                    AcknowledgedHolds: holdsDone ?? [],
+                    StopOverrideReason: stopOverrideReason,
+                    // The subject and the documents' names as staff left them
+                    // in the composer (v48 items C and E).
+                    Subject: subject,
+                    AttachmentNames: PostedAttachmentNames("fileName"),
+                    // The dialog's Delete case correspondence tick (R902 to R905).
+                    TidiesCaseCorrespondence: deleteCaseCorrespondence),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // Recorded Unknown: shown as a returned Unknown is (R1069).
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, exception.Operation.Id, exception.Operation.ApprovedMailboxId, exception);
+            operation = exception.Operation;
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception,
+                "The report was not sent. Retry the operation.");
+            return RedirectToReport(id, reopenSend: true);
+        }
+
+        ClearLeaseState();
+        switch (operation.State)
+        {
+            case StaffMailState.Sent:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent;
+                break;
+            case StaffMailState.Submitted:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendAccepted;
+                break;
+            case StaffMailState.Failed:
+                TempData["CaseError"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendFailed;
+                break;
+            case StaffMailState.Unknown:
+                TempData["CaseError"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown;
+                break;
+            case StaffMailState.Cancelled:
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendCancelled;
+                break;
+            default:
+                // Prepared/DraftCreating/DraftReady/Sending: the transport
+                // accepted work that is still in flight — neither success
+                // nor failure is claimed.
+                TempData["CaseStatus"] =
+                    Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendInProgress;
+                break;
+        }
+
+        return RedirectToReport(id);
+    }
+
+    /// <summary>
+    /// The Report-section mutation guard: the estimate guard's rules
+    /// (writable case, valid form and live lease) with the Report
+    /// section's redirect target. The command store compares the posted Case
+    /// version with current persisted state.
+    /// </summary>
+    private Task<IActionResult?> GuardReportCommandAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
+            id,
+            operationKey,
+            editLeaseToken,
+            () => RedirectToReport(id),
+            cancellationToken);
+
+    /// <summary>
+    /// Back to the Report section, in the view the request came from; a
+    /// refused send reopens the Send report dialog on its notice (v48 item N).
+    /// </summary>
+    private RedirectToPageResult RedirectToReport(Guid id, bool reopenSend = false) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report", view = ReturnView, dialog = reopenSend ? "send-report" : null });
+
+    /// <summary>
+    /// The names staff gave the send's documents (v48 item E): one hidden
+    /// <c>{prefix}-{kind}</c> field per Files row, empty while the row keeps
+    /// its policy name. Null when no row was renamed.
+    /// </summary>
+    private Dictionary<CaseReportArtifactKind, string>? PostedAttachmentNames(string prefix)
+    {
+        Dictionary<CaseReportArtifactKind, string>? names = null;
+        foreach (var key in Request.Form.Keys)
+        {
+            var parts = key.Split('-');
+            if (parts.Length == 2
+                && parts[0] == prefix
+                && Enum.TryParse<CaseReportArtifactKind>(parts[1], ignoreCase: false, out var kind)
+                && Request.Form[key].ToString() is { Length: > 0 } name
+                && !string.IsNullOrWhiteSpace(name))
+            {
+                (names ??= [])[kind] = name;
+            }
+        }
+        return names;
+    }
 }
 
 /// <summary>
