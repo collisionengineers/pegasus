@@ -132,8 +132,10 @@ clears it, each with the requirement as its link, its source and why it is
 outstanding; the link is what clears it (9 October 2026)
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 Original report missing links to Files, where Mark as original report is;
-**Vehicle mileage incomplete** links to Vehicle, where the Mileage box is
-([R759](../rulings.md)); the other Case requirements link to Case details. The card is headed
+**Vehicle registration incomplete** and **Vehicle mileage incomplete** link
+to Vehicle, where the Registration and Mileage boxes are
+([R1081](../rulings.md), [R759](../rulings.md)); the other Case requirements
+link to Case details. The card is headed
 **Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
 (operator, 1 October 2026): a missing Overview or report image
@@ -149,9 +151,10 @@ The rows run in page order (operator, 2 October 2026): section by section
 from the top, then by where the field that clears each sits within its
 section, so working down the list moves down the page; a blocker no Case
 section clears comes last, under Accounts where it opens Accounts. The
-Cases list's Current work names the same first row, except Vehicle mileage
-incomplete: the list row carries no mileage, so a Case waiting only for its
-mileage reads Not ready there ([R759](../rulings.md)).
+Cases list's Current work names the same first row, except Vehicle
+registration incomplete and Vehicle mileage incomplete, which only the Not
+ready queue reads ([R759](../rulings.md), [R929](../rulings.md),
+[R1081](../rulings.md)).
 The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action

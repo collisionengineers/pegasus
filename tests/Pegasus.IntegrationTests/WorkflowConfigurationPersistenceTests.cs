@@ -26,7 +26,7 @@ public sealed class WorkflowConfigurationPersistenceTests
         var request = new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "save-config")
         { RequireImages = false, ChaseIntervalDays = 12 };
         var saved = await store.UpdateAsync(request, default);
-        Assert.True(CaseCompletenessPolicy.Evaluate(new(true, false), saved, mileageRecorded: true).SatisfiesPolicy);
+        Assert.True(CaseCompletenessPolicy.Evaluate(new(true, false), saved, CaseVehicleGate.Open).SatisfiesPolicy);
         Assert.Equal(12, (await store.GetCurrentAsync(default)).ChaseIntervalDays);
         await Assert.ThrowsAsync<WorkflowConfigurationVersionConflictException>(() =>
             store.UpdateAsync(request with { OperationKey = "stale-save", ChaseIntervalDays = 20 }, default));

@@ -70,12 +70,14 @@ public sealed class EfCaseDataStore(
             AiDraftTargetDays = configuration.AiDraftTargetDays,
             Completeness = data.Completeness with
             {
-                // The accepted mileage, as the stores' gate reads it (R759).
+                // The accepted registration and mileage, as the stores' gate
+                // reads them (R759, R1081).
                 Evaluation = CaseCompletenessPolicy.Evaluate(
                     data.Completeness.Values,
                     configuration,
-                    CaseCompletenessPolicy.MileageGateOpen(
+                    CaseCompletenessPolicy.VehicleGate(
                         data.State,
+                        (data.Vehicle.Registration.Confirmed ?? data.Vehicle.Registration.Fact)?.Value,
                         (data.Vehicle.Mileage.Confirmed ?? data.Vehicle.Mileage.Fact)?.Value))
             }
         };

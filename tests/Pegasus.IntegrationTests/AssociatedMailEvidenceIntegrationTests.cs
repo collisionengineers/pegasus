@@ -133,7 +133,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         bool instructionsComplete)
     {
         using var factory = new IntakeWebApplicationFactory();
-        var caseId = await SeedCaseAsync(factory, instructionsComplete: instructionsComplete);
+        var caseId = await SeedCaseAsync(factory, instructionsComplete: instructionsComplete, registered: true);
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
@@ -847,8 +847,12 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Task.FromResult(new AutomaticCaseEvidencePromotionPreparation(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable));
     }
 
+    /// <param name="registered">
+    /// Whether the Case holds a registration; without one a Case that has
+    /// everything else stays Not ready (R1081).
+    /// </param>
     internal static async Task<Guid> SeedCaseAsync(IntakeWebApplicationFactory factory,
-        bool instructionsComplete = true, bool hasCustodyRoot = true, int sequence = 9)
+        bool instructionsComplete = true, bool hasCustodyRoot = true, int sequence = 9, bool registered = false)
     {
         _ = factory.Services;
         await using var db = await (await factory.DatabaseAsync).CreateContextAsync();
@@ -892,6 +896,18 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                 PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
                 ConfirmedByActor = "staff", ConfirmedAtUtc = now
             });
+        if (registered)
+        {
+            // No registration would keep the Case Not ready (R1081).
+            db.Add(new CaseDataFieldEntity
+            {
+                WorkId = id, FieldName = CaseDataFieldNames.VehicleRegistration, ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Text, Value = "AM31FIX", SourceKind = "intake_evidence",
+                SourceIdentity = "registration", SourceLabel = "associated mail fixture",
+                PolicyKey = "associated-mail-fixture", PolicyVersion = 1,
+                ConfirmedByActor = "staff", ConfirmedAtUtc = now
+            });
+        }
         await db.SaveChangesAsync();
         return id;
     }

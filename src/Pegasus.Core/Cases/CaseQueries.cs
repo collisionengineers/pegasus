@@ -1081,11 +1081,14 @@ public interface ICaseDocumentQueries
 /// unexplained (operator, 11 November 2026; R929).
 /// </summary>
 /// <param name="CustodyFailed">The Case's document storage failed, which holds it Not ready until a retry confirms it.</param>
-/// <param name="MileageRecorded">The Case's accepted data holds a mileage; without one it stays Not ready (R759).</param>
+/// <param name="VehicleGate">
+/// Whether the Case's accepted data holds a registration and a mileage;
+/// without either it stays Not ready (R759, R1081).
+/// </param>
 /// <param name="OriginalReportMissing"><see cref="OriginalReportPolicy.IsMissing"/> for the Case.</param>
 public sealed record NotReadyCaseBlockers(
     bool CustodyFailed,
-    bool MileageRecorded,
+    CaseVehicleGate VehicleGate,
     bool OriginalReportMissing);
 
 /// <summary>The Not ready queue's own read: every listed Case's <see cref="NotReadyCaseBlockers"/> in one query.</summary>

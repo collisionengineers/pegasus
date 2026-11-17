@@ -643,12 +643,13 @@ public sealed class IndexModel(
         // and Held it is the first outstanding requirement in the aside's
         // order: Original report missing on an Audit without its report
         // (R155), then the completeness facts the configuration requires,
-        // the mileage among them (R759), behind a failed document storage,
-        // which holds the Case whatever else it has (R929). Only those states
-        // read the configuration. The Not ready queue has already read what
-        // holds each of its Cases; from any other queue only an Audit kept
-        // without standalone evidence reads whether its report is filed, and
-        // a Case past Not ready has passed the mileage gate.
+        // the registration and the mileage among them (R759, R1081), behind a
+        // failed document storage, which holds the Case whatever else it has
+        // (R929). Only those states read the configuration. The Not ready
+        // queue has already read what holds each of its Cases; from any other
+        // queue only an Audit kept without standalone evidence reads whether
+        // its report is filed, and a Case past Not ready has passed the
+        // vehicle gate.
         IReadOnlyList<string> missingRequirements = [];
         string? firstRequirement = null;
         if (CaseNextAction.ReadsTheRequirements(workflow))
@@ -663,7 +664,7 @@ public sealed class IndexModel(
             missingRequirements = CaseCompletenessPolicy.Evaluate(
                 new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
                 configurationRead.Result,
-                mileageRecorded: listed?.MileageRecorded ?? true).MissingRequirements;
+                listed?.VehicleGate ?? CaseVehicleGate.Open).MissingRequirements;
             var originalReportMissing = listed?.OriginalReportMissing
                 ?? OriginalReportPolicy.IsMissing(
                     summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result);
@@ -803,8 +804,8 @@ public sealed class IndexModel(
     /// What holds a Not ready Case, in the words the Case page uses (operator,
     /// 11 November 2026; R929): a failed document storage, then an Audit's
     /// missing original report, then the requirements the configuration names
-    /// as missing, the mileage among them (R759), as "Instructions and
-    /// images" has always joined two. <see cref="ReviewPending"/> is left for
+    /// as missing, the registration and the mileage among them (R759,
+    /// R1081), as "Instructions and images" has always joined two. <see cref="ReviewPending"/> is left for
     /// a Case that lacks none of them.
     /// </summary>
     public static string MissingText(
@@ -825,7 +826,7 @@ public sealed class IndexModel(
 
         var missing = configuration.MissingRequirements(
             new(item.InstructionComplete ?? false, item.ImagesComplete ?? false),
-            mileageRecorded: blockers?.MileageRecorded ?? true);
+            blockers?.VehicleGate ?? CaseVehicleGate.Open);
         return missing.Count switch
         {
             0 => ReviewPending,

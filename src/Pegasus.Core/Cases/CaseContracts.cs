@@ -126,9 +126,28 @@ public sealed record CaseCompleteness(
     bool InstructionComplete,
     bool ImagesComplete)
 {
-    /// <param name="mileageRecorded">Whether the mileage gate is open (<see cref="CaseCompletenessPolicy.MileageGateOpen"/>; R759).</param>
-    public bool IsReadyForReview(bool mileageRecorded) =>
-        InstructionComplete && ImagesComplete && mileageRecorded;
+    /// <param name="vehicleGate">The Case's vehicle gate (<see cref="CaseCompletenessPolicy.VehicleGate"/>; R759, R1081).</param>
+    public bool IsReadyForReview(CaseVehicleGate vehicleGate) =>
+        InstructionComplete && ImagesComplete && vehicleGate.IsOpen;
+}
+
+/// <summary>
+/// The two vehicle facts a Case needs on its way into Review, whatever
+/// Workflow configuration requires: its mileage on every route (operator,
+/// 8 November 2026; R759) and its registration, the one item the automatic
+/// route's waiver does not cover (operator, 16 November 2026; R1081).
+/// </summary>
+/// <param name="RegistrationRecorded">The Case has a registration, or has passed the gate.</param>
+/// <param name="MileageRecorded">The Case has a mileage, or has passed the gate.</param>
+public readonly record struct CaseVehicleGate(bool RegistrationRecorded, bool MileageRecorded)
+{
+    /// <summary>
+    /// The gate of a Case past Not ready, or of a command that does not state
+    /// the vehicle facts because its store reads them.
+    /// </summary>
+    public static CaseVehicleGate Open => new(true, true);
+
+    public bool IsOpen => RegistrationRecorded && MileageRecorded;
 }
 
 public sealed record CaseIdentity(

@@ -43,9 +43,10 @@ public sealed class EfCaseQueryStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var ids = caseIds.Distinct().ToArray();
-        // The mileage is the Case's own work's accepted value, confirmed or
-        // fact, as the gate reads it (CaseInstructionCompleteness.Mileage);
-        // the report is the current one CurrentAuditReports names.
+        // The registration and the mileage are the Case's own work's accepted
+        // values, confirmed or fact, as the gate reads them
+        // (CaseInstructionCompleteness.VehicleGate); the report is the
+        // current one CurrentAuditReports names.
         var rows = await context.Set<CaseEntity>()
             .AsNoTracking()
             .Where(item => ids.Contains(item.Id))
@@ -55,6 +56,10 @@ public sealed class EfCaseQueryStore(
                 item.Type,
                 item.CustodyState,
                 item.StandaloneAuditEvidenceId,
+                RegistrationRecorded = context.CaseDataFields.Any(field =>
+                    field.WorkId == item.Id
+                    && field.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact)),
                 MileageRecorded = context.CaseDataFields.Any(field =>
                     field.WorkId == item.Id
                     && field.FieldName == CaseDataFieldNames.VehicleMileage
@@ -72,7 +77,7 @@ public sealed class EfCaseQueryStore(
             item => item.Id,
             item => new NotReadyCaseBlockers(
                 ParseCustodyState(item.CustodyState) == CaseCustodyState.Failed,
-                item.MileageRecorded,
+                new CaseVehicleGate(item.RegistrationRecorded, item.MileageRecorded),
                 OriginalReportPolicy.IsMissing(
                     CaseTypeCodes.Parse(item.Type),
                     item.StandaloneAuditEvidenceId,

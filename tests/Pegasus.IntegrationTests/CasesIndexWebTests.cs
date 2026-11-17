@@ -995,6 +995,42 @@ public sealed class CasesIndexWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// R1081: a Not ready Case with no registration names it, in the quick
+    /// detail's Current work, the Missing column and the Case page's Next
+    /// action, though its mileage is recorded.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailNamesTheRegistrationOfACaseThatHasItsMileage()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var noRegistrationId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 REG", "QUICK-DETAIL-09", CaseLifecycleState.NotReady);
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var caseEntity = await context.Cases.SingleAsync(item => item.Id == noRegistrationId);
+            caseEntity.ImagesComplete = true;
+            context.CaseDataFields.RemoveRange(await context.CaseDataFields
+                .Where(item => item.WorkId == noRegistrationId
+                    && item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .ToListAsync());
+            await context.SaveChangesAsync();
+        }
+        var registrationStep = Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(
+            CaseWorkflowConfiguration.VehicleRegistrationRequirement);
+
+        var queue = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=not_ready&selected={noRegistrationId:D}");
+        Assert.Matches(CurrentWork(registrationStep), queue);
+        Assert.Contains(
+            $">{CaseWorkflowConfiguration.VehicleRegistrationRequirement}<", queue, StringComparison.Ordinal);
+        Assert.Contains(
+            AsideStep(registrationStep),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{noRegistrationId:D}"),
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {
