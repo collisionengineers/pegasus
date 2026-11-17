@@ -58,6 +58,22 @@ public sealed class StaffMailTransportRejectedException(string failureCode) : Ex
 {
     public string FailureCode { get; } = failureCode;
 }
+
+/// <summary>
+/// A staff send whose outcome the provider left ambiguous: a Graph server
+/// error, 408 or 429, a timeout, or any other fault that is not a refusal.
+/// <see cref="StaffMailSend"/> has recorded <see cref="Operation"/> Unknown
+/// (<c>provider_outcome_unknown</c>) before throwing this, and the fault
+/// itself is the <see cref="Exception.InnerException"/>. It is the one sign
+/// that a send's result is not yet known: the caller shows that state on the
+/// page the send came from (R1069), never a plain failure.
+/// </summary>
+public sealed class StaffMailOutcomeUnknownException(
+    StaffMailOperation operation, Exception innerException)
+    : Exception("The staff mail provider outcome is unknown.", innerException)
+{
+    public StaffMailOperation Operation { get; } = operation;
+}
 /// <summary>
 /// A prepared send as its execution reads it. <paramref name="SecondContextId"/>
 /// is the second report generation a Case report send carries, if any.
@@ -329,7 +345,9 @@ public sealed class StaffMailSend(
                 StaffMailState.Submitted, StaffMailAttemptStage.ObserveSent, draft.ImmutableDraftId,
                 submitted.SubmittedAtUtc, null, null, cancellationToken);
         }
-        catch (OperationCanceledException)
+        // The caller left: the operation is recorded Unknown and the
+        // cancellation propagates. A timeout is not this; it is ambiguous.
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             await MarkUnknownAsync(command.Actor.SubjectId, operation, CancellationToken.None);
             throw;
@@ -338,7 +356,8 @@ public sealed class StaffMailSend(
         // recorded Failed with its exact code and returned, so every caller
         // shows the failure through the same state mapping as Submitted or
         // Sent. Only an ambiguous provider outcome, recorded Unknown, is
-        // re-thrown: it must be reconciled, never read as a plain failure.
+        // thrown, as StaffMailOutcomeUnknownException carrying the operation:
+        // it must be reconciled, never read as a plain failure.
         catch (StaffMailTransportRejectedException exception)
         {
             return await MarkFailedAsync(command.Actor.SubjectId, operation, exception.FailureCode, cancellationToken);
@@ -353,10 +372,11 @@ public sealed class StaffMailSend(
             return await MarkFailedAsync(command.Actor.SubjectId, operation,
                 "staff_send_content_invalid", cancellationToken);
         }
-        catch
+        catch (Exception exception)
         {
-            await MarkUnknownAsync(command.Actor.SubjectId, operation, cancellationToken);
-            throw;
+            throw new StaffMailOutcomeUnknownException(
+                await MarkUnknownAsync(command.Actor.SubjectId, operation, cancellationToken),
+                exception);
         }
         finally
         {
@@ -498,10 +518,10 @@ public sealed class StaffMailSend(
         }
     }
 
-    private async Task MarkUnknownAsync(
+    private async Task<StaffMailOperation> MarkUnknownAsync(
         string actorSubjectId, StaffMailOperation operation, CancellationToken cancellationToken)
     {
-        await store.TransitionAsync(
+        return await store.TransitionAsync(
             actorSubjectId, operation.Id, operation.Version, StaffMailState.Unknown,
             operation.AttemptStage, null, operation.SubmittedAtUtc,
             operation.ObservedSentAtUtc, "provider_outcome_unknown", cancellationToken);

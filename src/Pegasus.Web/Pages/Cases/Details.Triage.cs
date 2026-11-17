@@ -799,6 +799,14 @@ public sealed partial class DetailsModel
         {
             return Forbid();
         }
+        catch (StaffMailOutcomeUnknownException exception)
+        {
+            // Recorded Unknown: the record says so beside its Latest send
+            // status, never the error page (R1069).
+            Pegasus.Web.Pages.Mail.StaffMailSendLog.OutcomeUnknown(
+                logger, exception.Operation.Id, exception.Operation.ApprovedMailboxId, exception);
+            TempData["TriageStatus"] = CaseWorkspaceLabels.ReportDelivery.SendUnknown;
+        }
         catch (ArgumentException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);

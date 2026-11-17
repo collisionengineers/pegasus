@@ -1100,6 +1100,65 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.DoesNotContain($"value=\"{operationKey}\"", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A reply whose provider answer is ambiguous (a Graph server error or a
+    /// timeout, which the engine records Unknown and throws) lands back on
+    /// the record with "The send result is not yet known." and its Unknown
+    /// latest send, never on the error page (R1069).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AReplyWithAnUnknownProviderOutcomeStaysOnTheRecordWithItsStatus(bool timedOut)
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Unknown,
+            ProviderFault = timedOut
+                ? new TaskCanceledException("The request timed out.", new TimeoutException())
+                : new HttpRequestException(
+                    "Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = "Please supply the requested additional vehicle details."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.DoesNotContain("Error", response.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+
+        using var reloaded = await client.GetAsync(response.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, reloaded.StatusCode);
+        var html = WebUtility.HtmlDecode(await reloaded.Content.ReadAsStringAsync());
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendUnknown,
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Triage.LatestSendStatus(StaffMailState.Unknown),
+            html,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ARefusedSendKeepsThePostedText()
     {
@@ -1575,6 +1634,13 @@ public sealed partial class QdosTriageIntegrationTests
 
         public Exception? ThrowOnSend { get; set; }
 
+        /// <summary>
+        /// When set, a new send is recorded as <see cref="NextState"/> and then
+        /// throws as the engine does on an ambiguous provider answer: this
+        /// fault inside <see cref="StaffMailOutcomeUnknownException"/>.
+        /// </summary>
+        public Exception? ProviderFault { get; set; }
+
         public Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
@@ -1623,6 +1689,10 @@ public sealed partial class QdosTriageIntegrationTests
 
                 byOperationKey[command.OperationKey] = operation;
                 byOperationId[operation.Id] = operation;
+                if (ProviderFault is { } fault)
+                {
+                    throw new StaffMailOutcomeUnknownException(operation, fault);
+                }
                 return Task.FromResult(operation);
             }
         }

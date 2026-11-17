@@ -188,6 +188,16 @@ upload progress survive a restart without a second send attempt. If the
 provider's answer is ambiguous, the send stays Unknown until exact evidence
 settles it.
 
+**An Unknown send is shown where it was sent from.** When Graph answers a
+staff send with a server error, `408` or `429`, or does not answer in time,
+the send is recorded Unknown and staff stay on the page they sent from, the
+Inbox reply, Send report or the Triage reply, and see "The send result is not
+yet known." with the send's status, never the error page (operator, 16
+November 2026; [R1069](../rulings.md)). An Unknown send stays Unknown until
+the Sent Items check finds it, when it becomes Sent; nothing else settles,
+cancels, lists or counts it, and staff send again if the recipient did not get
+it (operator, 16 November 2026; [R1070](../rulings.md)).
+
 **Submitted is not Sent.** Graph `202 Accepted` means Submitted. Sent needs
 the retained-MIME pipeline to match the immutable item, the operation marker,
 the mailbox generation and the attachment hashes. The operation marker is the

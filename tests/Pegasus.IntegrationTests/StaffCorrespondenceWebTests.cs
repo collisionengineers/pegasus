@@ -1031,6 +1031,51 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>
+    /// A reply whose provider answer is ambiguous (a Graph server error or a
+    /// timeout, which the engine records Unknown and throws) keeps staff on
+    /// the message with "The send result is not yet known." and its Unknown
+    /// send status, never the error page (R1069). The composer keeps the
+    /// operation key, so sending it again replays the Unknown send.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnUnknownProviderOutcomeKeepsStaffOnTheMessageWithItsStatus(bool timedOut)
+    {
+        var send = new RecordingStaffMailSend
+        {
+            NextState = StaffMailState.Unknown,
+            ProviderFault = timedOut
+                ? new TaskCanceledException("The request timed out.", new TimeoutException())
+                : new HttpRequestException(
+                    "Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 MSG", "SC08-MSG-AMBIGUOUS");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=reply");
+        var html = await get.Content.ReadAsStringAsync();
+        var key = InputValue(html, "CorrespondenceOperationKey");
+
+        using var post = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Reply",
+            new FormUrlEncodedContent(RetainedReplyForm(html, key, "Reviewed response.")));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var redrawn = await post.Content.ReadAsStringAsync();
+        var page = WebUtility.HtmlDecode(redrawn);
+        Assert.Contains(CaseWorkspaceLabels.ReportDelivery.SendUnknown, page, StringComparison.Ordinal);
+        Assert.Contains("Send status", page, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.StaffMail.State(StaffMailState.Unknown), page, StringComparison.Ordinal);
+        Assert.Equal(key, InputValue(redrawn, "CorrespondenceOperationKey"));
+        Assert.Equal(1, send.SendCalls);
+    }
+
+    /// <summary>
     /// The retained-message composer's one Case / PO field takes a reference
     /// typed in full: the reply goes to that Case, not to the message's own.
     /// </summary>
@@ -2367,6 +2412,14 @@ public sealed class StaffCorrespondenceWebTests
         /// </summary>
         public Exception? ThrowOnSend { get; set; }
 
+        /// <summary>
+        /// When set, a new send is recorded as <see cref="NextState"/> and then
+        /// throws as the engine does on an ambiguous provider answer: this
+        /// fault inside <see cref="StaffMailOutcomeUnknownException"/>. A
+        /// replay under the same key returns the recorded operation.
+        /// </summary>
+        public Exception? ProviderFault { get; set; }
+
         public Task<StaffMailOperation> SendAsync(
             StaffMailSendCommand command, CancellationToken cancellationToken)
         {
@@ -2403,6 +2456,10 @@ public sealed class StaffCorrespondenceWebTests
                     command.OriginalMessage?.RetainedMessageId);
                 byOperationKey[command.OperationKey] = operation;
                 byOperationId[operation.Id] = operation;
+                if (ProviderFault is { } fault)
+                {
+                    throw new StaffMailOutcomeUnknownException(operation, fault);
+                }
                 return Task.FromResult(command.AiJobId is null
                     ? operation
                     : operation with { AiJobRefusal = NextAiJobRefusal });
