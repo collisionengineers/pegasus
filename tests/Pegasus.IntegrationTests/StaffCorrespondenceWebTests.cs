@@ -2526,7 +2526,7 @@ public sealed class StaffCorrespondenceWebTests
                     .Select(item => byOperationKey[item.OperationKey])
                     .ToArray();
                 return Task.FromResult<StaffMailOperation?>(
-                    matching.LastOrDefault(operation => IsActive(operation.State))
+                    matching.LastOrDefault(operation => IsUnderWay(operation.State))
                     ?? matching.LastOrDefault());
             }
         }
@@ -2540,9 +2540,13 @@ public sealed class StaffCorrespondenceWebTests
             }
         }
 
-        private static bool IsActive(StaffMailState state) => state is
+        /// <summary>
+        /// A send still under way comes first, as the store orders it; an
+        /// Unknown one ranks with the finished, so the newest of those wins (R1128).
+        /// </summary>
+        private static bool IsUnderWay(StaffMailState state) => state is
             StaffMailState.Prepared or StaffMailState.DraftCreating or StaffMailState.DraftReady
-            or StaffMailState.Sending or StaffMailState.Submitted or StaffMailState.Unknown;
+            or StaffMailState.Sending or StaffMailState.Submitted;
 
         public Task<StaffMailOperation> CancelAsync(
             ActionActor actor, Guid operationId, long expectedVersion, CancellationToken cancellationToken) =>

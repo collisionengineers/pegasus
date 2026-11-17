@@ -204,7 +204,10 @@ it (operator, 16 November 2026; [R1070](../rulings.md)). An Unknown send
 does not block another: the Triage reply, like the Inbox reply, offers the
 composer again under a new operation key, while a send still under way blocks
 it; the same key replays the Unknown send and never sends again (operator,
-17 November 2026; [R1122](../rulings.md)).
+17 November 2026; [R1122](../rulings.md)). A message's send status shows its
+most recent send, so a later send that reached Sent reads Sent where an
+earlier one is still Unknown; a send still under way is shown first (operator,
+17 November 2026; [R1128](../rulings.md)).
 
 **Submitted is not Sent.** Graph `202 Accepted` means Submitted. Sent needs
 the retained-MIME pipeline to match the immutable item, the operation marker,
