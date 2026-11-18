@@ -137,6 +137,29 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return entity is null ? null : ToSession(entity);
     }
 
+    public async Task<GlassRepairEstimateCaseSession?> GetForCaseWithBuildAsync(
+        Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // The same order as GetForCaseAsync, two rows: the newest session and
+        // the one made directly before it.
+        var entities = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        if (entities.Count == 0)
+        {
+            return null;
+        }
+
+        var newest = ToSession(entities[0]);
+        var previous = entities.Count > 1 ? ToSession(entities[1]) : null;
+        return new(newest, GlassRepairEstimateSessionPolicy.ListedBuild(newest, previous));
+    }
+
     /// <summary>
     /// The session a one-use correlation names. The token is never stored, so
     /// the row is found by the fingerprint its launch recorded — minted by the

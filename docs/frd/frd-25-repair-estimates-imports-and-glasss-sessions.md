@@ -13,8 +13,9 @@
 - A Glass's estimate belongs to its repair spec. **Glass's** on that spec
   reopens the same estimate, and its saved return updates that spec. On any
   other spec it starts a new estimate. On a spec with lines made outside
-  Pegasus it first asks whether to import that spec into Glass's, and the
-  import lands as a new Glass's spec beside it (18 November 2026; R1171).
+  Pegasus it first asks whether to import that spec into Glass's; the
+  import lands as a new Glass's spec beside it and opens in the same Glass's
+  window (18 November 2026; R1171).
 - An imported spec takes the Standard labour-rate card. AI and
   automation material stays a Draft until a staff member presses
   **Use repair spec**.
@@ -312,9 +313,13 @@ R1169, R1171, R1173).** **Import and open** starts a new estimate on a new
 stock vehicle, as any first press does. Pegasus then opens Glass's editor
 itself, adds the spec's lines as Glass's own dialogs serve them, saves, and
 brings the estimate back through the return path, so it lands as a new
-Glass's repair spec beside the outside one. No figure is typed: a rebuilt
-line carries Glass's own figures (R1168). A line Glass's has no row for is
-left off and listed (R1169). In this version a Specialist line is added
+Glass's repair spec beside the outside one. The same work then reopens that
+spec's estimate for the staff member, as **Glass's** on that spec reopens
+it, and the Glass's window opens it with no second press (18 November 2026;
+R1171). A reopen that does not open leaves the new spec on the Case, where
+**Glass's** reopens it; no line is sent to Glass's again. No figure is
+typed: a rebuilt line carries Glass's own figures (R1168). A line Glass's
+has no row for is left off and listed (R1169). In this version a Specialist line is added
 when exactly one row of Glass's special-operation list has exactly its
 name; an included operation and paint preparation are not sent, because
 Glass's adds them itself; every other line is left off and listed as not
@@ -359,8 +364,9 @@ on the spec ties the two.
 
 The staff member who ran the build sees, on the new spec, the list of the
 outside estimate's lines: what was sent, or why not, and Glass's price or
-hours where they differ from the outside estimate's. It stays until their
-next Glass's session on the Case (R1173).
+hours where they differ from the outside estimate's. The reopen in the
+same window is part of the build, so the list stays until the staff
+member's next press of **Glass's** on the Case (18 November 2026; R1173).
 
 **Any staff member who holds the Case edit may reopen a spec's estimate.**
 While a colleague holds the edit, nobody else can press Glass's. After a
@@ -376,8 +382,10 @@ vehicle, record the session, and answer at once. The provider work then runs in 
 ([ADR-0058](../adr/0058-glass-provider-work-in-the-web-host.md)). The Glass's
 window says "Preparing Glass's…" while it runs. While a build runs it says
 "Building the estimate in Glass's… 12 of 34", the lines tried so far of
-those it tries (18 November 2026; R1171), and once the build's return is brought
-back it reports the outcome on the Case as after any return. When the
+those it tries (18 November 2026; R1171). Once the build's return is brought
+back, the window waits on the reopen of the new spec and opens the
+estimator; if that reopen did not open, it reports the build's outcome on the
+Case as after any return. When the
 estimator is ready, the window refreshes the Case's Glass's controls and
 opens the estimator. If the launch did not open, the window hands the
 outcome back to the Case.
@@ -721,10 +729,11 @@ recorded in operations as it passes:
 13. Glass's on a spec imported from another system with Specialist lines
     named as Glass's special operations and new parts: the question,
     **Import and open**, the window's progress, and a new Glass's spec beside
-    the outside one with its list, a part whose row needs no equipment answer
-    added at Glass's own price and hours and one that does listed as waiting
-    on an equipment answer; then **Open an empty estimate** on the same spec
-    gives a new empty estimate (18 November 2026; R1171 to R1173).
+    the outside one with its list, opened in the same window, a part whose
+    row needs no equipment answer added at Glass's own price and hours and
+    one that does listed as waiting on an equipment answer; then **Open an
+    empty estimate** on the same spec gives a new empty estimate (18 November
+    2026; R1171 to R1173).
 
 Manual export/import does not satisfy this integration's acceptance.
 Supplier startup failures remain open until that journey passes

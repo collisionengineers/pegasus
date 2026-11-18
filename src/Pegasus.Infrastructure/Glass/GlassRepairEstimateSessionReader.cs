@@ -38,6 +38,16 @@ public interface IGlassRepairEstimateSessionReader
         Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="GetForCaseAsync"/>'s session, for the Case page, with the
+    /// build whose list the staff member sees there
+    /// (<see cref="GlassRepairEstimateSessionPolicy.ListedBuild"/>, R1173):
+    /// one query, reading their two newest sessions on the Case. Null when
+    /// they have none.
+    /// </summary>
+    Task<GlassRepairEstimateCaseSession?> GetForCaseWithBuildAsync(
+        Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The session a one-use correlation names, found by the fingerprint the
     /// launch recorded rather than by the token itself — the token is never
     /// stored. Null when nothing was launched under it.
@@ -88,3 +98,11 @@ public interface IGlassRepairEstimateSessionReader
 /// <summary>What the Glass's window's poll reads of its session: the state and the build, if any.</summary>
 public sealed record GlassRepairEstimateSessionProgress(
     GlassRepairEstimateSessionState State, GlassEstimateBuild? Build);
+
+/// <summary>
+/// The staff member's newest Glass's session on a Case, and the build whose
+/// list they see there, which may be the session's own or, while that session
+/// is a build's reopen, the build's (R1173).
+/// </summary>
+public sealed record GlassRepairEstimateCaseSession(
+    GlassRepairEstimateSession Session, GlassEstimateBuild? Build);

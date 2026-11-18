@@ -426,13 +426,16 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The list of what this staff member's build sent to Glass's, shown on
-    /// the repair spec it landed as until their next Glass's session on the
-    /// Case (R1173); null anywhere else.
+    /// the repair spec it landed as until their next Glass's press on the
+    /// Case (R1173); the reopen the build's own work makes in the same window
+    /// is part of the build and keeps it. Null anywhere else.
     /// </summary>
     public GlassEstimateBuild? GlassBuildList =>
-        GlassSession?.Build is { BuiltSpecificationId: { } built } build && built == GlassSpecificationId
+        glassListedBuild is { BuiltSpecificationId: { } built } build && built == GlassSpecificationId
             ? build
             : null;
+
+    private GlassEstimateBuild? glassListedBuild;
 
     /// <summary>
     /// What the selected spec's frozen versions decide: Compare's sides, the
@@ -531,7 +534,8 @@ public sealed partial class DetailsModel
     private sealed record GlassSessionReads(
         bool AccountEnabled,
         GlassRepairEstimateSession? Session,
-        GlassSessionElsewhere? Elsewhere);
+        GlassSessionElsewhere? Elsewhere,
+        GlassEstimateBuild? ListedBuild = null);
 
     /// <summary>
     /// The Estimate section's Glass's surface: whether this staff member holds
@@ -563,6 +567,7 @@ public sealed partial class DetailsModel
     {
         GlassAccountEnabled = reads.AccountEnabled;
         GlassSession = reads.Session;
+        glassListedBuild = reads.ListedBuild;
         GlassSessionElsewhere = reads.Elsewhere;
         GlassWorkRunning = GlassSession is { } own
             && HttpContext.RequestServices.GetRequiredService<Pegasus.Web.Background.ProviderWorkQueue>()
@@ -596,7 +601,9 @@ public sealed partial class DetailsModel
             return new(false, null, null);
         }
 
-        var session = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+        // One query reads the session and, for the build list, the one before it.
+        var own = await glassSessions.GetForCaseWithBuildAsync(id, staffId, cancellationToken);
+        var session = own?.Session;
         GlassSessionElsewhere? elsewhere = null;
         if (session is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State))
         {
@@ -613,7 +620,7 @@ public sealed partial class DetailsModel
             }
         }
 
-        return new(true, session, elsewhere);
+        return new(true, session, elsewhere, own?.Build);
     }
 
     private void ApplyEstimateSelection(string? estimate)

@@ -1108,6 +1108,12 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         /// <summary>Holds every background launch until the test releases it.</summary>
         public TaskCompletionSource? LaunchGate { get; set; }
+
+        /// <summary>
+        /// Holds every launch's continuation, but not a build's, until the
+        /// test releases it: the reopen a build's own work makes waits here.
+        /// </summary>
+        public TaskCompletionSource? ContinueLaunchGate { get; set; }
     }
 
     /// <summary>A switch the test flips to make the host's Case read fault.</summary>
@@ -1144,6 +1150,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
             if (fault.LaunchGate is { } gate)
             {
                 await gate.Task.WaitAsync(cancellationToken);
+            }
+            if (fault.ContinueLaunchGate is { } held)
+            {
+                await held.Task.WaitAsync(cancellationToken);
             }
 
             return await inner.ContinueLaunchAsync(request, cancellationToken);
@@ -1246,11 +1256,14 @@ public sealed class GlassRepairEstimateCallbackWebTests
             GatewayFault? fault = null,
             CaseReadFault? caseReadFault = null,
             bool liveGlass = true,
-            int editorPauseMilliseconds = 0)
+            int editorPauseMilliseconds = 0,
+            TimeProvider? clock = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
-            var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+            // The suite's fixed instant unless the test brings a clock of its own.
+            var baseFactory = new IntakeWebApplicationFactory(
+                "Development", true, clock, useIntegrationTestAuthentication: true);
             var factory = baseFactory.WithWebHostBuilder(builder =>
             {
                 // The offline host composes Glass's only when asked to, and it
@@ -1536,15 +1549,17 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var reader = scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionReader>();
+            // Each session by its own id: a staff member's second session on
+            // the Case is read as itself, not as their newest one.
             var ids = await context.Set<GlassRepairEstimateSessionEntity>()
                 .AsNoTracking()
                 .OrderBy(entity => entity.CreatedAtUtc)
-                .Select(entity => new { entity.CaseId, entity.UserId })
+                .Select(entity => new { entity.Id, entity.UserId })
                 .ToArrayAsync();
             var sessions = new List<GlassRepairEstimateSession>();
             foreach (var id in ids)
             {
-                sessions.Add(await reader.GetForCaseAsync(id.CaseId, id.UserId, CancellationToken.None)
+                sessions.Add(await reader.GetOwnAsync(id.Id, id.UserId, CancellationToken.None)
                     ?? throw new InvalidOperationException("The recorded session could not be read back."));
             }
 
