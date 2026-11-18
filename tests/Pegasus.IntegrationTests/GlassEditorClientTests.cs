@@ -331,6 +331,35 @@ public sealed class GlassEditorClientTests
         Assert.Equal(GlassFailure.EditorAnswer, refused.FailureCode);
     }
 
+    /// <summary>
+    /// The pace holds across clients (design 07 section 6): a client that
+    /// continues an editor another client used is given that client's last
+    /// request time, so its first request still waits out the pause, and it
+    /// reports its own afterwards to be kept for the next.
+    /// </summary>
+    [Fact]
+    public async Task APaceCarriedFromAnotherClientHoldsItsFirstRequest()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, EmptyEstimate));
+        var clock = new GlassEditorFixture.FixedClock(Now);
+        var client = new GlassEditorClient(
+            new HttpClient(editor, disposeHandler: false), GlassEditorFixture.Options(), clock, TimeSpan.FromSeconds(1))
+        {
+            LastRequestAtUtc = Now,
+        };
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var read = await client.ReadEstimateAsync(GlassEditorFixture.Session(), default);
+
+        Assert.True(read.Value.Found);
+        Assert.True(
+            System.Diagnostics.Stopwatch.GetElapsedTime(started) >= TimeSpan.FromMilliseconds(900),
+            "The first request must wait out the pause the previous client left.");
+        Assert.Equal(Now, client.LastRequestAtUtc);
+        Assert.Null(Client(editor).LastRequestAtUtc);
+    }
+
     private static GlassEditorEstimate NoPositions() => new(true, Array.Empty<string>(), Array.Empty<string>());
 
     private static GlassEditorClient Client(ScriptedEditor editor) =>
