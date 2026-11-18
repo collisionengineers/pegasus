@@ -44,6 +44,15 @@ public sealed partial class GlassSessionWork(
     CaseEditLeases leases,
     ILogger<GlassSessionWork> logger)
 {
+    /// <summary>
+    /// A build's own time cap: the launch, every act at a browser's pace, the
+    /// save, the export and the import run as one piece of work, which may
+    /// pass <see cref="ProviderWorkService.TimeCap"/>. A build is never split:
+    /// taking up an editor session again after a restart could send a post
+    /// twice.
+    /// </summary>
+    public static readonly TimeSpan BuildTimeCap = TimeSpan.FromMinutes(15);
+
     /// <summary>The provider work a step owes, keyed by its session.</summary>
     public static ProviderWork For(ActionActor actor, GlassRepairEstimateStep step)
     {
@@ -62,6 +71,12 @@ public sealed partial class GlassSessionWork(
                 "GlassImport",
                 (services, cancellationToken) => services.GetRequiredService<GlassSessionWork>()
                     .ImportAsync(actor, sessionId, cancellationToken)),
+            GlassRepairEstimateContinuation.Build => new(
+                sessionId,
+                "GlassBuild",
+                (services, cancellationToken) => services.GetRequiredService<GlassSessionWork>()
+                    .BuildAsync(actor, sessionId, cancellationToken),
+                Cap: BuildTimeCap),
             _ => throw new ArgumentException("The step owes no provider work.", nameof(step)),
         };
     }
@@ -78,16 +93,32 @@ public sealed partial class GlassSessionWork(
         }
     }
 
-    public async Task ImportAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
+    public Task ImportAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+        LandAsync("GlassImport", actor, sessionId, glassEstimates.ContinueImportAsync, cancellationToken);
+
+    /// <summary>
+    /// A build, through its own return and import; a held estimate then lands
+    /// as an import's does. After the import the window behaves as after any
+    /// return.
+    /// </summary>
+    public Task BuildAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+        LandAsync("GlassBuild", actor, sessionId, glassEstimates.ContinueBuildAsync, cancellationToken);
+
+    private async Task LandAsync(
+        string kind,
+        ActionActor actor,
+        Guid sessionId,
+        Func<GlassRepairEstimateContinueRequest, CancellationToken, Task<GlassRepairEstimateSession>> work,
+        CancellationToken cancellationToken)
     {
         GlassRepairEstimateSession session;
         try
         {
-            session = await glassEstimates.ContinueImportAsync(new(actor, sessionId), cancellationToken);
+            session = await work(new(actor, sessionId), cancellationToken);
         }
         catch (Exception refusal) when (IsExpectedRefusal(refusal))
         {
-            LogWorkRefused(logger, "GlassImport", sessionId, Reason(refusal));
+            LogWorkRefused(logger, kind, sessionId, Reason(refusal));
             return;
         }
         if (session.State == GlassRepairEstimateSessionState.AwaitingImport)

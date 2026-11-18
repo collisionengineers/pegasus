@@ -84,6 +84,10 @@ public sealed class GlassRepairEstimatePersistenceTests
     private static readonly string CallbackDigest = new('a', 64);
     private static readonly string OtherCallbackDigest = new('b', 64);
 
+    private static readonly int[] FirstLine = [1];
+
+    private static readonly int[] SecondLine = [2];
+
     /// <summary>
     /// Two opaque fixtures shaped like the canonical key Stream A mints (64
     /// lower-hex characters). The key rule is A's alone and is proved below
@@ -905,6 +909,87 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.Equal(GlassRepairEstimateSessionState.Prepared, own?.State);
         Assert.Null(await harness.Store.GetOwnAsync(created.Session.Id, harness.OtherUserId, CancellationToken.None));
         Assert.Null(await harness.Store.GetOwnAsync(Guid.NewGuid(), harness.UserId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A session's build is written with it and read back whole by every read
+    /// that answers the session, and by the window's poll; a save writes the
+    /// build as the caller hands it over (operator, 18 November 2026; R1171
+    /// to R1173).
+    /// </summary>
+    [Fact]
+    public async Task ABuildIsWrittenWithItsSessionAndReadBackWhole()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var plan = new GlassEstimateBuild(
+            Guid.NewGuid(),
+            [
+                new GlassEstimateBuildAct(
+                    FirstLine, GlassEstimateBuildKind.SpecialOperation, ".Sundries", ".Sundries", null,
+                    Sends: true, GlassEstimateBuildOutcome.Pending, null, new(20m, null)),
+                new GlassEstimateBuildAct(
+                    SecondLine, GlassEstimateBuildKind.Part, "Front Door Shell (L)", "41007408961", "L",
+                    Sends: false, GlassEstimateBuildOutcome.LeftOff, GlassEstimateBuildPolicy.NotBuiltCode,
+                    new(942.95m, 3.7m)),
+            ]);
+        var material = harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "build-1");
+        var (created, _) = await harness.Store.CreateAsync(
+            new(material.Session with { Build = plan }, material.ProtectedProviderState, material.CallbackDigest),
+            CancellationToken.None);
+
+        var read = await harness.Store.GetAsync(created.Session.Id, CancellationToken.None);
+        Assert.NotNull(read);
+        AssertSameBuild(plan, read.Session.Build);
+
+        var added = GlassEstimateBuildPolicy.Record(plan, 0, plan.Acts[0] with
+        {
+            Outcome = GlassEstimateBuildOutcome.Added,
+            Served = new(20m, null),
+        }) with { BuiltSpecificationId = Guid.NewGuid() };
+        await harness.Store.SaveAsync(
+            new(
+                read.Session with { State = GlassRepairEstimateSessionState.Launching, Build = added },
+                read.ProtectedProviderState,
+                read.CallbackDigest,
+                read.ResultArtifactsJson),
+            read.Session.Version,
+            CancellationToken.None);
+
+        AssertSameBuild(
+            added,
+            (await harness.Store.GetForCaseAsync(harness.CaseId, harness.UserId, CancellationToken.None))?.Build);
+        var progress = await harness.Store.GetOwnProgressAsync(created.Session.Id, harness.UserId, CancellationToken.None);
+        Assert.Equal(GlassRepairEstimateSessionState.Launching, progress?.State);
+        AssertSameBuild(added, progress?.Build);
+        Assert.Equal(1, progress?.Build?.Done);
+        Assert.Null(await harness.Store.GetOwnProgressAsync(created.Session.Id, harness.OtherUserId, CancellationToken.None));
+    }
+
+    /// <summary>An ordinary launch has no build, and none is written for it.</summary>
+    [Fact]
+    public async Task AnOrdinaryLaunchHasNoBuild()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var (created, _) = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-1"),
+            CancellationToken.None);
+
+        Assert.Null((await harness.Store.GetAsync(created.Session.Id, CancellationToken.None))?.Session.Build);
+        Assert.Null((await harness.Store.GetOwnProgressAsync(created.Session.Id, harness.UserId, CancellationToken.None))?.Build);
+    }
+
+    private static void AssertSameBuild(GlassEstimateBuild expected, GlassEstimateBuild? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(expected.SourceSpecificationId, actual.SourceSpecificationId);
+        Assert.Equal(expected.BuiltSpecificationId, actual.BuiltSpecificationId);
+        Assert.Equal(expected.StoppedAt, actual.StoppedAt);
+        Assert.Equal(expected.Acts.Count, actual.Acts.Count);
+        foreach (var (want, got) in expected.Acts.Zip(actual.Acts))
+        {
+            Assert.Equal(want.SourcePositions, got.SourcePositions);
+            Assert.Equal(want with { SourcePositions = got.SourcePositions }, got);
+        }
     }
 
     [Fact]

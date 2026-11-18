@@ -1,0 +1,594 @@
+{
+  "note": "Cut from browser captures of September to November 2026 by scripts/make-fixtures.mjs in the operator's workspace. Keys, tokens and file names are made up.",
+  "key": "Q0TESTKEY000000000000000000001",
+  "origin": "https://pegasus.test",
+  "dialogs": [
+    {
+      "name": "bumper_part",
+      "dialog": "comp.php",
+      "mode": "C",
+      "rows": "0|5",
+      "button": "BSL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=0|5",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1010800_701910520101_2G_0_5_|64",
+        "partCode": "1010800",
+        "description": "Front Bumper Lining",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|P|AN|E|Z|KM|KS",
+        "price": "379.00",
+        "hours": "1.80",
+        "partNumber": "6F0807221DGRU",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "R",
+        "paintPrice": "354.00",
+        "paintHours": "1.10",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "0|5"
+      },
+      "page": "bumper_part.dialog.html",
+      "post": "bumper_part.post.txt",
+      "answer": "bumper_part.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1017810.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Front Bumper Repair kit"
+        },
+        {
+          "code": "1019810.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Front Bumper Lining Screw"
+        },
+        {
+          "code": "1019041.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Front Bumper Inner Distance-Sensor Brkt_____(L)"
+        },
+        {
+          "code": "1019042.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Front Bumper Inner Distance-Sensor Brkt_____(R)"
+        },
+        {
+          "code": "1019051.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Front Bumper Outer Distance-Sensor Brkt_____(L)"
+        },
+        {
+          "code": "1019052.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Front Bumper Outer Distance-Sensor Brkt_____(R)"
+        },
+        {
+          "code": "1019290.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Front Bumper Distance-Sensor Glue Kit"
+        }
+      ],
+      "ticks": [
+        "1017810.ER."
+      ],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=0|5",
+      "confirm": "bumper_part.confirm.txt",
+      "confirmAnswer": "bumper_part.confirm_answer.html"
+    },
+    {
+      "name": "bonnet_part_and_paint",
+      "dialog": "comp.php",
+      "mode": "C",
+      "rows": "649|650",
+      "button": "BSL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=649|650",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701300250101_2G_649_650_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "412.12",
+        "hours": "0.80",
+        "partNumber": "41007290942",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "697.10",
+        "paintHours": "2.60",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "649|650"
+      },
+      "page": "bonnet_part_and_paint.dialog.html",
+      "post": "bonnet_part_and_paint.post.txt",
+      "answer": "bonnet_part_and_paint.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1061210.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation Repair/Fastening Kit"
+        },
+        {
+          "code": "1069800.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Clip"
+        }
+      ],
+      "ticks": [
+        "1061210.ER.",
+        "1069800.ER."
+      ],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=649|650",
+      "confirm": "bonnet_part_and_paint.confirm.txt",
+      "confirmAnswer": "bonnet_part_and_paint.confirm_answer.html"
+    },
+    {
+      "name": "tailgate_paint",
+      "dialog": "comp.php",
+      "mode": "C",
+      "rows": "1378|1379",
+      "button": "BLL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1378|1379",
+      "fields": 36,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C3070500_701300250101_2G_1378_1379_|64",
+        "partCode": "3070500",
+        "description": "Tailgate",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|I|AD|P|AN|Z|DD",
+        "price": "481.01",
+        "hours": "3.20",
+        "partNumber": "41007420695",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "342.40",
+        "paintHours": "1.50",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "1378|1379"
+      },
+      "page": "tailgate_paint.dialog.html",
+      "post": "tailgate_paint.post.txt",
+      "answer": "tailgate_paint.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "door_left_part",
+      "dialog": "comp.php",
+      "mode": "C",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "545.24",
+        "hours": "2.90",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_part.dialog.html",
+      "post": "door_left_part.post.txt",
+      "answer": "door_left_part.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "2029301.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Front Door Insulation_____(L)"
+        },
+        {
+          "code": "8099801.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Front Door Trim Support Kit_____(L)"
+        },
+        {
+          "code": "8099811.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Front Door Trim Clip_____(L)"
+        }
+      ],
+      "ticks": [
+        "8099801.ER."
+      ],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=771|772",
+      "confirm": "door_left_part.confirm.txt",
+      "confirmAnswer": "door_left_part.confirm_answer.html"
+    },
+    {
+      "name": "special_fixed_price",
+      "dialog": "part.php",
+      "mode": "A",
+      "rows": "AC0000073",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AC0000073",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AC0000073|64",
+        "partCode": "73",
+        "description": ".Assessment Damage Appraisal Charge",
+        "special": true,
+        "operation": "ZK",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "176.96",
+        "hours": "0",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "special_fixed_price.dialog.html",
+      "post": "special_fixed_price.post.txt",
+      "answer": "special_fixed_price.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "special_hours",
+      "dialog": "part.php",
+      "mode": "A",
+      "rows": "AC0000075",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AC0000075",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AC0000075|64",
+        "partCode": "75",
+        "description": ".Pre repair cleaning charge",
+        "special": true,
+        "operation": "ZK",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "0",
+        "hours": "0.50",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "special_hours.dialog.html",
+      "post": "special_hours.post.txt",
+      "answer": "special_hours.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "mirror_left",
+      "dialog": "part.php",
+      "mode": "C",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "383.48",
+        "hours": "0.80",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left.dialog.html",
+      "post": "mirror_left.post.txt",
+      "answer": "mirror_left.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "intercooler",
+      "dialog": "part.php",
+      "mode": "C",
+      "rows": "1421|1422",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1421|1422",
+      "fields": 22,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C6066400_701300250101_2G_1421_1422_|64",
+        "partCode": "6066400",
+        "description": "Intercooler",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "354.68",
+        "hours": "0.80",
+        "partNumber": "17517600530",
+        "trade": "M",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "intercooler.dialog.html",
+      "post": "intercooler.post.txt",
+      "answer": "intercooler.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "reinforcement_left_both",
+      "dialog": "part.php",
+      "mode": "C",
+      "rows": "193|196",
+      "button": "BS",
+      "change": {
+        "both": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=193|196",
+      "fields": 24,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1012401_701300250101_2G_193_196_|64",
+        "partCode": "1012401",
+        "description": "Front Bumper Side Reinforcement",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|Z|UN|HO",
+        "price": "38.68",
+        "hours": "2.20",
+        "partNumber": "51117266193",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "reinforcement_left_both.dialog.html",
+      "post": "reinforcement_left_both.post.txt",
+      "answer": "reinforcement_left_both.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "reinforcement_right",
+      "dialog": "part.php",
+      "mode": "C",
+      "rows": "1783|ER|1786|AE|1792",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1783|ER|1786|AE|1792",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "Price and time by operation do not match the served gross figures (38.68|38.68|2.20|0.00)."
+      ],
+      "summary": {
+        "position": "C1012402_701300250203_2G_1783_0_|64",
+        "partCode": "1012401",
+        "description": "Front Bumper Side Reinforcement",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|Z|UN|HO",
+        "price": "38.68",
+        "hours": "2.20",
+        "partNumber": "51117266194",
+        "trade": "C",
+        "side": "R",
+        "sidesOffered": "L|R"
+      },
+      "page": "reinforcement_right.dialog.html",
+      "post": "reinforcement_right.post.txt",
+      "answer": "reinforcement_right.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "cleaner_renew",
+      "dialog": "part.php",
+      "mode": "C",
+      "rows": "2981|2982",
+      "button": "BS",
+      "change": {
+        "operation": "AN"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=2981|2982",
+      "fields": 22,
+      "problems": [],
+      "notes": [
+        "Renew goes through the old-for-new dialog, taken as served with no deduction.",
+        "The operation was changed from ER to AN; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2010040_701300250405_2G_2981_2982_|64",
+        "partCode": "2010040",
+        "description": "Roof Panel Cleaner",
+        "special": false,
+        "operation": "AN",
+        "offered": "ER|P|AN",
+        "price": "11.44",
+        "hours": "0.00",
+        "partNumber": "83192211217",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "cleaner_renew.dialog.html",
+      "post": "cleaner_renew.post.txt",
+      "answer": "cleaner_renew.answer.html",
+      "answerKind": "done"
+    }
+  ],
+  "pages": {
+    "selected": {
+      "file": "selected.html",
+      "found": true,
+      "positions": [
+        "C350955.31.C1010800.1580",
+        "C350945.30.C1014720.1842",
+        "C350971.32.C1047701.2408",
+        "C350898.20.C1060000.2464",
+        "C350896.18.C1061210.2499",
+        "C350897.19.C1069800.8627",
+        "C350987.35.C2020001.4467",
+        "C350926.27.C2027021.4646",
+        "C350919.26.C3030081.3995",
+        "C350907.23.C3030591.4003",
+        "C350911.24.C3030601.4009",
+        "C350915.25.C3030611.4015",
+        "C350935.28.C6066400.5121",
+        "C350986.34.C8099801.4835",
+        "A350880.1.A73.A73",
+        "A350881.2.A74.A74",
+        "A350882.3.A75.A75",
+        "A350883.4.A76.A76",
+        "A350884.5.A77.A77",
+        "A350885.6.A78.A78",
+        "A350886.7.A79.A79",
+        "A350887.8.A80.A80",
+        "A350888.9.A81.A81",
+        "A350889.10.A82.A82",
+        "A350890.11.A83.A83",
+        "A350891.12.A84.A84",
+        "A350892.13.A102.A102",
+        "A350894.15.A157.A157",
+        "A350895.16.A172.A172",
+        "A350893.14.A198.A198",
+        "L350956.31.Lxx1010.Lxx1010",
+        "L350899.20.Lxx1640.Lxx1640",
+        "L350903.21.Lxx3520.Lxx3520"
+      ],
+      "codes": [
+        "C1010800",
+        "C1014720",
+        "C1047701",
+        "C1060000",
+        "C1061210",
+        "C1069800",
+        "C2020001",
+        "C2027021",
+        "C3030081",
+        "C3030591",
+        "C3030601",
+        "C3030611",
+        "C6066400",
+        "C8099801",
+        "A73",
+        "A74",
+        "A75",
+        "A76",
+        "A77",
+        "A78",
+        "A79",
+        "A80",
+        "A81",
+        "A82",
+        "A83",
+        "A84",
+        "A102",
+        "A157",
+        "A172",
+        "A198",
+        "Lxx1010",
+        "Lxx1640",
+        "Lxx3520"
+      ]
+    },
+    "position": {
+      "file": "position.json",
+      "id": "C350898.20.C1060000.2464"
+    },
+    "equipment821": {
+      "file": "equipment_821.html",
+      "asked": "822|829",
+      "answers": "21115|1|1|21117|0|1|85142|0|1"
+    },
+    "equipment193": {
+      "file": "equipment_193.html",
+      "asked": "193|196"
+    },
+    "criteria": {
+      "file": "criteria.html"
+    },
+    "specialList": {
+      "file": "special_list.html"
+    },
+    "removed": {
+      "file": "removed.answer.html",
+      "id": "C240813.25.C3030611.4015"
+    },
+    "opening": {
+      "launchAddress": "https://repairestimate.autovistagroup.com/ere/acolib/aco_call_xml.php?WorkTime=1791198340&inURI=D%3A%2Fvar%2Fdb%2Feremware%2Frequest%2F0000000000_000000_0000000000.xml&outURI=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F0000000000_000000_0000000000.xml&ucode=TEST&scode=TEST&EuComp=647_647_powered_by_eucomp&caller=https%3A%2F%2Fpegasus.test%2FIntegrations%2FGlass%2FCallback%2FTESTTOKEN0000000000000000000000000000000000",
+      "launch": "launch.html",
+      "aco2": "aco2.html",
+      "wt": 1794979937000,
+      "url0": "../acolib/aco_call_xml.php?caller=https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000",
+      "caller": "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000",
+      "addresses": {
+        "aco": "https://repairestimate.autovistagroup.com/ere/aco/aco.php?url0=../acolib/aco_call_xml.php?caller=https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000&XmlPar=%3C%3Fxml%20version%3D%221.0%22%20inURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Frequest%2F0000000000_000000_0000000000.xml%22%20outURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F0000000000_000000_0000000000.xml%22%20UserId%3D%22glassnet%22%20Signature%3D%22Test%22%3F%3E&WT=1794979937000",
+        "aco2": "https://repairestimate.autovistagroup.com/ere/aco/aco2.php?url0=..%2Facolib%2Faco_call_xml.php%3Fcaller%3Dhttps%3A%2F%2Fpegasus.test%2FIntegrations%2FGlass%2FCallback%2FTESTTOKEN0000000000000000000000000000000000&XmlPar=%3C%3Fxml%20version%3D%221.0%22%20inURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Frequest%2F0000000000_000000_0000000000.xml%22%20outURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F0000000000_000000_0000000000.xml%22%20UserId%3D%22glassnet%22%20Signature%3D%22Test%22%3F%3E&WT=1794979937000",
+        "frame": "https://repairestimate.autovistagroup.com/ere/aco/acofr.php?ksid=Q0TESTKEY000000000000000000001&url0=../acolib/aco_call_xml.php%3Fcaller%3Dhttps%3A//pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000&noacd=1&thsep=%2C&html5svg=1&ieversion=6",
+        "close": "https://repairestimate.autovistagroup.com/ere/aco/close.php?ksid=Q0TESTKEY000000000000000000001&url0=..%2Facolib%2Faco_call_xml.php%3Fcaller%3Dhttps%3A%2F%2Fpegasus.test%2FIntegrations%2FGlass%2FCallback%2FTESTTOKEN0000000000000000000000000000000000&dosave=1"
+      }
+    },
+    "closing": {
+      "save": "save.answer.html",
+      "close": "close.html",
+      "back": "return.html",
+      "backAddress": "https://repairestimate.autovistagroup.com/ere/acolib/aco_call_xml.php?caller=https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000&ksid=Q0TESTKEY000000000000000000001&DoSave=1&dummy=1788358899",
+      "home": {
+        "address": "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000?Total=0&DoSave=1&ErrMsg=D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F0000000000_000000_0000000000.xml",
+        "origin": "https://pegasus.test",
+        "path": "/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000",
+        "total": "0",
+        "doSave": "1",
+        "hasFile": true
+      }
+    }
+  }
+}
