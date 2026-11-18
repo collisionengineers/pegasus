@@ -413,7 +413,8 @@ public sealed class CaseReportDeliveryPersistenceTests
     public async Task OnlyARecognisedCurrentConfirmedFiledEstimateIsListedWithItsFormat()
     {
         await using var harness = await Harness.CreateAsync();
-        var filed = await harness.SeedFiledEstimateAsync();
+        var filed = await harness.SeedCaseFileAsync(
+            DocumentSemanticRole.Other, recognised: true, provider: Pegasus.Core.Assessment.EstimateFormats.AudatexProvider);
         await harness.SeedFiledEstimateAsync(recognised: false, provider: null);
         await harness.SeedFiledEstimateAsync(recognised: null, provider: null);
         await harness.SeedFiledEstimateAsync(removed: true);
@@ -425,7 +426,11 @@ public sealed class CaseReportDeliveryPersistenceTests
             .ListAsync(harness.CaseId, CancellationToken.None);
         var facts = await harness.FactsAsync();
 
-        Assert.Equal([new FiledEstimateAttachment(filed, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)], listed);
+        // Each with its occurrence, which the Send report dialog opens and
+        // renames it by (R1176).
+        Assert.Equal(
+            [new FiledEstimateAttachment(filed.Attachment, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider, filed.OccurrenceId)],
+            listed);
         Assert.Equal(listed, facts!.FiledEstimates);
     }
 

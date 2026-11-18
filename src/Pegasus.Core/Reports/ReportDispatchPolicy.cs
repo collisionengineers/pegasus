@@ -31,9 +31,11 @@ public sealed record ReportInstructionMessage(
 
 /// <summary>
 /// One of the Case's recognised filed estimate documents as an attachment,
-/// with the format it was read in (<see cref="Provider"/>, such as "Audatex").
+/// with the format it was read in (<see cref="Provider"/>, such as "Audatex"),
+/// named by its occurrence on the Case, which the Send report dialog opens
+/// and renames it by (R1176).
 /// </summary>
-public sealed record FiledEstimateAttachment(StaffMailAttachment Attachment, string? Provider);
+public sealed record FiledEstimateAttachment(StaffMailAttachment Attachment, string? Provider, Guid OccurrenceId = default);
 
 /// <summary>
 /// One of the Case's files a Principal's Offer ticks may offer with the report
@@ -151,7 +153,7 @@ public sealed record ReportDispatchPlan(
     string Subject,
     IReadOnlyList<CaseReportArtifactKind> RequiredCompanions,
     IReadOnlyList<CaseReportArtifactKind> MissingCompanions,
-    IReadOnlyList<StaffMailAttachment> FiledEstimates,
+    IReadOnlyList<FiledEstimateAttachment> FiledEstimates,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Holds,
     string? Stop,
@@ -361,11 +363,10 @@ public static class ReportDispatchPolicy
 
         // The Audatex tick attaches the estimates filed in that format; the
         // Estimate tick attaches the recognised ones in any other.
-        StaffMailAttachment[] filed =
+        FiledEstimateAttachment[] filed =
         [
             .. facts.FiledEstimates
                 .Where(estimate => IsAudatex(estimate) ? attach.Audatex : attach.Estimate)
-                .Select(estimate => estimate.Attachment)
         ];
 
         // The Offer ticks list the Case's External estimates and Repair
@@ -380,7 +381,7 @@ public static class ReportDispatchPolicy
                     DocumentSemanticRole.RepairInvoice => attach.OfferRepairInvoices,
                     _ => false
                 })
-                .Where(file => !filed.Any(estimate => estimate.VersionId == file.Attachment.VersionId))
+                .Where(file => !filed.Any(estimate => estimate.Attachment.VersionId == file.Attachment.VersionId))
         ];
 
         var warnings = new List<string>();

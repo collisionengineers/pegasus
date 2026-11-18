@@ -1413,6 +1413,15 @@ public sealed partial class AssessmentReportDraftWebTests
             "The tick precedes the footer.");
     }
 
+    /// <summary>The Files row whose opening tag carries <paramref name="mark"/>, up to the next row.</summary>
+    private static string RowFrom(string dialog, string mark)
+    {
+        var start = dialog.IndexOf(mark, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"No Files row carries {mark}.");
+        var end = dialog.IndexOf("data-send-file=\"", start + 1, StringComparison.Ordinal);
+        return end < 0 ? dialog[start..] : dialog[start..end];
+    }
+
     private static string FileRow(string dialog, CaseReportArtifactKind kind)
     {
         var start = dialog.IndexOf($"data-send-file=\"{kind}\"", StringComparison.Ordinal);
@@ -1486,6 +1495,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var claimSourceId = Guid.NewGuid();
         var estimate = new StaffMailAttachment(
             Guid.NewGuid(), Guid.NewGuid(), new string('e', 64), 500, "PK12TMZ estimate.pdf", "application/pdf");
+        var estimateOccurrence = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
             PrincipalReportSendingRules.Default with
@@ -1504,7 +1514,7 @@ public sealed partial class AssessmentReportDraftWebTests
             ClaimSourceName: "Claims Direct")
         {
             OriginalSender = "handler@principal.example",
-            FiledEstimates = [new FiledEstimateAttachment(estimate, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)]
+            FiledEstimates = [new FiledEstimateAttachment(estimate, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider, estimateOccurrence)]
         };
         var reports = OutgoingMailbox("reports@collisionengineers.example");
         var desk = OutgoingMailbox("principal-desk@collisionengineers.example");
@@ -1527,11 +1537,24 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Matches("data-report-stop>\\s*<span><strong>Stopped\\.</strong> Do not send reports for this Claim Source\\.</span>", form);
         Assert.Contains("required", InputTag(form, "data-report-stop-override"), StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-question", form, StringComparison.Ordinal);
-        // The filed estimate is a Files row, on, with no Rename (v48 item E:
-        // a filed estimate keeps its filed name).
-        var estimateRow = Regex.Match(form, "<div class=\"send-file\" data-send-file=\"estimate\" data-report-filed-estimate>[\\s\\S]*?<b data-send-file-label>PK12TMZ estimate\\.pdf</b>[\\s\\S]*?</div>\\s*</div>");
-        Assert.True(estimateRow.Success, "The filed estimate is a Files row.");
-        Assert.DoesNotContain("data-rename-file", estimateRow.Value, StringComparison.Ordinal);
+        // The filed estimate is a Files row, on, whose name opens it in the
+        // Case viewer and which Rename names for the send by its occurrence,
+        // its .pdf kept (R1175, R1176).
+        var estimateRow = RowFrom(form, "data-send-file=\"estimate\"");
+        Assert.Contains("<span class=\"choice is-static\" data-on=\"true\">", estimateRow, StringComparison.Ordinal);
+        Assert.Contains("<b data-send-file-label>PK12TMZ estimate.pdf</b>", estimateRow, StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"/Cases/{caseId:D}/Documents/{estimateOccurrence:D}/Download?versionId={estimate.VersionId:D}&inline=true\"",
+            estimateRow,
+            StringComparison.Ordinal);
+        Assert.Contains("data-document-preview", estimateRow, StringComparison.Ordinal);
+        Assert.Contains("data-rename-file", estimateRow, StringComparison.Ordinal);
+        Assert.Contains("data-extension=\".pdf\"", estimateRow, StringComparison.Ordinal);
+        Assert.Contains("value=\"PK12TMZ estimate\"", InputTag(estimateRow, "data-send-file-stem"), StringComparison.Ordinal);
+        Assert.Contains(
+            $"<input type=\"hidden\" name=\"caseFileName-{estimateOccurrence:N}\" value=\"\" data-send-file-name />",
+            estimateRow,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-warning", form, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-after-sending", form, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-hold", form, StringComparison.Ordinal);
@@ -1544,7 +1567,9 @@ public sealed partial class AssessmentReportDraftWebTests
     /// ticks list is a Files row after the ULA Invoice, unticked, named with
     /// its document type and size, posting its occurrence; a file the
     /// Estimate or Audatex tick already attaches is not offered again
-    /// (R1158).
+    /// (R1158). Its name opens it in the Case viewer, as a document or as an
+    /// image, and Rename names it for the send, its own extension kept
+    /// (R1175, R1176).
     /// </summary>
     [Fact]
     public async Task TheDialogOffersEachOfferedFileUntickedAfterTheUlaInvoice()
@@ -1558,7 +1583,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var invoice = new OfferedCaseFile(
             Guid.NewGuid(),
             Pegasus.Core.Documents.DocumentSemanticRole.RepairInvoice,
-            new(Guid.NewGuid(), Guid.NewGuid(), new string('f', 64), 1024, "Repair invoice.pdf", "application/pdf"));
+            new(Guid.NewGuid(), Guid.NewGuid(), new string('f', 64), 1024, "Repair invoice.jpg", "image/jpeg"));
         var recognised = new OfferedCaseFile(
             Guid.NewGuid(),
             Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate,
@@ -1604,10 +1629,9 @@ public sealed partial class AssessmentReportDraftWebTests
             (invoice, Pegasus.Web.Presentation.OperatorLabels.DocumentRole(Pegasus.Core.Documents.DocumentSemanticRole.RepairInvoice))
         })
         {
-            var row = Regex.Match(
-                form,
-                $"<div class=\"send-file\" data-send-file=\"offered\" data-report-offered-file=\"{file.OccurrenceId:D}\">[\\s\\S]*?</div>\\s*</div>");
-            Assert.True(row.Success, "Each offered file is a Files row.");
+            var row = (
+                Index: form.IndexOf($"data-report-offered-file=\"{file.OccurrenceId:D}\"", StringComparison.Ordinal),
+                Value: RowFrom(form, $"data-report-offered-file=\"{file.OccurrenceId:D}\""));
             var tick = InputTag(row.Value, "name=\"offeredFile\"");
             Assert.DoesNotContain("checked", tick, StringComparison.Ordinal);
             Assert.Contains($"aria-label=\"{label}\"", tick, StringComparison.Ordinal);
@@ -1616,17 +1640,41 @@ public sealed partial class AssessmentReportDraftWebTests
                 Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.KindAndSize(label, file.Attachment.ContentLength),
                 row.Value,
                 StringComparison.Ordinal);
-            Assert.DoesNotContain("data-rename-file", row.Value, StringComparison.Ordinal);
+            var extension = Path.GetExtension(file.Attachment.FileName);
+            Assert.Contains($"data-extension=\"{extension}\"", row.Value, StringComparison.Ordinal);
+            Assert.Contains("data-rename-file", row.Value, StringComparison.Ordinal);
+            Assert.Contains(
+                $"value=\"{Path.GetFileNameWithoutExtension(file.Attachment.FileName)}\" maxlength=\"{CaseReportDeliveryNaming.MaximumFileNameLength - extension.Length}\"",
+                InputTag(row.Value, "data-send-file-stem"),
+                StringComparison.Ordinal);
+            Assert.Contains($"name=\"caseFileName-{file.OccurrenceId:N}\"", row.Value, StringComparison.Ordinal);
+            Assert.Contains(
+                $"href=\"/Cases/{caseId:D}/Documents/{file.OccurrenceId:D}/Download?versionId={file.Attachment.VersionId:D}&inline=true\"",
+                row.Value,
+                StringComparison.Ordinal);
             Assert.True(
                 form.IndexOf($"data-send-file=\"{CaseReportArtifactKind.PrincipalInvoice}\"", StringComparison.Ordinal)
                     < row.Index);
         }
+        // A PDF opens as the generated rows do; an image in the image viewer.
+        Assert.Contains(
+            "data-document-preview",
+            RowFrom(form, $"data-report-offered-file=\"{estimate.OccurrenceId:D}\""),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "data-evidence-item data-media-type=\"image/jpeg\"",
+            RowFrom(form, $"data-report-offered-file=\"{invoice.OccurrenceId:D}\""),
+            StringComparison.Ordinal);
         // The file the Audatex tick attaches is its filed estimate row only.
         Assert.DoesNotContain(recognised.OccurrenceId.ToString("D"), form, StringComparison.Ordinal);
         Assert.Contains("<b data-send-file-label>Audatex estimate.pdf</b>", form, StringComparison.Ordinal);
     }
 
-    /// <summary>The offered files staff ticked reach the send (R1151).</summary>
+    /// <summary>
+    /// The offered files staff ticked reach the send (R1151), with the names
+    /// staff gave the Case's files, by occurrence; a row left on its filed
+    /// name posts nothing (R1175, R1176).
+    /// </summary>
     [Fact]
     public async Task SendReportCarriesTheTickedOfferedFiles()
     {
@@ -1658,11 +1706,16 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
                 ("toRecipients", "reviewed@recipient.example"),
                 ("offeredFile", estimate.ToString("D")),
-                ("offeredFile", invoice.ToString("D"))));
+                ("offeredFile", invoice.ToString("D")),
+                ($"caseFileName-{estimate:N}", "Garage estimate for PK12 TMZ.pdf"),
+                ($"caseFileName-{invoice:N}", ""),
+                ("caseFileName-estimate", "Not a file.pdf")));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(send.Requests);
         Assert.Equal([estimate, invoice], request.OfferedFileIds);
+        var named = Assert.Single(request.CaseFileNames!);
+        Assert.Equal((estimate, "Garage estimate for PK12 TMZ.pdf"), (named.Key, named.Value));
     }
 
     /// <summary>

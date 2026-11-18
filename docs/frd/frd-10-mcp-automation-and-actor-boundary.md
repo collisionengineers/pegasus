@@ -377,7 +377,11 @@ its parameters describe.
   names, by occurrence, the offered Case files to attach as well: the
   Case's confirmed External estimates and Repair invoices the Principal's
   rules offer; one that is not offered is refused as the send form refuses
-  it (operator, 17 November 2026; [R1151](../rulings.md)). Its result is the send's
+  it (operator, 17 November 2026; [R1151](../rulings.md)). Its
+  `caseDocumentNames` names, by occurrence, the Case's files the send
+  attaches (the filed estimates the rules attach and the offered files),
+  each keeping its own extension, as the send form's Rename does (operator,
+  18 November 2026; [R1175](../rulings.md), [R1176](../rulings.md)). Its result is the send's
   state and `attachments`, the file names the e-mail carries, in order
   (R703); a caller reports what was sent
   from `attachments`, not from what it asked for (R704).

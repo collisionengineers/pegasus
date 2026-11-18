@@ -758,7 +758,7 @@ public sealed class ReportDispatchPolicyTests
 
         Assert.Equal([CaseReportArtifactKind.ImagePack], principal.RequiredCompanions);
         Assert.Equal([CaseReportArtifactKind.ImagePack], principal.MissingCompanions);
-        Assert.Equal([AudatexFiled.Attachment], principal.FiledEstimates);
+        Assert.Equal([AudatexFiled], principal.FiledEstimates);
         Assert.Contains(ReportDispatchPolicy.NoSeparateFeeNoteWarning, principal.Warnings);
 
         // The images document is no longer required and the figure breakdown is;
@@ -777,7 +777,7 @@ public sealed class ReportDispatchPolicyTests
         PrincipalReportSendingRules Ticks(bool estimate, bool audatex) =>
             Rules() with { Attach = ReportSendingAttachments.Default with { Estimate = estimate, Audatex = audatex } };
         IReadOnlyList<StaffMailAttachment> Filed(bool estimate, bool audatex) =>
-            ReportDispatchPolicy.Plan(facts with { Rules = Ticks(estimate, audatex) }, Now).FiledEstimates;
+            [.. ReportDispatchPolicy.Plan(facts with { Rules = Ticks(estimate, audatex) }, Now).FiledEstimates.Select(filed => filed.Attachment)];
 
         Assert.Equal([AudatexFiled.Attachment], Filed(estimate: false, audatex: true));
         Assert.Equal([GlassFiled.Attachment, UnknownFiled.Attachment], Filed(estimate: true, audatex: false));
@@ -878,7 +878,7 @@ public sealed class ReportDispatchPolicyTests
         };
 
         var plan = ReportDispatchPolicy.Plan(facts, Now);
-        Assert.Equal([ExternalOffered.Attachment], plan.FiledEstimates);
+        Assert.Equal([recognised], plan.FiledEstimates);
         Assert.Equal([SecondExternalOffered], plan.OfferedFiles);
 
         var estimateOff = ReportDispatchPolicy.Plan(
