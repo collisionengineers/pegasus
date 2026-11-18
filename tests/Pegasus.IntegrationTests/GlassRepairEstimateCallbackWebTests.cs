@@ -1240,13 +1240,17 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         public Guid CaseId { get; }
 
+        /// <summary>The host's own services, for a test that reads what the host holds in memory.</summary>
+        public IServiceProvider Services => factory.Services;
+
         public static async Task<Workspace> CreateAsync(
             bool credentialed = true,
             string role = StaffRoleNames.Engineer,
             GatewayFault? fault = null,
             CaseReadFault? caseReadFault = null,
             bool liveGlass = true,
-            int editorPauseMilliseconds = 0)
+            int editorPauseMilliseconds = 0,
+            Microsoft.Extensions.Logging.ILoggerProvider? logs = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -1285,6 +1289,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         services.AddScoped<GlassRepairEstimateGateway>();
                         services.AddScoped<IGlassRepairEstimateGateway>(provider =>
                             new FaultingGateway(provider.GetRequiredService<GlassRepairEstimateGateway>(), fault));
+                    }
+                    if (logs is not null)
+                    {
+                        services.AddSingleton(logs);
                     }
                     if (caseReadFault is not null)
                     {
