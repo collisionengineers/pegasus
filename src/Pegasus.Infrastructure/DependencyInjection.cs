@@ -1441,16 +1441,24 @@ public static class DependencyInjection
     /// provider. The options arrive as a value, not a factory: none of them is
     /// a secret, so a malformed or missing <c>Glass:*</c> setting fails at host
     /// build naming its key, as <see cref="GlassRepairEstimateOptions"/> promises,
-    /// rather than at an Engineer's Launch on a Case record.
+    /// rather than at an Engineer's Launch on a Case record. The Automation's
+    /// own login (<see cref="GlassAutomationAccount"/>) is a secret, so it
+    /// comes through a factory read on each Automation act; a host that names
+    /// none refuses those acts naming the missing key.
     /// </summary>
     public static IServiceCollection AddGlassRepairEstimates(
         this IServiceCollection services,
-        GlassRepairEstimateOptions options)
+        GlassRepairEstimateOptions options,
+        Func<IServiceProvider, GlassAutomationAccount>? automationAccount = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
 
         services.AddSingleton(options);
+        services.AddSingleton(provider => new GlassAutomationAccountSource(
+            () => automationAccount is null
+                ? GlassAutomationAccount.Create(static _ => null)
+                : automationAccount(provider)));
         services.AddSingleton(GlassRepairEstimateAvailability.Configured);
         // The handler must not follow redirects and must not manage cookies: a
         // Glass's session's cookie jar is per session and durable, so the adapter
