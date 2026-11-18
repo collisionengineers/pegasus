@@ -38,6 +38,7 @@ internal static class AssessmentReportLayout
     /// Exactly the requested artifact kind. An assessment report always ends
     /// with the fee note's own pages: the same fee facts and the same accepted
     /// terms the separate document prints, after a page break, in one document.
+    /// The Principal's own invoice is <see cref="UlaInvoiceLayout"/>'s.
     /// </summary>
     internal static Document Compose(
         AssessmentReportSnapshot snapshot,
@@ -48,6 +49,12 @@ internal static class AssessmentReportLayout
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(pageCount);
+        if (kind == CaseReportArtifactKind.PrincipalInvoice)
+        {
+            // The Principal's own invoice is its draft's page, not this
+            // template's (R1147): it shares the snapshot and nothing else.
+            return UlaInvoiceLayout.Compose(snapshot, pageCount);
+        }
         if (kind is not (CaseReportArtifactKind.AssessmentReport
             or CaseReportArtifactKind.ImagePack
             or CaseReportArtifactKind.FeeNote))

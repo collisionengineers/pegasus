@@ -506,6 +506,10 @@ public sealed record AssessmentReportPresentation(
 /// VAT number as it stood at generation, null for the standard number; it is
 /// left out of the stored snapshot when null, so a snapshot of the standard
 /// number is the same bytes it was before a Principal could have its own.
+/// <see cref="PrincipalInvoice"/> is what the Principal's own invoice prints
+/// beyond the report's facts, frozen with them (R1147 to R1149); null for a
+/// Principal that has no such invoice, and then left out of the stored
+/// snapshot the same way, so every other snapshot keeps its bytes and hash.
 /// </summary>
 public sealed record AssessmentReportSnapshot(
     string OurReference,
@@ -549,7 +553,9 @@ public sealed record AssessmentReportSnapshot(
     IReadOnlyList<CaseReportWording>? Wording = null,
     bool IncludeVehicleImages = true,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    string? VatNumber = null)
+    string? VatNumber = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    UlaInvoiceSnapshot? PrincipalInvoice = null)
 {
     /// <summary>
     /// The narrative the report prints, in the Engineer's order (v28 P30):

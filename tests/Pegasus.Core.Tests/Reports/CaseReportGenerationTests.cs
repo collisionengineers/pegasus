@@ -1134,6 +1134,117 @@ public sealed class CaseReportGenerationTests
         Assert.Equal(expected, GenerateCaseReport.FeeNoteTargetOf(requested, generation));
     }
 
+    /// <summary>
+    /// What the Principal's own invoice prints beyond the report, as a
+    /// generation for a Principal whose setting asks for it freezes it.
+    /// </summary>
+    private static readonly UlaInvoiceSnapshot InvoiceFacts = new(
+        ["United Legal Assistance", "130c Lord Street", "Southport PR9 0AE"],
+        ["Alex Example"],
+        "FORD FOCUS");
+
+    /// <summary>
+    /// The Principal's own invoice (the ULA Invoice) is made for a report
+    /// request whose generation is Confirmed with a Confirmed report, whose
+    /// frozen report holds the invoice's facts and has an invoice outcome, and
+    /// which has no Confirmed invoice yet; for nothing else (R1143, R1147).
+    /// A null generation state is no generation at all.
+    /// </summary>
+    public static TheoryData<
+        CaseReportArtifactKind,
+        CaseReportGenerationState?,
+        CaseReportArtifactStatus?,
+        CaseReportArtifactStatus?,
+        AssessmentReportOutcome,
+        bool,
+        bool> PrincipalInvoiceTargets => new()
+    {
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.Repairable, true, true
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.ContractRepair, true, true
+        },
+        // A Total loss and a Cash in lieu have no invoice (R1143).
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.TotalLoss, true, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.CashInLieu, true, false
+        },
+        // A Principal whose setting asks for none froze no invoice facts.
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.Repairable, false, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, CaseReportArtifactStatus.Confirmed,
+            AssessmentReportOutcome.Repairable, true, false
+        },
+        // An invoice that failed is made again from the same generation.
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, CaseReportArtifactStatus.Failed,
+            AssessmentReportOutcome.Repairable, true, true
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Pending, null, AssessmentReportOutcome.Repairable, true, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Pending,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.Repairable, true, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, CaseReportGenerationState.Stale,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.Repairable, true, false
+        },
+        {
+            CaseReportArtifactKind.FeeNote, CaseReportGenerationState.Confirmed,
+            CaseReportArtifactStatus.Confirmed, null, AssessmentReportOutcome.Repairable, true, false
+        },
+        {
+            CaseReportArtifactKind.AssessmentReport, null, null, null,
+            AssessmentReportOutcome.Repairable, true, false
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(PrincipalInvoiceTargets))]
+    public void APrincipalInvoiceIsMadeOnlyForAConfirmedReportThatHasOne(
+        CaseReportArtifactKind requested,
+        CaseReportGenerationState? state,
+        CaseReportArtifactStatus? reportStatus,
+        CaseReportArtifactStatus? invoiceStatus,
+        AssessmentReportOutcome outcome,
+        bool invoiceFacts,
+        bool targeted)
+    {
+        var store = new FakeStore();
+        var artifacts = new List<CaseReportArtifactRecord>();
+        if (reportStatus is { } report)
+        {
+            artifacts.Add(store.Artifact(CaseReportArtifactKind.AssessmentReport, report));
+        }
+        if (invoiceStatus is { } invoice)
+        {
+            artifacts.Add(store.Artifact(CaseReportArtifactKind.PrincipalInvoice, invoice));
+        }
+        var frozen = AssessmentReportRenderingTests.Snapshot(outcome) with
+        {
+            PrincipalInvoice = invoiceFacts ? InvoiceFacts : null,
+        };
+        var generation = state is { } recorded ? store.Generation(recorded, artifacts, frozen) : null;
+        Guid? expected = targeted ? store.GenerationId : null;
+
+        Assert.Equal(expected, GenerateCaseReport.PrincipalInvoiceTargetOf(requested, generation));
+    }
+
     [Fact]
     public void TheOccurrenceIdentityIsDerivedFromTheGenerationAndKind()
     {
@@ -1152,6 +1263,7 @@ public sealed class CaseReportGenerationTests
     [InlineData(CaseReportArtifactKind.FeeNote, "Generate the immutable fee note")]
     [InlineData(CaseReportArtifactKind.RepairSpecification, "Generate the immutable Repair Spec")]
     [InlineData(CaseReportArtifactKind.ImagePack, "Generate the immutable images")]
+    [InlineData(CaseReportArtifactKind.PrincipalInvoice, "Generate the immutable ULA Invoice")]
     public void EachArtifactRequestRecordsItsKindsReason(CaseReportArtifactKind kind, string reason)
     {
         var request = CaseReportActs.RequestFor(
@@ -1196,6 +1308,72 @@ public sealed class CaseReportGenerationTests
             report with { Kind = CaseReportArtifactKind.RepairSpecification },
             confirmed,
             "operation-1:fee-note"));
+    }
+
+    [Fact]
+    public void AConfirmedReportGoesOnToThePrincipalsInvoiceUnderTheSameLeaseVersionAndWork()
+    {
+        var store = new FakeStore();
+        var report = CaseReportActs.RequestFor(
+            Engineer, CaseId, 7, "lease-1", "operation-1", CaseReportArtifactKind.AssessmentReport, null,
+            CaseWorkSelector.Primary);
+        var withInvoiceFacts = AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable) with
+        {
+            PrincipalInvoice = InvoiceFacts,
+        };
+        var confirmed = new CaseReportGenerationResult(
+            CaseReportGenerationOutcome.Generated,
+            store.Generation(
+                CaseReportGenerationState.Confirmed,
+                [
+                    store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Confirmed),
+                    store.Artifact(CaseReportArtifactKind.FeeNote, CaseReportArtifactStatus.Confirmed),
+                ],
+                withInvoiceFacts),
+            []);
+
+        Assert.Equal(
+            report with
+            {
+                OperationKey = "operation-1:principal-invoice",
+                Kind = CaseReportArtifactKind.PrincipalInvoice,
+                Reason = "Generate the immutable ULA Invoice",
+                TargetGenerationId = store.GenerationId,
+            },
+            CaseReportActs.PrincipalInvoiceRequestAfter(report, confirmed, "operation-1:principal-invoice"));
+
+        // Nothing confirmed to pair with, a Principal with no invoice, a Total
+        // loss, or a companion request: no invoice.
+        Assert.Null(CaseReportActs.PrincipalInvoiceRequestAfter(
+            report,
+            new CaseReportGenerationResult(CaseReportGenerationOutcome.Pending, null, []),
+            "operation-1:principal-invoice"));
+        Assert.Null(CaseReportActs.PrincipalInvoiceRequestAfter(
+            report,
+            confirmed with
+            {
+                Generation = store.Generation(
+                    CaseReportGenerationState.Confirmed,
+                    [store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Confirmed)]),
+            },
+            "operation-1:principal-invoice"));
+        Assert.Null(CaseReportActs.PrincipalInvoiceRequestAfter(
+            report,
+            confirmed with
+            {
+                Generation = store.Generation(
+                    CaseReportGenerationState.Confirmed,
+                    [store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Confirmed)],
+                    AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.TotalLoss) with
+                    {
+                        PrincipalInvoice = InvoiceFacts,
+                    }),
+            },
+            "operation-1:principal-invoice"));
+        Assert.Null(CaseReportActs.PrincipalInvoiceRequestAfter(
+            report with { Kind = CaseReportArtifactKind.FeeNote },
+            confirmed,
+            "operation-1:principal-invoice"));
     }
 
     // An assessment that opens is never read-only, so the gate is the
@@ -1463,9 +1641,12 @@ public sealed class CaseReportGenerationTests
             ]);
 
         /// <summary>This store's generation in <paramref name="state"/> holding <paramref name="artifacts"/>.</summary>
+        /// <remarks><paramref name="report"/> is the frozen report, a Repairable one by default.</remarks>
         public CaseReportGenerationRecord Generation(
-            CaseReportGenerationState state, IReadOnlyList<CaseReportArtifactRecord> artifacts) => new(
-            GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(),
+            CaseReportGenerationState state,
+            IReadOnlyList<CaseReportArtifactRecord> artifacts,
+            AssessmentReportSnapshot? report = null) => new(
+            GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(report),
             AssessmentReportContract.TemplateVersion, "fake", state,
             RecordedAtUtc, null, artifacts);
 
@@ -1474,7 +1655,7 @@ public sealed class CaseReportGenerationTests
             Guid.NewGuid(), GenerationId, kind, status, "operation-1",
             null, null, null, null, null, null, null, null, null, null);
 
-        private CaseReportGenerationSnapshot Snapshot()
+        private CaseReportGenerationSnapshot Snapshot(AssessmentReportSnapshot? report)
         {
             var estimate = Estimate();
             return new(
@@ -1484,7 +1665,7 @@ public sealed class CaseReportGenerationTests
                 CaseReportContentSwitches.None, ReportGuideSources.None,
                 new DateOnly(2026, 9, 6), 120m, ["Engineering assessment"], [], [],
                 AssessmentReportContract.TemplateVersion, "fake",
-                AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
+                report ?? AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
             {
                 CurrentEstimate = estimate,
                 ReportFileName = ReportFileName

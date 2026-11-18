@@ -73,16 +73,26 @@
     var feeNoteOutstanding = canGenerateCompanion
         && reportAlreadyConfirmed
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
+    // The Principal's own invoice follows the fee note the same way, when
+    // Core pairs one with this generation (R1147); it has no control of its own.
+    var principalInvoiceArtifact = generation?.Artifacts
+        .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.PrincipalInvoice);
+    var principalInvoiceOutstanding = canGenerateCompanion
+        && reportAlreadyConfirmed
+        && GenerateCaseReport.PrincipalInvoiceTargetOf(CaseReportArtifactKind.AssessmentReport, generation) is not null;
     var canGenerate = canClaimGeneration
         && (reportRetryArtifact is not null
             || feeNoteOutstanding
+            || principalInvoiceOutstanding
             || !reportAlreadyConfirmed && draftCondition is null);
-    var reportOperationKey = (feeNoteOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
+    var reportOperationKey = (feeNoteOutstanding || principalInvoiceOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
         ?? Model.GenerateReportOperationKey;
     // Only a retry of this generation's fee note reuses its key; a new
     // generation's fee note is a new operation.
     var feeNoteOperationKey = (feeNoteOutstanding ? feeNoteArtifact : null)?.OperationKey
         ?? Model.GenerateFeeNoteOperationKey;
+    var principalInvoiceOperationKey = (principalInvoiceOutstanding ? principalInvoiceArtifact : null)?.OperationKey
+        ?? Model.GeneratePrincipalInvoiceOperationKey;
     // What the preview card opens: the stored report, and a separate fee
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
@@ -151,6 +161,7 @@
                       asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
                     <input type="hidden" name="feeNoteOperationKey" value="@feeNoteOperationKey" />
+                    <input type="hidden" name="principalInvoiceOperationKey" value="@principalInvoiceOperationKey" />
                     @if (leaseForReport)
                     {
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />

@@ -143,6 +143,8 @@ invoice; [R1138](../rulings.md)), Principal's own invoice (None or ULA
 Invoice; [R1162](../rulings.md)), Invoice VAT number and Invoice payment terms
 ([R1148](../rulings.md);
 [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+which Generate report reads to make the ULA Invoice
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
 then Inspection report name and Audit report name, each a First send and a
 Re-send text box, above Save report settings; it has no Report recipients
 settings (operator, 6 October 2026). An empty name box shows its standard name

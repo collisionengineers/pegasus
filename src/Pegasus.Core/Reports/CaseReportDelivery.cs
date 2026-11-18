@@ -641,6 +641,7 @@ public static class CaseReportDeliveryPolicy
         CaseReportArtifactKind.ImagePack => "images document",
         CaseReportArtifactKind.RepairSpecification => "figure breakdown",
         CaseReportArtifactKind.FeeNote => "fee note",
+        CaseReportArtifactKind.PrincipalInvoice => "ULA Invoice",
         _ => "report"
     };
 

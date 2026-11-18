@@ -51,6 +51,13 @@ namespace Pegasus.Core.Reports;
 /// the standard one. It is loaded and frozen the same way, so a fee note
 /// already generated keeps the number it was issued with.
 /// </para>
+/// <para>
+/// <see cref="PrincipalInvoice"/> is what the Principal's own invoice (the
+/// ULA Invoice) prints beyond the report's facts, loaded only for a Principal
+/// whose setting asks for one and null for every other (R1147 to R1149). It
+/// is frozen the same way, so an invoice made later from the generation
+/// prints what stood when the report was generated.
+/// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
     CaseAssessmentProjection Assessment,
@@ -66,7 +73,8 @@ public sealed record AssessmentReportProjectionInput(
     IReadOnlyList<CaseReportWording>? Wording = null,
     bool SignOffEngineersOffered = false,
     bool IncludeVehicleImages = true,
-    string? VatNumber = null);
+    string? VatNumber = null,
+    UlaInvoiceSnapshot? PrincipalInvoice = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -227,7 +235,8 @@ public static class AssessmentReportProjection
             // composed from the frozen facts beside it.
             Wording: input.Wording,
             IncludeVehicleImages: input.IncludeVehicleImages,
-            VatNumber: AssessmentReportContract.NormalizeVatNumber(input.VatNumber));
+            VatNumber: AssessmentReportContract.NormalizeVatNumber(input.VatNumber),
+            PrincipalInvoice: input.PrincipalInvoice);
 
         return new(snapshot, []);
     }

@@ -77,6 +77,11 @@ internal sealed class EfAssessmentReportProjectionSource(
                 PrincipalReportSendingRulesJson = item.Case.Principal.ReportSendingRulesJson,
                 // The VAT number its fee notes print; null is the standard number.
                 PrincipalFeeNoteVatNumber = item.Case.Principal.FeeNoteVatNumber,
+                // Whether Generate report also makes the Principal's own
+                // invoice, and the two values it prints (R1148, R1162).
+                PrincipalInvoiceCode = item.Case.Principal.PrincipalInvoice,
+                PrincipalInvoiceVatNumber = item.Case.Principal.InvoiceVatNumber,
+                PrincipalInvoicePaymentTerms = item.Case.Principal.InvoicePaymentTerms,
                 item.Case.Year,
                 item.Case.Sequence,
                 item.Case.Reference,
@@ -226,7 +231,24 @@ internal sealed class EfAssessmentReportProjectionSource(
             Wording: wording,
             SignOffEngineersOffered: profiles.Count > 0,
             IncludeVehicleImages: IncludesVehicleImages(workflow.PrincipalReportSendingRulesJson),
-            VatNumber: workflow.PrincipalFeeNoteVatNumber);
+            VatNumber: workflow.PrincipalFeeNoteVatNumber,
+            // The Principal's own invoice's facts, only for a Principal whose
+            // setting asks for it, so every other snapshot keeps its bytes:
+            // issued in the Principal's name, to the claimant as the report
+            // records them (R1147 to R1149, R1162).
+            PrincipalInvoice: workflow.PrincipalInvoiceCode == PrincipalInvoicePolicy.UlaInvoiceCode
+                ? new UlaInvoiceSnapshot(
+                    UlaInvoiceSnapshot.IssuerLines(
+                        workflow.PrincipalName, workflow.PrincipalAddress, workflow.PrincipalPostcode),
+                    AssessmentReportWording.ReportFor(
+                        workspace.Assessment.CaseOwned.ClaimantName,
+                        workspace.Assessment.CaseOwned.ClaimantAddress,
+                        postcode: null),
+                    UlaInvoiceCalculation.SubjectVehicle(
+                        workspace.Assessment.CaseOwned.Make, workspace.Assessment.CaseOwned.Model),
+                    workflow.PrincipalInvoiceVatNumber,
+                    workflow.PrincipalInvoicePaymentTerms)
+                : null);
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,
