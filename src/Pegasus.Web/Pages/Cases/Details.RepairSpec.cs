@@ -467,6 +467,21 @@ public sealed partial class DetailsModel
     /// </summary>
     public bool CanToggleGlassHelp => AssessmentCanOpen && !GlassWorkRunning && OwnActiveGlassSession is not null;
 
+    /// <summary>
+    /// The code the build of this staff member's own session on the line
+    /// stopped at, when it saved nothing and they were given an empty
+    /// estimate instead (R1186): the line says so beside the code. Null for
+    /// the Automation's session, a build that landed or a restart
+    /// interrupted, and any other session. Read from the session the page
+    /// already holds, so it costs no query.
+    /// </summary>
+    public string? GlassBuildOpenedEmptyCode =>
+        GlassLineSession is { } line
+        && line.Id == GlassSession?.Id
+        && GlassEstimateBuildPolicy.OpenedEmpty(line)
+            ? line.Build?.StoppedAt
+            : null;
+
     /// <summary>Whether the owner has let the Automation help in their open session: the line's chip.</summary>
     public bool GlassHelpOn => OwnActiveGlassSession is { } own && GlassSessionHelpPolicy.HelpOn(own);
 

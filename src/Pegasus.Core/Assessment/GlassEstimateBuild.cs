@@ -183,6 +183,29 @@ public static class GlassEstimateBuildPolicy
     public const string NothingPlacedCode = "glass.build.nothing_placed";
 
     /// <summary>
+    /// A build a restart stopped part-way: the session is continued as a
+    /// launch, and what the estimate it reopens holds is not known.
+    /// </summary>
+    public const string InterruptedCode = "glass.interrupted";
+
+    /// <summary>
+    /// Whether the session's build stopped before anything was saved, because
+    /// Glass's editor could not be opened or nothing could be placed, and the
+    /// session then opened the empty estimate a launch gives: it is open, or
+    /// a return from it has been accepted since. The Case's Glass's line says
+    /// so to the member of staff who ran it (operator, 18 November 2026;
+    /// R1186). A build a restart interrupted is not one, as what its reopened
+    /// estimate holds is not known, and nor is one whose estimate never opened.
+    /// </summary>
+    public static bool OpenedEmpty(GlassRepairEstimateSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        return session.Build is { BuiltSpecificationId: null, StoppedAt: { } code }
+            && !string.Equals(code, InterruptedCode, StringComparison.Ordinal)
+            && (session.State == GlassRepairEstimateSessionState.Active || session.CallbackConsumedAtUtc is not null);
+    }
+
+    /// <summary>
     /// The build of a spec, or null when the spec has no lines and there is
     /// nothing to build. Whether the spec belongs to a Glass's estimate is the
     /// caller's to know: one that does reopens that estimate instead.

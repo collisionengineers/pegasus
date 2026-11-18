@@ -1437,22 +1437,37 @@ public static class CaseWorkspaceLabels
             string.Create(CultureInfo.InvariantCulture, $"{done} of {total}");
 
         /// <summary>
+        /// The session line of the member of staff who ran a build that saved
+        /// nothing, because Glass's editor could not be opened or nothing
+        /// could be placed, while the empty estimate they were given instead
+        /// is the session the page shows them.
+        /// </summary>
+        // Operator, 18 November 2026: R1186
+        public const string BuildOpenedEmpty = "The estimate could not be imported into Glass's, so an empty estimate was opened.";
+
+        /// <summary>
         /// The built-or-not list on the rebuilt repair spec, for the member of
         /// staff who ran the build (R1173): one row per line of the outside
         /// estimate, what was sent or why not, and Glass's figures where they
         /// differ from the outside estimate's (R1168).
         /// </summary>
+        // Operator, 18 November 2026: R1187
         public const string BuildList = "Built in Glass's";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildLine = "Outside estimate line";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildResult = "In Glass's";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildPrice = "Glass's price";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildHours = "Glass's hours";
 
         /// <summary>What became of one line, with the reason it was left off.</summary>
+        // Operator, 18 November 2026: R1187
         public static string BuildOutcome(GlassEstimateBuildAct act)
         {
             ArgumentNullException.ThrowIfNull(act);
@@ -1471,6 +1486,7 @@ public static class CaseWorkspaceLabels
         /// as a request Glass's did not answer, is shown as the code, as the
         /// session line shows a failure.
         /// </summary>
+        // Operator, 18 November 2026: R1187
         public static string BuildReason(string code) => code switch
         {
             GlassEstimateBuildPolicy.NotBuiltCode => "not built in this version",
