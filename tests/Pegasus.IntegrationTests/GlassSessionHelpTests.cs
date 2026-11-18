@@ -322,7 +322,7 @@ public sealed class GlassSessionHelpTests
             }
         }
 
-        public Task<bool> SetHelpAsync(Guid sessionId, ActionActor actor, bool on, CancellationToken cancellationToken) =>
+        public Task<bool> SetHelpAsync(Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken) =>
             Task.FromResult(false);
 
         public Task RecordHelpActAsync(

@@ -701,7 +701,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// row, in the same transaction.
     /// </summary>
     public async Task<bool> SetHelpAsync(
-        Guid sessionId, ActionActor actor, bool on, CancellationToken cancellationToken)
+        Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff || !Guid.TryParse(actor.SubjectId, out var staffId))
@@ -710,7 +710,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         }
 
         var now = timeProvider.GetUtcNow();
-        DateTimeOffset? helpOn = on ? now : null;
+        DateTimeOffset? helpOn = turnOn ? now : null;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         var own = context.Set<GlassRepairEstimateSessionEntity>()
@@ -718,7 +718,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 && item.UserId == staffId
                 && item.OwnerKind == GlassSessionOwner.Staff
                 && item.State == GlassRepairEstimateSessionState.Active);
-        own = on ? own.Where(item => item.HelpOnAtUtc == null) : own.Where(item => item.HelpOnAtUtc != null);
+        own = turnOn ? own.Where(item => item.HelpOnAtUtc == null) : own.Where(item => item.HelpOnAtUtc != null);
         var changed = await own.ExecuteUpdateAsync(
             setters => setters.SetProperty(item => item.HelpOnAtUtc, helpOn), cancellationToken);
         if (changed == 0)
@@ -738,9 +738,9 @@ public sealed class EfGlassRepairEstimateSessionStore(
             OccurredAtUtc = now,
             Outcome = "Succeeded",
             CorrelationId = sessionId.ToString("D"),
-            Reason = on ? "Automation help turned on" : "Automation help turned off",
-            BeforeJson = JsonSerializer.Serialize(new { HelpOn = !on }),
-            AfterJson = JsonSerializer.Serialize(new { HelpOn = on }),
+            Reason = turnOn ? "Automation help turned on" : "Automation help turned off",
+            BeforeJson = JsonSerializer.Serialize(new { HelpOn = !turnOn }),
+            AfterJson = JsonSerializer.Serialize(new { HelpOn = turnOn }),
             PolicyVersion = "glass-session-help-v1",
         });
         await context.SaveChangesAsync(cancellationToken);

@@ -192,7 +192,7 @@ public interface IGlassSessionHelpStore
     /// concurrency token are left alone, so a toggle never races the return's
     /// claim. False when nothing was written.
     /// </summary>
-    Task<bool> SetHelpAsync(Guid sessionId, ActionActor actor, bool on, CancellationToken cancellationToken);
+    Task<bool> SetHelpAsync(Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken);
 
     /// <summary>
     /// The history row of one act the Automation made in a member of staff's
