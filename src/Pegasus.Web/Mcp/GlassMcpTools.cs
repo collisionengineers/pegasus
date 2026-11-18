@@ -277,7 +277,7 @@ internal sealed class GlassMcpTools(
                 var sessionId = session.Id;
                 var scope = CursorPaging.CreateScope(
                     "pegasus_glass_catalogue_search", context.Actor,
-                    sessionId.ToString("D"), wantedTerm, wantedKind?.ToString() ?? "any", wantedSide);
+                    sessionId.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide);
                 var offset = 0;
                 if (!string.IsNullOrEmpty(cursor))
                 {
