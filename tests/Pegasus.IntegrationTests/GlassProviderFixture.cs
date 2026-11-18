@@ -256,7 +256,8 @@ internal static class GlassProviderFixture
     /// (<see cref="BuildPartList"/>), an equipment map with no variants for
     /// any row, the left front door's dialog for its rows <c>771|772</c> and
     /// for the right door's <c>790|791</c> (so that one serves the wrong side),
-    /// its "Mandatory parts:" page and answer, and Save and Exit's three
+    /// cut with the script values a changed operation reads, its "Mandatory
+    /// parts:" page and answer, and Save and Exit's three
     /// pages. One scripted editor for the editor client's own tests is
     /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
     /// provider as the portal, so a build runs end to end.
@@ -280,7 +281,7 @@ internal static class GlassProviderFixture
         glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
         glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
         glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") is "771|772" or "790|791"
-            ? EditorPage("door_left_part.dialog.html", null)
+            ? EditorPage("door_left_operations.dialog.html", null)
             : new Reply(HttpStatusCode.NotFound, string.Empty));
         glass.Respond("POST /ere/aco/compproc.php", request => QueryValue(request.Query, "mcode") switch
         {
