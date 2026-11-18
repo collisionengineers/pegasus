@@ -1902,7 +1902,7 @@
             }
             done = true;
             if (editKey && editFocus) { focusControl(editKey, editFocus); }
-            if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
+            if (form.hasAttribute('data-glass-close-form') || form.hasAttribute('data-glass-help-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             done = false;
             var failure = isImport
