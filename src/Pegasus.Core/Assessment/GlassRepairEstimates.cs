@@ -414,6 +414,15 @@ public sealed record GlassRepairEstimateSession(
     /// page read without the protected state; null for a staff session.
     /// </summary>
     public GlassAutomationWork? Automation { get; init; }
+
+    /// <summary>
+    /// When the member of staff who owns the session let the Automation help
+    /// in it from the Case page; null while help is off, as it is for every
+    /// new session (R1170). Only <see cref="IGlassSessionHelpStore.SetHelpAsync"/>
+    /// writes it, and whether help is on is
+    /// <see cref="GlassSessionHelpPolicy.HelpOn"/>'s.
+    /// </summary>
+    public DateTimeOffset? HelpOnAtUtc { get; init; }
 }
 /// <summary>
 /// A launch. <paramref name="SessionId"/> is the id a new session takes, chosen

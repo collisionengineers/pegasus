@@ -571,6 +571,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
+        services.AddScoped<IGlassSessionHelpStore>(provider =>
+            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         // The Glass's gateway itself is composed by the host, which decides
         // whether this process reaches the provider at all (AddGlassRepairEstimates
         // or AddUnavailableGlassRepairEstimates). The session store and the
