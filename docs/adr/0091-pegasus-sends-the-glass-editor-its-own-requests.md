@@ -34,6 +34,16 @@ page's `dialog` exist before Glass's editor frame asks for it, and hands the
 editor frame's own address to `/Integrations/Glass/Help`, which holds the key
 in the Web host's memory only (decisions 5 and 6). Nothing uses the key yet.
 
+Amended 18 November 2026 (R1177 to R1180): the client's second user is the
+Automation's own Glass's sessions
+([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
+Each of the Automation's acts is its own piece of background work keyed on
+the session, so the session's acts run one at a time. The editor stays open
+between the Automation's calls: its session and the time of its last request
+are kept in the session's protected state, so the pause between requests
+holds across calls. The Automation's own sessions read nothing from a staff
+member's window; decision 5 is as R1170 amended it.
+
 ## Context
 
 Pegasus starts a Glass's estimate from its server by driving the portal as a

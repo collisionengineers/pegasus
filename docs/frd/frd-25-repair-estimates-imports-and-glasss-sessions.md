@@ -24,7 +24,12 @@
 - Estimate PDFs need readable embedded text. An unreadable or ambiguous
   source refuses the whole import, with no OCR and no partial spec.
 - A Glass's answer that was lost stays `Unknown` and holds the account until
-  the owning staff member closes the session with a reason.
+  the owning staff member closes the session with a reason. A session the
+  Automation owns may be closed by any member of staff who can open the
+  Case's assessment (18 November 2026; R1180).
+- The Automation Actor runs Glass's sessions of its own, under a Glass's
+  login the deployment holds for it. A session it finishes lands as a Draft
+  (18 November 2026; R1177).
 - Glass's launch and return run in the background. The Glass's window waits,
   then opens the estimator or reports the outcome on the Case.
 
@@ -414,8 +419,9 @@ stranger is refused before the one-use token is spent. The window then says
 run. The finished outcome is reported on the Case as before. The same return
 delivered again while the import runs waits on the same work.
 
-Only the owning staff member sees the window or its progress. The estimator
-address is never shown on the page or in its progress answer.
+Only the owning staff member sees the window or its progress. A session the
+Automation owns has no window. The estimator address is never shown on the
+page or in its progress answer.
 
 While a session's work runs it cannot be closed. The Close control is absent,
 and a Close posted anyway is refused with a reason, so nothing the work creates
@@ -612,6 +618,24 @@ provider may return any of them. Checkpoints and explicit closure are audited
 permanently without provider credentials, callback tokens or document
 content.
 
+**The Automation's sessions (18 November 2026; R1177, R1180).** The Automation
+Actor runs Glass's sessions of its own through its tools
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)), under
+a Glass's login the deployment holds for it; Pegasus never reads a staff
+member's stored login for it. Its session starts a new estimate. A finished
+one lands as a Draft repair spec that records its Glass's estimate; only
+staff press **Use repair spec**. On its Case, while the session holds
+the login or once it has failed, the session line reads "Glass's session ·
+Open · the Automation, started 10:42". Any member of staff who can open the
+Case's assessment may press **Close session** on it, with a reason; the dialog
+says "The Automation is building this Glass's estimate. Closing ends its
+session without saving, and the Glass's account is free again." Close is
+absent, and refused, while the session's work runs, as for staff. A member of
+staff whose own stored login the Automation's session holds sees, on every
+other Case, "The Glass's account is in use by the Automation" and "Open on
+{reference}" instead of a launch. A session the Automation owns has no
+lifetime either.
+
 ### Inspection location and estimate sources
 
 Every Collision Engineers assessment is a desktop inspection. A physical
@@ -688,7 +712,7 @@ operator, 22 October 2026).
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) until discarded, which deletes it. At most one spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | prepared (work running in the background), launched, building (a launch that rebuilds a spec made outside Pegasus, held as launching until its own return is claimed; 18 November 2026, R1171), `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
+| Glass's session | prepared (work running in the background), launched, building (a launch that rebuilds a spec made outside Pegasus, held as launching until its own return is claimed; 18 November 2026, R1171), `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. A session the Automation Actor owns is started, finished as a Draft, or closed by it or by staff with a reason (18 November 2026, R1177, R1180). Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour
 
@@ -698,7 +722,9 @@ operator, 22 October 2026).
   labour rate, cannot generate a report.
 - The Current repair spec cannot be discarded; switch to another one first.
 - A lost Glass's answer stays `Unknown` and holds the account until the
-  owning staff member closes it with a reason.
+  owning staff member closes it with a reason, or, for a session the
+  Automation owns, any member of staff who can open the Case's assessment
+  (18 November 2026; R1180).
 - A **Glass's** press against a Case that changed since the page rendered, or
   whose edit lease ended, is refused with "The Case changed. Reload it and
   retry." It is not an error page.
@@ -757,6 +783,11 @@ recorded in operations as it passes:
     one that does listed as waiting on an equipment answer; then **Open an
     empty estimate** on the same spec gives a new empty estimate (18 November
     2026; R1171 to R1173).
+14. The Automation starts a session on a Case, adds positions and finishes:
+    a Draft repair spec lands, linked to its estimate, and **Use repair
+    spec** stays staff's. Staff see the Automation's line on that Case, and
+    a member of staff closes a second Automation session with a reason
+    (18 November 2026; R1177 to R1180).
 
 Manual export/import does not satisfy this integration's acceptance.
 Supplier startup failures remain open until that journey passes

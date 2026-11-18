@@ -31,6 +31,12 @@ Amended 13 November 2026 (R1044): decision 4's "No new words" no longer holds
 for the scope descriptions, which now say what each scope grants; the scope
 words themselves and the buttons are unchanged.
 
+Amended 18 November 2026 (R1177 to R1179): an eighth scope,
+`automation.glass`, holds the Automation's own Glass's sessions, so a grant
+can hold casework without acting in Glass's. A connector consented before it
+existed holds it only once re-consented. The Context below keeps the seven
+scopes of its day.
+
 ## Context
 
 Observed at `9a92a20` (`dev`, 29 October 2026). Since Release 123 the
@@ -74,7 +80,7 @@ approve fewer scopes than requested.
    cross-tool rules and making none.
 2. **One resource, one document, one policy.** The server's RFC 8707 resource
    is `<origin>/mcp`, the one the client registration permits. Its RFC 9728
-   document at `/.well-known/oauth-protected-resource/mcp` lists all seven
+   document at `/.well-known/oauth-protected-resource/mcp` lists all eight
    scopes in `scopes_supported`. The endpoint policy requires the shared
    audience and any one scope; the two content routes keep their own policies.
 3. **Listing by scope.** `tools/list` holds only the tools whose scope the

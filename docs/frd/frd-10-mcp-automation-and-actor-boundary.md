@@ -26,8 +26,9 @@
   preparation, the Case's documents, AI jobs, mail correction, linking mail
   to a Case, dismiss and restore, Work Centre dismiss and photo links. It
   sends reports to the Principal, e-mail and photo links under its own
-  `automation.send` scope. It never puts an estimate in use, never
-  runs a Glass's session and never touches Glass's credentials.
+  `automation.send` scope. It runs Glass's sessions of its own under its
+  own `automation.glass` scope, and a finished one lands as a Draft. It
+  never puts an estimate in use and never reads Glass's credentials.
 
 ## Purpose
 
@@ -52,15 +53,20 @@ management authority. The MCP is on in every deployed estate and is stopped by
 the Automation client's Stop switch (R1046).
 
 **Casework parity.** Within casework the Actor may do anything a staff member
-with `PerformCasework` can, with two exceptions: it never puts an estimate in
-use (**Use repair spec**), and it never runs a Glass's session, which signs in
-with the staff member's own Glass's account (operator, 7 October 2026;
-[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). No tool
-exposes Glass's credentials; Get valuation uses Pegasus's own valuation
-account and is not a session. The `Manage*` rights stay with staff
-Administrators. Sending a report, an e-mail or a photo link has its own
-scope, `automation.send`, so a grant can hold casework without sending;
-every other photo link act is `automation.cases` (R1039, R1040).
+with `PerformCasework` can, with one exception: it never puts an estimate in
+use (**Use repair spec**) (operator, 7 October 2026;
+[ADR-0064](../adr/0064-automation-actor-staff-casework-parity.md)). It runs
+Glass's sessions of its own under the Glass's login the deployment holds for
+it: the server signs in, the Actor never reads the login, and no staff
+member's stored login is read for it (18 November 2026; R1177;
+[Glass's sessions](#glasss-sessions)). No tool exposes Glass's credentials;
+Get valuation uses Pegasus's own valuation account and is not a session. The
+`Manage*` rights stay with staff Administrators. Sending a report, an e-mail
+or a photo link has its own scope, `automation.send`, so a grant can hold
+casework without sending; every other photo link act is `automation.cases`
+(R1039, R1040). The Actor's Glass's sessions have their own scope,
+`automation.glass`, so a grant can hold casework without acting in Glass's
+(R1179).
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
@@ -671,6 +677,75 @@ makes an estimate Current. An AI job is how an external client picks up
 work, not the authority to save, so citing the Estimate job a save fulfils is
 optional.
 
+### Glass's sessions
+
+**The Automation's own sessions (18 November 2026; R1177 to R1180).** The
+Actor runs Glass's sessions of its own under `automation.glass`, through the
+gateway staff sessions use
+([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return),
+[ADR-0091](../adr/0091-pegasus-sends-the-glass-editor-its-own-requests.md)).
+A session signs in with the Glass's login the deployment holds for the
+Automation (R1177). It names no member of staff, and any Automation grant
+acts in it, because a grant is renewed every fortnight and the session
+outlives it. The Actor never acts in a session a member of staff launched.
+Each tool takes the Case and finds the Automation's session on it. The tool
+descriptions and refusal sentences are R1178's. On a host that does not
+compose Glass's, each tool is refused with "Glass's is not available."
+
+- `pegasus_glass_session_act` `start` makes a new Glass's estimate for the
+  Case's vehicle, as a first press of **Glass's** does, and opens the
+  estimate in Glass's editor, which stays open between calls. It never
+  reopens a spec already on the Case. While the Automation's own session on
+  the Case still holds the login, `start` continues it instead. The same
+  operation key names the same session.
+- A Glass's login holds one live session. While the Automation's login is
+  held on another Case, `start` is refused before Glass's is asked, with
+  "The Glass's account is in use by a member of staff on Case {reference}."
+  or "The Glass's account is in use by the Automation's session on Case
+  {reference}; finish or close it first." It never ends a staff member's
+  session.
+- `finish` saves the estimate in Glass's and brings it back through the
+  return staff use. The import runs as the Actor, so the estimate lands as a
+  Draft repair spec that records its Glass's estimate; only staff put it in
+  use. An estimate with no position is not saved: `finish` is refused with
+  "The estimate has no positions; close the session instead." and the
+  session stays open. When the Case moved on or a member of staff holds it,
+  the estimate is held, as a staff return is, and a later `finish` lands it.
+  The same finish key answers the session as it stands.
+- `close` ends the session without saving, with a reason of 1 to 2,000
+  characters. The call is the confirmation of external closure: nothing is
+  sent to Glass's and no Case lease is taken. A `finish` or `close` with no
+  Automation session holding the login on the Case is refused with "The
+  Automation has no Glass's session open on this Case."
+- `start` and `finish` take the Case version and hold the Case's edit lease
+  for that one command, or use an `editLeaseToken`. `finish`, `close` and
+  `pegasus_glass_position_act` take the session version, and a stale one is
+  refused. The search and the position acts take no Case lease, so a member
+  of staff editing the Case does not stop the Actor's work in Glass's.
+- Each act that asks Glass's runs as background work keyed on the session,
+  one at a time, and the call waits for it for up to 45 seconds. A session
+  still working answers as it stands, with `working` set; the Actor reads it
+  again with `pegasus_glass_session_get`.
+- `pegasus_glass_session_get` answers the session (state, version, failure
+  code, whether work is running, and the Draft spec a finish landed as),
+  and whether the Glass's login is free or which Case holds it, by staff or
+  by the Automation, naming no member of staff. With `readEstimate`, Glass's
+  is asked once for the positions the open estimate holds. A session left
+  waiting on work that nothing runs is settled first, as the Glass's
+  window's poll settles it.
+- `pegasus_glass_catalogue_search` reads the open session's part list and
+  special operations, and changes nothing. `pegasus_glass_position_act`
+  `add` adds a position by a row the search returned, posted as Glass's
+  dialog serves it with nothing typed, and only where the row is certain:
+  the set a rebuild sends, special operations, a part as Part, and repair
+  and remove-and-refit. Paint on its own is refused with its reason
+  (18 November 2026; R1182, as R1168 and R1172 for a rebuild). `remove`
+  removes a position by its id.
+- A session the Automation owns has no lifetime, as any Glass's session.
+  Staff see it on its Case, and any member of staff who can open the Case's
+  assessment may close it with a reason (R1180;
+  [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
+
 ### Tool inventory
 
 The Actor's tools are served by one MCP server, `pegasus-automation`, at
@@ -679,18 +754,20 @@ The Actor's tools are served by one MCP server, `pegasus-automation`, at
 `tools/list` holds only the tools whose scope the token carries; the list is
 disclosure, and each call is still checked against the token's scope. The
 endpoint needs the shared audience and any one scope, and its
-protected-resource metadata lists all seven scopes, so a connector asks for
+protected-resource metadata lists all eight scopes, so a connector asks for
 them all and the Administrator ticks the ones its grant holds (R548). The
 server's instructions restate this document's cross-tool rules and make
 none.
 
 **Scopes.** A token without `automation.jobs` cannot see the AI job ledger.
 The estimate tools are under `automation.assessment` because they write
-assessment values. Every scope has a consent description on the
-Administrator consent page, which prints it without the scope's identifier
-(operator, 15 and 19 October 2026).
+assessment values. The Glass's tools are under `automation.glass`
+([Glass's sessions](#glasss-sessions)). Every scope has a consent
+description on the Administrator consent page, which prints it without the
+scope's identifier (operator, 15 and 19 October 2026); `automation.glass`'s
+is R1179's.
 
-The Actor's whole inventory, 83 tools, by scope. "One-command lease" means
+The Actor's whole inventory, 87 tools, by scope. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
@@ -754,6 +831,10 @@ its one command when none is given.
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
+| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, whether the Glass's login is free or which Case holds it, and with `readEstimate` the positions the open estimate holds ([Glass's sessions](#glasss-sessions)) | none |
+| `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
+| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by | none |
+| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182); `remove` one by its id | session version and key |
 
 ## States and transitions
 
@@ -805,6 +886,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   UnidentifiedQueuePass; those others complete through their record's own
   act.
 - A subject field a job kind does not take is refused, not ignored.
+- A Glass's `start` while the Automation's login is held on another Case,
+  by staff or by the Automation, is refused naming that Case before Glass's
+  is asked, and ends nobody's session (18 November 2026; R1178). A `close`
+  while the session's work runs is refused, as the staff Close is.
 
 ## Acceptance evidence
 
