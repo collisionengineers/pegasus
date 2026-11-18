@@ -56,6 +56,11 @@ owns its tools and
 [FRD-25](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)
 what staff see.
 
+Amended 18 November 2026 (R1170, R1182 to R1185): decision 2's sentence on a
+staff member's session is narrowed. The Automation acts in a staff member's
+open Glass's session only while that staff member has turned help on for it,
+never saves or closes it, and never reads the staff member's login.
+
 ## Context
 
 The Automation Actor holds `PerformCasework` and nothing else, the right
@@ -80,7 +85,10 @@ fact the call did not name.
    under the Glass's login the deployment holds for it, and never reads a
    staff member's stored login. A session it finishes lands as a Draft, and
    a session a member of staff launched stays that member of staff's
-   (18 November 2026; R1177). Get valuation is not a session: it uses
+   (18 November 2026; R1177). It acts in a staff member's open session only
+   while that staff member has turned help on for it, never saves or closes
+   it, and never reads the staff member's login (18 November 2026; R1170,
+   R1185). Get valuation is not a session: it uses
    Pegasus's own valuation account
    ([ADR-0060](0060-glass-valuation-account-and-valuation-report.md)), and
    `pegasus_valuation_get` presses it and records the card (operator,
