@@ -409,14 +409,19 @@ and do not need credentials reset.
 
 **An estimator that does not open (issue 1065).** Glass's editor sometimes
 stalls at start-up inside its own frames, before any pane loads; the stall is
-the provider's and Pegasus patches none of its code. The Case page keeps the
-estimator window in view after the handoff: it may read how deep the window's
-frames nest and whether it is closed, nothing more. When the frames have not
-grown past the provider's skeleton within 30 seconds, the page presses
-**Glass's** again once itself, which is the same continuation as the staff
-member's press. If that start stalls too, or the window is closed without a
-return while the session is open, the page says so and the next press is the
-staff member's (operator, 10 October 2026).
+the provider's. Pegasus changes none of Glass's files or requests. The Pegasus
+helper extension, which an Engineer installs, defines the framing page's
+dialog helper before Glass's own script asks for it, with Glass's own class,
+so the stall does not happen in a browser that has it (operator, 18 November
+2026; R1170). The helper reads only the editor frame's own address, hands it
+to Pegasus, and asks for the selected list again when Pegasus says a position
+was added. The Case page keeps the estimator window in view after the handoff:
+it may read how deep the window's frames nest and whether it is closed,
+nothing more. When the frames have not grown past the provider's skeleton
+within 30 seconds, the page presses **Glass's** again once itself, which is
+the same continuation as the staff member's press. If that start stalls too,
+or the window is closed without a return while the session is open, the page
+says so and the next press is the staff member's (operator, 10 October 2026).
 
 **Interrupted background work.** Work can stop part-way: the host restarts,
 or the work runs past its time limit. A session found waiting with no work

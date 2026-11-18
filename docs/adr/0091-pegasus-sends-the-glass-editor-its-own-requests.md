@@ -27,6 +27,13 @@ spec's lines, saves and exits, and hands the editor's way home to the
 existing return path only once it is proved to be the session's own
 callback.
 
+Amended 18 November 2026 (R1170): the Automation is to help in an
+Engineer's open Glass's session live, through the Pegasus helper extension,
+with no hand-over. Its first part is the extension: it makes the framing
+page's `dialog` exist before Glass's editor frame asks for it, and hands the
+editor frame's own address to `/Integrations/Glass/Help`, which holds the key
+in the Web host's memory only (decisions 5 and 6). Nothing uses the key yet.
+
 ## Context
 
 Pegasus starts a Glass's estimate from its server by driving the portal as a
@@ -72,10 +79,14 @@ open.
    then the launch page on the way out, which names the address to return to.
    The return then runs through the existing callback, relay, export and
    import. Close alone reports a save and records nothing.
-5. **Nothing of the provider's is patched, and nothing is read from a staff
-   member's window.** The client is a second caller of the provider's pages,
-   as the portal client is. The rule that the Case page may read only the
-   estimator window's frame depth is unchanged.
+5. **Pegasus changes no Glass's file or request.** The client is a second
+   caller of the provider's pages, as the portal client is. In a staff
+   member's browser the Pegasus helper extension (`src/pegasus-glass-helper/`)
+   reads the editor frame's own address and hands it to Pegasus when that
+   member of staff's session is theirs (the cookie) and is `Active`. It
+   defines the framing page's `dialog` early. It reloads the selected list
+   when asked. It does nothing else. The rule that the Case page may read only
+   the estimator window's frame depth is unchanged.
 6. **The key is a secret.** The session key, the cookies, the launch address
    and the return address are never logged and never put in an error. A
    session's state is carried by its caller as the portal session's is.
