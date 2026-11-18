@@ -38,7 +38,9 @@ internal enum GlassEditorDialog
 /// One position to add: the dialog, its rows (<c>753|754</c>) or code
 /// (<c>AC0000073</c>), the part code the dialog must carry, the button to
 /// press on a <c>comp.php</c> dialog (<c>BSS</c> Part, <c>BLL</c> Paint,
-/// <c>BSL</c> Part and Paint), what to change on a <c>part.php</c> dialog,
+/// <c>BSL</c> Part and Paint), what to change on the dialog (on a
+/// <c>comp.php</c> dialog only the operation and the OK to a part with no
+/// figures),
 /// which optional parts to tick if the editor lists mandatory parts, and the
 /// side the dialog must serve: <c>L</c>, <c>R</c>, empty for a part with no
 /// side, or null when the side is not checked (a special operation).
@@ -234,9 +236,9 @@ internal sealed class GlassEditorClient(
             GlassEditorDialog.SpecialOperation => ("part.php", "A"),
             _ => throw new ArgumentOutOfRangeException(nameof(request), "The dialog is not one the editor has."),
         };
-        if (request.Dialog == GlassEditorDialog.PaintablePart && (string.IsNullOrEmpty(request.Button) || request.Change is not null))
+        if (request.Dialog == GlassEditorDialog.PaintablePart && string.IsNullOrEmpty(request.Button))
         {
-            throw new ArgumentException("A comp.php dialog is pressed with a button and takes no change.", nameof(request));
+            throw new ArgumentException("A comp.php dialog is pressed with a button.", nameof(request));
         }
 
         var (jar, at) = Begin(session);
@@ -244,7 +246,7 @@ internal sealed class GlassEditorClient(
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var build = GlassMvaClient.Matched(
             () => request.Dialog == GlassEditorDialog.PaintablePart
-                ? GlassEditorDialogs.PartPost(dialog, request.Button!)
+                ? GlassEditorDialogs.PartPost(dialog, request.Button!, request.Change)
                 : GlassEditorDialogs.PlainPost(dialog, request.Change),
             GlassFailure.EditorDialog);
         if (build.Error is not null)
