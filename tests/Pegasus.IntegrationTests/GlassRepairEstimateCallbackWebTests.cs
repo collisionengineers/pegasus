@@ -1348,6 +1348,18 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
             ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
             inner.ReadAutomationEstimateAsync(actor, sessionId, cancellationToken);
+
+        public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
+            GlassAutomationCatalogueQuery query, CancellationToken cancellationToken) =>
+            inner.SearchAutomationCatalogueAsync(query, cancellationToken);
+
+        public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
+            GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationPositionAsync(request, cancellationToken);
+
+        public Task<GlassAutomationPositionStep> ContinueAutomationPositionAsync(
+            GlassAutomationPositionContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationPositionAsync(request, cancellationToken);
     }
 
     /// <summary>

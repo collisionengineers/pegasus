@@ -126,5 +126,29 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         return Task.FromException<GlassAutomationEstimate?>(Unavailable());
     }
 
+    public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
+        GlassAutomationCatalogueQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationCatalogue?>(Unavailable());
+    }
+
+    public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
+        GlassAutomationPositionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationPositionStep?>(Unavailable());
+    }
+
+    public Task<GlassAutomationPositionStep> ContinueAutomationPositionAsync(
+        GlassAutomationPositionContinueRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationPositionStep>(Unavailable());
+    }
+
     private static InvalidOperationException Unavailable() => new(UnavailableMessage);
 }
