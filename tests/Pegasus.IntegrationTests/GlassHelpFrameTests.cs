@@ -178,6 +178,76 @@ public sealed class GlassHelpKeysTests
         Assert.False(keys.Poll(sessionId, 0).Held);
     }
 
+    /// <summary>
+    /// Asking the window to show its list again raises the count a poll
+    /// answers; the window's report of what it has shown is kept, never past
+    /// the count, and a newer key carries both over. With no key there is no
+    /// window to ask.
+    /// </summary>
+    [Fact]
+    public async Task ARefreshIsShownOnceAPollSaysSoAndANewerKeyKeepsTheCount()
+    {
+        var keys = new GlassHelpKeys(GlassHelpFrameTests.Options, new ManualClock(Start));
+        var sessionId = Guid.NewGuid();
+        Assert.Equal(0, keys.Refresh(sessionId));
+        keys.Hold(sessionId, Frame(keys, FirstKey));
+
+        Assert.Equal(1, keys.Refresh(sessionId));
+        Assert.Equal(new GlassHelpPoll(true, 1), keys.Poll(sessionId, 7));
+        Assert.True(await keys.ShownAsync(sessionId, 1, CancellationToken.None));
+
+        Assert.Equal(2, keys.Refresh(sessionId));
+        keys.Hold(sessionId, Frame(keys, SecondKey));
+        Assert.Equal(new GlassHelpPoll(true, 2), keys.Poll(sessionId, 2));
+        Assert.True(await keys.ShownAsync(sessionId, 2, CancellationToken.None));
+        Assert.True(keys.IsHeld(sessionId));
+        Assert.False(keys.IsHeld(Guid.NewGuid()));
+    }
+
+    /// <summary>One help act holds a session at a time; another session is not held by it.</summary>
+    [Fact]
+    public void OneHelpActHoldsASessionAtATime()
+    {
+        var keys = new GlassHelpKeys(GlassHelpFrameTests.Options, new ManualClock(Start));
+        var sessionId = Guid.NewGuid();
+
+        using (var first = keys.TryEnter(sessionId))
+        {
+            Assert.NotNull(first);
+            Assert.Null(keys.TryEnter(sessionId));
+            using var other = keys.TryEnter(Guid.NewGuid());
+            Assert.NotNull(other);
+        }
+
+        using var again = keys.TryEnter(sessionId);
+        Assert.NotNull(again);
+    }
+
+    /// <summary>
+    /// The cookies Glass's set on Pegasus's own requests are kept with the
+    /// key they were sent on, and never over a newer key handed over meanwhile.
+    /// </summary>
+    [Fact]
+    public void CookiesAreKeptOnlyForTheKeyTheyWereSentOn()
+    {
+        var keys = new GlassHelpKeys(GlassHelpFrameTests.Options, new ManualClock(Start));
+        var sessionId = Guid.NewGuid();
+        keys.Hold(sessionId, Frame(keys, FirstKey));
+        var first = keys.Session(sessionId) ?? throw new InvalidOperationException("No key is held.");
+
+        keys.Keep(sessionId, first with { Cookies = new Dictionary<string, string> { ["AWSALB"] = "made-up-one" } }, Start);
+
+        Assert.Equal("made-up-one", keys.Session(sessionId)?.Cookies["AWSALB"]);
+        Assert.Equal(Start, keys.LastRequestAtUtc(sessionId));
+
+        keys.Hold(sessionId, Frame(keys, SecondKey));
+        keys.Keep(sessionId, first with { Cookies = new Dictionary<string, string> { ["AWSALB"] = "made-up-stale" } }, Start);
+
+        Assert.Equal(SecondKey, keys.Session(sessionId)?.Key);
+        Assert.Empty(keys.Session(sessionId)?.Cookies ?? GlassEditorFixture.NoCookies);
+        Assert.Null(keys.LastRequestAtUtc(sessionId));
+    }
+
     private static GlassHelpFrame Frame(GlassHelpKeys keys, string key) =>
         keys.Read(GlassHelpFrameTests.OwnFrame(key)) ?? throw new InvalidOperationException("The frame was not read.");
 

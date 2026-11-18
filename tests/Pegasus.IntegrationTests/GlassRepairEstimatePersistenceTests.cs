@@ -1136,6 +1136,120 @@ public sealed class GlassRepairEstimatePersistenceTests
             CancellationToken.None));
     }
 
+    /// <summary>
+    /// Help is turned on and off by the session's own member of staff, only
+    /// while it is Active and only when it changes, with a history row each
+    /// time (R1170). The toggle leaves the session's version alone, and a
+    /// gateway save of the session leaves help as it was.
+    /// </summary>
+    [Fact]
+    public async Task HelpIsTurnedOnlyByTheOwnerWhileActiveAndNeitherItNorASaveMovesTheOther()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var (created, _) = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Prepared, "help-launch"), default);
+        var id = created.Session.Id;
+        var owner = ActionActor.Staff(harness.UserId, [StaffRole.Engineer]);
+
+        Assert.False(await harness.Store.SetHelpAsync(id, owner, true, default));
+        await harness.Store.SaveAsync(
+            Transition(created, GlassRepairEstimateSessionState.Active), created.Session.Version, default);
+        var active = await harness.Store.GetAsync(id, default) ?? throw new InvalidOperationException("No session.");
+        Assert.Null(active.Session.HelpOnAtUtc);
+
+        Assert.False(await harness.Store.SetHelpAsync(
+            id, ActionActor.Staff(harness.OtherUserId, [StaffRole.Engineer]), true, default));
+        Assert.False(await harness.Store.SetHelpAsync(id, ActionActor.Automation("automation-grant-1"), true, default));
+        Assert.True(await harness.Store.SetHelpAsync(id, owner, true, default));
+        Assert.False(await harness.Store.SetHelpAsync(id, owner, true, default));
+
+        var on = await harness.NewStore().GetAsync(id, default) ?? throw new InvalidOperationException("No session.");
+        Assert.Equal(Harness.StartUtc, on.Session.HelpOnAtUtc);
+        Assert.True(GlassSessionHelpPolicy.HelpOn(on.Session));
+        Assert.Equal(active.Session.Version, on.Session.Version);
+
+        await harness.Store.SaveAsync(
+            Transition(on, GlassRepairEstimateSessionState.Active, failureCode: "glass.editor.request"),
+            on.Session.Version,
+            default);
+        var saved = await harness.Store.GetAsync(id, default) ?? throw new InvalidOperationException("No session.");
+        Assert.Equal(Harness.StartUtc, saved.Session.HelpOnAtUtc);
+        Assert.Equal(on.Session.Version + 1, saved.Session.Version);
+
+        Assert.True(await harness.Store.SetHelpAsync(id, owner, false, default));
+        var off = await harness.Store.GetAsync(id, default) ?? throw new InvalidOperationException("No session.");
+        Assert.Null(off.Session.HelpOnAtUtc);
+        Assert.Equal(saved.Session.Version, off.Session.Version);
+
+        await harness.Store.SaveAsync(
+            Transition(off, GlassRepairEstimateSessionState.Importing), off.Session.Version, default);
+        Assert.False(await harness.Store.SetHelpAsync(id, owner, true, default));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var toggles = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateId == id.ToString("D") && item.EventKind == "glass_session_help")
+            .ToListAsync();
+        Assert.Equal(2, toggles.Count);
+        Assert.All(toggles, toggle => Assert.Equal(owner.SubjectId, toggle.ActorSubjectId));
+    }
+
+    /// <summary>
+    /// The Case's sessions the Automation's tools choose from are read in one
+    /// query: its Automation session, and the staff sessions that are Active
+    /// or have had help on, not another ended one. A help act's history row
+    /// is found again by its key on its own Case only.
+    /// </summary>
+    [Fact]
+    public async Task TheHelpableSessionsAreReadTogetherAndAHelpActIsFoundByItsKeyOnItsCase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var (helped, _) = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "help-active"), default);
+        await harness.Store.CreateAsync(
+            harness.Material(OtherAccountKey, GlassRepairEstimateSessionState.Completed, "help-ended", userId: harness.OtherUserId),
+            default);
+        var (automation, _) = await harness.Store.CreateAsync(
+            AutomationMaterial(harness, AutomationAccountKey, "mcp:help-start"), default);
+        Assert.True(await harness.Store.SetHelpAsync(
+            helped.Session.Id, ActionActor.Staff(harness.UserId, [StaffRole.Engineer]), true, default));
+
+        var candidates = await harness.NewStore().FindHelpableForCaseAsync(harness.CaseId, default);
+
+        Assert.Equal(automation.Session.Id, candidates.Automation?.Id);
+        var staff = Assert.Single(candidates.Staff);
+        Assert.Equal(helped.Session.Id, staff.Id);
+        Assert.NotNull(staff.HelpOnAtUtc);
+        Assert.Empty((await harness.Store.FindHelpableForCaseAsync(harness.OtherCaseId, default)).Staff);
+
+        var act = new GlassAutomationAct(
+            "mcp:help-add-1", GlassAutomationActAction.Add, GlassAutomationActOutcome.Added, Harness.StartUtc)
+        {
+            Kind = GlassAutomationPositionKind.SpecialOperation,
+            Row = "AC0000073",
+            ExpectedCode = "A73",
+            PositionIds = ["A350880.1.A73.A73"],
+            Served = new GlassEstimateBuildFigures(176.96m, null),
+        };
+        await harness.Store.RecordHelpActAsync(
+            helped.Session.Id, harness.CaseId, ActionActor.Automation("automation-grant-1"), act, default);
+
+        var found = await harness.NewStore().FindHelpActAsync(harness.CaseId, "mcp:help-add-1", default);
+        Assert.NotNull(found);
+        Assert.Equal(helped.Session.Id, found.SessionId);
+        Assert.Equal(GlassAutomationActOutcome.Added, found.Act.Outcome);
+        Assert.Equal("A350880.1.A73.A73", Assert.Single(found.Act.PositionIds));
+        Assert.Equal(176.96m, found.Act.Served?.Price);
+        Assert.Null(await harness.Store.FindHelpActAsync(harness.OtherCaseId, "mcp:help-add-1", default));
+        Assert.Null(await harness.Store.FindHelpActAsync(harness.CaseId, "mcp:help-add-2", default));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var row = await context.ActionHistory.AsNoTracking()
+            .SingleAsync(item => item.EventKind == "glass_session_help_act");
+        Assert.Equal("Automation", row.ActorKind);
+        Assert.Equal(helped.Session.Id.ToString("D"), row.AggregateId);
+        Assert.DoesNotContain(ProtectedState, row.AfterJson ?? string.Empty, StringComparison.Ordinal);
+    }
+
     private const string AutomationAccountKey =
         "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809";
 

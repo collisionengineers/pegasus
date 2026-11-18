@@ -83,6 +83,49 @@ public sealed class GlassHelpWebTests
     }
 
     /// <summary>
+    /// With help turned on for the session (R1170) the poll says so and asks
+    /// again every 2 seconds; when Pegasus asks the window to show its list
+    /// again the poll carries the raised count, and the window's next poll
+    /// reports it shown (seen), which a help act waits for.
+    /// </summary>
+    [Fact]
+    public async Task WithHelpOnThePollCarriesTheRefreshAndRecordsWhatTheWindowShowed()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        var session = Assert.Single(await workspace.SessionsAsync());
+        var keys = workspace.Services.GetRequiredService<GlassHelpKeys>();
+        using (var held = await workspace.Client.SendAsync(Key(FrameFor(correlation, FirstKey))))
+        {
+            using var answer = await AnswerAsync(held, HttpStatusCode.OK);
+        }
+        await using (var scope = workspace.Services.CreateAsyncScope())
+        {
+            Assert.True(await scope.ServiceProvider.GetRequiredService<IGlassSessionHelpStore>().SetHelpAsync(
+                session.Id,
+                Pegasus.Core.Identity.ActionActor.Staff(session.PegasusUserId, [Pegasus.Core.Identity.StaffRole.Engineer]),
+                true,
+                CancellationToken.None));
+        }
+
+        Assert.Equal(1, keys.Refresh(session.Id));
+        using (var polled = await workspace.Client.SendAsync(Poll(correlation)))
+        {
+            using var answer = await AnswerAsync(polled, HttpStatusCode.OK);
+            Assert.Equal("on", answer.RootElement.GetProperty("help").GetString());
+            Assert.Equal(1, answer.RootElement.GetProperty("refresh").GetInt64());
+            Assert.Equal(2_000, answer.RootElement.GetProperty("next").GetInt32());
+        }
+        using (var shown = await workspace.Client.SendAsync(Poll(correlation, seen: 1)))
+        {
+            using var answer = await AnswerAsync(shown, HttpStatusCode.OK);
+        }
+
+        Assert.True(await keys.ShownAsync(session.Id, 1, CancellationToken.None));
+    }
+
+    /// <summary>
     /// Each check refuses before anything is kept: no staff session is 401,
     /// another staff member, a page's origin, no origin and a form-shaped post
     /// are 403, an unknown token 404, a frame that is not this host's editor
@@ -241,9 +284,9 @@ public sealed class GlassHelpWebTests
         Post(KeyRoute, new { v = HelpModel.Protocol, frame, version = "1.0.0" }, origin, mediaType);
 
     /// <summary>A poll as the helper sends it: without the staff cookie.</summary>
-    private static HttpRequestMessage Poll(string token, string? origin = ExtensionOrigin)
+    private static HttpRequestMessage Poll(string token, string? origin = ExtensionOrigin, long seen = 0)
     {
-        var request = Post(PollRoute, new { v = HelpModel.Protocol, token, seen = 0, version = "1.0.0" }, origin);
+        var request = Post(PollRoute, new { v = HelpModel.Protocol, token, seen, version = "1.0.0" }, origin);
         request.Headers.Add("X-Test-Anonymous", "true");
         return request;
     }

@@ -387,6 +387,171 @@ public sealed class AutomationGlassIngressTests
     }
 
     /// <summary>
+    /// On an Engineer's sessions the tools refuse with the glass.help.* codes
+    /// before anything is asked of Glass's (design 08 section 5): help off,
+    /// several sessions (session_get lists them and a named one is chosen),
+    /// no window connected, a session no longer Active; and session_act will
+    /// not finish or close an Engineer's session.
+    /// </summary>
+    [Fact]
+    public async Task OnAnEngineersSessionTheToolsRefuseWithTheHelpCodes()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+
+        var first = await SeedEngineerSessionAsync(mcpFactory, caseId, "engineer-one", helpOn: false);
+        using (var off = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_catalogue_search", new { caseId, term = "door" })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.OffCode, await RefusalAsync(off), StringComparison.Ordinal);
+        }
+        using (var read = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_session_get", new { caseId })))
+        {
+            var structured = await ReadStructuredContentAsync(read);
+            Assert.True(IsAbsent(structured, "session"));
+            Assert.Equal(GlassSessionHelpPolicy.OffCode, structured.GetProperty("code").GetString());
+        }
+
+        await TurnHelpOnAsync(mcpFactory, first);
+        using (var unconnected = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:help-add-0", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.NoWindowCode, await RefusalAsync(unconnected), StringComparison.Ordinal);
+        }
+        using (var read = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_session_get", new { caseId })))
+        {
+            var session = (await ReadStructuredContentAsync(read)).GetProperty("session");
+            Assert.Equal(first, session.GetProperty("sessionId").GetGuid());
+            Assert.Equal("staff", session.GetProperty("owner").GetString());
+            Assert.True(session.GetProperty("helpOn").GetBoolean());
+            Assert.False(session.GetProperty("windowConnected").GetBoolean());
+        }
+        using (var finish = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_glass_session_act", new
+        {
+            caseId, action = "finish", operationKey = "mcp:finish-engineer", expectedVersion = 0, expectedSessionVersion = 0,
+        })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.NotAutomationSessionCode, await RefusalAsync(finish), StringComparison.Ordinal);
+        }
+        using (var close = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_glass_session_act", new
+        {
+            caseId, action = "close", operationKey = "mcp:close-engineer", expectedSessionVersion = 0, reason = "Not mine.",
+        })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.NotAutomationSessionCode, await RefusalAsync(close), StringComparison.Ordinal);
+        }
+
+        var second = await SeedEngineerSessionAsync(mcpFactory, caseId, "engineer-two", helpOn: true);
+        using (var several = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_glass_catalogue_search", new { caseId, term = "door" })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.SeveralCode, await RefusalAsync(several), StringComparison.Ordinal);
+        }
+        using (var read = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_session_get", new { caseId })))
+        {
+            var structured = await ReadStructuredContentAsync(read);
+            Assert.Equal(GlassSessionHelpPolicy.SeveralCode, structured.GetProperty("code").GetString());
+            Assert.Equal(2, structured.GetProperty("sessions").GetArrayLength());
+        }
+        using (var named = await PostMcpAsync(client, token, ToolCallPayload(9, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "door", sessionId = second,
+        })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.NoWindowCode, await RefusalAsync(named), StringComparison.Ordinal);
+        }
+
+        await MoveAsync(mcpFactory, second, GlassRepairEstimateSessionState.Importing);
+        using (var ended = await PostMcpAsync(client, token, ToolCallPayload(10, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "door", sessionId = second,
+        })))
+        {
+            Assert.Contains(GlassSessionHelpPolicy.NotActiveCode, await RefusalAsync(ended), StringComparison.Ordinal);
+        }
+
+        Assert.Empty(glass.Requests);
+    }
+
+    /// <summary>
+    /// With help on and the window's key held, position_act adds in the
+    /// Engineer's session through help alone: posted as Glass's dialog
+    /// serves it, answered with the positions the Engineer added meanwhile
+    /// and whether the window shows it, recorded as the Automation's history
+    /// row, and the same key again answers that row and sends nothing. The
+    /// session's version does not move and no Case lease is taken.
+    /// </summary>
+    [Fact]
+    public async Task PositionActAddsInAnEngineersSessionWithHelpOnAndAKeyHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        var sessionId = await SeedEngineerSessionAsync(mcpFactory, caseId, "engineer-one", helpOn: true);
+        var keys = mcpFactory.Services.GetRequiredService<GlassHelpKeys>();
+        var options = mcpFactory.Services.GetRequiredService<GlassRepairEstimateOptions>();
+        keys.Hold(sessionId, keys.Read(GlassHelpFrameTests.FrameAddress(
+            GlassHelpFrameTests.Url0(options.CallbackFor(GlassHelpFrameTests.Token).AbsoluteUri)))
+            ?? throw new InvalidOperationException("The frame was not read."));
+        var database = await factory.DatabaseAsync;
+        const string HeldLeases = "SELECT COUNT(*) FROM CaseWorkflows WHERE EditLeaseHolder IS NOT NULL";
+        var leasesBefore = await database.ScalarAsync<int>(HeldLeases);
+
+        using (var added = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:help-add-1", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(added);
+            var act = structured.GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
+            Assert.Equal("A350880.1.A73.A73", Assert.Single(act.GetProperty("positionIds").EnumerateArray()).GetString());
+            Assert.Contains(
+                "C350926.27.C2027021.4646",
+                structured.GetProperty("alsoNew").EnumerateArray().Select(id => id.GetString()));
+            Assert.False(structured.GetProperty("shownInWindow").GetBoolean());
+            var session = structured.GetProperty("session");
+            Assert.Equal("staff", session.GetProperty("owner").GetString());
+            Assert.Equal(0, session.GetProperty("version").GetInt64());
+        }
+        Assert.Equal(1, glass.Count("POST /ere/aco/compproc.php"));
+
+        using (var replayed = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:help-add-1", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(replayed);
+            Assert.Equal("added", structured.GetProperty("act").GetProperty("outcome").GetString());
+        }
+        Assert.Equal(1, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(0, glass.Count("GET /ere/aco/close.php"));
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'glass-repair-estimate-session'
+              AND EventKind = N'glass_session_help_act'
+              AND ActorKind = N'Automation'
+              AND CorrelationId = N'mcp:help-add-1'
+            """));
+        // No Case lease was taken: the Engineer keeps the edit.
+        Assert.Equal(leasesBefore, await database.ScalarAsync<int>(HeldLeases));
+    }
+
+    /// <summary>
     /// The host composes Glass's (DevelopmentOffline with Features:LiveGlass)
     /// with reserved test origins and the Automation's made-up login. Host
     /// settings are the one channel Program reads this early.
@@ -473,6 +638,74 @@ public sealed class AutomationGlassIngressTests
                 GlassRepairEstimateGateway.CallbackDigestOf(GlassRepairEstimateCallbackWebTests.NewCorrelation())),
             CancellationToken.None);
         return sessionId;
+    }
+
+    /// <summary>
+    /// An Engineer's own Active session on the Case, as their launch records
+    /// it on their own made-up login, with help on or off.
+    /// </summary>
+    private static async Task<Guid> SeedEngineerSessionAsync(
+        WebApplicationFactory<Program> factory, Guid caseId, string login, bool helpOn)
+    {
+        var sessionId = Guid.NewGuid();
+        var engineerId = Guid.NewGuid();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>().CreateAsync(
+            new GlassRepairEstimateSessionMaterial(
+                new GlassRepairEstimateSession(
+                    sessionId,
+                    caseId,
+                    engineerId,
+                    CredentialGeneration: 1,
+                    GlassAccountKey.Of(login),
+                    GlassRepairEstimateSessionState.Active,
+                    Version: 0,
+                    OperationKey: "launch-" + login,
+                    SeedUtcNow,
+                    ProviderVehicleId: null,
+                    ProviderEstimateId: null,
+                    FailureCode: null),
+                protectedProviderState: "protected:fixture:not-a-secret",
+                GlassRepairEstimateGateway.CallbackDigestOf(GlassRepairEstimateCallbackWebTests.NewCorrelation())),
+            CancellationToken.None);
+        if (helpOn)
+        {
+            await TurnHelpOnAsync(factory, sessionId);
+        }
+
+        return sessionId;
+    }
+
+    /// <summary>The Engineer turns help on, as the Case page's post does.</summary>
+    private static async Task TurnHelpOnAsync(WebApplicationFactory<Program> factory, Guid sessionId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var material = await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>()
+            .GetAsync(sessionId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The session was not seeded.");
+        Assert.True(await scope.ServiceProvider.GetRequiredService<IGlassSessionHelpStore>().SetHelpAsync(
+            sessionId,
+            ActionActor.Staff(material.Session.PegasusUserId, [StaffRole.Engineer]),
+            true,
+            CancellationToken.None));
+    }
+
+    /// <summary>The session moved on, as the Engineer's own Save &amp; Exit moves it.</summary>
+    private static async Task MoveAsync(
+        WebApplicationFactory<Program> factory, Guid sessionId, GlassRepairEstimateSessionState state)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>();
+        var material = await store.GetAsync(sessionId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The session was not seeded.");
+        await store.SaveAsync(
+            new GlassRepairEstimateSessionMaterial(
+                material.Session with { State = state },
+                material.ProtectedProviderState,
+                material.CallbackDigest,
+                material.ResultArtifactsJson),
+            material.Session.Version,
+            CancellationToken.None);
     }
 
     private static async Task<int> CountHistoryAsync(IntakeWebApplicationFactory factory, string tool) =>
