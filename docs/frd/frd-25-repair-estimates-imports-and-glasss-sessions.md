@@ -339,8 +339,9 @@ built in this version.
 
 The staff member who ran the build sees, on the new spec, the list of the
 outside estimate's lines: what was sent, or why not, and Glass's price or
-hours where they differ from the outside estimate's. It stays until their
-next Glass's session on the Case (R1173).
+hours where they differ from the outside estimate's. The reopen in the
+same window is part of the build, so the list stays until the staff
+member's next press of **Glass's** on the Case (18 November 2026; R1173).
 
 **Any staff member who holds the Case edit may reopen a spec's estimate.**
 While a colleague holds the edit, nobody else can press Glass's. After a
