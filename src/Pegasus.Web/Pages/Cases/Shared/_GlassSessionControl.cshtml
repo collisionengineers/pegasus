@@ -40,6 +40,14 @@
         <div class="glass-session" data-glass-session="@lineSession.State.ToString().ToLowerInvariant()" data-glass-owner="@(byAutomation ? "automation" : "staff")">
             <span class="status @tone">@GlassLabels.Launch session · @GlassLabels.StateLabel(lineSession.State)</span>
             <span class="muted grow">@(byAutomation ? GlassLabels.AutomationStarted : EstimateLabels.Started) @OperatorLabels.OfficeClock(lineSession.CreatedAtUtc)</span>
+            @if (Model.GlassBuildOpenedEmptyCode is { } emptyCode)
+            {
+                @* A build that saved nothing and gave its member of staff an
+                   empty estimate says so to them (R1186), with the code it
+                   stopped at shown as a failure's is. *@
+                <span class="muted" data-glass-build-empty>@GlassLabels.BuildOpenedEmpty</span>
+                <span class="glass-fail" data-glass-build-stopped>@emptyCode</span>
+            }
             @if (lineSession.FailureCode is { Length: > 0 } glassFailure)
             {
                 <span class="glass-fail" data-glass-failure>@glassFailure</span>

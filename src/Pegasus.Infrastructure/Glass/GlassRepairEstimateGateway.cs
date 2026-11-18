@@ -305,7 +305,7 @@ public sealed partial class GlassRepairEstimateGateway(
         // write below records it.
         if (session.Build is { Running: true } unfinished)
         {
-            session = session with { Build = unfinished with { StoppedAt = GlassFailure.Interrupted } };
+            session = session with { Build = unfinished with { StoppedAt = GlassEstimateBuildPolicy.InterruptedCode } };
         }
 
         var provider = Unprotect(material.ProtectedProviderState);
@@ -348,7 +348,7 @@ public sealed partial class GlassRepairEstimateGateway(
     /// with the dialog's operation changed to Repair or to Uninstall and
     /// install and whatever price and hours the dialog serves for it (R1172):
     /// where it serves none, the dialog's question before sending a part
-    /// with no figures is answered OK. A dialog the editor refuses before
+    /// with no figures is answered OK (R1188). A dialog the editor refuses before
     /// anything is posted leaves that line off and the build goes on; a post
     /// whose answer is lost stops the adding, and the build saves what it has.
     /// When the editor cannot be opened, or nothing was placed, nothing is

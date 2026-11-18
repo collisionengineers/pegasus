@@ -86,7 +86,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// this line off. The dialog must serve the part code and the side the
     /// line was found by before anything is posted. A new part is posted as
     /// served; any other operation is chosen in the dialog, which then sends
-    /// whatever price and hours it serves for it, none included (R1172).
+    /// whatever price and hours it serves for it, none included (R1172):
+    /// its question before sending no figures is answered OK (R1188).
     /// A build's line and the Automation's add both choose their rows here,
     /// by what the part is found by: its key and side.
     /// </summary>
