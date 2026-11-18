@@ -224,6 +224,9 @@ public sealed class UploadConfirmationWebTests
             workflow.Case.ImagesComplete = true;
             workflow.State = nameof(CaseLifecycleState.NotReady);
             workflow.AssignedEngineerId = null;
+            // The Case folder exists, so the upload is filed, not left pending.
+            workflow.Case.CustodyState = "confirmed";
+            workflow.Case.CustodyRootRemoteId = "case-root";
             // The registration came with the instruction; the mileage is
             // recorded here, so only the garage's estimate is missing (R1141).
             if (!await context.CaseDataFields.AnyAsync(item =>
@@ -259,12 +262,22 @@ public sealed class UploadConfirmationWebTests
             documentType: Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
-        var filed = await FiledDocumentsAsync(factory, IntakeWebDriver.ReceiptId(processed), caseId);
-        Assert.Contains(filed, document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+        }
+        var estimate = Assert.Single(
+            await FiledDocumentsAsync(factory, receiptId, caseId),
+            document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
 
         await using var readScope = factory.Services.CreateAsyncScope();
         await using var read = await readScope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Equal(
+            Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed,
+            (await read.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(version => version.Id == estimate.VersionId)).CustodyStatus);
         Assert.Equal(
             nameof(CaseLifecycleState.Review),
             (await read.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId)).State);

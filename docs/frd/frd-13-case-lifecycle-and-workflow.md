@@ -217,7 +217,7 @@ never changes the Case state and records no handoff.
   wait has ended returns to With Engineer. The release's history line shows
   the move; a garage Audit's move is a line of its own after it, in the
   sweep's words (operator, 18 November 2026; [R1178](../rulings.md),
-  [R1181](../rulings.md)).
+  [R1182](../rulings.md)).
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review,
   With Engineer and Report sent under the normal edit authority. They are
