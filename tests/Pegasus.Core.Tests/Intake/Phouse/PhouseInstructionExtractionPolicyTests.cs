@@ -6,10 +6,10 @@ using Pegasus.Core.Tests.Support;
 namespace Pegasus.Core.Tests.Intake.Phouse;
 
 /// <summary>
-/// Parkhouse Assist's instruction letter (R1190, R1194): the main story of
+/// Parkhouse Assist's instruction letter (R1191, R1195): the main story of
 /// the four "Instructing_Repairer.docx" letters of 10 and 18 November 2026 as
 /// the Word reader returns it, trailing spaces included. The letter proves an
-/// Inspection by its sentence about the desktop inspection (R1192).
+/// Inspection by its sentence about the desktop inspection (R1193).
 /// </summary>
 [Collection(ParserRegexBudgetSerialTests.Name)]
 public sealed class PhouseInstructionExtractionPolicyTests
@@ -78,7 +78,7 @@ public sealed class PhouseInstructionExtractionPolicyTests
         Assert.Null(draft.InspectionDate);
         Assert.Null(draft.VehicleMileage);
 
-        // The repairer reaches the Case's own repairer fact (R1027, R1194).
+        // The repairer reaches the Case's own repairer fact (R1027, R1195).
         Assert.Equal(CaseDataFieldNames.RepairerName, Field(result, "Repairer name").ToCaseDataFieldName());
     }
 

@@ -6,9 +6,9 @@ namespace Pegasus.Core.Intake;
 /// Reads Parkhouse Assist's instruction: the Word letter
 /// "Instructing_Repairer.docx" attached to an e-mail from parkhouseassist.com,
 /// addressed to the repairer and copied to Collision Engineers (operator, 18
-/// November 2026; R1190, R1194). The policy proposes candidates and allocates
+/// November 2026; R1191, R1195). The policy proposes candidates and allocates
 /// nothing; which work the letter asks for is the classification policy's
-/// answer, not this one's (R1192).
+/// answer, not this one's (R1193).
 ///
 /// The letter gives no inspection address, and its date and damage paragraphs
 /// are not Case facts this profile reads.
@@ -66,7 +66,7 @@ public sealed partial class PhouseInstructionExtractionPolicy
         new("Claimant contact number", [TelephoneLabel], IsRequired: false, PartyRole: "claimant"),
         // The repairer Parkhouse Assist is instructing, which
         // EstablishedIntakeRepairer links to an active Repairer by name
-        // (R1027, R1194).
+        // (R1027, R1195).
         new(RepairerNameField, [RepairerNameField], IsRequired: false, PartyRole: "repairer")
     ];
 

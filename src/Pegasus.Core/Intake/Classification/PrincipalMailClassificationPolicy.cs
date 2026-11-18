@@ -42,7 +42,7 @@ namespace Pegasus.Core.Intake;
 ///
 /// Version 8 adds Parkhouse Assist's tell, its letter's sentence that the
 /// engineers "will be doing a DESKTOP INSPECTION" (operator, 18 November
-/// 2026, R1192).
+/// 2026, R1193).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
@@ -301,7 +301,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
         // instruction request" (operator, 9 November 2026, R825); FW's is its
         // template's "New INSTRUCTIONS:" heading; Parkhouse Assist's is its
         // letter's sentence about the desktop inspection (operator, 18
-        // November 2026, R1192).
+        // November 2026, R1193).
         var inspection = creditRepair || (!audit && texts.Any(text =>
             ExplicitInspectionRequestRegex().IsMatch(text)
             || (PrincipalCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))

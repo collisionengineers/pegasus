@@ -221,7 +221,7 @@ widening is allowed. ABRAHAMS accepts the whole of
 mailbox (operator, 12 November 2026, [R980](../rulings.md)). PHOUSE is
 Parkhouse, its own Principal and no alias of PCH, and accepts both of its
 domains, `parkhouseassist.com` and `parkhousebodyshop.com` (operator, 18
-November 2026, [R1190](../rulings.md)).
+November 2026, [R1191](../rulings.md)).
 
 **One sender.** Exactly one consistent transport sender is required. A
 Collision Engineers staff forward must also prove one external original
@@ -263,7 +263,7 @@ FW's `New INSTRUCTIONS:`, Baker & Coleman's letter sentence `prepare a
 desktop report` (operator, 9 November 2026, [R829](../rulings.md); their
 earlier letters ask to inspect the vehicle and pass the generic request),
 and Parkhouse Assist's letter sentence `will be doing a DESKTOP INSPECTION`
-(operator, 18 November 2026, [R1192](../rulings.md)).
+(operator, 18 November 2026, [R1193](../rulings.md)).
 A DFD instruction is the attached form titled
 `Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
 it classifies `new-instruction` for an Inspection (operator, 9 November
@@ -304,13 +304,13 @@ registration and vehicle, the accident date, the VAT status and the repairer
 it instructs, and no inspection address. The letter is a new instruction for
 an Inspection when it says the engineers "will be doing a DESKTOP
 INSPECTION"; a letter without that sentence waits for staff (operator, 18
-November 2026, [R1192](../rulings.md)). The repairer's name fills the Case's
+November 2026, [R1193](../rulings.md)). The repairer's name fills the Case's
 Repairer when it is an active Repairer's; a fresh database is seeded with
 PHOUSE, active, and with the Repairer "Parkhouse Bodyshop" linked to it. A
 PHOUSE record a database already holds is left as it is: while it is
 inactive every Case for it is refused, until staff tick Active on the
-contact. Its inspection mode stays a physical address ([R1191](../rulings.md),
-[R1193](../rulings.md), [R1194](../rulings.md)).
+contact. Its inspection mode stays a physical address ([R1192](../rulings.md),
+[R1194](../rulings.md), [R1195](../rulings.md)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the

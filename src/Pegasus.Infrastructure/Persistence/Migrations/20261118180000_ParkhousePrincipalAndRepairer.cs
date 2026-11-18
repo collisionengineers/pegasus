@@ -7,13 +7,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// Parkhouse, code <c>PHOUSE</c>, and its repairer (operator, 18 November
-/// 2026; R1190, R1191, R1193, R1194). The Principal is created, active, where
+/// 2026; R1191, R1192, R1194, R1195). The Principal is created, active, where
 /// a database holds neither the code nor the name, so that its accepted mail
 /// route has its Principal on a fresh database. The Repairer contact
 /// "Parkhouse Bodyshop" is created where a database holds no Repairer of that
 /// name, and linked to PHOUSE. Additive: seeded rows only. No row is changed,
 /// so a PHOUSE record a database already holds stays as it is, inactive
-/// included, until staff tick Active on the contact (R1191).
+/// included, until staff tick Active on the contact (R1192).
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
 [Migration("20261118180000_ParkhousePrincipalAndRepairer")]
@@ -37,7 +37,7 @@ public partial class ParkhousePrincipalAndRepairer : Migration
     /// <summary>
     /// The Parkhouse record as production holds it on 18 November 2026, under
     /// the name the operator gave it that day: its address, telephone and
-    /// e-mail, a physical inspection address (R1193), the standard default
+    /// e-mail, a physical inspection address (R1194), the standard default
     /// fee and the default report sending rules. The Repairer takes the name,
     /// address and postcode Parkhouse Assist's letter prints over its
     /// repairer block, and no e-mail or telephone. Held apart so a test can

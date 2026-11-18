@@ -144,7 +144,7 @@ internal sealed class DatabaseLessCaseReads :
     /// PCH's names, linked to PCH (migration ContactsFollowQuickReference,
     /// R1033), and the Parkhouse Bodyshop Parkhouse Assist's letter names,
     /// linked to PHOUSE with the address the letter prints (migration
-    /// ParkhousePrincipalAndRepairer, R1194). A seeded contact has the same
+    /// ParkhousePrincipalAndRepairer, R1195). A seeded contact has the same
     /// shape whatever its type.
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> Repairers =
