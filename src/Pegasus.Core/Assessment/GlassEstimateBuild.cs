@@ -54,6 +54,22 @@ public enum GlassEstimateBuildKind
     PaintPreparation,
 }
 
+/// <summary>What an act's <see cref="GlassEstimateBuildAct.Key"/> is, and so how Glass's is searched by it.</summary>
+public enum GlassEstimateBuildKeyKind
+{
+    /// <summary>No key: the line names nothing Glass's could be searched by.</summary>
+    None,
+
+    /// <summary>A special operation's exact name.</summary>
+    Name,
+
+    /// <summary>Glass's own part code (a Glass's export's <c>MCode</c>), searched with the line's side.</summary>
+    PartCode,
+
+    /// <summary>A manufacturer's part number (an Audatex sheet's).</summary>
+    PartNumber,
+}
+
 /// <summary>A price and hours, either as the outside estimate gave them or as Glass's served them.</summary>
 public sealed record GlassEstimateBuildFigures(decimal? Price, decimal? Hours);
 
@@ -74,6 +90,7 @@ public sealed record GlassEstimateBuildFigures(decimal? Price, decimal? Hours);
 /// <param name="ReasonCode">Why it was left off or not confirmed; null otherwise.</param>
 /// <param name="Source">The outside estimate's own figures.</param>
 /// <param name="Served">The figures Glass's dialog served, once it was posted.</param>
+/// <param name="KeyKind">What <paramref name="Key"/> is: a name, Glass's part code or a part number.</param>
 public sealed record GlassEstimateBuildAct(
     IReadOnlyList<int> SourcePositions,
     GlassEstimateBuildKind Kind,
@@ -84,7 +101,8 @@ public sealed record GlassEstimateBuildAct(
     GlassEstimateBuildOutcome Outcome,
     string? ReasonCode,
     GlassEstimateBuildFigures Source,
-    GlassEstimateBuildFigures? Served = null);
+    GlassEstimateBuildFigures? Served = null,
+    GlassEstimateBuildKeyKind KeyKind = GlassEstimateBuildKeyKind.None);
 
 /// <summary>
 /// A repair spec made outside Pegasus, rebuilt in Glass's: the acts its lines
@@ -120,8 +138,10 @@ public sealed record GlassSpecialOperation(string Code, string Name);
 /// operator, 18 November 2026). Every line of the spec becomes one act, in
 /// the spec's order. A line Glass's has no row for is left off and listed
 /// (R1169); a rebuilt line carries Glass's own figures (R1168). This version
-/// builds special operations; every other line is left off as not built in
-/// this version, and later versions change only the outcome a line type gets.
+/// builds special operations and new parts (R1172): a part only where its
+/// row needs no equipment answer, which the build decides from Glass's own
+/// part list. Every other line is left off as not built in this version, and
+/// later versions change only the outcome a line type gets.
 /// </summary>
 public static class GlassEstimateBuildPolicy
 {
@@ -133,6 +153,19 @@ public static class GlassEstimateBuildPolicy
 
     /// <summary>Glass's has more than one row the line could be.</summary>
     public const string AmbiguousRowCode = "glass.build.ambiguous_row";
+
+    /// <summary>
+    /// A new part with nothing to find it by in Glass's: no Glass's part code
+    /// (a Glass's export) and no part number (an Audatex sheet).
+    /// </summary>
+    public const string NoKeyCode = "glass.build.no_key";
+
+    /// <summary>
+    /// A part whose row in Glass's waits on an equipment answer Pegasus does
+    /// not have (R1172): Glass's would ask which variant of the vehicle it is
+    /// before it gives the row.
+    /// </summary>
+    public const string EquipmentCode = "glass.build.equipment";
 
     /// <summary>Not sent: an earlier line was posted and its answer was not confirmed, so the build stopped adding.</summary>
     public const string StoppedCode = "glass.build.stopped";
@@ -234,37 +267,44 @@ public static class GlassEstimateBuildPolicy
     }
 
     /// <summary>
-    /// One line's act, by its type and the route the spec came from. Only a
-    /// Specialist line is tried; an included operation and paint preparation
-    /// are Glass's own to add; every other line waits for a later version.
+    /// One line's act, by its type and the route the spec came from. A
+    /// Specialist line is tried by its name, and a new part by Glass's part
+    /// code and side (a Glass's export) or by its part number (an Audatex
+    /// sheet); an included operation and paint preparation are Glass's own to
+    /// add; every other line waits for a later version. A paint line is left
+    /// off even beside its part's line (R1172): a Glass's export's paint row
+    /// carries a paint code (1640 for a bonnet), not its part's code, so
+    /// nothing on the spec ties the two (export of 5 October 2026).
     /// </summary>
     private static GlassEstimateBuildAct ActOf(RepairSpecificationSourceRoute route, CaseEstimateLineRecord line)
     {
         var description = line.Description?.Trim() ?? string.Empty;
         // A zero is no figure, as Glass's serves none for a dialog without one.
         var figures = new GlassEstimateBuildFigures(NonZero(line.Price), NonZero(line.WorkUnits));
-        (GlassEstimateBuildKind Kind, string? Key) position = line.Type switch
+        (GlassEstimateBuildKind Kind, string? Key, GlassEstimateBuildKeyKind KeyKind) position = line.Type switch
         {
-            "specialist_fixed" or "specialist_wu" => (GlassEstimateBuildKind.SpecialOperation, description),
-            "new_part" => (GlassEstimateBuildKind.Part, route switch
-            {
-                RepairSpecificationSourceRoute.Glasses => line.GuideCode,
-                RepairSpecificationSourceRoute.AudatexPdf => line.PartNumber,
-                _ => null,
-            }),
+            "specialist_fixed" or "specialist_wu" =>
+                (GlassEstimateBuildKind.SpecialOperation, description, GlassEstimateBuildKeyKind.Name),
+            "new_part" when route == RepairSpecificationSourceRoute.Glasses =>
+                (GlassEstimateBuildKind.Part, Present(line.GuideCode), GlassEstimateBuildKeyKind.PartCode),
+            "new_part" when route == RepairSpecificationSourceRoute.AudatexPdf =>
+                (GlassEstimateBuildKind.Part, Present(line.PartNumber), GlassEstimateBuildKeyKind.PartNumber),
+            "new_part" => (GlassEstimateBuildKind.Part, null, GlassEstimateBuildKeyKind.None),
             "paint_new" or "paint_repair" or "paint_blend" => (GlassEstimateBuildKind.Paint,
-                route == RepairSpecificationSourceRoute.Glasses ? line.GuideCode : null),
-            "repair" => (GlassEstimateBuildKind.Repair, line.GuideCode),
-            "rnr" => (GlassEstimateBuildKind.RemoveAndRefit, line.GuideCode),
-            "paint_prep" => (GlassEstimateBuildKind.PaintPreparation, null),
+                route == RepairSpecificationSourceRoute.Glasses ? line.GuideCode : null, GlassEstimateBuildKeyKind.None),
+            "repair" => (GlassEstimateBuildKind.Repair, line.GuideCode, GlassEstimateBuildKeyKind.None),
+            "rnr" => (GlassEstimateBuildKind.RemoveAndRefit, line.GuideCode, GlassEstimateBuildKeyKind.None),
+            "paint_prep" => (GlassEstimateBuildKind.PaintPreparation, null, GlassEstimateBuildKeyKind.None),
             "check_labour" when IncludedOperations.IsIncluded(line.Type, line.WorkUnits, line.Price, line.Justification) =>
-                (GlassEstimateBuildKind.IncludedOperation, line.GuideCode),
-            _ => (GlassEstimateBuildKind.Operation, line.GuideCode),
+                (GlassEstimateBuildKind.IncludedOperation, line.GuideCode, GlassEstimateBuildKeyKind.None),
+            _ => (GlassEstimateBuildKind.Operation, line.GuideCode, GlassEstimateBuildKeyKind.None),
         };
 
         (bool Sends, GlassEstimateBuildOutcome Outcome, string? Reason) plan = position.Kind switch
         {
             GlassEstimateBuildKind.SpecialOperation => (true, GlassEstimateBuildOutcome.Pending, null),
+            GlassEstimateBuildKind.Part when position.Key is null => (false, GlassEstimateBuildOutcome.LeftOff, NoKeyCode),
+            GlassEstimateBuildKind.Part => (true, GlassEstimateBuildOutcome.Pending, null),
             GlassEstimateBuildKind.IncludedOperation or GlassEstimateBuildKind.PaintPreparation =>
                 (false, GlassEstimateBuildOutcome.AddedByGlass, null),
             _ => (false, GlassEstimateBuildOutcome.LeftOff, NotBuiltCode),
@@ -272,10 +312,13 @@ public static class GlassEstimateBuildPolicy
 
         return new GlassEstimateBuildAct(
             [line.Position], position.Kind, description, position.Key, SideOf(description),
-            plan.Sends, plan.Outcome, plan.Reason, figures);
+            plan.Sends, plan.Outcome, plan.Reason, figures,
+            KeyKind: position.Key is null ? GlassEstimateBuildKeyKind.None : position.KeyKind);
     }
 
     private static decimal? NonZero(decimal? value) => value is 0m ? null : value;
+
+    private static string? Present(string? key) => string.IsNullOrWhiteSpace(key) ? null : key.Trim();
 
     /// <summary>The side a description's trailing "(L)" or "(R)" names; "(Both)" and anything else name none.</summary>
     private static string? SideOf(string description) =>

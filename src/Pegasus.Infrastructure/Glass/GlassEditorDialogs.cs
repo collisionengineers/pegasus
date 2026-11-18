@@ -31,6 +31,14 @@ internal sealed record GlassEditorSummary
 
     public string? PartCode { get; init; }
 
+    /// <summary>
+    /// The right-hand part's code, the record's second code line: a part
+    /// with sides carries the left code first and the right code second (the
+    /// right-hand dialog of 18 November 2026 served 1012401 then 1012402);
+    /// a part with no side carries the same code twice.
+    /// </summary>
+    public string? RightPartCode { get; init; }
+
     public string? Description { get; init; }
 
     public bool? Special { get; init; }
@@ -353,6 +361,7 @@ internal static partial class GlassEditorDialogs
             {
                 Position = At(record, 0),
                 PartCode = At(record, 1),
+                RightPartCode = At(record, 2),
                 Description = (At(record, 3) ?? string.Empty).Split('|')[0],
                 Operation = operation,
                 Offered = At(record, 5),
@@ -604,6 +613,7 @@ internal static partial class GlassEditorDialogs
             {
                 Position = At(record, 0),
                 PartCode = At(record, 1),
+                RightPartCode = At(record, 2),
                 Description = data.Has("Descr") ? data.Get("Descr") : (At(record, 3) ?? string.Empty).Split('|')[0],
                 Special = data.Has("Descr"),
                 Operation = operation,

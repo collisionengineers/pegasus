@@ -37,6 +37,13 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
         session.BaseAddress + "list_1G.php?" + Q + "&cml=A&html5svg=1&tcode=" + SpecialListGroup + "&exclk=AC&ds="
         + groups + "&win7=1";
 
+    /// <summary>
+    /// The vehicle's part list (<c>list.php</c>, about 2 MB), with the
+    /// editor's group list in its address as the graph page asks for it.
+    /// </summary>
+    public string PartList(string groups) =>
+        session.BaseAddress + "list.php?" + Q + "&cml=C&html5svg=1&ds=" + groups + "&win7=1";
+
     /// <summary>One position's record (<c>mcode.php</c>).</summary>
     public string Position(string id) => session.BaseAddress + "mcode.php?" + Q + "&partid=" + id + "&mcode=";
 

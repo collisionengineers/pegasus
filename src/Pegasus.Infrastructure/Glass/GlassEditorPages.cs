@@ -15,6 +15,57 @@ internal sealed record GlassEditorEstimate(bool Found, IReadOnlyList<string> Pos
 internal sealed record GlassEditorSpecialGroup(string Code, string Name, IReadOnlyList<IReadOnlyList<string>> Rows);
 
 /// <summary>
+/// One row of the vehicle's part list (<c>list.php</c>), as the editor's own
+/// list code holds it: the fields of one <c>partlist.addPart</c> line, with
+/// the drawing, drawing number, part code and name filled down from the row
+/// above where the line leaves them empty, and a criteria of <c>0</c> read
+/// as none, as the list's own <c>index()</c> does.
+/// </summary>
+/// <param name="Id">The row's id: what a dialog address names (<c>753|754</c>).</param>
+/// <param name="Marks">
+/// The row's marks, one letter each: <c>p</c> a part row, <c>t</c> a time
+/// row, <c>b</c> the first row of a part's block, <c>c</c> a drawing
+/// number's row, <c>l</c> and <c>r</c> its side, <c>L</c> a part that can be
+/// painted, <c>w</c> a wheel.
+/// </param>
+/// <param name="Drawing">The drawing the row is on.</param>
+/// <param name="DrawingNumber">The row's number on that drawing.</param>
+/// <param name="Code">Glass's part code (a Glass's export's <c>MCode</c>).</param>
+/// <param name="Criteria">The equipment the row needs, such as <c>12000_24119</c>; empty when none.</param>
+/// <param name="Number">The manufacturer's part number.</param>
+/// <param name="Price">The part's price, or a time row's hours.</param>
+/// <param name="Operations">The operations the row offers (<c>ERAEI </c>), or a time row's one operation (<c>ER</c>).</param>
+/// <param name="ShownByEquipment">Whether the row is shown or hidden on its drawing by some equipment.</param>
+/// <param name="Name">The part's name.</param>
+internal sealed record GlassEditorPartRow(
+    string Id,
+    string Marks,
+    string Drawing,
+    string DrawingNumber,
+    string Code,
+    string Criteria,
+    string Number,
+    string Price,
+    string Operations,
+    bool ShownByEquipment,
+    string Name)
+{
+    public bool Has(char mark) => Marks.Contains(mark, StringComparison.Ordinal);
+
+    /// <summary>A part row (marked <c>p</c>).</summary>
+    public bool IsPart => Has('p');
+
+    /// <summary>A part row that starts a block (marked <c>p</c> and <c>b</c>): the row a part's dialog is asked for by.</summary>
+    public bool IsHead => Has('p') && Has('b');
+
+    /// <summary>The side its marks name: <c>L</c>, <c>R</c>, or null for a part with no side.</summary>
+    public string? Side => Has('l') ? "L" : Has('r') ? "R" : null;
+
+    /// <summary>A part that can be painted: its dialog is <c>comp.php</c>, as the editor's own pages choose it.</summary>
+    public bool Paintable => Has('L');
+}
+
+/// <summary>
 /// What the launch page (<c>acolib/aco_call_xml.php</c>) says on the way in:
 /// the editor's own name for where it came from (<c>url0</c>), the still
 /// encoded request description (<c>XmlPar</c>), and the two addresses its
@@ -196,6 +247,64 @@ internal static partial class GlassEditorPages
 
         return read;
     }
+
+    /// <summary>
+    /// The vehicle's part list (<c>list.php</c>): one row per
+    /// <c>partlist.addPart("…")</c> call, in the page's order, read without
+    /// running the page; see <see cref="GlassEditorPartRow"/>. Null when the
+    /// page has no row.
+    /// </summary>
+    public static IReadOnlyList<GlassEditorPartRow>? PartList(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        const string Call = "partlist.addPart(";
+        var rows = new List<GlassEditorPartRow>();
+        // The fields the list's own index() fills down from the row above.
+        var above = new string[FilledDown.Length];
+        Array.Fill(above, string.Empty);
+        var at = html.IndexOf(Call, StringComparison.Ordinal);
+        while (at >= 0)
+        {
+            var index = at + Call.Length;
+            while (index < html.Length && char.IsWhiteSpace(html[index]))
+            {
+                index++;
+            }
+            if (index < html.Length && html[index] is '"' or '\'')
+            {
+                var fields = Quoted(html, ref index).Split('|');
+                for (var filled = 0; filled < FilledDown.Length; filled++)
+                {
+                    if (Field(fields, FilledDown[filled]).Trim().Length > 0)
+                    {
+                        above[filled] = fields[FilledDown[filled]];
+                    }
+                }
+
+                rows.Add(new GlassEditorPartRow(
+                    Field(fields, 0),
+                    Field(fields, 1),
+                    above[0],
+                    above[1],
+                    above[2],
+                    Field(fields, 6) is "0" ? string.Empty : Field(fields, 6),
+                    Field(fields, 7),
+                    Field(fields, 8),
+                    Field(fields, 9),
+                    Enumerable.Range(10, 4).Any(column => Field(fields, column).Length > 0),
+                    above[3]));
+            }
+
+            at = index < html.Length ? html.IndexOf(Call, index, StringComparison.Ordinal) : -1;
+        }
+
+        return rows.Count == 0 ? null : rows;
+    }
+
+    /// <summary>The part list's fields its own <c>index()</c> fills down: drawing, drawing number, part code, name.</summary>
+    private static readonly int[] FilledDown = [3, 4, 5, 16];
+
+    private static string Field(string[] fields, int index) => index < fields.Length ? fields[index] : string.Empty;
 
     /// <summary>
     /// The special-operation list (<c>list_1G.php</c>): its groups from
