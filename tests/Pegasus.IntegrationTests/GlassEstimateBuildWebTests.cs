@@ -146,6 +146,55 @@ public sealed class GlassEstimateBuildWebTests
         var onOutside = await workspace.Client.GetStringAsync(
             $"/Cases/{workspace.CaseId:D}?section=estimate&estimate={outside:D}");
         Assert.DoesNotContain("data-glass-build-list", onOutside, StringComparison.Ordinal);
+        // A build that landed opened no empty estimate (R1186).
+        Assert.DoesNotContain(GlassLabels.BuildOpenedEmpty, WebUtility.HtmlDecode(onBuilt), StringComparison.Ordinal);
+        Assert.DoesNotContain(GlassLabels.BuildOpenedEmpty, WebUtility.HtmlDecode(onOutside), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An editor that does not open saves nothing: the member of staff gets
+    /// the empty estimate, and the Case's Glass's line tells them so, with
+    /// the code the build stopped at (R1186).
+    /// </summary>
+    [Fact]
+    public async Task AnEditorThatDoesNotOpenGivesAnEmptyEstimateAndTheLineSaysSo()
+    {
+        await using var workspace = await Workspace.CreateAsync(clock: new TickingClock());
+        workspace.Mva.Enqueue("GET /ere/acolib/aco_call_xml.php", new Reply(HttpStatusCode.NotFound, string.Empty));
+        await workspace.SeedOutsideSpecAsync();
+        await workspace.ClaimLeaseAsync();
+
+        var session = await BuildToAnEmptyEstimateAsync(workspace);
+
+        Assert.Equal(GlassFailure.EditorLaunch, session.Build!.StoppedAt);
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains(GlassLabels.BuildOpenedEmpty, WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-glass-build-stopped>{GlassFailure.EditorLaunch}</span>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-glass-build-list", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A build that places nothing saves nothing: here the special list
+    /// cannot be read, so the one line it would send is left off. The member
+    /// of staff gets the empty estimate, and the line tells them so (R1186).
+    /// </summary>
+    [Fact]
+    public async Task ABuildThatPlacesNothingGivesAnEmptyEstimateAndTheLineSaysSo()
+    {
+        await using var workspace = await Workspace.CreateAsync(clock: new TickingClock());
+        workspace.Mva.Enqueue("GET /ere/aco/list_1G.php", new Reply(HttpStatusCode.NotFound, string.Empty));
+        await workspace.SeedOutsideSpecAsync();
+        await workspace.ClaimLeaseAsync();
+
+        var session = await BuildToAnEmptyEstimateAsync(workspace);
+
+        Assert.Equal(GlassEstimateBuildPolicy.NothingPlacedCode, session.Build!.StoppedAt);
+        Assert.Equal(0, workspace.Mva.Count("POST /ere/aco/compproc.php"));
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains(GlassLabels.BuildOpenedEmpty, WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-glass-build-stopped>{GlassEstimateBuildPolicy.NothingPlacedCode}</span>", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -341,6 +390,26 @@ public sealed class GlassEstimateBuildWebTests
     /// <summary>Glass's answer to a start it will not make, as the gateway suite records it.</summary>
     private const string StartRefused =
         "{\"message\":\"Profile not available\",\"status\":\"error\",\"ere_url\":\"\"}";
+
+    /// <summary>
+    /// Import and open, followed through the Glass's window to the estimator,
+    /// for a build that saved nothing: one session, open on the empty
+    /// estimate, its build naming no spec, and nothing imported.
+    /// </summary>
+    private static async Task<GlassRepairEstimateSession> BuildToAnEmptyEstimateAsync(Workspace workspace)
+    {
+        using var posted = await workspace.Client.PostAsync(
+            $"/Cases/{workspace.CaseId:D}?section=estimate&build=true&handler=LaunchGlass",
+            new FormUrlEncodedContent(await workspace.LaunchFormAsync()));
+        using var opened = await workspace.FollowAsync(AssertWaitsOnTheGlassWindow(posted));
+
+        Assert.Equal(GlassProviderFixture.EstimatorBase.Host, ReadEstimator(opened).Host);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Null(Assert.IsType<GlassEstimateBuild>(session.Build).BuiltSpecificationId);
+        Assert.Single(await workspace.EstimatesAsync());
+        return session;
+    }
 
     /// <summary>The session the build's own work recorded for its reopen, once it is there.</summary>
     private static async Task<GlassRepairEstimateSession> ReopenAsync(Workspace workspace)

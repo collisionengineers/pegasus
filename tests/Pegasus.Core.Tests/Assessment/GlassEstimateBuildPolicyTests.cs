@@ -336,6 +336,39 @@ public sealed class GlassEstimateBuildPolicyTests
         Assert.False(GlassEstimateBuildPolicy.PriceDiffers(act));
     }
 
+    /// <summary>
+    /// A build opened the empty estimate (R1186) when it stopped before
+    /// saving for any reason but a restart, and its session then opened: it
+    /// is open, or a return from it has been accepted since.
+    /// </summary>
+    [Fact]
+    public void ABuildOpenedTheEmptyEstimateOnlyWhenItStoppedAndItsSessionOpened()
+    {
+        var stopped = new GlassEstimateBuild(
+            Guid.NewGuid(), Array.Empty<GlassEstimateBuildAct>(), StoppedAt: GlassEstimateBuildPolicy.NothingPlacedCode);
+        var interrupted = stopped with { StoppedAt = GlassEstimateBuildPolicy.InterruptedCode };
+        var running = stopped with { StoppedAt = null };
+        var landed = running with { BuiltSpecificationId = Guid.NewGuid() };
+
+        Assert.True(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Active, stopped)));
+        Assert.True(GlassEstimateBuildPolicy.OpenedEmpty(
+            Session(GlassRepairEstimateSessionState.Failed, stopped, consumedAtUtc: RecordedAtUtc)));
+        // Its empty estimate never opened.
+        Assert.False(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Unknown, stopped)));
+        Assert.False(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Active, interrupted)));
+        Assert.False(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Active, running)));
+        Assert.False(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Active, landed)));
+        Assert.False(GlassEstimateBuildPolicy.OpenedEmpty(Session(GlassRepairEstimateSessionState.Active, null)));
+    }
+
+    private static GlassRepairEstimateSession Session(
+        GlassRepairEstimateSessionState state, GlassEstimateBuild? build, DateTimeOffset? consumedAtUtc = null) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, "account", state, 1, "launch", RecordedAtUtc,
+            null, null, null, consumedAtUtc)
+        {
+            Build = build,
+        };
+
     private static GlassEstimateBuildAct OnlyAct(
         CaseEstimateLineRecord line, RepairSpecificationSourceRoute route = RepairSpecificationSourceRoute.Manual) =>
         Assert.Single(GlassEstimateBuildPolicy.Plan(Spec(route, line))!.Acts);
