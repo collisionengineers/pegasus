@@ -142,6 +142,9 @@ public sealed partial class EfCaseWorkflowStore : IGarageAuthorisationStore, IGa
         string reason;
         if (GarageAuthorisationPolicy.WaitIsOver(CaseLifecycleState.NotReady, garage))
         {
+            // The Case returns with its Engineer whatever the state of that
+            // account: this role cannot read staff accounts, and a With
+            // Engineer Case keeps a disabled Engineer too (R1163, amending R1144).
             workflow.State = nameof(CaseLifecycleState.ReportPreparation);
             CaseChaseState.Stop(workflow);
             eventType = GarageAuthorisationPolicy.ReturnedEventType;

@@ -1040,10 +1040,10 @@ public sealed class AutomationCaseLifecycleIngressTests
         return await ReadStructuredContentAsync(response);
     }
 
-    private static string?[] MissingRequirements(JsonElement read) =>
+    private static string[] MissingRequirements(JsonElement read) =>
         read.GetProperty("holds").GetProperty("missingRequirements")
             .EnumerateArray()
-            .Select(item => item.GetString())
+            .Select(item => item.GetString() ?? string.Empty)
             .ToArray();
 
     /// <summary>One garage act under its own one-command lease; returns the Case's state after it.</summary>

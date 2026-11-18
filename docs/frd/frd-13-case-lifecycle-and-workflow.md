@@ -418,7 +418,9 @@ and stays With Engineer.
 
 **The repair invoice.** Once a confirmed **Repair invoice** is among its
 files the waiting Case returns to With Engineer by itself, with its Engineer
-([R1144](../rulings.md)). The Worker makes the move on its one-minute sweep,
+([R1144](../rulings.md)), whatever the state of that Engineer's account, as
+a With Engineer Case keeps an Engineer whose account is disabled afterwards
+(operator, 18 November 2026; [R1163](../rulings.md)). The Worker makes the move on its one-minute sweep,
 whichever way the file arrived or took its type, and so does it move a Not
 ready Case into Review once its External estimate is confirmed; each move is
 a line in the Case's history. A Case somebody is editing waits until the

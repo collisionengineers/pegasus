@@ -746,7 +746,8 @@ public static class CaseReportReadiness
     /// <summary>
     /// A Garage authorisation and invoice Audit whose garage is not yet
     /// authorised (operator, 17 November 2026; R1142, R1151). No Case section
-    /// clears it: the Next action's Mark done does, so it links none.
+    /// clears it: the Next action's Mark done does, so it links none. Its
+    /// words and the Repair invoice blocker's are the operator's (R1164).
     /// </summary>
     public static readonly AssessmentReadinessItem GarageAuthorisationMissing = new(
         GarageAuthorisationRequirement, "Case record",
