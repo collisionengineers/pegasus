@@ -112,6 +112,52 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     }
 
     /// <summary>
+    /// JavaScript's <c>unescape</c>, the inverse of <see cref="Escape"/>:
+    /// <c>%uXXXX</c> and <c>%XX</c> become the character they name, and any
+    /// other character, a plus or a percent sign that starts neither,
+    /// stays as it is. It is not <see cref="Uri.UnescapeDataString(string)"/>,
+    /// which reads the escapes as UTF-8.
+    /// </summary>
+    public static string Unescape(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var unescaped = new StringBuilder(text.Length);
+        for (var index = 0; index < text.Length; index++)
+        {
+            if (text[index] == '%' && index + 5 < text.Length && text[index + 1] == 'u'
+                && IsHex(text.AsSpan(index + 2, 4)))
+            {
+                unescaped.Append((char)int.Parse(text.AsSpan(index + 2, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                index += 5;
+            }
+            else if (text[index] == '%' && index + 2 < text.Length && IsHex(text.AsSpan(index + 1, 2)))
+            {
+                unescaped.Append((char)int.Parse(text.AsSpan(index + 1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                index += 2;
+            }
+            else
+            {
+                unescaped.Append(text[index]);
+            }
+        }
+
+        return unescaped.ToString();
+    }
+
+    private static bool IsHex(ReadOnlySpan<char> digits)
+    {
+        foreach (var digit in digits)
+        {
+            if (!char.IsAsciiHexDigit(digit))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// JavaScript's <c>encodeURIComponent</c>: letters, digits and
     /// <c>-_.!~*'()</c> as they are, everything else as the upper-case
     /// percent hex of its UTF-8 bytes.

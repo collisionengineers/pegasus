@@ -1463,6 +1463,9 @@ public static class DependencyInjection
                 UseCookies = false,
             });
         services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
+        // The editor keys the Pegasus helper hands over live in this host's
+        // memory alone (R1170): one holder for the process.
+        services.AddSingleton<GlassHelpKeys>();
         return services;
     }
 

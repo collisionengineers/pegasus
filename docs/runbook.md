@@ -1699,20 +1699,22 @@ retain the session and collect provider startup evidence before closing it:
    `dialog` value at child lookup. Compare a successful portal launch and
    Pegasus launch for the same vehicle/account under controlled browser state.
 4. The September and October 2026 captures show a load-order race inside
-   Glass's own frames: the child `acofr2.php` builds its dialog client at
-   parse time and searches its parents for `dialog`, which the parent
-   `acofr.php` creates only after inserting that child frame; `openModeless`
-   then dereferences the missing result. The provider code is byte-identical
-   across the one successful start and five stalls, and two of the stalls were
+   Glass's own frames: the child `acofr2.php` builds its dialog client at parse
+   time and searches its parents for `dialog`, which the parent `acofr.php`
+   creates only after inserting that child frame; `openModeless` then
+   dereferences the missing result. The provider code is byte-identical across
+   the one successful start and five stalls, and two of the stalls were
    launched by Glass's own portal, so neither the Pegasus window nor its caller
-   rewrite is involved (deep dive, 5 October 2026). Ask the supplier to
-   establish dialog readiness before the child reads `parent.dialog`. Do not
-   patch provider JavaScript from Pegasus. The retry is pressing **Glass's**
-   again: it continues the same session on the same stock vehicle with a fresh
-   start, and makes no second vehicle or estimate. The Case page does this
-   once itself when the estimator's frames have not loaded within 30 seconds
-   of the handoff, and says so if the second start stalls too or the window is
-   closed without a return (operator, 10 October 2026; issue 1065).
+   rewrite is involved (deep dive, 5 October 2026). The Pegasus helper
+   extension (R1170, `src/pegasus-glass-helper/`, loaded as its README says)
+   makes the framing page's `dialog` exist before the child asks; a browser
+   without it keeps the retry below. Pegasus itself sends Glass's no changed
+   script. The retry is pressing **Glass's** again: it continues the same
+   session on the same stock vehicle with a fresh start, and makes no second
+   vehicle or estimate. The Case page does this once itself when the
+   estimator's frames have not loaded within 30 seconds of the handoff, and
+   says so if the second start stalls too or the window is closed without a
+   return (operator, 10 October 2026; issue 1065).
 5. Continuing a session, and reopening a spec's estimate, require an
    unchanged registration on a real stock vehicle plus current Case edit
    authority; a corrected mileage, or any change on a placeholder, continues.
