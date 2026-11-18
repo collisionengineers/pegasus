@@ -364,7 +364,8 @@ person changes it, and is pressed **Part**, or **OK** for a part that cannot
 be painted. Nothing is typed (R1168). Glass's often serves no price and no
 hours, as it does for Repair in every dialog captured. The dialog then asks
 whether to go on without a price or a time, the question is answered OK, and
-the line lands with no figures. A dialog that would ask for a reason
+the line lands with no figures; the Engineer types the hours in Glass's
+(18 November 2026; R1188). A dialog that would ask for a reason
 (more hours than Glass's own), reload itself or open another dialog for the
 operation is a refused dialog. A repair or remove-and-refit line from any
 other route has no Glass's part code and is left off as not built in this
@@ -384,7 +385,11 @@ on the spec ties the two.
   new spec holds.
 - When Glass's editor cannot be opened, or nothing could be placed, nothing
   is saved, and the staff member gets the empty estimate **Open an empty
-  estimate** gives.
+  estimate** gives. The Case's Glass's line then says "The estimate could not
+  be imported into Glass's, so an empty estimate was opened." to the staff
+  member who ran the build, beside the code it stopped at, while that session
+  is the one the page shows them (18 November 2026; R1186). A build a restart
+  interrupted is continued as a launch and says nothing of it.
 - A save whose outcome cannot be known leaves the session `Unknown`,
   holding the account, as any lost answer does; a save Glass's reports as
   not made leaves it `Failed`. Nothing is imported either way.
@@ -394,6 +399,8 @@ outside estimate's lines: what was sent, or why not, and Glass's price or
 hours where they differ from the outside estimate's. The reopen in the
 same window is part of the build, so the list stays until the staff
 member's next press of **Glass's** on the Case (18 November 2026; R1173).
+The list's headings, outcomes and reasons are the operator's (18 November
+2026; R1187).
 
 **Any staff member who holds the Case edit may reopen a spec's estimate.**
 While a colleague holds the edit, nobody else can press Glass's. After a
