@@ -155,7 +155,6 @@ public static class GlassAutomationPositionPolicy
     /// <summary>A part row that serves both sides: the dialog's side tick box is not built.</summary>
     public const string BothSidesCode = "glass.row.both_sides";
 
-    // Operator, 18 November 2026: R1182
     /// <summary>
     /// Whether an add of this kind and operation is sent at all: the same set
     /// a rebuild sends (R1172), special operations, and a part as Part,
@@ -164,6 +163,7 @@ public static class GlassAutomationPositionPolicy
     /// Paint are refused with <see cref="GlassEstimateBuildPolicy.NotBuiltCode"/>
     /// and nothing is sent. One predicate, so the set is narrowed in one place.
     /// </summary>
+    /// <remarks>Operator, 18 November 2026: R1182.</remarks>
     public static bool Sends(GlassAutomationPositionKind kind, GlassAutomationPartOperation? operation) =>
         kind == GlassAutomationPositionKind.SpecialOperation
         || operation is GlassAutomationPartOperation.Part

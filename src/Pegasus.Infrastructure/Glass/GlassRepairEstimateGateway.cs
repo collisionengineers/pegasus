@@ -1537,7 +1537,8 @@ public sealed partial class GlassRepairEstimateGateway(
     /// A position act's prepare half (design 07 section 3.4): the act is
     /// claimed, Pending, under the session version the Automation read and
     /// before Glass's is asked anything. The same operation key again
-    /// answers the act as recorded and owes nothing, whatever the version.
+    /// answers the act as recorded and owes nothing, whatever the version
+    /// and whichever of the Case's Automation sessions recorded it.
     /// An add the Automation may not send (R1182) is recorded refused with
     /// its reason, and nothing is owed. Null when the session's editor is not
     /// open. A remove may name any position of the estimate (R1185).
@@ -1556,6 +1557,12 @@ public sealed partial class GlassRepairEstimateGateway(
         if (GlassAutomationPositionPolicy.Find(session.Automation, operationKey) is { } recorded)
         {
             return new(session, recorded, Owed: false);
+        }
+        // A key an earlier session of the Case recorded answers that act.
+        if (await store.FindAutomationActSessionAsync(session.CaseId, operationKey, cancellationToken) is { } earlier
+            && GlassAutomationPositionPolicy.Find(earlier.Automation, operationKey) is { } recordedEarlier)
+        {
+            return new(earlier, recordedEarlier, Owed: false);
         }
 
         var provider = Unprotect(material.ProtectedProviderState);

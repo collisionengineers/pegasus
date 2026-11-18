@@ -178,6 +178,28 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return new(newest, GlassRepairEstimateSessionPolicy.ListedBuild(newest, previous), automationSession);
     }
 
+    /// <summary>
+    /// One query on the Case and the owner, as <see cref="GetAutomationForCaseAsync"/>
+    /// makes, reading every Automation session of the Case that has work
+    /// recorded; the key is found in their acts here.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+        Guid caseId, string operationKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation
+                && item.AutomationJson != null)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .ToListAsync(cancellationToken);
+        return entities
+            .Select(ToSession)
+            .FirstOrDefault(session => GlassAutomationPositionPolicy.Find(session.Automation, operationKey) is not null);
+    }
+
     public async Task<GlassRepairEstimateSession?> GetAutomationForCaseAsync(
         Guid caseId, CancellationToken cancellationToken)
     {
