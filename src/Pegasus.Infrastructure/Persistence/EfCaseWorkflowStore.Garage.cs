@@ -127,86 +127,184 @@ public sealed partial class EfCaseWorkflowStore : IGarageAuthorisationStore, IGa
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         var now = timeProvider.GetUtcNow();
         if (workflow is null
-            || workflow.ArchivedAtUtc is not null
-            || workflow.State != nameof(CaseLifecycleState.NotReady)
-            || workflow.EditLeaseExpiresAtUtc > now)
+            || workflow.EditLeaseExpiresAtUtc > now
+            || !await EndGarageWaitAsync(context, workflow, GarageWaitActor, null, now, cancellationToken))
         {
             return false;
         }
 
-        var garage = await CaseGarage.ReadAsync(
-            context, workflow.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
-        var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
-        var beforeVersion = workflow.Version;
-        string eventType;
-        string reason;
-        if (GarageAuthorisationPolicy.WaitIsOver(CaseLifecycleState.NotReady, garage))
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// The same move when a staged upload's External estimate or Repair
+    /// invoice is filed in custody, under the Case's workflow lock and inside
+    /// the filing's transaction: the upload moves the Case when its file is
+    /// filed, not on the next sweep (R1177). A Case somebody is editing is
+    /// left to the sweep, so the session's version does not move under it.
+    /// </summary>
+    internal static async Task EndGarageWaitOnFilingAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var workflow = await WorkflowQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (workflow is not null
+            && !(workflow.EditLeaseExpiresAtUtc > now)
+            && await EndGarageWaitAsync(context, workflow, GarageWaitActor, null, now, cancellationToken))
         {
-            // The Case returns with its Engineer whatever the state of that
-            // account: this role cannot read staff accounts, and a With
-            // Engineer Case keeps a disabled Engineer too (R1163, amending R1144).
-            workflow.State = nameof(CaseLifecycleState.ReportPreparation);
-            CaseChaseState.Stop(workflow);
-            eventType = GarageAuthorisationPolicy.ReturnedEventType;
-            reason = garage.RepairInvoiceFiled
-                ? GarageAuthorisationPolicy.RepairInvoiceFiledReason
-                : GarageAuthorisationPolicy.OutcomeWaivedReason;
+            await context.SaveChangesAsync(cancellationToken);
         }
-        else if (garage is { Applies: true, Authorised: false, ExternalEstimateFiled: true }
-            && workflow.AssignedEngineerId is null)
+    }
+
+    /// <summary>
+    /// Moves a Not ready Garage authorisation and invoice Audit on when its
+    /// stored facts end its wait, and records the move as a line of its own
+    /// in the Case's history: the one decision the Worker's sweep and the
+    /// staff acts that file the fact share. The upload, Change type and the
+    /// Outcome save move the Case in the same save; the sweep moves it for
+    /// every other route a file or an Outcome arrives by (operator,
+    /// 18 November 2026; R1177). Facts are read from the database, so the
+    /// caller saves its own write first, inside the same transaction.
+    /// </summary>
+    /// <param name="workflow">The tracked workflow, with its Case, under the workflow lock.</param>
+    /// <param name="actor">Who made the move: the member of staff whose act ended the wait, or the sweep.</param>
+    /// <param name="sharedFromVersion">
+    /// The version an upload started at when the move shares the one version
+    /// an upload takes, as an image's completion does; null when the move
+    /// takes a version of its own (R997).
+    /// </param>
+    /// <returns>Whether the Case moved.</returns>
+    internal static async Task<bool> EndGarageWaitAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        long? sharedFromVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        // Any other Case is not this owner's, and costs no read.
+        if (workflow.ArchivedAtUtc is not null
+            || workflow.State != nameof(CaseLifecycleState.NotReady)
+            || !CaseGarage.Applies(workflow.Case))
         {
-            var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
-                .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken);
-            if (snapshot is null)
-            {
-                return false;
-            }
+            return false;
+        }
 
-            // Asked before anything is written: a Case still missing its
-            // mileage, say, is not rescheduled every run.
-            var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
-            var ready = CaseCompletenessPolicy.Evaluate(
-                new CaseCompleteness(workflow.Case.InstructionComplete, workflow.Case.ImagesComplete),
-                configuration,
-                CaseInstructionCompleteness.VehicleGate(snapshot, CaseLifecycleState.NotReady, garage));
-            if (!ready.SatisfiesPolicy)
-            {
-                return false;
-            }
+        var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
+        var move = await MoveOnFromNotReadyAsync(context, workflow, now, cancellationToken);
+        if (move.Kind == NotReadyMove.None)
+        {
+            return false;
+        }
 
-            await CaseInstructionCompleteness.ApplyReadinessAsync(
-                context, workflow, snapshot, now, cancellationToken);
-            if (workflow.State != nameof(CaseLifecycleState.Review))
-            {
-                return false;
-            }
-
-            eventType = GarageAuthorisationPolicy.RequirementsCompletedEventType;
-            reason = GarageAuthorisationPolicy.ExternalEstimateFiledReason;
+        var (eventType, reason) = move.Kind == NotReadyMove.ReturnedToEngineer
+            ? (GarageAuthorisationPolicy.ReturnedEventType,
+                move.Garage.RepairInvoiceFiled
+                    ? GarageAuthorisationPolicy.RepairInvoiceFiledReason
+                    : GarageAuthorisationPolicy.OutcomeWaivedReason)
+            : (GarageAuthorisationPolicy.RequirementsCompletedEventType,
+                GarageAuthorisationPolicy.ExternalEstimateFiledReason);
+        workflow.StateEnteredAtUtc = now;
+        long beforeVersion;
+        if (sharedFromVersion is { } shared)
+        {
+            beforeVersion = shared;
         }
         else
         {
-            return false;
+            beforeVersion = workflow.Version;
+            CaseMutationGuard.Advance(workflow);
         }
 
-        workflow.StateEnteredAtUtc = now;
-        workflow.Version = checked(workflow.Version + 1);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
         AddEvent(
             context,
             workflow,
-            GarageWaitActor,
+            actor,
             $"garage-wait:{beforeVersion}",
             reason,
-            Hash($"{eventType}|{caseId:D}|{beforeVersion}"),
+            Hash($"{eventType}|{workflow.CaseId:D}|{beforeVersion}"),
             eventType,
             beforeVersion,
             workflow.Version,
             now,
             beforeJson,
             afterJson);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    private enum NotReadyMove
+    {
+        None,
+        ReturnedToEngineer,
+        IntoReview
+    }
+
+    /// <summary>
+    /// Applies a Not ready Case's stored facts to its state, writing no
+    /// history: a garage wait that is over returns the Case to With Engineer
+    /// (R1143, R1144), and a Case with no Engineer that lacks nothing enters
+    /// Review (FRD-13; R1141 on a garage Audit). Readiness is asked before
+    /// anything is written, so a Case still missing its mileage, say, keeps
+    /// its chase as it stands.
+    /// </summary>
+    private static async Task<(NotReadyMove Kind, CaseGarageFacts Garage)> MoveOnFromNotReadyAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var garage = await CaseGarage.ReadAsync(
+            context, workflow.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
+        if (GarageAuthorisationPolicy.WaitIsOver(CaseLifecycleState.NotReady, garage))
+        {
+            // The Case returns with its Engineer whatever the state of that
+            // account: the sweep's role cannot read staff accounts, and a With
+            // Engineer Case keeps a disabled Engineer too (R1163, amending R1144).
+            // The chase to stop is the Case's stored one, which not every
+            // caller has loaded.
+            var dueWork = context.Entry(workflow).Reference(item => item.DueWork);
+            if (!dueWork.IsLoaded)
+            {
+                await dueWork.LoadAsync(cancellationToken);
+            }
+
+            workflow.State = nameof(CaseLifecycleState.ReportPreparation);
+            CaseChaseState.Stop(workflow);
+            return (NotReadyMove.ReturnedToEngineer, garage);
+        }
+
+        if (workflow.AssignedEngineerId is not null)
+        {
+            return (NotReadyMove.None, garage);
+        }
+
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken);
+        if (snapshot is null)
+        {
+            return (NotReadyMove.None, garage);
+        }
+
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
+        var ready = CaseCompletenessPolicy.Evaluate(
+            new CaseCompleteness(workflow.Case.InstructionComplete, workflow.Case.ImagesComplete),
+            configuration,
+            CaseInstructionCompleteness.VehicleGate(snapshot, CaseLifecycleState.NotReady, garage));
+        if (!ready.SatisfiesPolicy)
+        {
+            return (NotReadyMove.None, garage);
+        }
+
+        await CaseInstructionCompleteness.ApplyReadinessAsync(
+            context, workflow, snapshot, now, cancellationToken);
+        return workflow.State == nameof(CaseLifecycleState.Review)
+            ? (NotReadyMove.IntoReview, garage)
+            : (NotReadyMove.None, garage);
     }
 }

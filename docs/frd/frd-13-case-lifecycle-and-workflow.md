@@ -211,7 +211,13 @@ never changes the Case state and records no handoff.
   (today or later, a Europe/London calendar date). The held Case is due for
   its decision at the end of that date. Without a date it is due at the Held
   decision target after the hold was placed. The record reads "Held · review
-  on 24 Sep". **Release Hold** records a reason.
+  on 24 Sep". **Release Hold** records a reason. Readiness is not applied
+  to a held Case, so a Case released to Not ready is checked on release:
+  with every requirement met it enters Review, and a garage Audit whose
+  wait has ended returns to With Engineer. The release's history line shows
+  the move; a garage Audit's move is a line of its own after it, in the
+  sweep's words (operator, 18 November 2026; [R1178](../rulings.md),
+  [R1181](../rulings.md)).
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review,
   With Engineer and Report sent under the normal edit authority. They are
@@ -420,16 +426,21 @@ and stays With Engineer.
 files the waiting Case returns to With Engineer by itself, with its Engineer
 ([R1144](../rulings.md)), whatever the state of that Engineer's account, as
 a With Engineer Case keeps an Engineer whose account is disabled afterwards
-(operator, 18 November 2026; [R1163](../rulings.md)). The Worker makes the move on its one-minute sweep,
-whichever way the file arrived or took its type, and so does it move a Not
-ready Case into Review once its External estimate is confirmed; each move is
-a line in the Case's history. A Case somebody is editing waits until the
-edit session ends.
+(operator, 18 November 2026; [R1163](../rulings.md)). Filing the Repair
+invoice moves the Case at once, and so does filing the External estimate
+move a complete Not ready Case into Review: Change type and an Automation
+upload in their own save, and a file added from the Case as it is filed.
+Each move is a line of its own in the Case's history (operator, 18 November
+2026; [R1177](../rulings.md)). A file that arrives or takes its type any
+other way, an e-mailed attachment say, or that is filed while somebody is
+editing the Case, is moved on by the Worker's one-minute sweep, which leaves
+a Case somebody is editing until the edit session ends.
 
 **Total loss and cash in lieu.** A recorded Outcome of Total loss or Cash in
 lieu waives both: Authorise garage is not asked, a Case already waiting for
-its invoice returns to With Engineer on the same sweep, and neither holds
-the report ([R1143](../rulings.md)).
+its invoice returns to With Engineer in the save that records the Outcome,
+inside an edit session too ([R1177](../rulings.md)), and neither holds the
+report ([R1143](../rulings.md)).
 
 **Undo garage authorisation** is in the Actions menu once the garage is
 authorised, on an open Case that is not held, and records a reason
@@ -574,7 +585,7 @@ Automation Actor action.
 | Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
 | With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
-| Held | previous state | Release Hold (reason) |
+| Held | previous state | Release Hold (reason); a Case returning to Not ready whose requirements were met while it was held moves on at once, as a Not ready Case would ([R1178](../rulings.md)) |
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R705) |
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |

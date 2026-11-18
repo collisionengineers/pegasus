@@ -740,10 +740,24 @@ public sealed class AutomationCaseLifecycleIngressTests
                 StringComparison.Ordinal);
         }
 
+        // The upload moves the Case itself, within the one version an upload
+        // takes, and the sweep finds nothing left to do (R1177).
+        var beforeEstimate = await GetWorkflowVersionAsync(mcpFactory, caseId);
         await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 4, "ExternalEstimate", "garage-estimate.pdf");
-        Assert.Equal(1, await ReconcileGarageWaitsAsync(mcpFactory));
         Assert.Equal(CaseLifecycleState.Review, await StateAsync(mcpFactory, caseId));
+        Assert.Equal(beforeEstimate + 1, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var completed = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == caseId
+                    && row.EventType == GarageAuthorisationPolicy.RequirementsCompletedEventType);
+            Assert.Equal(GarageAuthorisationPolicy.ExternalEstimateFiledReason, completed.Reason);
+            Assert.Equal(nameof(ActorKind.Automation), completed.ActorKind);
+            Assert.Equal(beforeEstimate + 1, completed.AfterVersion);
+        }
 
         using (var assigned = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_case_action", new
         {
@@ -820,7 +834,6 @@ public sealed class AutomationCaseLifecycleIngressTests
             await GarageActionAsync(
                 mcpFactory, client, token, caseId, 10, "authorise_garage", "mcp:garage-authorise-again"));
         await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 11, "RepairInvoice", "repair-invoice.pdf");
-        Assert.Equal(1, await ReconcileGarageWaitsAsync(mcpFactory));
         Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(mcpFactory, caseId));
         await using (var scope = mcpFactory.Services.CreateAsyncScope())
         {
@@ -833,6 +846,7 @@ public sealed class AutomationCaseLifecycleIngressTests
                 .SingleAsync(row => row.CaseId == caseId
                     && row.EventType == GarageAuthorisationPolicy.ReturnedEventType);
             Assert.Equal(GarageAuthorisationPolicy.RepairInvoiceFiledReason, returned.Reason);
+            Assert.Equal(nameof(ActorKind.Automation), returned.ActorKind);
             Assert.Equal(workflow.Version, returned.AfterVersion);
             var due = await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == caseId);
             Assert.Equal(nameof(Pegasus.Core.Tasks.CaseDueWorkState.Stopped), due.State);
@@ -852,6 +866,126 @@ public sealed class AutomationCaseLifecycleIngressTests
             GarageAuthorisationPolicy.AuthoriseNotOffered,
             await ReadErrorTextAsync(twice),
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A waiting Case returns to With Engineer in the same save that records
+    /// a waiving Outcome, inside an edit session too, and a Repair invoice
+    /// that arrives by any other route is left to the sweep (R1143, R1177).
+    /// </summary>
+    [Fact]
+    public async Task AWaivingOutcomeEndsTheWaitInItsOwnSaveAndTheSweepMovesEveryOtherRoute()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var outcomeCaseId = await SeedWaitingGarageAuditAsync(mcpFactory, "garage-outcome-engineer");
+        var sweptCaseId = await SeedWaitingGarageAuditAsync(mcpFactory, "garage-swept-engineer");
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+
+        var lease = await BeginEditAsync(
+            client, token, outcomeCaseId, await GetWorkflowVersionAsync(mcpFactory, outcomeCaseId), rpcId: 1);
+        using (var saved = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_assessment_update", new
+        {
+            caseId = outcomeCaseId,
+            expectedVersion = lease.CaseVersion,
+            editLeaseToken = lease.LeaseToken,
+            operationKey = "mcp:garage-total-loss",
+            reason = "The vehicle is a total loss.",
+            fields = new Dictionary<string, string?> { [Pegasus.Core.Assessment.AssessmentVocabulary.Outcome] = "total_loss" }
+        })))
+        {
+            _ = await ReadStructuredContentAsync(saved);
+        }
+        Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(mcpFactory, outcomeCaseId));
+
+        // A file typed by another route than these acts waits for the sweep.
+        await AddGarageDocumentAsync(mcpFactory, client, token, sweptCaseId, 3, "Other", "garage-letter.pdf");
+        Assert.Equal(CaseLifecycleState.NotReady, await StateAsync(mcpFactory, sweptCaseId));
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var letter = await db.Set<DocumentOccurrenceEntity>()
+                .SingleAsync(row => row.CaseId == sweptCaseId && row.SemanticRole == DocumentSemanticRole.Other);
+            letter.SemanticRole = DocumentSemanticRole.RepairInvoice;
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(1, await ReconcileGarageWaitsAsync(mcpFactory));
+        Assert.Equal(CaseLifecycleState.ReportPreparation, await StateAsync(mcpFactory, sweptCaseId));
+
+        await using (var scope = mcpFactory.Services.CreateAsyncScope())
+        {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var waived = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == outcomeCaseId
+                    && row.EventType == GarageAuthorisationPolicy.ReturnedEventType);
+            Assert.Equal(GarageAuthorisationPolicy.OutcomeWaivedReason, waived.Reason);
+            Assert.Equal(nameof(ActorKind.Automation), waived.ActorKind);
+            var outcomeWorkflow = await db.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == outcomeCaseId);
+            Assert.Equal(outcomeWorkflow.Version, waived.AfterVersion);
+            Assert.NotNull(outcomeWorkflow.AssignedEngineerId);
+            var swept = await db.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(row => row.CaseId == sweptCaseId
+                    && row.EventType == GarageAuthorisationPolicy.ReturnedEventType);
+            Assert.Equal(GarageAuthorisationPolicy.RepairInvoiceFiledReason, swept.Reason);
+            Assert.Equal(nameof(ActorKind.SystemWorker), swept.ActorKind);
+            Assert.Equal(
+                nameof(Pegasus.Core.Tasks.CaseDueWorkState.Stopped),
+                (await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == outcomeCaseId)).State);
+        }
+    }
+
+    /// <summary>
+    /// Readiness is not applied to a held Case, so Release Hold applies what
+    /// was filed while it was held: a garage Audit whose External estimate
+    /// arrived on hold enters Review on release, not Not ready with nothing
+    /// missing (R1178).
+    /// </summary>
+    [Fact]
+    public async Task ReleaseHoldMovesACaseWhoseRequirementsWereMetWhileItWasHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(
+            mcpFactory,
+            caseType: CaseType.Audit,
+            principalAuditWorkflowCode: PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        await RecordGarageVehicleAsync(mcpFactory, client, token, caseId, 1);
+        Assert.Equal(CaseLifecycleState.NotReady, await StateAsync(mcpFactory, caseId));
+
+        Assert.Equal(
+            nameof(CaseLifecycleState.Held),
+            await GarageActionAsync(
+                mcpFactory, client, token, caseId, 2, "hold", "mcp:garage-hold", "Waiting for the garage."));
+        await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 3, "ExternalEstimate", "held-estimate.pdf");
+        Assert.Equal(CaseLifecycleState.Held, await StateAsync(mcpFactory, caseId));
+        Assert.Equal(0, await ReconcileGarageWaitsAsync(mcpFactory));
+
+        Assert.Equal(
+            nameof(CaseLifecycleState.Review),
+            await GarageActionAsync(
+                mcpFactory, client, token, caseId, 4, "release_hold", "mcp:garage-release", "The garage replied."));
+        await using var scope = mcpFactory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Equal(
+            nameof(Pegasus.Core.Tasks.CaseDueWorkState.Stopped),
+            (await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).State);
+        // The release is its own line, and the move a line of its own after
+        // it, in the words the sweep uses (R1165, R1178).
+        var released = await db.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_hold_released");
+        var completed = await db.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(row => row.CaseId == caseId
+                && row.EventType == GarageAuthorisationPolicy.RequirementsCompletedEventType);
+        Assert.Equal("The garage replied.", released.Reason);
+        Assert.Equal(GarageAuthorisationPolicy.ExternalEstimateFiledReason, completed.Reason);
+        Assert.Equal(released.AfterVersion, completed.BeforeVersion);
+        Assert.Equal(nameof(ActorKind.Automation), completed.ActorKind);
     }
 
     /// <summary>
@@ -1024,6 +1158,46 @@ public sealed class AutomationCaseLifecycleIngressTests
             Assert.Equal("Marked on the wrong Case.", undone.Reason);
             Assert.Equal(nameof(ActorKind.Staff), undone.ActorKind);
         }
+    }
+
+    /// <summary>
+    /// A Garage authorisation and invoice Audit waiting Not ready, with its
+    /// Engineer, for its repair invoice: the state Mark done leaves it in.
+    /// </summary>
+    private static async Task<Guid> SeedWaitingGarageAuditAsync(WebApplicationFactory<Program> factory, string engineer)
+    {
+        var caseId = await SeedAcceptedCaseAsync(
+            factory,
+            caseType: CaseType.Audit,
+            principalAuditWorkflowCode: PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode);
+        var engineerId = await SeedEngineerAsync(factory, engineer);
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)}, AssignedEngineerId = {engineerId}, GarageAuthorisedAtUtc = {DateTimeOffset.UtcNow} WHERE CaseId = {caseId}");
+        return caseId;
+    }
+
+    /// <summary>Records the registration and the mileage, so only the garage's estimate keeps the Case Not ready.</summary>
+    private static async Task RecordGarageVehicleAsync(
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        string token,
+        Guid caseId,
+        int rpcId)
+    {
+        using var details = await PostMcpAsync(client, token, ToolCallPayload(rpcId, "pegasus_case_update_details", new
+        {
+            caseId,
+            expectedVersion = await GetWorkflowVersionAsync(factory, caseId),
+            operationKey = $"mcp:garage-vehicle-{rpcId}",
+            reason = "Recorded the vehicle mileage.",
+            vehicleRegistration = "AB12CDE",
+            vehicleMileage = 44_200,
+            vehicleMileageUnit = "miles",
+        }));
+        _ = await ReadStructuredContentAsync(details);
     }
 
     private static async Task<int> ReconcileGarageWaitsAsync(WebApplicationFactory<Program> factory)

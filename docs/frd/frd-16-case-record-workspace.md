@@ -157,7 +157,9 @@ section clears comes last, under Accounts where it opens Accounts. The
 Cases list's Current work names the same first row, except Vehicle
 registration incomplete and Vehicle mileage incomplete, which only the Not
 ready queue reads ([R759](../rulings.md), [R929](../rulings.md),
-[R1081](../rulings.md)).
+[R1081](../rulings.md)); a Garage authorisation & invoice Audit's External
+estimate incomplete and Repair invoice incomplete are named on every queue
+(operator, 18 November 2026; [R1179](../rulings.md)).
 The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action

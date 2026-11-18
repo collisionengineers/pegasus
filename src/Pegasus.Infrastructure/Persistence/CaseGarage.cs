@@ -92,6 +92,18 @@ internal static class CaseGarage
     }
 
     /// <summary>
+    /// Whether a save recorded an Outcome that waives the garage's
+    /// authorisation and invoice where the Outcome before did not: the
+    /// assessment saves that end a waiting Case's wait in the same save
+    /// (R1143, R1177).
+    /// </summary>
+    internal static bool RecordsWaivingOutcome(
+        IReadOnlyDictionary<string, string?> before,
+        IReadOnlyDictionary<string, string?> after) =>
+        GarageAuthorisationPolicy.IsWaived(after.GetValueOrDefault(AssessmentVocabulary.Outcome))
+        && !GarageAuthorisationPolicy.IsWaived(before.GetValueOrDefault(AssessmentVocabulary.Outcome));
+
+    /// <summary>
     /// Whether the Case holds a filed document of <paramref name="role"/> that
     /// is current, not removed and confirmed in custody: the files the Case's
     /// own Files list shows as kept.

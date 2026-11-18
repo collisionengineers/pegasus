@@ -689,6 +689,13 @@ internal sealed class EfCaseArtifactCustody(
                 db, caseId, promotionReceiptId,
                 filing.ExpectedCaseVersion, timeProvider.GetUtcNow(), cancellationToken);
         }
+        // A garage Audit's External estimate or Repair invoice, an upload's
+        // declared type say, moves the Case as it is filed (R1177).
+        if (occurrence.SemanticRole is DocumentSemanticRole.ExternalEstimate or DocumentSemanticRole.RepairInvoice)
+        {
+            await EfCaseWorkflowStore.EndGarageWaitOnFilingAsync(
+                db, caseId, timeProvider.GetUtcNow(), cancellationToken);
+        }
         await confirmation.CommitAsync(cancellationToken);
         return (Confirmed(version, occurrence.Id), true);
     }
