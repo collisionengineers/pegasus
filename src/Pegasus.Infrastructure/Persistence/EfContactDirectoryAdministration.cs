@@ -63,7 +63,16 @@ public sealed class EfContactDirectoryAdministration(
         var role = ToCode(query.Role);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         var contacts = context.Organizations.AsNoTracking().Where(item => item.Role == role);
-        if (!string.IsNullOrWhiteSpace(prefix)) contacts = contacts.Where(item => item.Name.StartsWith(prefix));
+        // A Principal is found by the start of its name or of any code it holds, an
+        // earlier one included; every other type by its name only (operator,
+        // 18 November 2026; R1183).
+        if (!string.IsNullOrWhiteSpace(prefix))
+        {
+            contacts = query.Role == ContactRole.Principal
+                ? contacts.Where(item => item.Name.StartsWith(prefix)
+                    || item.Principals.Any(principal => principal.Code.StartsWith(prefix)))
+                : contacts.Where(item => item.Name.StartsWith(prefix));
+        }
         // Each panel of the list is ordered by name (operator, 13 October 2026). One row more
         // than the page is read, so a following page is known without a count.
         var ids = await contacts.OrderBy(item => item.Name).ThenBy(item => item.Id).Select(item => item.Id)

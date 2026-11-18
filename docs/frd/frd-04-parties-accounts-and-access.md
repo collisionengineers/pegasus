@@ -137,8 +137,10 @@ access.
 **Contacts** lists the external organisations in one panel per type, in the
 order Principals, Claim Sources, Repairers,
 each sorted by name; a type with no matching contact is absent. Search, labelled
-Name, matches the start of a contact's name and runs across every panel
-(operator, 29 October 2026, R535), and the Type filter narrows the list to one panel. Each
+Name (operator, 29 October 2026, R535), matches the start of a contact's name
+and, for a Principal, the start of any code it holds, an earlier code included
+(operator, 18 November 2026, [R1183](../rulings.md)); it runs across every
+panel, and the Type filter narrows the list to one panel. Each
 panel shows 50 contacts at a time; where a type has more, Previous and Next
 open that type's list one page at a time. A panel's columns follow its type:
 Principals show Principal code, name,
