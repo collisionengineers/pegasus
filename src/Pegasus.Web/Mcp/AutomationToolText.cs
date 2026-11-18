@@ -1,3 +1,5 @@
+using Pegasus.Core.Assessment;
+
 namespace Pegasus.Web.Mcp;
 
 /// <summary>
@@ -122,4 +124,46 @@ internal static class AutomationToolText
     public const string GlassActMandatoryParts = "The parts Glass's listed as mandatory; only those it ticked itself were added.";
 
     public const string GlassActs = "Each position act the Automation asked for on this session, in order.";
+
+    // The Automation's help in an Engineer's own open Glass's session
+    // (R1170, R1182, R1185; design 08 section 5). Not ruled: the sentences
+    // the tools gain and the glass.help.* refusals.
+
+    /// <summary>The sentence the three tools that work in an Engineer's session add to their descriptions.</summary>
+    public const string GlassHelpWorksIn = "It also works in an Engineer's own open Glass's session on the Case while they have Automation help on; name one by sessionId when there are several.";
+
+    /// <summary>The sentence session_act adds: start, finish and close are the Automation's own session's only.</summary>
+    public const string GlassSessionActOwnOnly = "An Engineer's Glass's session is theirs to save or close.";
+
+    public const string GlassSessionId = "Optional: the session to act in, from pegasus_glass_session_get, when the Case has several.";
+
+    public const string GlassSessionOwner = "automation or staff: whose session it is.";
+
+    public const string GlassSessionHelpOn = "An Engineer's session: whether they have Automation help on.";
+
+    public const string GlassSessionWindowConnected = "An Engineer's session: whether their Glass's window is connected to Pegasus.";
+
+    public const string GlassHelpCode = "The glass.help.* code when no session on the Case can be acted in now.";
+
+    public const string GlassHelpSessions = "With glass.help.several, each session that can be acted in.";
+
+    public const string GlassAlsoNew = "An Engineer's session: positions that came onto the estimate from their own window meanwhile.";
+
+    public const string GlassShownInWindow = "An Engineer's session: whether their Glass's window has shown the change yet.";
+
+    /// <summary>
+    /// A help refusal: its glass.help.* code, then its sentence. No session
+    /// open to the Automation answers the ruled sentence (R1178).
+    /// </summary>
+    public static string GlassHelpRefusal(string code) => string.Concat(code, ": ", code switch
+    {
+        GlassSessionHelpPolicy.NoSessionCode => GlassNoSession,
+        GlassSessionHelpPolicy.OffCode => "The Engineer's Glass's session on this Case does not have Automation help on.",
+        GlassSessionHelpPolicy.SeveralCode => "More than one Glass's session on this Case is open to the Automation; name one by sessionId.",
+        GlassSessionHelpPolicy.NotActiveCode => "The Glass's session is no longer open.",
+        GlassSessionHelpPolicy.BusyCode => "The Glass's session is busy; try again shortly.",
+        GlassSessionHelpPolicy.NoWindowCode => "The Engineer's Glass's window is not connected to Pegasus.",
+        GlassSessionHelpPolicy.NotAutomationSessionCode => "That is an Engineer's Glass's session; only they save or close it.",
+        _ => "The Glass's session cannot be acted in.",
+    });
 }

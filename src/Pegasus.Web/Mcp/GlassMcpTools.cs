@@ -19,7 +19,10 @@ internal sealed record GlassSessionToolItem(
     [property: Description("The glass.* code of what Glass's answered, when it stopped or refused.")] string? FailureCode,
     DateTimeOffset CreatedAtUtc,
     [property: Description("Work for the session is queued or running now; read it again later.")] bool Working,
-    [property: Description("The Draft repair spec a finished session landed as.")] Guid? DraftSpecificationId);
+    [property: Description("The Draft repair spec a finished session landed as.")] Guid? DraftSpecificationId,
+    [property: Description(AutomationToolText.GlassSessionOwner)] string Owner,
+    [property: Description(AutomationToolText.GlassSessionHelpOn)] bool? HelpOn,
+    [property: Description(AutomationToolText.GlassSessionWindowConnected)] bool? WindowConnected);
 
 internal sealed record GlassAccountToolItem(
     [property: Description("No session holds the Glass's account.")] bool Free,
@@ -56,7 +59,9 @@ internal sealed record GlassSessionGetToolResult(
     GlassAccountToolItem Account,
     [property: Description("Present only when readEstimate was asked and Glass's answered.")] GlassEstimateToolItem? Estimate,
     [property: Description(AutomationToolText.GlassActs)] IReadOnlyList<GlassActToolItem> Acts,
-    string CorrelationId);
+    string CorrelationId,
+    [property: Description(AutomationToolText.GlassHelpCode)] string? Code,
+    [property: Description(AutomationToolText.GlassHelpSessions)] IReadOnlyList<GlassSessionToolItem> Sessions);
 
 internal sealed record GlassCatalogueRowToolItem(
     [property: Description(AutomationToolText.GlassCatalogueRow)] string Row,
@@ -79,7 +84,9 @@ internal sealed record GlassPositionActToolResult(
     Guid CaseId,
     GlassSessionToolItem? Session,
     GlassActToolItem Act,
-    string OperationKey);
+    string OperationKey,
+    [property: Description(AutomationToolText.GlassAlsoNew)] IReadOnlyList<string>? AlsoNew = null,
+    [property: Description(AutomationToolText.GlassShownInWindow)] bool? ShownInWindow = null);
 
 internal sealed record GlassSessionActToolResult(
     Guid CaseId,
@@ -96,6 +103,15 @@ internal sealed record GlassSessionActToolResult(
 /// keyed on the session, one piece at a time, and a call waits for it for up
 /// to <see cref="AnswerWindow"/>.
 /// </summary>
+/// <remarks>
+/// The read, the catalogue search and the position act also work in an
+/// Engineer's own open session while they have Automation help on (R1170,
+/// R1182, R1185; design 08 section 5): the session is chosen by
+/// <see cref="GlassSessionHelpPolicy.Find"/>, refused with its
+/// <c>glass.help.*</c> code, and acted in through <see cref="GlassSessionHelp"/>
+/// alone, which cannot save, exit or close it. No Case lease is taken there;
+/// start, finish and close refuse an Engineer's session.
+/// </remarks>
 [McpServerToolType]
 internal sealed class GlassMcpTools(
     IGlassRepairEstimateGateway gateway,
@@ -108,7 +124,8 @@ internal sealed class GlassMcpTools(
     TimeProvider timeProvider,
     ICursorProtector cursors,
     AutomationMcpAuditor auditor,
-    OneCommandEdit leases)
+    OneCommandEdit leases,
+    IGlassSessionHelpStore helpStore)
 {
     /// <summary>
     /// How long a call waits for its work: the wait <c>pegasus_edit_begin</c>
@@ -125,10 +142,11 @@ internal sealed class GlassMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description(AutomationToolText.GlassSessionGet)]
+    [Description(AutomationToolText.GlassSessionGet + " " + AutomationToolText.GlassHelpWorksIn)]
     public async Task<GlassSessionGetToolResult> GetSessionAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("Ask Glass's once for the positions the open estimate holds.")] bool readEstimate = false,
+        [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -138,7 +156,36 @@ internal sealed class GlassMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 RequireAvailable();
-                var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
+                var candidates = await sessions.FindHelpableForCaseAsync(caseId, cancellationToken);
+                var target = Found(candidates, sessionId);
+                var session = target.Session;
+                var code = target.Code;
+                GlassEstimateToolItem? estimate = null;
+                if (target.IsStaff && session is not null)
+                {
+                    // An Engineer's session is read through help alone, and
+                    // only while it may be acted in.
+                    if (readEstimate && code is null)
+                    {
+                        try
+                        {
+                            RequireIdle(session);
+                            var read = await Help.ReadAsync(context.Actor, session, cancellationToken);
+                            estimate = read.PositionIds is { } positions
+                                ? new GlassEstimateToolItem(positions, read.Codes ?? [])
+                                : null;
+                        }
+                        catch (GlassSessionHelpRefusalException refused)
+                        {
+                            code = refused.Code;
+                        }
+                    }
+
+                    return new GlassSessionGetToolResult(
+                        caseId, Map(session), await AccountAsync(context.Actor, cancellationToken), estimate, [],
+                        context.TraceIdentifier, code, []);
+                }
+
                 // A session waiting on work that nothing runs was interrupted,
                 // and is settled as the Glass's window's poll settles it.
                 if (session is not null
@@ -148,16 +195,15 @@ internal sealed class GlassMcpTools(
                     session = await gateway.SettleInterruptedAsync(context.Actor, session.Id, cancellationToken);
                 }
 
-                GlassEstimateToolItem? estimate = null;
                 if (readEstimate
                     && session is { State: GlassRepairEstimateSessionState.Active }
                     && !queue.IsInFlight(session.Id))
                 {
-                    var sessionId = session.Id;
+                    var readId = session.Id;
                     var read = await RunHereAsync(
-                        sessionId,
+                        readId,
                         "GlassAutomationRead",
-                        token => gateway.ReadAutomationEstimateAsync(context.Actor, sessionId, token),
+                        token => gateway.ReadAutomationEstimateAsync(context.Actor, readId, token),
                         cancellationToken);
                     if (read is not null)
                     {
@@ -174,7 +220,11 @@ internal sealed class GlassMcpTools(
                     await AccountAsync(context.Actor, cancellationToken),
                     estimate,
                     session?.Automation?.Acts.Select(MapAct).ToList() ?? [],
-                    context.TraceIdentifier);
+                    context.TraceIdentifier,
+                    code,
+                    code == GlassSessionHelpPolicy.SeveralCode
+                        ? GlassSessionHelpPolicy.Open(candidates).Select(MapSession).ToList()
+                        : []);
             },
             cancellationToken);
     }
@@ -187,7 +237,7 @@ internal sealed class GlassMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description(AutomationToolText.GlassSessionAct)]
+    [Description(AutomationToolText.GlassSessionAct + " " + AutomationToolText.GlassSessionActOwnOnly)]
     public async Task<GlassSessionActToolResult> ActOnSessionAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("start, finish or close.")] string action,
@@ -233,7 +283,7 @@ internal sealed class GlassMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description(AutomationToolText.GlassCatalogueSearch)]
+    [Description(AutomationToolText.GlassCatalogueSearch + " " + AutomationToolText.GlassHelpWorksIn)]
     public async Task<GlassCatalogueSearchToolResult> SearchCatalogueAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.GlassSearchTerm)] string term,
@@ -241,6 +291,7 @@ internal sealed class GlassMcpTools(
         [Description(AutomationToolText.GlassSearchSide)] string? side = null,
         [Description(AutomationToolText.Cursor)] string? cursor = null,
         [Description(AutomationToolText.PageSize)] int? limit = null,
+        [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -265,7 +316,8 @@ internal sealed class GlassMcpTools(
                 };
                 var wantedSide = SideOf(side);
                 var pageSize = CursorPaging.NormalizeLimit(limit);
-                var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
+                var target = await FindAsync(caseId, sessionId, cancellationToken);
+                var session = RequireActable(target);
                 if (session is not { State: GlassRepairEstimateSessionState.Active })
                 {
                     throw new McpException(AutomationToolText.GlassNoSession);
@@ -274,29 +326,30 @@ internal sealed class GlassMcpTools(
                 // The cursor is bound to the caller, the session, the term,
                 // the kind and the side (FRD-10): an offset into the rows
                 // found, which each page asks Glass's for again (no cache).
-                var sessionId = session.Id;
+                var searched = session.Id;
                 var scope = CursorPaging.CreateScope(
                     "pegasus_glass_catalogue_search", context.Actor,
-                    sessionId.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide);
+                    searched.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide);
                 var offset = 0;
                 if (!string.IsNullOrEmpty(cursor))
                 {
                     var (sortKey, id) = cursors.Unprotect(cursor, scope);
-                    if (id != sessionId
+                    if (id != searched
                         || !int.TryParse(sortKey, NumberStyles.None, CultureInfo.InvariantCulture, out offset))
                     {
                         throw new CursorRejectedException();
                     }
                 }
 
-                var found = await RunHereAsync(
-                    sessionId,
-                    "GlassAutomationSearch",
-                    token => gateway.SearchAutomationCatalogueAsync(
-                        new GlassAutomationCatalogueQuery(context.Actor, sessionId, wantedTerm, wantedKind, wantedSide),
-                        token),
-                    cancellationToken)
-                    ?? throw new McpException(AutomationToolText.GlassNoSession);
+                var query = new GlassAutomationCatalogueQuery(context.Actor, searched, wantedTerm, wantedKind, wantedSide);
+                var found = target.IsStaff
+                    ? await HelpAsync(() => Help.SearchAsync(query, session, cancellationToken))
+                    : await RunHereAsync(
+                        searched,
+                        "GlassAutomationSearch",
+                        token => gateway.SearchAutomationCatalogueAsync(query, token),
+                        cancellationToken)
+                        ?? throw new McpException(AutomationToolText.GlassNoSession);
                 var items = found.Rows
                     .Skip(offset)
                     .Take(pageSize)
@@ -304,7 +357,7 @@ internal sealed class GlassMcpTools(
                         row.Row, KindName(row.Kind), row.Description, row.PartCode, row.PartNumber, row.Side, row.Paintable))
                     .ToList();
                 var next = offset + pageSize < found.Rows.Count
-                    ? cursors.Protect(scope, (offset + pageSize).ToString(CultureInfo.InvariantCulture), sessionId)
+                    ? cursors.Protect(scope, (offset + pageSize).ToString(CultureInfo.InvariantCulture), searched)
                     : null;
                 return new GlassCatalogueSearchToolResult(
                     caseId, Map(found.Session), items, next, found.Code, context.TraceIdentifier);
@@ -320,7 +373,7 @@ internal sealed class GlassMcpTools(
         Idempotent = true,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description(AutomationToolText.GlassPositionAct)]
+    [Description(AutomationToolText.GlassPositionAct + " " + AutomationToolText.GlassHelpWorksIn)]
     public async Task<GlassPositionActToolResult> ActOnPositionAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.GlassPositionAction)] string action,
@@ -331,6 +384,7 @@ internal sealed class GlassMcpTools(
         [Description(AutomationToolText.GlassAddOperation)] string? operation = null,
         [Description(AutomationToolText.GlassAddSide)] string? side = null,
         [Description(AutomationToolText.GlassRemovePositionId)] string? positionId = null,
+        [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -351,8 +405,29 @@ internal sealed class GlassMcpTools(
                 {
                     return new GlassPositionActToolResult(caseId, Map(replayed), MapAct(recorded), key);
                 }
+                // So does a key recorded by a help act in an Engineer's session.
+                if (await helpStore.FindHelpActAsync(caseId, key, cancellationToken) is { } helped)
+                {
+                    var helpedIn = (await FindAsync(caseId, helped.SessionId, cancellationToken)).Session;
+                    return new GlassPositionActToolResult(caseId, Map(helpedIn), MapAct(helped.Act), key);
+                }
 
-                var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
+                var target = await FindAsync(caseId, sessionId, cancellationToken);
+                var session = RequireActable(target);
+                if (target.IsStaff)
+                {
+                    // In an Engineer's session: no Case lease, no work item,
+                    // one help act at a time, and a cap of its own so a
+                    // client that gives up never cuts a post in half.
+                    var helpedSession = session;
+                    var request = asked with { SessionId = helpedSession.Id };
+                    using var cap = new CancellationTokenSource(ProviderWorkService.TimeCap, timeProvider);
+                    var outcome = await HelpAsync(() => request.Action == GlassAutomationActAction.Remove
+                        ? Help.RemoveAsync(request, helpedSession, cap.Token)
+                        : Help.AddAsync(request, helpedSession, cap.Token));
+                    return new GlassPositionActToolResult(
+                        caseId, Map(helpedSession), MapAct(outcome.Act), key, outcome.AlsoNew, outcome.ShownInWindow);
+                }
                 if (session is not { State: GlassRepairEstimateSessionState.Active })
                 {
                     throw new McpException(AutomationToolText.GlassNoSession);
@@ -588,6 +663,7 @@ internal sealed class GlassMcpTools(
         }
         if (session is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State))
         {
+            await RefuseEngineersSessionAsync(caseId, cancellationToken);
             throw new McpException(AutomationToolText.GlassNoSession);
         }
         if (queue.IsInFlight(session.Id))
@@ -649,6 +725,7 @@ internal sealed class GlassMcpTools(
         var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
         if (session is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State))
         {
+            await RefuseEngineersSessionAsync(caseId, cancellationToken);
             throw new McpException(AutomationToolText.GlassNoSession);
         }
         if (queue.IsInFlight(session.Id))
@@ -765,6 +842,90 @@ internal sealed class GlassMcpTools(
         return references.GetValueOrDefault(caseId, caseId.ToString("D"));
     }
 
+    /// <summary>Help in an Engineer's session; resolved only on a host that reaches Glass's.</summary>
+    private GlassSessionHelp Help => services.GetRequiredService<GlassSessionHelp>();
+
+    /// <summary>The editor keys the helper handed over; resolved only on a host that reaches Glass's.</summary>
+    private GlassHelpKeys Keys => services.GetRequiredService<GlassHelpKeys>();
+
+    /// <summary>
+    /// The session the tools act in on the Case (<see cref="GlassSessionHelpPolicy.Find"/>).
+    /// An Engineer's session found no longer <c>Active</c> forgets its key.
+    /// </summary>
+    private GlassSessionHelpTarget Found(GlassSessionHelpCandidates candidates, Guid? sessionId)
+    {
+        var target = GlassSessionHelpPolicy.Find(candidates, sessionId);
+        if (target is { IsStaff: true, Session: { } ended }
+            && ended.State != GlassRepairEstimateSessionState.Active)
+        {
+            Keys.Drop(ended.Id);
+        }
+
+        return target;
+    }
+
+    private async Task<GlassSessionHelpTarget> FindAsync(
+        Guid caseId, Guid? sessionId, CancellationToken cancellationToken) =>
+        Found(await sessions.FindHelpableForCaseAsync(caseId, cancellationToken), sessionId);
+
+    /// <summary>
+    /// The session an act runs in, or its refusal: none chosen, an Engineer's
+    /// that may not be acted in, or one whose provider work runs. The
+    /// Automation's own is answered as it stands, for its own checks.
+    /// </summary>
+    private GlassRepairEstimateSession RequireActable(GlassSessionHelpTarget target)
+    {
+        if (target.Session is not { } session)
+        {
+            throw new McpException(AutomationToolText.GlassHelpRefusal(target.Code ?? GlassSessionHelpPolicy.NoSessionCode));
+        }
+        if (target.IsStaff)
+        {
+            if ((target.Code ?? (queue.IsInFlight(session.Id) ? GlassSessionHelpPolicy.BusyCode : null)) is { } code)
+            {
+                throw new McpException(AutomationToolText.GlassHelpRefusal(code));
+            }
+        }
+
+        return session;
+    }
+
+    /// <summary>An Engineer's session whose provider work runs (a resume, the return) is busy.</summary>
+    private void RequireIdle(GlassRepairEstimateSession session)
+    {
+        if (queue.IsInFlight(session.Id))
+        {
+            throw new GlassSessionHelpRefusalException(GlassSessionHelpPolicy.BusyCode);
+        }
+    }
+
+    /// <summary>A help call, its glass.help.* refusal answered with its sentence.</summary>
+    private static async Task<T> HelpAsync<T>(Func<Task<T>> help)
+    {
+        try
+        {
+            return await help();
+        }
+        catch (GlassSessionHelpRefusalException refused)
+        {
+            throw new McpException(AutomationToolText.GlassHelpRefusal(refused.Code));
+        }
+    }
+
+    /// <summary>
+    /// start, finish and close are the Automation's own session's: on a Case
+    /// whose only session open to it is an Engineer's, they say so.
+    /// </summary>
+    private async Task RefuseEngineersSessionAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        var candidates = await sessions.FindHelpableForCaseAsync(caseId, cancellationToken);
+        if (candidates.Staff.Any(item => GlassSessionHelpPolicy.RefusalOf(item) is null))
+        {
+            throw new McpException(
+                AutomationToolText.GlassHelpRefusal(GlassSessionHelpPolicy.NotAutomationSessionCode));
+        }
+    }
+
     private void RequireAvailable()
     {
         if (!availability.Enabled)
@@ -777,14 +938,25 @@ internal sealed class GlassMcpTools(
         value ?? throw new McpException($"{name} is required for this action.");
 
     private GlassSessionToolItem? Map(GlassRepairEstimateSession? session) =>
-        session is null
-            ? null
-            : new GlassSessionToolItem(
-                session.Id,
-                session.Version,
-                session.State.ToString(),
-                session.FailureCode,
-                session.CreatedAtUtc,
-                queue.IsInFlight(session.Id),
-                session.Automation?.DraftSpecificationId);
+        session is null ? null : MapSession(session);
+
+    /// <summary>
+    /// A session as the tools answer it. An Engineer's says whether help is
+    /// on and whether their window is connected, and names no member of staff.
+    /// </summary>
+    private GlassSessionToolItem MapSession(GlassRepairEstimateSession session)
+    {
+        var staff = session.OwnerKind == ActorKind.Staff;
+        return new GlassSessionToolItem(
+            session.Id,
+            session.Version,
+            session.State.ToString(),
+            session.FailureCode,
+            session.CreatedAtUtc,
+            queue.IsInFlight(session.Id),
+            session.Automation?.DraftSpecificationId,
+            staff ? "staff" : "automation",
+            staff ? GlassSessionHelpPolicy.HelpOn(session) : null,
+            staff ? Keys.IsHeld(session.Id) : null);
+    }
 }
