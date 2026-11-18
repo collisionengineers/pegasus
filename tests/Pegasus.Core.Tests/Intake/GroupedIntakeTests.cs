@@ -88,7 +88,7 @@ public sealed class GroupedIntakeTests
         var submission = new FakeSubmission();
         var request = Request("typed-no-case") with
         {
-            Files = [new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.Estimate })]
+            Files = [new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.ExternalEstimate })]
         };
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -123,7 +123,7 @@ public sealed class GroupedIntakeTests
             DeclaredCaseId = declaredCaseId,
             Files =
             [
-                new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.Estimate }),
+                new(0, Source("estimate.pdf", [1]) with { DeclaredDocumentType = DocumentSemanticRole.ExternalEstimate }),
                 new(1, Source("letter.pdf", [2]))
             ]
         };
@@ -132,7 +132,7 @@ public sealed class GroupedIntakeTests
             .ExecuteStreamedAsync(request);
 
         Assert.Equal(
-            [DocumentSemanticRole.Estimate, null],
+            [DocumentSemanticRole.ExternalEstimate, null],
             submission.Sources.Select(source => source.DeclaredDocumentType));
         Assert.All(submission.Sources, source => Assert.Equal(declaredCaseId, source.DeclaredCaseId));
     }

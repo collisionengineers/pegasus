@@ -367,7 +367,8 @@ separately addressable artifact in custody:
   pack to generate.
 
 A delivery attaches the documents the operator chose. A Principal's report
-sending rules can also require companions and attach the Case's filed estimates
+sending rules can also require companions, attach the Case's filed estimates
+and offer its External estimates and Repair invoices for staff to tick
 ([Report sending rules](#report-sending-rules)). Without a choice every
 artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
@@ -423,14 +424,15 @@ for the send, the report included, the stem alone, since every delivered
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
 Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R665, R671, R672). A name staff give
+not renamed (operator, 4 November 2026, R665, R671, R672), and so do the
+offered Case files staff tick ([R1151](../rulings.md)). A name staff give
 follows custody's rule: a character no file name can hold becomes `_`, and
 the whole name, `.pdf` included, is at most 120 characters; a longer one is
 refused with "A file name cannot exceed 120 characters." No two attachments
 of one send share a name, case ignored: a later document whose name an
 earlier attachment already carries gains " (2)", " (3)" and so on before
 `.pdf`, its stem shortened to keep within 120 characters, and since a filed
-estimate keeps its filed name, a document carrying it is the one numbered
+estimate or an offered Case file keeps its filed name, a document carrying it is the one numbered
 (operator, 10 November 2026; [R895](../rulings.md), [R896](../rulings.md)). The delivery
 carries one covering message, which starts as
 the Case report delivery template
@@ -497,6 +499,48 @@ is frozen with the generation, so the preview and the next Generate report
 print the Principal's number as it then stands, a fee note already generated
 keeps the number it was issued with, and a change to it marks no generation
 stale.
+
+**The ULA Invoice** (operator, 17 November 2026). A Principal whose
+Principal's own invoice setting is ULA Invoice
+([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration);
+[R1162](../rulings.md)) has its own invoice to its client made with the
+report: the ULA Invoice, a PDF reproducing the layout, ULA logo and footer
+banner of the operator's draft invoice ([R1147](../rulings.md)). Generate report
+makes it after the separate fee note, from the same confirmed generation and
+under the same lease, and only for a Repairable or Contract repair outcome: a
+Total loss or Cash in lieu has none ([R1143](../rulings.md)). Like the fee
+note, a report still being filed makes it on the next Generate report, which
+replays the report; Generate report is offered again for a confirmed report
+whose ULA Invoice is due and not confirmed, a retry reusing the invoice's own
+operation key; and its failure leaves the report's confirmation standing and
+reads "The ULA Invoice could not be generated." It has no control of its own
+in the Report section. The facts it prints beyond the report's are frozen with
+the report's snapshot, only for such a Principal, so every other Principal's
+snapshot is unchanged: the issuer, the Principal's name then its address lines
+with the postcode after the last; the Principal's Invoice VAT number and
+Invoice payment terms, each left off when empty ([R1148](../rulings.md)); the
+addressee, the claimant's name then any recorded claimant address lines, the
+name alone when none is recorded, never a refusal; and the Subject bar's
+vehicle, the Case's make and model in capitals ([R1149](../rulings.md)).
+**Invoice No** and the Subject bar's **Ref** both print the claim reference,
+**Invoice Date** is the report date as dd/MM/yyyy, and the file is named
+`ULA_Invoice_{claim reference}.pdf` ([R1148](../rulings.md)). Its rows are
+the report's own printed repair costs, figured from the same frozen snapshot:
+Total Labour, Parts, Paint / Materials and Additional Operations, the report's
+Specialist figure ([R1157](../rulings.md)), each taxed as the Current repair
+spec's VAT policy taxes it, a £0.00 row left out and the rest numbered 1 to N,
+and any penny the rows round away carried on the largest taxable row, so Sub
+Total, VAT and Total are the Audit Report's to the penny. A Contract repair
+prints one Contract Repair row whose Amount is the agreed contract sum
+([R1150](../rulings.md)); where the repair spec does not charge VAT on every
+category, the row carries VAT in the same share as the report's repair total,
+and its VAT % is the rate that results ([R1160](../rulings.md)). The VAT
+total under the table carries the Audit Report's own VAT label on every
+invoice, that Contract repair included (operator, 18 November 2026;
+[R1166](../rulings.md)). An invoice is due only where there is something to
+bill and a number to bill it under: a Repairable outcome with a sub total, or
+a Contract repair with an agreed sum, on a Case with a claim reference.
+Reopening its file shows in Case history as ULA Invoice downloaded.
 
 **Staleness.** One Core rule over normalised effective values marks a
 generation stale only when an accepted report fact changes. Notes, no-op
@@ -603,7 +647,8 @@ same click as Send report (operator, 4 November 2026, R665).
 - **Attach overrides.** A rule that holds replaces the Attach choices it
   names for that send, in rule order, so a later rule wins; the ones it
   leaves As the Principal keep the Principal's (operator, 16 October 2026).
-  The companions, filed estimates and fee note below follow the result.
+  The companions, filed estimates, offered Case files and fee note below
+  follow the result.
 - **Required companions.** A Principal may require the images document, the
   figure breakdown (the Repair Spec) or both. A required companion is ticked
   and cannot be unticked, and Send report is withheld while it is not
@@ -612,12 +657,27 @@ same click as Send report (operator, 4 November 2026, R665).
   recognised filed estimates in the Audatex format; one that sends the estimate
   attaches the recognised ones in any other format. They are rechecked at send
   like every other attachment. None filed is a warning, not a hold.
+- **Offered Case files.** A Principal that offers external estimates, repair
+  invoices or both lists each confirmed, current External estimate or Repair
+  invoice on the Case, in the Case's file order, as a Files row on the form,
+  unticked, after the ULA Invoice and the filed estimates; staff tick the
+  ones that go. A file the Estimate or Audatex tick already attaches is not
+  offered a second time. A ticked file attaches after the filed estimates,
+  in the offered order, under the name it was filed with, and is rechecked at
+  send like every other attachment. A send naming a file the form does not
+  offer now (removed, another Case's, or of a type the rules no longer offer)
+  is refused with "One or more selected attachments changed or are no longer
+  available. Review the attachments and try again." and sends nothing
+  (operator, 17 November 2026; [R1151](../rulings.md),
+  [R1158](../rulings.md)).
 - **Report images.** A Principal whose report carries no vehicle images has its
   report generated without them
   ([Report generation entry point](#report-generation-entry-point)); the images
   document carries them.
 - **Fee note.** A confirmed separate fee note is offered ticked under Attach. A
   Principal that expects one gets a warning when none is confirmed.
+- **ULA Invoice.** A confirmed ULA Invoice is offered ticked under Attach,
+  after the fee note (operator, 17 November 2026; [R1151](../rulings.md)).
 - **After sending.** The Principal's reminders, the reminders of each rule that
   holds, each followed by "Check the report's estimate against the Connexus
   Repair Rate Card." when that rule has Rate card (operator, 15 and 16
@@ -651,7 +711,12 @@ versioned report and fee-note files, their custody outcome and history. A
 generated file is not approval, sending or receipt. Generate report makes the
 separate fee note under the same lease once the report is confirmed, and is
 offered again for a confirmed report whose separate fee note is not (operator,
-7 October 2026). Generate for the other companion documents of the confirmed
+7 October 2026). After the fee note it makes the ULA Invoice for a Principal
+whose setting asks for one, and is offered again for a confirmed report whose
+ULA Invoice is due and not confirmed, in the same way
+([R1147](../rulings.md);
+[The ULA Invoice](#companion-documents-and-what-a-delivery-attaches)).
+Generate for the other companion documents of the confirmed
 generation — the Repair Spec and the images — is offered the same way, in or
 out of edit mode, with the same one-off lease (operator, 28 September 2026,
 issue 912). The Automation Actor generates the report and its companion
@@ -692,7 +757,7 @@ draws again a file that is already held. A file that is filed is recorded as
 stored. A file still being filed, or one that failed, is recorded as that.
 
 **Failures.** Staff read one plain sentence. It names the document: the
-report, the fee note, the Repair Spec or the images.
+report, the fee note, the Repair Spec, the images or the ULA Invoice.
 
 | What happened | Sentence for the report |
 | --- | --- |
@@ -795,6 +860,15 @@ Each fact is recorded in one section of the Case record
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; valuation commentary when its switch is on | Report |
 | An image in the report tagged Overview, and every image in the report matching its confirmed source | Files |
+
+A Garage authorisation & invoice Audit's report also waits for two things it
+does not print (operator, 17 November 2026; [R1151](../rulings.md)):
+**Authorise garage**, which no section clears, since the Next action's Mark
+done does, and **Repair invoice**, cleared on Files by a confirmed file of
+that type. Neither is asked when the Outcome is Total loss or Cash in lieu
+([R1143](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)). They
+hold Generate, not the preview.
 
 A new Case starts with its Principal's default fee as its agreed fee
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),

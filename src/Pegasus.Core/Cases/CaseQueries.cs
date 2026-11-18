@@ -100,6 +100,13 @@ public sealed record CaseSearchItem(
 
     public bool? ImagesComplete { get; init; }
 
+    /// <summary>
+    /// What a standalone Audit works from, taken from its Principal when the
+    /// Case was created (R1138); the original engineer's report on every other
+    /// Case type.
+    /// </summary>
+    public AuditWorkflowKind AuditWorkflow { get; init; }
+
     /// <summary>The hold's review date when the Case is Held with one, so a list can read "Held · review on 24 Sep".</summary>
     public DateOnly? HoldReviewOn { get; init; }
 

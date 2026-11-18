@@ -142,6 +142,15 @@ public sealed class EditModel(
     [BindProperty] public decimal? DefaultFee { get; set; }
     // The VAT number the Principal's fee notes print; empty is the standard number.
     [BindProperty] public string? FeeNoteVatNumber { get; set; }
+    // What the Principal's standalone Audits work from (R1138), the invoice
+    // Generate report also makes in its own name (R1147), and the VAT number
+    // and payment terms that invoice prints (R1148); empty leaves the row out.
+    [BindProperty] public AuditWorkflowKind AuditWorkflow { get; set; }
+    [BindProperty] public PrincipalInvoiceKind PrincipalInvoice { get; set; }
+    [BindProperty] public string? InvoiceVatNumber { get; set; }
+    [BindProperty] public string? InvoicePaymentTerms { get; set; }
+    public static IReadOnlyList<AuditWorkflowKind> AuditWorkflowChoices { get; } = Enum.GetValues<AuditWorkflowKind>();
+    public static IReadOnlyList<PrincipalInvoiceKind> PrincipalInvoiceChoices { get; } = Enum.GetValues<PrincipalInvoiceKind>();
     // What the Principal's reports are called (R740); empty is the standard name.
     [BindProperty] public string? InspectionReportNameFirst { get; set; }
     [BindProperty] public string? InspectionReportNameResend { get; set; }
@@ -379,6 +388,10 @@ public sealed class EditModel(
         ClearModelStatePreservingErrors(
             nameof(DefaultFee),
             nameof(FeeNoteVatNumber),
+            nameof(AuditWorkflow),
+            nameof(PrincipalInvoice),
+            nameof(InvoiceVatNumber),
+            nameof(InvoicePaymentTerms),
             nameof(InspectionReportNameFirst),
             nameof(InspectionReportNameResend),
             nameof(AuditReportNameFirst),
@@ -403,7 +416,11 @@ public sealed class EditModel(
                         InspectionReportNameResend,
                         AuditReportNameFirst,
                         AuditReportNameResend),
-                    FeeNoteVatNumber), cancellationToken);
+                    FeeNoteVatNumber,
+                    AuditWorkflow,
+                    PrincipalInvoice,
+                    InvoiceVatNumber,
+                    InvoicePaymentTerms), cancellationToken);
                 TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSettingsUpdated;
                 return RedirectToPage(new { id = ContactId, tab = Tab });
             }
@@ -413,9 +430,11 @@ public sealed class EditModel(
             catch (StaffAuthorizationException) { return Forbid(); }
         }
         var typed = (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
+        var typedInvoice = (AuditWorkflow, PrincipalInvoice, InvoiceVatNumber, InvoicePaymentTerms);
         await PopulateAsync(actor, cancellationToken);
         // What was typed stays.
         (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
+        (AuditWorkflow, PrincipalInvoice, InvoiceVatNumber, InvoicePaymentTerms) = typedInvoice;
         return Page();
     }
 
@@ -699,6 +718,10 @@ public sealed class EditModel(
         ReplacementExpectedVersion = Principal.Version;
         DefaultFee = Principal.DefaultFee;
         FeeNoteVatNumber = Principal.FeeNoteVatNumber;
+        AuditWorkflow = Principal.AuditWorkflow;
+        PrincipalInvoice = Principal.PrincipalInvoice;
+        InvoiceVatNumber = Principal.InvoiceVatNumber;
+        InvoicePaymentTerms = Principal.InvoicePaymentTerms;
         InspectionReportNameFirst = Principal.ReportNames.InspectionFirst;
         InspectionReportNameResend = Principal.ReportNames.InspectionResend;
         AuditReportNameFirst = Principal.ReportNames.AuditFirst;
@@ -786,7 +809,9 @@ public sealed class EditModel(
                     Choice($"{prefix}AttachEstimate"),
                     Choice($"{prefix}AttachAudatex"),
                     Choice($"{prefix}AttachVehicleImagesDocument"),
-                    Choice($"{prefix}AttachFigureBreakdown")));
+                    Choice($"{prefix}AttachFigureBreakdown"),
+                    Choice($"{prefix}AttachOfferExternalEstimates"),
+                    Choice($"{prefix}AttachOfferRepairInvoices")));
             // A row left entirely blank is the spare row; it is not a rule.
             if (conditions.Count == 0 && actions.IsEmpty) continue;
             var match = Enum.TryParse<ReportSendingRuleMatch>(form[$"{prefix}Match"].ToString(), out var parsed)
@@ -807,7 +832,9 @@ public sealed class EditModel(
                 Flag("RsAudatex"),
                 Flag("RsReportImages"),
                 Flag("RsVehicleImagesDocument"),
-                Flag("RsFigureBreakdown")),
+                Flag("RsFigureBreakdown"),
+                Flag("RsOfferExternalEstimates"),
+                Flag("RsOfferRepairInvoices")),
             Flag("RsGarageFigures"),
             Text("RsHold"),
             Many("RsReminders"),

@@ -94,6 +94,11 @@ public static class CaseWorkspaceLabels
         public const string Details = "Details";
         public const string ReturnToReview = "Return to Review";
         public const string ReturnToEngineer = "Return to Engineer";
+        // The garage authorisation milestone of a Garage authorisation and
+        // invoice Audit (operator, 17 November 2026; R1142): the Next action's
+        // one-click button and the Actions menu's item with its reason dialog.
+        public const string MarkGarageAuthorised = "Mark done";
+        public const string UndoGarageAuthorisation = "Undo garage authorisation";
 
         /// <summary>
         /// Return to work on a closed Case (R157, FRD-13; v41 K10, signed off
@@ -440,6 +445,8 @@ public static class CaseWorkspaceLabels
             {
                 Requirement: CaseReportReadiness.OverviewImageRequirement
                     or CaseReportReadiness.ImageSourceRequirement
+                    // The repairer's invoice is filed on Files (R1151).
+                    or CaseReportReadiness.RepairInvoiceRequirement
             } => "files",
             _ => null
         };
@@ -1144,6 +1151,7 @@ public static class CaseWorkspaceLabels
         public const string ReportGenerated = "The report was generated.";
         public const string ReportNotGenerated = "The report could not be generated.";
         public const string FeeNoteNotGenerated = "The fee note could not be generated.";
+        public const string PrincipalInvoiceNotGenerated = "The ULA Invoice could not be generated.";
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
@@ -1184,6 +1192,7 @@ public static class CaseWorkspaceLabels
             CaseReportArtifactKind.AssessmentReport => "The report",
             CaseReportArtifactKind.FeeNote => "The fee note",
             CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
+            CaseReportArtifactKind.PrincipalInvoice => "The ULA Invoice",
             _ => "The images",
         };
 
@@ -1253,6 +1262,7 @@ public static class CaseWorkspaceLabels
         public const string Attach = "Attach";
         public const string AttachReport = "Report";
         public const string AttachFeeNote = "Fee note";
+        public const string AttachPrincipalInvoice = "ULA Invoice";
         public const string AttachRepairSpec = "Repair Spec";
         public const string AttachImages = "Images";
         public const string FileName = "File name";

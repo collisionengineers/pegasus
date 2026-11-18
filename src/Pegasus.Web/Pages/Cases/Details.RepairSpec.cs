@@ -2018,7 +2018,7 @@ public sealed partial class DetailsModel
             {
                 retained = await addCaseDocument.ExecuteAsync(
                     new(id, fileName, estimateFile.ContentType, fileBytes,
-                        DocumentSemanticRole.Estimate, DocumentSource.StaffUpload, sourceIdentity,
+                        DocumentSemanticRole.ExternalEstimate, DocumentSource.StaffUpload, sourceIdentity,
                         actor!, $"{operationKey}-document", expectedVersion, activeLeaseToken!),
                     cancellationToken);
             }

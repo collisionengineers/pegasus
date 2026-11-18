@@ -114,6 +114,11 @@ public sealed class EfLinkedCaseReplacementStore(
             Reference = allocatedIdentity.Reference,
             AuditReference = null,
             Type = original.Case.Type,
+            // The replacement is a new Case of the corrected Principal, so a
+            // standalone Audit takes that Principal's Audit workflow (R1138).
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(PrincipalAuditWorkflowPolicy.ForNewCase(
+                CaseTypeCodes.Parse(original.Case.Type),
+                PrincipalAuditWorkflowPolicy.Parse(replacementPrincipal.AuditWorkflow))),
             InitialState = original.Case.InitialState,
             CustodyState = "pending",
             OriginIntakeReceiptId = original.Case.OriginIntakeReceiptId,

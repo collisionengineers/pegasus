@@ -1,5 +1,6 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
@@ -825,6 +826,87 @@ public sealed class ReportDispatchPolicyTests
         Assert.DoesNotContain(ReportDispatchPolicy.NoFiledEstimateWarning, plan.Warnings);
     }
 
+    // ---- R1151, R1158: offered Case files -----------------------------------
+
+    /// <summary>
+    /// Each Offer tick offers the Case's files of its own type, in the Case's
+    /// order, and nothing while it is off (R1151).
+    /// </summary>
+    [Fact]
+    public void EachOfferTickOffersOnlyTheCasesFilesOfItsType()
+    {
+        var facts = Facts(Rules()) with { OfferableFiles = [ExternalOffered, InvoiceOffered, SecondExternalOffered] };
+
+        PrincipalReportSendingRules Ticks(bool estimates, bool invoices) =>
+            Rules() with
+            {
+                Attach = ReportSendingAttachments.Default with
+                {
+                    OfferExternalEstimates = estimates,
+                    OfferRepairInvoices = invoices
+                }
+            };
+        IReadOnlyList<OfferedCaseFile> Offered(bool estimates, bool invoices) =>
+            ReportDispatchPolicy.Plan(facts with { Rules = Ticks(estimates, invoices) }, Now).OfferedFiles;
+
+        Assert.Equal([ExternalOffered, SecondExternalOffered], Offered(estimates: true, invoices: false));
+        Assert.Equal([InvoiceOffered], Offered(estimates: false, invoices: true));
+        Assert.Equal([ExternalOffered, InvoiceOffered, SecondExternalOffered], Offered(estimates: true, invoices: true));
+        Assert.Empty(Offered(estimates: false, invoices: false));
+        // Offering adds no warning and no hold.
+        var plan = ReportDispatchPolicy.Plan(facts with { Rules = Ticks(true, true) }, Now);
+        Assert.DoesNotContain(ReportDispatchPolicy.NoFiledEstimateWarning, plan.Warnings);
+        Assert.Empty(plan.Holds);
+    }
+
+    /// <summary>
+    /// A file the Estimate or Audatex tick already attaches is not offered a
+    /// second time (R1158); with that tick off it is offered.
+    /// </summary>
+    [Fact]
+    public void AFileTheEstimateTickAttachesIsNotOfferedASecondTime()
+    {
+        var recognised = new FiledEstimateAttachment(ExternalOffered.Attachment, "Glass's");
+        var rules = Rules() with
+        {
+            Attach = ReportSendingAttachments.Default with { Estimate = true, OfferExternalEstimates = true }
+        };
+        var facts = Facts(rules) with
+        {
+            FiledEstimates = [recognised],
+            OfferableFiles = [ExternalOffered, SecondExternalOffered]
+        };
+
+        var plan = ReportDispatchPolicy.Plan(facts, Now);
+        Assert.Equal([ExternalOffered.Attachment], plan.FiledEstimates);
+        Assert.Equal([SecondExternalOffered], plan.OfferedFiles);
+
+        var estimateOff = ReportDispatchPolicy.Plan(
+            facts with { Rules = rules with { Attach = rules.Attach with { Estimate = false } } }, Now);
+        Assert.Empty(estimateOff.FiledEstimates);
+        Assert.Equal([ExternalOffered, SecondExternalOffered], estimateOff.OfferedFiles);
+    }
+
+    /// <summary>An applied rule's override turns an Offer tick on or off for the send (R1151).</summary>
+    [Fact]
+    public void AnAppliedRulesOverrideTurnsAnOfferTickOnOrOff()
+    {
+        var rules = Rules() with
+        {
+            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true },
+            Rules =
+            [
+                Rule(ReportSendingRuleMatch.All,
+                    new([], [], Attach: new(OfferExternalEstimates: false, OfferRepairInvoices: true)),
+                    ClaimSource(CarId))
+            ]
+        };
+        var facts = Facts(rules) with { OfferableFiles = [ExternalOffered, InvoiceOffered] };
+
+        Assert.Equal([ExternalOffered], ReportDispatchPolicy.Plan(facts with { ClaimSourceId = SmcId }, Now).OfferedFiles);
+        Assert.Equal([InvoiceOffered], ReportDispatchPolicy.Plan(facts with { ClaimSourceId = CarId }, Now).OfferedFiles);
+    }
+
     [Fact]
     public void ASeparateFeeNoteNotConfirmedIsAWarningNotAHold()
     {
@@ -1006,6 +1088,15 @@ public sealed class ReportDispatchPolicyTests
     private static readonly FiledEstimateAttachment GlassFiled = new(EstimateAttachment("glass.pdf"), "Glass's");
 
     private static readonly FiledEstimateAttachment UnknownFiled = new(EstimateAttachment("estimate.pdf"), null);
+
+    private static readonly OfferedCaseFile ExternalOffered =
+        new(Guid.NewGuid(), DocumentSemanticRole.ExternalEstimate, EstimateAttachment("garage estimate.pdf"));
+
+    private static readonly OfferedCaseFile InvoiceOffered =
+        new(Guid.NewGuid(), DocumentSemanticRole.RepairInvoice, EstimateAttachment("repair invoice.pdf"));
+
+    private static readonly OfferedCaseFile SecondExternalOffered =
+        new(Guid.NewGuid(), DocumentSemanticRole.ExternalEstimate, EstimateAttachment("supplementary.pdf"));
 
     private static StaffMailAttachment EstimateAttachment(string fileName) => new(
         Guid.NewGuid(), Guid.NewGuid(), new string('e', 64), 500, fileName, "application/pdf");

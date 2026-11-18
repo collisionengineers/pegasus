@@ -328,6 +328,74 @@ public sealed class PrincipalReportSendingRulesTests
         Assert.Equal(v8, EfOrganizationAdministration.ReadReportSending(json));
     }
 
+    /// <summary>
+    /// The Offer ticks (R1151) are stored only when on, as a rule's Rate card
+    /// is, so the default and every rule set saved before them keep their
+    /// text; stored text without them reads both off, and both round trip.
+    /// </summary>
+    [Fact]
+    public void TheOfferTicksAreStoredOnlyWhenOnAndRoundTrip()
+    {
+        var plainJson = EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default);
+        Assert.DoesNotContain("offer", plainJson, StringComparison.OrdinalIgnoreCase);
+        var read = EfOrganizationAdministration.ReadReportSending(plainJson);
+        Assert.False(read.Attach.OfferExternalEstimates);
+        Assert.False(read.Attach.OfferRepairInvoices);
+
+        var offering = Rules() with
+        {
+            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
+        };
+        var json = EfOrganizationAdministration.ToReportSendingJson(offering);
+        Assert.Contains(
+            ""","figureBreakdown":false,"offerExternalEstimates":true,"offerRepairInvoices":true},""",
+            json,
+            StringComparison.Ordinal);
+        Assert.Equal(offering, EfOrganizationAdministration.ReadReportSending(json));
+
+        var one = Rules() with { Attach = ReportSendingAttachments.Default with { OfferRepairInvoices = true } };
+        var oneJson = EfOrganizationAdministration.ToReportSendingJson(one);
+        Assert.Contains(""","figureBreakdown":false,"offerRepairInvoices":true},""", oneJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("offerExternalEstimates", oneJson, StringComparison.Ordinal);
+        Assert.Equal(one, EfOrganizationAdministration.ReadReportSending(oneJson));
+
+        // A rule's override names either tick, on or off, and only then.
+        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+        {
+            Rules =
+            [
+                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(OfferExternalEstimates: false))),
+                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(OfferRepairInvoices: true)))
+            ]
+        });
+        Assert.Equal(new ReportSendingAttachOverride(OfferExternalEstimates: false), normalized.Rules[0].Then.Attach);
+        Assert.Equal(new ReportSendingAttachOverride(OfferRepairInvoices: true), normalized.Rules[1].Then.Attach);
+        var overriddenJson = EfOrganizationAdministration.ToReportSendingJson(normalized);
+        Assert.Contains("""attach":{"offerExternalEstimates":false}""", overriddenJson, StringComparison.Ordinal);
+        Assert.Contains("""attach":{"offerRepairInvoices":true}""", overriddenJson, StringComparison.Ordinal);
+        Assert.Equal(normalized, EfOrganizationAdministration.ReadReportSending(overriddenJson));
+    }
+
+    /// <summary>A rule's override replaces only the Offer ticks it names (R1151).</summary>
+    [Fact]
+    public void AnOverrideReplacesOnlyTheOfferTicksItNames()
+    {
+        var principal = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true };
+
+        var off = new ReportSendingAttachOverride(OfferExternalEstimates: false).Over(principal);
+        Assert.False(off.OfferExternalEstimates);
+        Assert.True(off.OfferRepairInvoices);
+
+        var kept = new ReportSendingAttachOverride(Estimate: true).Over(principal);
+        Assert.True(kept.OfferExternalEstimates);
+        Assert.True(kept.OfferRepairInvoices);
+
+        var on = new ReportSendingAttachOverride(OfferRepairInvoices: true).Over(ReportSendingAttachments.Default);
+        Assert.False(on.OfferExternalEstimates);
+        Assert.True(on.OfferRepairInvoices);
+        Assert.False(new ReportSendingAttachOverride(OfferRepairInvoices: false).IsEmpty);
+    }
+
     [Fact]
     public void EveryRuleNeedsAConditionWithAValueAndAnAction()
     {
@@ -430,6 +498,8 @@ public sealed class PrincipalReportSendingRulesTests
             Rules() with { Attach = new(ReportImages: false) },
             Rules() with { Attach = new(VehicleImagesDocument: true) },
             Rules() with { Attach = new(FigureBreakdown: true) },
+            Rules() with { Attach = new(OfferExternalEstimates: true) },
+            Rules() with { Attach = new(OfferRepairInvoices: true) },
             Rules() with { GarageFigures = true },
             Rules() with { Hold = "Hold." },
             Rules() with { Reminders = ["Remind."] },
@@ -437,7 +507,9 @@ public sealed class PrincipalReportSendingRulesTests
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], match: ReportSendingRuleMatch.Any)] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], RateCard: true))] },
             Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: true)))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] }
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] },
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(OfferExternalEstimates: true)))] },
+            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(OfferRepairInvoices: false)))] }
         };
 
         Assert.All(changes, changed => Assert.NotEqual(baseline, changed.Canonical()));

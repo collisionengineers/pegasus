@@ -43,6 +43,7 @@
     static string KindLabel(CaseReportArtifactKind kind) => kind switch
     {
         CaseReportArtifactKind.FeeNote => ReportLabels.AttachFeeNote,
+        CaseReportArtifactKind.PrincipalInvoice => ReportLabels.AttachPrincipalInvoice,
         CaseReportArtifactKind.RepairSpecification => ReportLabels.AttachRepairSpec,
         CaseReportArtifactKind.ImagePack => ReportLabels.AttachImages,
         _ => ReportLabels.AttachReport,
@@ -52,6 +53,7 @@
         {
             CaseReportArtifactKind.AssessmentReport,
             CaseReportArtifactKind.FeeNote,
+            CaseReportArtifactKind.PrincipalInvoice,
             CaseReportArtifactKind.RepairSpecification,
             CaseReportArtifactKind.ImagePack,
         }
@@ -209,9 +211,10 @@
                     </div>
                     @* Items D and E: one row per attachment. The include tick
                        follows P22's Attach rules (the report, and a companion
-                       the Principal requires, always on; the fee note on; the
-                       rest off; the other work's report off; a filed estimate
-                       on, posting nothing). The name opens the file in the
+                       the Principal requires, always on; the fee note and the
+                       ULA Invoice on (R1151); the rest off; the other work's
+                       report off; a filed estimate on, posting nothing; an
+                       offered Case file off, posting its occurrence). The name opens the file in the
                        Case viewer; Rename gives this send the name typed, .pdf
                        kept, and Reset the policy name; a filed estimate keeps
                        its filed name. *@
@@ -241,7 +244,7 @@
                                         {
                                             <label class="choice" for="@attachId">
                                                 <input type="checkbox" id="@attachId" name="attach" value="@kind"
-                                                       checked="@(kind == CaseReportArtifactKind.FeeNote)"
+                                                       checked="@(kind is CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice)"
                                                        data-report-attach-choice="@kind" aria-label="@label" />
                                             </label>
                                         }
@@ -277,6 +280,28 @@
                                         <div class="send-file-name">
                                             <b data-send-file-label>@estimate.FileName</b>
                                             <small>@ReportLabels.KindAndSize(ReportLabels.FiledEstimate, estimate.ContentLength)</small>
+                                        </div>
+                                    </div>
+                                }
+                                @* R1151: each External estimate and Repair invoice the
+                                   Principal's Offer ticks list, unticked, after the
+                                   filed estimates; one those already attach is not
+                                   offered again (R1158). *@
+                                @foreach (var offered in plan.OfferedFiles)
+                                {
+                                    var offeredId = "report-offer-" + offered.OccurrenceId.ToString("N");
+                                    var offeredLabel = OperatorLabels.DocumentRole(offered.Type);
+                                    <div class="send-file" data-send-file="offered" data-report-offered-file="@offered.OccurrenceId">
+                                        <span class="send-file-tick">
+                                            <label class="choice" for="@offeredId">
+                                                <input type="checkbox" id="@offeredId" name="offeredFile" value="@offered.OccurrenceId"
+                                                       data-report-offered-choice aria-label="@offeredLabel" />
+                                            </label>
+                                        </span>
+                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
+                                        <div class="send-file-name">
+                                            <b data-send-file-label>@offered.Attachment.FileName</b>
+                                            <small>@ReportLabels.KindAndSize(offeredLabel, offered.Attachment.ContentLength)</small>
                                         </div>
                                     </div>
                                 }

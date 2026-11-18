@@ -223,7 +223,9 @@ observes the item; there is no staff action that re-checks or re-sends.
 
 **Report sends are rechecked at the last moment.** Immediately before the
 provider call, Pegasus revalidates the Case's persisted report readiness, the
-exact generation, its versions and artifacts, the sender's authority and the
+exact generation, its versions and artifacts, each Case file the send
+attaches as that file is filed now (a filed estimate, or an offered Case file
+staff ticked; [R1151](../rulings.md)), the sender's authority and the
 mailbox generation. The only connector that may trigger it is the Automation
 Actor's `pegasus_report_send`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#sending)).

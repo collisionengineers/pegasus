@@ -90,7 +90,8 @@ public sealed class EfCaseAssessmentStore(
         CaseMutationGuard.RequireVersionUnderLease(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
             request.Fields.Keys,
-            CaseTypeCodes.Parse(workflow.Case.Type));
+            CaseTypeCodes.Parse(workflow.Case.Type),
+            PrincipalAuditWorkflowPolicy.Parse(workflow.Case.AuditWorkflow));
         var now = UtcNow();
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         CaseMutationGuard.RequireMutable(workflow);

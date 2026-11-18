@@ -75,6 +75,14 @@ recorded as the original report: by Pegasus when it recognises the report
 among the Case's files, a scanned report once its text has been read, or by
 staff marking one
 ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+A Principal's standalone Audits may instead follow the **Garage authorisation
+& invoice** workflow (operator, 17 November 2026;
+[R1138](docs/rulings.md)): the Audit of a garage's repair, which has no
+original report and never shows Original report missing. A standalone Audit
+takes its Principal's workflow when it is created and keeps it. Such an Audit
+waits for the garage's External estimate before Review, for the Engineer's
+**Authorise garage** With Engineer, and then, Not ready, for the Repair
+invoice ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
 _Avoid_: Triage, sorting
@@ -131,6 +139,10 @@ writable. A spec brought back from Glass's belongs to that Glass's estimate:
 **Glass's** on it reopens the same estimate, and its saved return updates the
 same spec. "Estimate" names a repairer's or provider's source document.
 _Avoid_: accepted estimate, Use estimate, Resume (as a button)
+
+**CE estimate**, **External estimate**, **Repair invoice**:
+Three document types (operator, 17 November 2026; [R1139](docs/rulings.md)). A CE estimate is an estimate Collision Engineers produced, a Glass's session's files included. An External estimate is a repairer's or another provider's. A Repair invoice is the repairer's invoice for the repair it carried out. CE estimate and External estimate replace the one Estimate type.
+_Avoid_: Estimate (as a document type), garage estimate, garage invoice
 
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.

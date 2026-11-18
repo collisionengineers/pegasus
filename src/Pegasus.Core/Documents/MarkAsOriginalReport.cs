@@ -39,24 +39,33 @@ public sealed class MarkAsOriginalReport(IMarkAsOriginalReportStore store, IRead
 public static class OriginalReportPolicy
 {
     /// <summary>
-    /// <b>Original report missing</b> (FRD-01): an Audit with neither a filed
-    /// original report nor standalone-Audit evidence kept at intake.
+    /// <b>Original report missing</b> (FRD-01): an Audit of an original
+    /// engineer's report with neither a filed original report nor
+    /// standalone-Audit evidence kept at intake.
     /// </summary>
     public static bool IsMissing(
         CaseType caseType,
+        AuditWorkflowKind auditWorkflow,
         Guid? standaloneAuditEvidenceId,
         bool hasCurrentAuditReport) =>
-        ReadsTheDocuments(caseType, standaloneAuditEvidenceId)
+        ReadsTheDocuments(caseType, auditWorkflow, standaloneAuditEvidenceId)
         && !hasCurrentAuditReport;
 
     /// <summary>
     /// Whether <see cref="IsMissing"/> turns on the Case's filed documents: an
     /// Audit with no standalone-Audit evidence kept at intake. Any other Case
     /// is never missing its original report, so a caller that has not read
-    /// its documents need not.
+    /// its documents need not. A Garage authorisation and invoice Audit has no
+    /// original report to file or to recognise (operator, 17 November 2026;
+    /// R1138).
     /// </summary>
-    public static bool ReadsTheDocuments(CaseType caseType, Guid? standaloneAuditEvidenceId) =>
-        caseType == CaseType.Audit && standaloneAuditEvidenceId is null;
+    public static bool ReadsTheDocuments(
+        CaseType caseType,
+        AuditWorkflowKind auditWorkflow,
+        Guid? standaloneAuditEvidenceId) =>
+        caseType == CaseType.Audit
+        && auditWorkflow == AuditWorkflowKind.OriginalEngineerReport
+        && standaloneAuditEvidenceId is null;
 
     /// <summary>
     /// Whether a report filed on the Case now is recognised as its original
@@ -65,11 +74,12 @@ public static class OriginalReportPolicy
     /// </summary>
     public static bool AwaitsRecognition(
         CaseType caseType,
+        AuditWorkflowKind auditWorkflow,
         CaseLifecycleState state,
         bool isArchived,
         Guid? standaloneAuditEvidenceId,
         bool hasCurrentAuditReport) =>
-        IsMissing(caseType, standaloneAuditEvidenceId, hasCurrentAuditReport)
+        IsMissing(caseType, auditWorkflow, standaloneAuditEvidenceId, hasCurrentAuditReport)
         && !isArchived
         && !CaseLifecycleRules.IsTerminal(state);
 
@@ -121,6 +131,7 @@ public static class OriginalReportPolicy
 
     public static void RequireEligible(
         CaseType caseType,
+        AuditWorkflowKind auditWorkflow,
         CaseLifecycleState state,
         DocumentSemanticRole currentRole)
     {
@@ -128,6 +139,10 @@ public static class OriginalReportPolicy
         {
             throw new InvalidOperationException(
                 "An original report can be recorded only for an Audit case.");
+        }
+        if (auditWorkflow != AuditWorkflowKind.OriginalEngineerReport)
+        {
+            throw new InvalidOperationException(PrincipalAuditWorkflowPolicy.NoOriginalReport);
         }
         if (CaseLifecycleRules.IsTerminal(state))
         {

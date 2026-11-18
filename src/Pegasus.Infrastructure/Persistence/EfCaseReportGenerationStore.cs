@@ -1117,7 +1117,13 @@ public sealed class EfCaseReportGenerationStore(
                 actor,
                 occurredAtUtc),
             actor,
-            artifact.Kind == CaseReportArtifactKind.FeeNote ? "Fee note downloaded" : "Report downloaded",
+            artifact.Kind switch
+            {
+                CaseReportArtifactKind.FeeNote => "Fee note downloaded",
+                // The Principal's own invoice is named as staff know it (R1147).
+                CaseReportArtifactKind.PrincipalInvoice => "ULA Invoice downloaded",
+                _ => "Report downloaded",
+            },
             occurredAtUtc,
             cancellationToken).ConfigureAwait(false);
 

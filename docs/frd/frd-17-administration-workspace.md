@@ -138,6 +138,13 @@ settings are part of that Contact record. Report generation carries the Default 
 then the Fee note VAT number box, whose hint is "Empty: the standard number." and
 which shows the standard number, 262 0937 10, greyed when empty (operator,
 12 November 2026; R1008),
+then Audit workflow (Original engineer report or Garage authorisation &
+invoice; [R1138](../rulings.md)), Principal's own invoice (None or ULA
+Invoice; [R1162](../rulings.md)), Invoice VAT number and Invoice payment terms
+([R1148](../rulings.md);
+[FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+which Generate report reads to make the ULA Invoice
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
 then Inspection report name and Audit report name, each a First send and a
 Re-send text box, above Save report settings; it has no Report recipients
 settings (operator, 6 October 2026). An empty name box shows its standard name
@@ -147,7 +154,9 @@ token at the cursor of the box last used (operator, 6 November 2026; R740). The 
 shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing
 mailboxes that can send, with Not set. Send to, Cc, Never cc and Reminders are repeated
 inputs with an Add button; Send to only, Reply all, Garage figures and the
-six Attach choices are ticks; Hold is text, with no length limit. Rules are repeated rows, each with
+eight Attach choices are ticks, the last two "Offer external estimates
+(unticked)" and "Offer repair invoices (unticked)" (operator, 17 November
+2026; [R1151](../rulings.md)); Hold is text, with no length limit. Rules are repeated rows, each with
 Match (All or Any condition), three condition lines (a kind, then a Contact
 list, the four outcomes, the Case types, or text for
 Instruction mentions, Sender is not and Reference prefix;
@@ -155,7 +164,7 @@ Previous job takes no value; the kinds, in order, are Claim Source,
 Repairer, Instruction mentions, Sender is not, Outcome,
 Case type, Reference prefix and Previous job; Images from and Bodyshop
 mentions are retired, 12 November 2026, R1023), and the
-actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the five
+actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the seven
 Attach choices other than report images, each As the Principal, Attach or
 Do not attach (Report Sending SOP v8; operator, 16 October 2026). A
 non-letter reference prefix is refused: "A reference prefix is letters

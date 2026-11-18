@@ -56,19 +56,26 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ReportResources.RegisterFonts();
-        var suffix = kind switch
+        var fileName = kind switch
         {
-            CaseReportArtifactKind.FeeNote => "fee_note",
-            CaseReportArtifactKind.ImagePack => "images",
-            CaseReportArtifactKind.AssessmentReport => "report",
+            CaseReportArtifactKind.FeeNote => Named(snapshot, "fee_note"),
+            CaseReportArtifactKind.ImagePack => Named(snapshot, "images"),
+            CaseReportArtifactKind.AssessmentReport => Named(snapshot, "report"),
+            // The Principal's own invoice is named for the claim it bills,
+            // not for Our Ref (R1148), and refused before rendering when the
+            // snapshot cannot print one.
+            CaseReportArtifactKind.PrincipalInvoice => UlaInvoiceLayout.FileName(snapshot),
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
-        var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
         var pageCount = new PageCountProbe();
         var pdf = await gate.RunAsync(token => RenderPdfAsync(snapshot, kind, pageCount, token), cancellationToken)
             .ConfigureAwait(false);
         return Artifact(fileName, pdf, pageCount.Count);
     }
+
+    /// <summary>A Collision Engineers document's name: Our Ref, then what the document is.</summary>
+    private static string Named(AssessmentReportSnapshot snapshot, string suffix) =>
+        $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
 
     /// <summary>
     /// Prepares the images, at most <see cref="ImagesPreparedAtOnce"/> source
@@ -110,7 +117,8 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate, IM
     private async Task<PreparedReportImages> PrepareAsync(
         AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind, CancellationToken cancellationToken)
     {
-        if (kind == CaseReportArtifactKind.FeeNote)
+        // The fee note and the Principal's own invoice print no photo and no signature.
+        if (kind is CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice)
         {
             return new(null, [], [], ReportResources.Logo());
         }

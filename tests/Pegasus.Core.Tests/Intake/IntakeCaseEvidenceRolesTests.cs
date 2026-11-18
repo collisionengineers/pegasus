@@ -32,9 +32,9 @@ public sealed class IntakeCaseEvidenceRolesTests
     /// October 2026; R564, R565).
     /// </summary>
     [Theory]
-    [InlineData("estimate.pdf", "application/pdf", DocumentSemanticRole.Estimate, DocumentSemanticRole.Estimate)]
+    [InlineData("estimate.pdf", "application/pdf", DocumentSemanticRole.ExternalEstimate, DocumentSemanticRole.ExternalEstimate)]
     [InlineData("letter.pdf", "application/pdf", null, DocumentSemanticRole.Other)]
-    [InlineData("front.jpg", "image/jpeg", DocumentSemanticRole.Estimate, DocumentSemanticRole.Image)]
+    [InlineData("front.jpg", "image/jpeg", DocumentSemanticRole.ExternalEstimate, DocumentSemanticRole.Image)]
     [InlineData("rear.png", "image/png", null, DocumentSemanticRole.Image)]
     [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", DocumentSemanticRole.Correspondence, DocumentSemanticRole.Correspondence)]
     public void ADeclaredUploadTakesTheChosenTypeOrOther(

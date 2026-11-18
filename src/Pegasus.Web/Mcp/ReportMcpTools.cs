@@ -77,12 +77,15 @@ internal sealed record ReportActionToolResult(
     IReadOnlyList<ReportArtifactToolItem> Artifacts,
     IReadOnlyList<ReportReadinessToolItem> NotReadyReasons,
     string? FeeNoteOutcome,
+    [property: Description("The Principal's own invoice (the ULA Invoice), made after the report for a Principal whose setting asks for it, on a Repairable or Contract repair outcome.")]
+    string? PrincipalInvoiceOutcome,
     string OperationKey);
 
 /// <summary>
 /// Automation Actor report tools (FRD-10, ADR-0064): the Case's report
 /// generations, and the acts staff take on them — Generate report (which goes
-/// on to make the separate fee note), the Repair Spec and images companion
+/// on to make the separate fee note, then the Principal's own invoice for a
+/// Principal whose setting asks for it, R1147), the Repair Spec and images companion
 /// documents, recording report approval, and linking or unlinking retained
 /// report-Sent evidence — through the same Core commands, lease and version
 /// guards as the Case page. The operator approved report generation and
@@ -117,7 +120,7 @@ internal sealed class ReportMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists a Case's report generations for one work, as the Case page reads them: each generation's identifier, state (Pending, Confirmed or Stale), whether it is the work's current one, when it was generated and at which case version, and its artifacts (AssessmentReport, FeeNote, RepairSpecification, ImagePack) with filing state, file name, SHA-256 and whether the recorded report approval names it. Also returns the work's recorded report approval, its linked report-Sent evidence, and the retained Sent evidence available to link.")]
+    [Description("Lists a Case's report generations for one work, as the Case page reads them: each generation's identifier, state (Pending, Confirmed or Stale), whether it is the work's current one, when it was generated and at which case version, and its artifacts (AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification, ImagePack) with filing state, file name, SHA-256 and whether the recorded report approval names it. Also returns the work's recorded report approval, its linked report-Sent evidence, and the retained Sent evidence available to link.")]
     public async Task<ReportListToolResult> ListAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("current (the default; the Audit once a Case has one) or inspection (the Inspection report of a Case that has its Audit).")] string? work = null,
@@ -178,7 +181,7 @@ internal sealed class ReportMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one report act a member of staff takes on the Case page: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version. A generation keeps the lease; approval and the evidence acts end it.")]
+    [Description("Takes one report act a member of staff takes on the Case page: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation, then the Principal's own invoice (the ULA Invoice), made after the report for a Principal whose setting asks for it, on a Repairable or Contract repair outcome), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version. A generation keeps the lease; approval and the evidence acts end it.")]
     public async Task<ReportActionToolResult> ActAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -237,6 +240,7 @@ internal sealed class ReportMcpTools(
                             item.Requirement, item.Source, item.WhyOutstanding, item.HowToResolve))
                         .ToArray(),
                     result.FeeNoteOutcome,
+                    result.PrincipalInvoiceOutcome,
                     key);
             },
             cancellationToken);
@@ -246,8 +250,9 @@ internal sealed class ReportMcpTools(
     /// One Generate, as the Case page's: the Case must be open in a state its
     /// assessment can be read in (R1095). The report goes on to
     /// make its separate fee note from the generation it confirmed, under the
-    /// same lease; a report not yet confirmed leaves the fee note to the next
-    /// generate_report, which replays the report's operation key.
+    /// same lease, and then the Principal's own invoice (R1147); a report not
+    /// yet confirmed leaves both to the next generate_report, which replays
+    /// the report's operation key.
     /// </summary>
     private async Task<ActOutcome> GenerateAsync(
         AutomationActorContext context,
@@ -279,8 +284,8 @@ internal sealed class ReportMcpTools(
             key,
             async token =>
             {
-                // One custody batch around the report and its fee note: the
-                // Case folder is proved once for both (FRD-05, #1952).
+                // One custody batch around the report and its companions: the
+                // Case folder is proved once for them all (FRD-05, #1952).
                 await using var batch = generateReport.BeginBatch();
                 var request = CaseReportActs.RequestFor(
                     actor, caseId, expectedVersion, token, key, kind, targetGenerationId, selector);
@@ -298,7 +303,21 @@ internal sealed class ReportMcpTools(
                         result = result with { Generation = withFeeNote };
                     }
                 }
-                return new ActOutcome(result.Outcome.ToString(), result.Generation, result.Reasons, feeNote);
+                // The Principal's own invoice follows the fee note from the
+                // generation as the fee note left it (R1147).
+                string? principalInvoice = null;
+                if (CaseReportActs.PrincipalInvoiceRequestAfter(
+                    request, result, OneCommandEditAuthority.DeriveOperationKey(key, ":principal-invoice")) is { } invoiceRequest)
+                {
+                    var invoiceResult = await GenerateOneAsync(invoiceRequest, cancellationToken);
+                    principalInvoice = invoiceResult.Outcome.ToString();
+                    if (invoiceResult.Generation is { } withInvoice)
+                    {
+                        result = result with { Generation = withInvoice };
+                    }
+                }
+                return new ActOutcome(
+                    result.Outcome.ToString(), result.Generation, result.Reasons, feeNote, principalInvoice);
             },
             cancellationToken);
     }
@@ -392,7 +411,7 @@ internal sealed class ReportMcpTools(
                     cancellationToken),
             },
             cancellationToken);
-        return new ActOutcome("Recorded", approved, [], null);
+        return new ActOutcome("Recorded", approved, [], null, null);
     }
 
     private static string RequireReason(string verb, string? reason) =>
@@ -462,5 +481,6 @@ internal sealed class ReportMcpTools(
         string Outcome,
         CaseReportGenerationRecord? Generation,
         IReadOnlyList<AssessmentReadinessItem> Reasons,
-        string? FeeNoteOutcome);
+        string? FeeNoteOutcome,
+        string? PrincipalInvoiceOutcome);
 }

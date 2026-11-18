@@ -26,7 +26,9 @@ public sealed class DocumentTypePolicyTests
             DocumentSemanticRole.Correspondence,
             DocumentSemanticRole.EngineerReport,
             DocumentSemanticRole.AuditReport,
-            DocumentSemanticRole.Estimate,
+            DocumentSemanticRole.CeEstimate,
+            DocumentSemanticRole.ExternalEstimate,
+            DocumentSemanticRole.RepairInvoice,
             DocumentSemanticRole.ValuationEvidence,
             DocumentSemanticRole.Other
         ];
@@ -48,7 +50,9 @@ public sealed class DocumentTypePolicyTests
             DocumentSemanticRole.Instruction,
             DocumentSemanticRole.Correspondence,
             DocumentSemanticRole.EngineerReport,
-            DocumentSemanticRole.Estimate,
+            DocumentSemanticRole.CeEstimate,
+            DocumentSemanticRole.ExternalEstimate,
+            DocumentSemanticRole.RepairInvoice,
             DocumentSemanticRole.ValuationEvidence,
             DocumentSemanticRole.Other
         ];
@@ -60,15 +64,15 @@ public sealed class DocumentTypePolicyTests
 
     [Theory]
     [InlineData("estimate.pdf", DocumentSemanticRole.Other, "application/pdf",
-        "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence")]
+        "Instruction,Correspondence,EngineerReport,CeEstimate,ExternalEstimate,RepairInvoice,ValuationEvidence")]
     [InlineData("instruction.pdf", DocumentSemanticRole.Instruction, "application/pdf",
-        "Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
+        "Correspondence,EngineerReport,CeEstimate,ExternalEstimate,RepairInvoice,ValuationEvidence,Other")]
     [InlineData("photo.png", DocumentSemanticRole.Other, "image/png",
-        "Instruction,Image,Correspondence,EngineerReport,Estimate,ValuationEvidence")]
+        "Instruction,Image,Correspondence,EngineerReport,CeEstimate,ExternalEstimate,RepairInvoice,ValuationEvidence")]
     [InlineData("front.jpg", DocumentSemanticRole.Image, "image/jpeg",
-        "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
+        "Instruction,Correspondence,EngineerReport,CeEstimate,ExternalEstimate,RepairInvoice,ValuationEvidence,Other")]
     [InlineData("original-report.pdf", DocumentSemanticRole.AuditReport, "application/pdf",
-        "Instruction,Correspondence,EngineerReport,Estimate,ValuationEvidence,Other")]
+        "Instruction,Correspondence,EngineerReport,CeEstimate,ExternalEstimate,RepairInvoice,ValuationEvidence,Other")]
     public void ARowOffersEveryChoosableTypeItMayTake(
         string fileName,
         DocumentSemanticRole current,
@@ -200,7 +204,7 @@ public sealed class DocumentTypePolicyTests
         Guid.NewGuid(),
         Guid.NewGuid(),
         Guid.NewGuid(),
-        DocumentSemanticRole.Estimate,
+        DocumentSemanticRole.ExternalEstimate,
         Staff,
         "Filed as the wrong type.",
         "set-document-type",

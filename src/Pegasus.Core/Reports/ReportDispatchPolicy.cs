@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 
 namespace Pegasus.Core.Reports;
@@ -35,6 +36,14 @@ public sealed record ReportInstructionMessage(
 public sealed record FiledEstimateAttachment(StaffMailAttachment Attachment, string? Provider);
 
 /// <summary>
+/// One of the Case's files a Principal's Offer ticks may offer with the report
+/// (operator, 17 November 2026; R1151): a confirmed, current, kept External
+/// estimate or Repair invoice that Pegasus did not generate, named by its
+/// occurrence on the Case, with its type and the attachment it sends as.
+/// </summary>
+public sealed record OfferedCaseFile(Guid OccurrenceId, DocumentSemanticRole Type, StaffMailAttachment Attachment);
+
+/// <summary>
 /// Everything one report dispatch is planned from. The first group is read
 /// from the Case, its Principal and its instruction; the init properties are
 /// what the generation and the Case's files add.
@@ -55,6 +64,9 @@ public sealed record ReportDispatchFacts(
 {
     /// <summary>The Case's recognised filed estimate documents, each with its format.</summary>
     public IReadOnlyList<FiledEstimateAttachment> FiledEstimates { get; init; } = [];
+
+    /// <summary>The Case's External estimates and Repair invoices the Principal's Offer ticks may offer (R1151).</summary>
+    public IReadOnlyList<OfferedCaseFile> OfferableFiles { get; init; } = [];
 
     /// <summary>The kinds the viewed generation has Confirmed.</summary>
     public IReadOnlyList<CaseReportArtifactKind> ConfirmedArtifacts { get; init; } = [];
@@ -147,6 +159,13 @@ public sealed record ReportDispatchPlan(
 {
     /// <summary>"morning" or "afternoon", for the covering message.</summary>
     public string Greeting { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The Case's files the Send report dialog offers unticked, in the
+    /// Case's file order: those of a type the Principal's Offer ticks name,
+    /// less any <see cref="FiledEstimates"/> already attaches (R1151, R1158).
+    /// </summary>
+    public IReadOnlyList<OfferedCaseFile> OfferedFiles { get; init; } = [];
 }
 
 /// <summary>
@@ -349,6 +368,21 @@ public static class ReportDispatchPolicy
                 .Select(estimate => estimate.Attachment)
         ];
 
+        // The Offer ticks list the Case's External estimates and Repair
+        // invoices for staff to tick (R1151); a file the Estimate or Audatex
+        // tick already attaches is not offered a second time (R1158).
+        OfferedCaseFile[] offered =
+        [
+            .. facts.OfferableFiles
+                .Where(file => file.Type switch
+                {
+                    DocumentSemanticRole.ExternalEstimate => attach.OfferExternalEstimates,
+                    DocumentSemanticRole.RepairInvoice => attach.OfferRepairInvoices,
+                    _ => false
+                })
+                .Where(file => !filed.Any(estimate => estimate.VersionId == file.Attachment.VersionId))
+        ];
+
         var warnings = new List<string>();
         if ((attach.Estimate || attach.Audatex) && filed.Length == 0)
         {
@@ -374,7 +408,8 @@ public static class ReportDispatchPolicy
             stop,
             [.. tasks.Distinct(StringComparer.Ordinal)])
         {
-            Greeting = Greeting(nowUtc)
+            Greeting = Greeting(nowUtc),
+            OfferedFiles = offered
         };
     }
 

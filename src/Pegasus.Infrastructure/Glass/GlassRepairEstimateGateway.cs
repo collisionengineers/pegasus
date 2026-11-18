@@ -1786,7 +1786,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 content.LongLength,
                 Convert.ToHexStringLower(SHA256.HashData(content)),
                 stream,
-                SemanticRole: DocumentSemanticRole.Estimate,
+                SemanticRole: DocumentSemanticRole.CeEstimate,
                 SeriesIdentity: seriesIdentity),
             cancellationToken);
         return Artifact.From(retained, fileName, mediaType, content.LongLength);

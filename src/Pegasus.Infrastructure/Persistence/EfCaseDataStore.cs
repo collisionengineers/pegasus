@@ -41,7 +41,7 @@ public sealed class EfCaseDataStore(
                 Snapshot = item,
                 Workflow = context.CaseWorkflows
                     .Where(workflow => workflow.CaseId == caseId)
-                    .Select(workflow => new { workflow.Version, workflow.State })
+                    .Select(workflow => new { workflow.Version, workflow.State, workflow.GarageAuthorisedAtUtc })
                     .FirstOrDefault(),
                 Configuration = context.Set<WorkflowConfigurationEntity>()
                     .FirstOrDefault(configuration =>
@@ -59,12 +59,18 @@ public sealed class EfCaseDataStore(
         var configuration = row.Configuration
             ?? throw new InvalidOperationException(
                 "The current workflow configuration has not been initialized.");
+        // A Garage authorisation and invoice Audit's own facts (R1141, R1144);
+        // any other Case costs no read here.
+        var garage = await CaseGarage.ReadAsync(
+            context, row.Snapshot.Work.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
         return ApplyConfiguration(
             Map(row.Snapshot, workflow.Version, workflow.State),
-            EfWorkflowConfigurationStore.Map(configuration));
+            EfWorkflowConfigurationStore.Map(configuration),
+            garage);
     }
 
-    internal static CaseDataProjection ApplyConfiguration(CaseDataProjection data, CaseWorkflowConfiguration configuration) =>
+    internal static CaseDataProjection ApplyConfiguration(
+        CaseDataProjection data, CaseWorkflowConfiguration configuration, CaseGarageFacts garage) =>
         data with
         {
             AiDraftTargetDays = configuration.AiDraftTargetDays,
@@ -78,7 +84,8 @@ public sealed class EfCaseDataStore(
                     CaseCompletenessPolicy.VehicleGate(
                         data.State,
                         (data.Vehicle.Registration.Confirmed ?? data.Vehicle.Registration.Fact)?.Value,
-                        (data.Vehicle.Mileage.Confirmed ?? data.Vehicle.Mileage.Fact)?.Value))
+                        (data.Vehicle.Mileage.Confirmed ?? data.Vehicle.Mileage.Fact)?.Value,
+                        garage))
             }
         };
 
@@ -758,21 +765,28 @@ internal static class CaseDueWorkScheduler
 {
     private const string MissingMaterialReason = "Case completeness is not confirmed";
 
+    /// <param name="reason">
+    /// What the Case is chased for; the general reason when none is named. A
+    /// Garage authorisation and invoice Audit waiting for its repair invoice
+    /// names that (R1144).
+    /// </param>
     public static async Task ScheduleAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         DateOnly? dueBy,
-        DateTimeOffset now, CancellationToken cancellationToken)
+        DateTimeOffset now, CancellationToken cancellationToken,
+        string? reason = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(workflow);
+        reason ??= MissingMaterialReason;
         if (workflow.DueWork is not { } due)
         {
             due = new()
             {
                 CaseId = workflow.CaseId,
                 Workflow = workflow,
-                MissingMaterialReason = MissingMaterialReason,
+                MissingMaterialReason = reason,
                 DueBy = dueBy,
                 State = nameof(CaseDueWorkState.Scheduled),
                 NextChaseAtUtc = CaseChaseSchedule.NextChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
@@ -783,7 +797,7 @@ internal static class CaseDueWorkScheduler
             return;
         }
 
-        due.MissingMaterialReason = MissingMaterialReason;
+        due.MissingMaterialReason = reason;
         if (!due.DueBySetByStaff)
         {
             due.DueBy = dueBy;

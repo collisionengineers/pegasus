@@ -88,7 +88,7 @@ internal sealed class DocumentMcpTools(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description("The leaf file name; path components are rejected.")] string fileName,
         [Description("The document media type.")] string mediaType,
-        [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, Estimate, ValuationEvidence, or Other.")] string semanticRole,
+        [Description("The document semantic role name: OriginalSource, Instruction, Image, Correspondence, EngineerReport, AuditReport, CeEstimate, ExternalEstimate, RepairInvoice, ValuationEvidence, or Other.")] string semanticRole,
         [Description("The case version observed by the caller; a stale value fails closed.")] long expectedCaseVersion,
         [Description(AutomationToolText.OperationKey)] string operationKey,
         [Description("The complete document content encoded as base64; omit it when uploadId is given.")] string? contentBase64 = null,
