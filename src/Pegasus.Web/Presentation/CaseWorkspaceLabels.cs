@@ -1439,7 +1439,9 @@ public static class CaseWorkspaceLabels
         {
             GlassEstimateBuildPolicy.NotBuiltCode => "not built in this version",
             GlassEstimateBuildPolicy.NoRowCode => "Glass's has no row for it",
-            GlassEstimateBuildPolicy.AmbiguousRowCode => "Glass's has more than one row of this name",
+            GlassEstimateBuildPolicy.AmbiguousRowCode => "Glass's has more than one row for it",
+            GlassEstimateBuildPolicy.EquipmentCode => "it waits on an equipment answer",
+            GlassEstimateBuildPolicy.NoKeyCode => "it has no Glass's part code or part number",
             GlassEstimateBuildPolicy.StoppedCode => "not sent after a line that was not confirmed",
             "glass.editor.dialog" => "Glass's dialog could not be read",
             "glass.editor.refused" => "Glass's dialog did not match the line",

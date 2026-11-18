@@ -144,6 +144,18 @@ public sealed partial class GlassRepairEstimateGateway(
 
     private const string SpecialOperationPrefix = "AC";
 
+    /// <summary>
+    /// The group list the part list is asked for with: the editor's own, as a
+    /// browser asked for it on 7 September 2026 and a program asked for it on
+    /// another vehicle on 18 November 2026, both answered with the whole list.
+    /// </summary>
+    internal const string PartListGroups =
+        "DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006"
+        + "|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022";
+
+    /// <summary>The part dialog's Part button: the part as served, not painted.</summary>
+    private const string PartButton = "BSS";
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -337,7 +349,11 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <para>
     /// Nothing is typed (R1168): a special operation is posted as its dialog
     /// serves it, and only when exactly one row of the special list has
-    /// exactly the line's name (R1169). A dialog the editor refuses before
+    /// exactly the line's name (R1169). A new part is posted as its dialog
+    /// serves it, pressed Part, only when <see cref="GlassEditorRows"/> is
+    /// certain of its row from the part list and the row's equipment map, and
+    /// only when the dialog serves the part code and side the line was found
+    /// by (R1172). A dialog the editor refuses before
     /// anything is posted leaves that line off and the build goes on; a post
     /// whose answer is lost stops the adding, and the build saves what it has.
     /// When the editor cannot be opened, or nothing was placed, nothing is
@@ -419,6 +435,26 @@ public sealed partial class GlassRepairEstimateGateway(
                     }
                 }
 
+                IReadOnlyList<GlassEditorPartRow>? parts = null;
+                string? unreadParts = null;
+                if (build.Acts.Any(act => act.Sends && act.Kind == GlassEstimateBuildKind.Part))
+                {
+                    try
+                    {
+                        var list = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
+                            opened, PartListGroups, cancellationToken));
+                        opened = list.Session;
+                        parts = list.Value;
+                    }
+                    catch (Exception failure)
+                        when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+                    {
+                        // Reading the list changes nothing: each part is left
+                        // off with the reason.
+                        unreadParts = CodeOf(failure);
+                    }
+                }
+
                 for (var index = 0; index < build.Acts.Count; index++)
                 {
                     var act = build.Acts[index];
@@ -428,22 +464,43 @@ public sealed partial class GlassRepairEstimateGateway(
                     }
 
                     var stopped = false;
-                    GlassSpecialOperation? row = null;
+                    GlassEditorAddRequest? request = null;
                     string? reason;
-                    if (act.Kind != GlassEstimateBuildKind.SpecialOperation)
+                    if (act.Kind == GlassEstimateBuildKind.SpecialOperation)
                     {
-                        reason = GlassEstimateBuildPolicy.NotBuiltCode;
+                        GlassSpecialOperation? row = null;
+                        if (specials is null)
+                        {
+                            reason = unread ?? GlassEstimateBuildPolicy.NoRowCode;
+                        }
+                        else
+                        {
+                            (row, reason) = GlassEstimateBuildPolicy.ChooseSpecialOperation(specials, act.Key);
+                        }
+                        if (row is not null)
+                        {
+                            request = new GlassEditorAddRequest(
+                                GlassEditorDialog.SpecialOperation, row.Code, PartCodeOf(row.Code));
+                        }
                     }
-                    else if (specials is null)
+                    else if (act.Kind == GlassEstimateBuildKind.Part)
                     {
-                        reason = unread ?? GlassEstimateBuildPolicy.NoRowCode;
+                        if (parts is null)
+                        {
+                            reason = unreadParts ?? GlassEstimateBuildPolicy.NoRowCode;
+                        }
+                        else
+                        {
+                            (request, reason, opened) = await ChoosePartAsync(
+                                session, editor, opened, parts, act, cancellationToken);
+                        }
                     }
                     else
                     {
-                        (row, reason) = GlassEstimateBuildPolicy.ChooseSpecialOperation(specials, act.Key);
+                        reason = GlassEstimateBuildPolicy.NotBuiltCode;
                     }
 
-                    if (row is null)
+                    if (request is not { } adding)
                     {
                         act = act with
                         {
@@ -453,12 +510,10 @@ public sealed partial class GlassRepairEstimateGateway(
                     }
                     else
                     {
-                        var request = new GlassEditorAddRequest(
-                            GlassEditorDialog.SpecialOperation, row.Code, PartCodeOf(row.Code));
                         try
                         {
                             var added = await StageAsync(session, "EditorAdd", () => editor.AddAsync(
-                                opened, estimate, request, cancellationToken));
+                                opened, estimate, adding, cancellationToken));
                             opened = added.Session;
                             estimate = added.Value.Estimate;
                             act = act with
@@ -572,6 +627,71 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             return (null, CodeOf(failure));
         }
+    }
+
+    /// <summary>
+    /// The dialog a part line is added by, chosen by <see cref="GlassEditorRows"/>
+    /// from the part list and each found row's equipment map (R1172); or why
+    /// the line is left off. Reading a map changes nothing at Glass's, so a
+    /// map that cannot be read leaves only this line off. The dialog must
+    /// serve the part code and the side the line was found by before
+    /// anything is posted.
+    /// </summary>
+    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChoosePartAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        IReadOnlyList<GlassEditorPartRow> parts,
+        GlassEstimateBuildAct act,
+        CancellationToken cancellationToken)
+    {
+        var (heads, unfound) = GlassEditorRows.Find(parts, act.KeyKind, act.Key, act.Side);
+        if (unfound is not null)
+        {
+            return (null, unfound, opened);
+        }
+
+        var decided = new List<GlassEditorRowChoice>();
+        foreach (var head in heads)
+        {
+            if (GlassEditorRows.ListRefusal(parts, head) is { } refused)
+            {
+                decided.Add(GlassEditorRowChoice.Refused(refused));
+                break;
+            }
+
+            try
+            {
+                var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
+                    opened, parts[head].Id, cancellationToken));
+                opened = map.Session;
+                var choice = GlassEditorRows.Decide(parts, head, map.Value);
+                decided.Add(choice);
+                if (choice.Rows is null)
+                {
+                    break;
+                }
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                return (null, CodeOf(failure), opened);
+            }
+        }
+
+        var chosen = GlassEditorRows.Choose(decided);
+        if (chosen is not { Head: { } row, Rows: { } rows })
+        {
+            return (null, chosen.ReasonCode ?? GlassEstimateBuildPolicy.NoRowCode, opened);
+        }
+
+        var request = new GlassEditorAddRequest(
+            row.Paintable ? GlassEditorDialog.PaintablePart : GlassEditorDialog.Part,
+            rows,
+            act.KeyKind == GlassEstimateBuildKeyKind.PartCode && act.Key is { } code ? code : row.Code,
+            Button: row.Paintable ? PartButton : null,
+            ExpectedSide: act.Side ?? row.Side ?? string.Empty);
+        return (request, null, opened);
     }
 
     /// <summary>
