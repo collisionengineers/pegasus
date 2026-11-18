@@ -256,6 +256,10 @@ public sealed partial class ExperianVehicleHistoryProvider(
     /// <summary>
     /// <c>vehicle.provenance.condition[]</c>, without the records the insurer
     /// has removed (R743). Category is <c>losstype</c>, else <c>status</c>.
+    /// An answer without the condition array has not answered the check (for
+    /// example message 100, "Permission to view ConditionRecords was
+    /// denied"), so it is unavailable (R747), never a clean vehicle; the log
+    /// names Experian's message ids.
     /// </summary>
     internal static IReadOnlyList<VehicleWriteOffRecord> WriteOffs(JsonDocument? body)
     {
@@ -271,7 +275,7 @@ public sealed partial class ExperianVehicleHistoryProvider(
             || !provenance.TryGetProperty("condition", out var conditions)
             || conditions.ValueKind != JsonValueKind.Array)
         {
-            return [];
+            throw new ExperianFailure("vehicle", null, "condition=absent" + MessageIds(root));
         }
 
         var records = new List<VehicleWriteOffRecord>();
@@ -333,6 +337,30 @@ public sealed partial class ExperianVehicleHistoryProvider(
         },
         _ => ExperianFailureCode.Configuration,
     };
+
+    /// <summary>Experian's message ids, as " messages=13,100", for the log; nothing else of the answer.</summary>
+    private static string MessageIds(JsonElement root)
+    {
+        if (!root.TryGetProperty("messages", out var messages) || messages.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        var ids = new List<string>();
+        foreach (var message in messages.EnumerateArray())
+        {
+            if (message.ValueKind == JsonValueKind.Object
+                && message.TryGetProperty("id", out var id)
+                && id.ValueKind is JsonValueKind.String or JsonValueKind.Number
+                && id.ToString() is { Length: > 0 and <= 10 } text
+                && text.All(char.IsAsciiDigit))
+            {
+                ids.Add(text);
+            }
+        }
+
+        return ids.Count == 0 ? string.Empty : " messages=" + string.Join(',', ids);
+    }
 
     private static string Detail(Exception exception) => exception switch
     {

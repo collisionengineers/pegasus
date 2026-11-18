@@ -42,7 +42,9 @@ sandbox host, `sandbox-uk-api.experian.com`.
 **Ask for the condition block alone.** `ExperianVehicleHistoryProvider` sends
 a Custom Search, `{"vrm":…,"data":{"condition":true}}`, with no template
 (R741). It reads `vehicle.provenance.condition[]` and drops each record with a
-`dateremoved` (R743). A record's category is its `losstype`, else its
+`dateremoved` (R743). An answer without that array is unavailable, not clean,
+and the log names Experian's message ids (R747; 18 November 2026, after UAT
+answered message 100, "Permission to view ConditionRecords was denied"). A record's category is its `losstype`, else its
 `status`. Its cause is the schema's `causeofdamage` code in the schema's own
 word, and its loss date is the calendar date Experian wrote. Its insurer is
 `insurername` and its claim is `claimnumber`. Core's
