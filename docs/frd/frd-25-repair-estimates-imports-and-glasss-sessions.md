@@ -320,6 +320,31 @@ name; an included operation and paint preparation are not sent, because
 Glass's adds them itself; every other line is left off and listed as not
 built in this version.
 
+A new part is added too (18 November 2026; R1172), pressed **Part** in its
+own dialog, when Glass's part list gives its row without an equipment
+question. A Glass's export's part is found by its part code and the side its
+description names, and an Audatex sheet's by its part number. Where Glass's
+lists the same part (the same number, price and hours) on more than one
+drawing, the first is used. It is left off and listed:
+
+- as waiting on an equipment answer, when the row Glass's would give depends
+  on the vehicle's equipment (variants of the part, time rows by equipment,
+  or a part shown only with some equipment), or the number is a variant's;
+- as having no row, when Glass's part list has none with that code and side,
+  or that number, or the row offers no Replace;
+- as having more than one row, when the code or number finds rows that are
+  not the same part;
+- as having no Glass's part code or part number, when the line has neither
+  (a spec typed in, drafted or imported as JSON);
+- as a refused dialog, when the dialog Glass's serves is for another part or
+  another side. Nothing is posted for it.
+
+A Glass's calculation PDF prints a labour guide (`S0503XRX`, `NN`), not the
+part code, so its parts find no row. A paint line is left off and listed as
+not built in this version even beside its part: a Glass's export's paint row
+carries a paint code (`1640` for a bonnet), not its part's code, so nothing
+on the spec ties the two.
+
 - A line whose dialog Glass's refuses before anything is sent is left off
   and listed, and the build goes on.
 - A line whose answer is lost is listed as not confirmed, and nothing more is
@@ -694,10 +719,12 @@ recorded in operations as it passes:
     refused on a real stock vehicle while a session with no recorded vehicle
     follows the Case.
 13. Glass's on a spec imported from another system with Specialist lines
-    named as Glass's special operations: the question, **Import and open**,
-    the window's progress, and a new Glass's spec beside the outside one
-    with its list; then **Open an empty estimate** on the same spec gives a
-    new empty estimate (18 November 2026; R1171 to R1173).
+    named as Glass's special operations and new parts: the question,
+    **Import and open**, the window's progress, and a new Glass's spec beside
+    the outside one with its list, a part whose row needs no equipment answer
+    added at Glass's own price and hours and one that does listed as waiting
+    on an equipment answer; then **Open an empty estimate** on the same spec
+    gives a new empty estimate (18 November 2026; R1171 to R1173).
 
 Manual export/import does not satisfy this integration's acceptance.
 Supplier startup failures remain open until that journey passes

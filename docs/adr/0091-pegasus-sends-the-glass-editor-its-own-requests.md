@@ -87,11 +87,18 @@ open.
   the test pages are cut again and the builder follows. It does not guess.
 - Glass's has not agreed to automated use of its editor. The operator
   accepted that on 18 November 2026 (R1167).
-- The client does not choose rows; the build does. Its first version
-  chooses only special operations: the one row of the special list's "Free
-  positions parts" group whose name is exactly the line's (R1169). Which row
-  of the part list a part uses depends on the vehicle's equipment, and that
-  choice belongs to the change that first builds parts.
+- The client does not choose rows; the build does. A special operation is
+  the one row of the special list's "Free positions parts" group whose name
+  is exactly the line's (R1169). A part's row is chosen by
+  `GlassEditorRows` from the part list (`list.php`) and the row's equipment
+  map, and only where the choice is certain (R1172): the part's block needs
+  no equipment, its map lists no entry that does in its part group or its
+  Replace group, and the pair is the row and its Replace time row. Anything
+  else is left off; no equipment answer is guessed. The rule was judged
+  offline against the editor's own list code, run with the row's side as a
+  browser sets it, on the captured list of 7 September 2026: it agreed on
+  every row it calls certain. The dialog must then serve the line's part
+  code and side before anything is posted.
 - Each estimate Pegasus builds makes a stock vehicle and an estimate in the
   Glass's account, as any first press of Glass's does.
 

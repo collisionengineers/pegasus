@@ -1655,7 +1655,9 @@ it stopped.
     `glass.editor.request` an editor page that did not answer 200. On a line
     either is listed as not confirmed, because the post may have been taken:
     nothing more is added, and the export says what the spec holds. While
-    the special list is read, either leaves every Specialist line off.
+    the special list is read, either leaves every Specialist line off; while
+    the part list is read, every new part; while a part's equipment map is
+    read, that part. A read changes nothing at Glass's.
   - `glass.editor.save` (`Unknown`, or `Failed` when Glass's reported no
     save) and `glass.editor.return` (`Unknown`, or `Failed` when the way home
     was unreadable or not this host's) mean Save and Exit did not come back.
@@ -1663,8 +1665,14 @@ it stopped.
     reopens it, or closing the session with a reason.
   - A line's reasons: `glass.build.not_built` (a kind of line this version
     does not build), `glass.build.no_row` (no special operation has exactly
-    its name), `glass.build.ambiguous_row` (more than one has),
-    `glass.build.stopped` (not sent after a line that was not confirmed).
+    its name; no part row has the part's code and side, or its number, or the
+    row offers no Replace), `glass.build.ambiguous_row` (more than one special
+    operation has the name, or the part number names different parts),
+    `glass.build.equipment` (the part's row waits on an equipment answer),
+    `glass.build.no_key` (a new part with no Glass's part code or part
+    number), `glass.build.stopped` (not sent after a line that was not
+    confirmed). A part whose dialog served another side or another part is
+    `glass.editor.refused`.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
     nothing was saved and an empty estimate was opened; `glass.interrupted`
     there means the build stopped part-way and the session was continued as
