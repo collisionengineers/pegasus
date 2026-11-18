@@ -1666,13 +1666,17 @@ it stopped.
   - A line's reasons: `glass.build.not_built` (a kind of line this version
     does not build), `glass.build.no_row` (no special operation has exactly
     its name; no part row has the part's code and side, or its number, or the
-    row offers no Replace), `glass.build.ambiguous_row` (more than one special
-    operation has the name, or the part number names different parts),
+    row offers no Replace, or, for a repair or remove-and-refit line, not
+    that operation), `glass.build.ambiguous_row` (more than one special
+    operation has the name, the part number names different parts, or the
+    part has more than one time row of the line's operation),
     `glass.build.equipment` (the part's row waits on an equipment answer),
-    `glass.build.no_key` (a new part with no Glass's part code or part
-    number), `glass.build.stopped` (not sent after a line that was not
-    confirmed). A part whose dialog served another side or another part is
-    `glass.editor.refused`.
+    `glass.build.no_key` (a new part, or a Glass's export's repair or
+    remove-and-refit line, with no Glass's part code or part number),
+    `glass.build.stopped` (not sent after a line that was not confirmed). A
+    part whose dialog served another side or another part, did not offer the
+    line's operation, or would ask for a reason for more hours than Glass's
+    own, is `glass.editor.refused`.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
     nothing was saved and an empty estimate was opened; `glass.interrupted`
     there means the build stopped part-way and the session was continued as

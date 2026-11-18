@@ -7,9 +7,10 @@ namespace Pegasus.Core.Tests.Assessment;
 /// How a repair spec made outside Pegasus becomes a build in Glass's
 /// (operator, 18 November 2026; R1168, R1169, R1172): one act per line in
 /// the spec's order, special operations tried and chosen by exact name, new
-/// parts tried by Glass's part code and side or by part number, Glass's own
-/// operations not sent, and every other line left off as not built in this
-/// version.
+/// parts tried by Glass's part code and side or by part number, a Glass's
+/// export's repair and remove-and-refit lines tried by Glass's part code and
+/// side, Glass's own operations not sent, and every other line left off as
+/// not built in this version.
 /// </summary>
 public sealed class GlassEstimateBuildPolicyTests
 {
@@ -68,8 +69,6 @@ public sealed class GlassEstimateBuildPolicyTests
     [InlineData("paint_new", GlassEstimateBuildKind.Paint)]
     [InlineData("paint_repair", GlassEstimateBuildKind.Paint)]
     [InlineData("paint_blend", GlassEstimateBuildKind.Paint)]
-    [InlineData("repair", GlassEstimateBuildKind.Repair)]
-    [InlineData("rnr", GlassEstimateBuildKind.RemoveAndRefit)]
     [InlineData("check_labour", GlassEstimateBuildKind.Operation)]
     public void EveryOtherLineIsLeftOffAsNotBuiltInThisVersion(string type, GlassEstimateBuildKind kind)
     {
@@ -83,6 +82,84 @@ public sealed class GlassEstimateBuildPolicyTests
         Assert.False(act.Sends);
         Assert.Equal(GlassEstimateBuildOutcome.LeftOff, act.Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, act.ReasonCode);
+    }
+
+    /// <summary>
+    /// A Glass's export's repair and remove-and-refit lines are acts to try
+    /// by Glass's part code and the side the description names, with
+    /// whatever figures Glass's serves (R1172).
+    /// </summary>
+    [Theory]
+    [InlineData("repair", GlassEstimateBuildKind.Repair)]
+    [InlineData("rnr", GlassEstimateBuildKind.RemoveAndRefit)]
+    public void AGlassExportsRepairOrRefitIsAnActToTryByItsCodeAndSide(string type, GlassEstimateBuildKind kind)
+    {
+        var act = OnlyAct(
+            Line(1, type, "Front Wing (R)", guideCode: " 3030082 ", workUnits: 1.2m),
+            RepairSpecificationSourceRoute.Glasses);
+
+        Assert.Equal(kind, act.Kind);
+        Assert.True(act.Sends);
+        Assert.Equal(GlassEstimateBuildOutcome.Pending, act.Outcome);
+        Assert.Null(act.ReasonCode);
+        Assert.Equal("3030082", act.Key);
+        Assert.Equal(GlassEstimateBuildKeyKind.PartCode, act.KeyKind);
+        Assert.Equal("R", act.Side);
+        Assert.Equal(new GlassEstimateBuildFigures(null, 1.2m), act.Source);
+    }
+
+    /// <summary>A repair or remove-and-refit line of a Glass's export with no part code is left off with that reason.</summary>
+    [Theory]
+    [InlineData("repair")]
+    [InlineData("rnr")]
+    public void AGlassExportsRepairOrRefitWithNoCodeIsLeftOff(string type)
+    {
+        var act = OnlyAct(Line(1, type, "Front Wing (R)", guideCode: "  ", workUnits: 1.2m), RepairSpecificationSourceRoute.Glasses);
+
+        Assert.False(act.Sends);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NoKeyCode, act.ReasonCode);
+        Assert.Equal(GlassEstimateBuildKeyKind.None, act.KeyKind);
+    }
+
+    /// <summary>On any other route a repair or remove-and-refit line has no Glass's part code: it stays not built.</summary>
+    [Theory]
+    [InlineData(RepairSpecificationSourceRoute.AudatexPdf, "repair")]
+    [InlineData(RepairSpecificationSourceRoute.AudatexPdf, "rnr")]
+    [InlineData(RepairSpecificationSourceRoute.Manual, "repair")]
+    [InlineData(RepairSpecificationSourceRoute.AiDraft, "rnr")]
+    [InlineData(RepairSpecificationSourceRoute.Json, "repair")]
+    public void ARepairOrRefitOfAnotherRouteIsNotBuilt(RepairSpecificationSourceRoute route, string type)
+    {
+        var act = OnlyAct(Line(1, type, "Front Wing (R)", guideCode: "3030082", partNumber: "6F0821022", workUnits: 1.2m), route);
+
+        Assert.False(act.Sends);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, act.ReasonCode);
+        Assert.Equal(GlassEstimateBuildKeyKind.None, act.KeyKind);
+    }
+
+    /// <summary>
+    /// A Glass's PDF prints Partial repair (PR) as a repair line, with its
+    /// printed operation first in the line's note: it is not the Repair the
+    /// build sends, so it stays not built.
+    /// </summary>
+    [Fact]
+    public void APartialRepairIsNotBuilt()
+    {
+        var partial = OnlyAct(
+            Line(1, "repair", "Front Wing (R)", guideCode: "3030082", workUnits: 1.2m,
+                justification: GlassEstimateBuildPolicy.PartialRepairNote + " Printed labour: 99.60 GBP."),
+            RepairSpecificationSourceRoute.Glasses);
+        var repair = OnlyAct(
+            Line(1, "repair", "Front Wing (R)", guideCode: "3030082", workUnits: 1.2m,
+                justification: "Printed operation: R. Printed labour: 99.60 GBP."),
+            RepairSpecificationSourceRoute.Glasses);
+
+        Assert.False(partial.Sends);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, partial.ReasonCode);
+        Assert.True(repair.Sends);
+        Assert.Equal(GlassEstimateBuildKind.Repair, repair.Kind);
     }
 
     /// <summary>The key each line is found by in Glass's, and the side its description names (design table).</summary>

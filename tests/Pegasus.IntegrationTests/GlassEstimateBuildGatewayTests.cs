@@ -22,6 +22,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
     /// <summary>The rows whose equipment maps a build of the two doors reads.</summary>
     private static readonly string[] DoorMaps = ["rowid=771", "rowid=790"];
 
+    /// <summary>The left door's map, read once for each of its two lines.</summary>
+    private static readonly string[] DoorMapTwice = ["rowid=771", "rowid=771"];
+
     /// <summary>The row pairs whose dialogs a build of the two doors asks for.</summary>
     private static readonly string[] DoorDialogs = ["mcode=771|772", "mcode=790|791"];
 
@@ -347,6 +350,69 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
     }
 
+    /// <summary>
+    /// A Glass's export's repair and remove-and-refit lines (R1172): each is
+    /// found by its code and side as a part is, its dialog asked for by the
+    /// same rows, Repair or Uninstall and install chosen in it, and posted
+    /// exactly as the dialog's own script posted it, with whatever Glass's
+    /// serves: no figures for the repair (the dialog's question answered OK)
+    /// and its own hours for the refit. A refit whose rows wait on equipment
+    /// is left off with that reason and nothing is asked for it, and a
+    /// partial repair is left off as not built.
+    /// </summary>
+    [Fact]
+    public async Task ABuildSendsRepairAndRefitWithWhateverGlassServesAndLeavesTheRestOff()
+    {
+        var harness = Harness.Create();
+        var outside = OutsideFrom(
+            RepairSpecificationSourceRoute.Glasses,
+            OutsideLine(1, "repair", "Front Door Shell (L)", workUnits: 2.5m, guideCode: "2020001"),
+            OutsideLine(2, "rnr", "Front Door Shell (L)", workUnits: 0.6m, guideCode: "2020001"),
+            OutsideLine(3, "rnr", "Front Bumper Lining", workUnits: 0.8m, guideCode: "1010800"),
+            OutsideLine(4, "repair", "Front Wing (L)", workUnits: 1.0m, guideCode: "3030081",
+                justification: GlassEstimateBuildPolicy.PartialRepairNote));
+
+        var session = await harness.BuildAsync(outside);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        var acts = session.Build!.Acts;
+        Assert.Equal(GlassEstimateBuildKind.Repair, acts[0].Kind);
+        Assert.Equal(GlassEstimateBuildOutcome.Added, acts[0].Outcome);
+        Assert.Equal(new GlassEstimateBuildFigures(null, null), acts[0].Served);
+        Assert.True(GlassEstimateBuildPolicy.HoursDiffers(acts[0]));
+        Assert.Equal(GlassEstimateBuildKind.RemoveAndRefit, acts[1].Kind);
+        Assert.Equal(GlassEstimateBuildOutcome.Added, acts[1].Outcome);
+        Assert.Equal(new GlassEstimateBuildFigures(null, 0.40m), acts[1].Served);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[2].Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, acts[2].ReasonCode);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[3].Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, acts[3].ReasonCode);
+        Assert.Equal(2, session.Build.Total);
+
+        // The list once, the door's map and dialog once for each of its two
+        // lines, and the two dialog posts byte for byte as the dialog's own
+        // script sent them, each followed by its "Mandatory parts:" post.
+        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/list.php"));
+        Assert.Equal(
+            DoorMapTwice,
+            Asked(harness, "GET", "service.php").Where(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal))
+                .Select(query => query.Split('&').Single(part => part.StartsWith("rowid=", StringComparison.Ordinal))));
+        Assert.Equal(2, harness.Mva.Count("GET /ere/aco/comp.php"));
+        var dialogPosts = harness.Mva.Requests
+            .Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php"
+                && !request.Query.Contains("BX=", StringComparison.Ordinal))
+            .Select(request => request.Body)
+            .ToList();
+        List<string?> judged =
+        [
+            GlassEditorFixture.Text("door_left_repair.post.txt"),
+            GlassEditorFixture.Text("door_left_refit.post.txt"),
+        ];
+        Assert.Equal(judged, dialogPosts);
+        Assert.Equal(4, harness.Mva.Count("POST /ere/aco/compproc.php"));
+        Assert.Single(harness.Import.Requests);
+    }
+
     private static RepairSpecificationVersion Outside(params CaseEstimateLineRecord[] lines) =>
         OutsideFrom(RepairSpecificationSourceRoute.AudatexPdf, lines);
 
@@ -365,9 +431,10 @@ public sealed partial class GlassRepairEstimateGatewayTests
         decimal? workUnits = null,
         decimal? price = null,
         string? guideCode = null,
-        string? partNumber = null) => new(
+        string? partNumber = null,
+        string? justification = null) => new(
         Guid.NewGuid(), position, type, guideCode, description, workUnits, price, false, partNumber, null,
-        null, null, ActorKind.Staff, "engineer", LineRecordedAtUtc);
+        null, justification, ActorKind.Staff, "engineer", LineRecordedAtUtc);
 
     /// <summary>The scripted editor's requests to one page, with their queries unescaped.</summary>
     private static List<string> Asked(Harness harness, string method, string page) =>

@@ -353,7 +353,11 @@ public sealed partial class GlassRepairEstimateGateway(
     /// serves it, pressed Part, only when <see cref="GlassEditorRows"/> is
     /// certain of its row from the part list and the row's equipment map, and
     /// only when the dialog serves the part code and side the line was found
-    /// by (R1172). A dialog the editor refuses before
+    /// by (R1172). A repair or remove-and-refit line is posted the same way,
+    /// with the dialog's operation changed to Repair or to Uninstall and
+    /// install and whatever price and hours the dialog serves for it (R1172):
+    /// where it serves none, the dialog's question before sending a part
+    /// with no figures is answered OK. A dialog the editor refuses before
     /// anything is posted leaves that line off and the build goes on; a post
     /// whose answer is lost stops the adding, and the build saves what it has.
     /// When the editor cannot be opened, or nothing was placed, nothing is
@@ -437,7 +441,7 @@ public sealed partial class GlassRepairEstimateGateway(
 
                 IReadOnlyList<GlassEditorPartRow>? parts = null;
                 string? unreadParts = null;
-                if (build.Acts.Any(act => act.Sends && act.Kind == GlassEstimateBuildKind.Part))
+                if (build.Acts.Any(act => act.Sends && OperationOf(act.Kind) is not null))
                 {
                     try
                     {
@@ -483,7 +487,7 @@ public sealed partial class GlassRepairEstimateGateway(
                                 GlassEditorDialog.SpecialOperation, row.Code, PartCodeOf(row.Code));
                         }
                     }
-                    else if (act.Kind == GlassEstimateBuildKind.Part)
+                    else if (OperationOf(act.Kind) is { } operation)
                     {
                         if (parts is null)
                         {
@@ -492,7 +496,7 @@ public sealed partial class GlassRepairEstimateGateway(
                         else
                         {
                             (request, reason, opened) = await ChoosePartAsync(
-                                session, editor, opened, parts, act, cancellationToken);
+                                session, editor, opened, parts, act, operation, cancellationToken);
                         }
                     }
                     else
@@ -630,12 +634,27 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// The dialog a part line is added by, chosen by <see cref="GlassEditorRows"/>
-    /// from the part list and each found row's equipment map (R1172); or why
-    /// the line is left off. Reading a map changes nothing at Glass's, so a
-    /// map that cannot be read leaves only this line off. The dialog must
-    /// serve the part code and the side the line was found by before
-    /// anything is posted.
+    /// The operation a line of this kind is placed with in a part's dialog:
+    /// Replace for a new part, Repair for a repair line, Uninstall and
+    /// install for a remove-and-refit line; null for any other kind.
+    /// </summary>
+    private static string? OperationOf(GlassEstimateBuildKind kind) => kind switch
+    {
+        GlassEstimateBuildKind.Part => GlassEditorRows.Replace,
+        GlassEstimateBuildKind.Repair => GlassEditorRows.Repair,
+        GlassEstimateBuildKind.RemoveAndRefit => GlassEditorRows.RemoveAndRefit,
+        _ => null,
+    };
+
+    /// <summary>
+    /// The dialog a part's line is added by, chosen by <see cref="GlassEditorRows"/>
+    /// for the line's operation from the part list and each found row's
+    /// equipment map (R1172); or why the line is left off. Reading a map
+    /// changes nothing at Glass's, so a map that cannot be read leaves only
+    /// this line off. The dialog must serve the part code and the side the
+    /// line was found by before anything is posted. A new part is posted as
+    /// served; any other operation is chosen in the dialog, which then sends
+    /// whatever price and hours it serves for it, none included (R1172).
     /// </summary>
     private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChoosePartAsync(
         GlassRepairEstimateSession session,
@@ -643,6 +662,7 @@ public sealed partial class GlassRepairEstimateGateway(
         GlassEditorSession opened,
         IReadOnlyList<GlassEditorPartRow> parts,
         GlassEstimateBuildAct act,
+        string operation,
         CancellationToken cancellationToken)
     {
         var (heads, unfound) = GlassEditorRows.Find(parts, act.KeyKind, act.Key, act.Side);
@@ -654,7 +674,7 @@ public sealed partial class GlassRepairEstimateGateway(
         var decided = new List<GlassEditorRowChoice>();
         foreach (var head in heads)
         {
-            if (GlassEditorRows.ListRefusal(parts, head) is { } refused)
+            if (GlassEditorRows.ListRefusal(parts, head, operation) is { } refused)
             {
                 decided.Add(GlassEditorRowChoice.Refused(refused));
                 break;
@@ -665,7 +685,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
                     opened, parts[head].Id, cancellationToken));
                 opened = map.Session;
-                var choice = GlassEditorRows.Decide(parts, head, map.Value);
+                var choice = GlassEditorRows.Decide(parts, head, map.Value, operation);
                 decided.Add(choice);
                 if (choice.Rows is null)
                 {
@@ -690,6 +710,7 @@ public sealed partial class GlassRepairEstimateGateway(
             rows,
             act.KeyKind == GlassEstimateBuildKeyKind.PartCode && act.Key is { } code ? code : row.Code,
             Button: row.Paintable ? PartButton : null,
+            Change: operation == GlassEditorRows.Replace ? null : new GlassEditorChange(Operation: operation, ConfirmNoFigures: true),
             ExpectedSide: act.Side ?? row.Side ?? string.Empty);
         return (request, null, opened);
     }
