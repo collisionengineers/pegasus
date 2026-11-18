@@ -148,14 +148,14 @@ No configuration is required. The path limit is 4096 characters, so the tracked 
 
 ### CI runner and image
 
-CI runs on GitLab runners on the operator's own machines, each a WSL
-distribution with the Docker executor and the tag `pegasus`: `pegasus-wsl` on
-the box that hosts the test instance (R1058) and `pegasus-s1m5c7p` on
-`desktop-s1m5c7p` (R1061). Each takes one job at a time (`concurrent = 1` in
-`/etc/gitlab-runner/config.toml`): a SQL shard needs about 6 GB with its SQL
-Server container, and two at once exhausted the first box's memory and swap
-on 15 November 2026. GitLab gives a queued job to whichever runner is free,
-so the six shards spread across them. The project's shared runners are
+CI runs on GitLab runners on the operator's own machines, each with the Docker
+executor and the tag `pegasus`: `pegasus-wsl` in WSL on the box that hosts the
+test instance (R1058), `pegasus-s1m5c7p` in WSL on `desktop-s1m5c7p` (R1061)
+and `pegasus-a` on the Ubuntu machine `a` (R1174). Each takes one job at a time
+(`concurrent = 1` in `/etc/gitlab-runner/config.toml`): a SQL shard needs about
+6 GB with its SQL Server container, and two at once exhausted the first box's
+memory and swap on 15 November 2026. GitLab gives a queued job to whichever
+runner is free, so the six shards spread across them. The project's shared runners are
 switched off, so nothing runs anywhere else, and a runner works only while
 its machine is on.
 
@@ -181,7 +181,14 @@ Another runner, or a replacement, is created with
 registered with the token that call returns
 (`sudo gitlab-runner register --non-interactive --url https://gitlab.com --token <token> --executor docker --docker-image mcr.microsoft.com/dotnet/sdk:10.0-noble`),
 and given the two settings above and `concurrent` for its memory. It needs
-Linux on x86-64 with Docker and makes outbound connections only.
+Linux on x86-64 with Docker and makes outbound connections only. A runner
+takes queued jobs the moment it registers, so create it with `-F paused=true`
+and unpause it once its machine holds the job image and the pinned SQL Server
+image; on a slow connection the pull otherwise spends a job's timeout, as it
+did for two jobs on 18 November 2026. Stream the image
+from a runner that holds it
+(`docker save <image> | gzip -1 | ssh <host> 'gunzip | sudo docker load'`,
+which keeps its tag) and `docker pull` the SQL Server digest there.
 
 ## Offline development profile
 
