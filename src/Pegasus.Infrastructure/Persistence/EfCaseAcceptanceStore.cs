@@ -236,6 +236,9 @@ public sealed class EfCaseAcceptanceStore(
             Reference = allocatedIdentity.Reference,
             AuditReference = null,
             Type = CaseTypeCodes.ToCode(request.CaseType),
+            // A standalone Audit takes its Principal's Audit workflow now and keeps it (R1138).
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(PrincipalAuditWorkflowPolicy.ForNewCase(
+                request.CaseType, PrincipalAuditWorkflowPolicy.Parse(principal.AuditWorkflow))),
             CustodyState = ToCode(CaseCustodyState.Pending),
             OriginIntakeReceiptId = receipt.Id,
             StandaloneAuditAssessment = standaloneAuditAssessment is null

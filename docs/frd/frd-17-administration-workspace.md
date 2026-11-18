@@ -138,6 +138,11 @@ settings are part of that Contact record. Report generation carries the Default 
 then the Fee note VAT number box, whose hint is "Empty: the standard number." and
 which shows the standard number, 262 0937 10, greyed when empty (operator,
 12 November 2026; R1008),
+then Audit workflow (Original engineer report or Garage authorisation &
+invoice; [R1138](../rulings.md)), Principal's own invoice (None or ULA
+Invoice; [R1162](../rulings.md)), Invoice VAT number and Invoice payment terms
+([R1148](../rulings.md);
+[FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
 then Inspection report name and Audit report name, each a First send and a
 Re-send text box, above Save report settings; it has no Report recipients
 settings (operator, 6 October 2026). An empty name box shows its standard name

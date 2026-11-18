@@ -259,7 +259,10 @@ public sealed partial class DetailsModel
     public OriginalReportFigures? OriginalReport { get; private set; }
 
     /// <summary>Whether the aside draws the Original report card: the Audit view once the Audit exists.</summary>
-    public bool DrawsOriginalReport => !IsInspectionView && Works is { HasAudit: true };
+    public bool DrawsOriginalReport => !IsInspectionView
+        && Works is { HasAudit: true }
+        // A Garage authorisation and invoice Audit has no original report (R1138).
+        && CurrentSummary?.AuditWorkflow != AuditWorkflowKind.GarageAuthorisationAndInvoice;
 
     private void ApplyReportDeliverySubject()
     {

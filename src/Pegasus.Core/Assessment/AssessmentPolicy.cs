@@ -130,13 +130,24 @@ public static class AssessmentPolicy
         PrincipalDefaultFeePolicy.RecorderId,
     };
 
-    public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
+    public static void RequireOriginalReportScope(
+        IEnumerable<string> paths,
+        CaseType caseType,
+        AuditWorkflowKind auditWorkflow)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        if (caseType != CaseType.Audit
-            && paths.Any(path => path.StartsWith("original_report.", StringComparison.Ordinal)))
+        if (!paths.Any(path => path.StartsWith("original_report.", StringComparison.Ordinal)))
+        {
+            return;
+        }
+        if (caseType != CaseType.Audit)
         {
             throw new InvalidOperationException("Original report fields can be saved only on an Audit Case.");
+        }
+        // A Garage authorisation and invoice Audit has no original report (R1138).
+        if (auditWorkflow != AuditWorkflowKind.OriginalEngineerReport)
+        {
+            throw new InvalidOperationException(PrincipalAuditWorkflowPolicy.NoOriginalReport);
         }
     }
 

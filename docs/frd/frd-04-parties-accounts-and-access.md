@@ -211,6 +211,23 @@ The Principal section of a Contact carries:
   number, 262 0937 10, which every Principal starts with. A successor code
   inherits its predecessor's
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches));
+- the Audit workflow (operator, 17 November 2026; [R1138](../rulings.md)),
+  saved with the report settings: Original engineer report, which every
+  Principal starts with, or Garage authorisation & invoice. A standalone Audit
+  takes its Principal's workflow when it is created and keeps it, so changing
+  the setting changes no Case that already exists. A successor code inherits
+  its predecessor's
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
+- the Principal's own invoice (operator, 17 November 2026;
+  [R1147](../rulings.md), [R1148](../rulings.md), [R1162](../rulings.md)),
+  saved with the report settings: None, which every Principal starts with, or
+  ULA Invoice, the invoice Generate report also makes in the Principal's own
+  name. With it go an Invoice VAT number of 20 characters at most and Invoice
+  payment terms of 100 at most, each printed as typed and left off the
+  invoice when empty. A successor code inherits its predecessor's. United
+  Legal Assistance Limited, code `ULA`, is the one Principal seeded on the
+  Garage authorisation & invoice workflow with the ULA Invoice
+  ([R1145](../rulings.md), [R1152](../rulings.md));
 - the report names (operator, 6 November 2026; R740), saved with the report
   settings: what an Inspection report and an Audit report are called, each
   for a first send and for a re-send, in text with the tokens `{REG}`,

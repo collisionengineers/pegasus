@@ -75,6 +75,11 @@ recorded as the original report: by Pegasus when it recognises the report
 among the Case's files, a scanned report once its text has been read, or by
 staff marking one
 ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+A Principal's standalone Audits may instead follow the **Garage authorisation
+& invoice** workflow (operator, 17 November 2026;
+[R1138](docs/rulings.md)): the Audit of a garage's repair, which has no
+original report and never shows Original report missing. A standalone Audit
+takes its Principal's workflow when it is created and keeps it.
 The Audit of an Inspection + Audit Case is part of that Case, not an Audit
 Case (below).
 _Avoid_: Triage, sorting

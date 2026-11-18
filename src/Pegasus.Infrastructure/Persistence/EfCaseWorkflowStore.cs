@@ -2516,6 +2516,7 @@ public sealed class EfCaseWorkflowStore(
         Archive = MapArchive(entity),
         SignOffEngineerId = entity.SignOffEngineerId,
         CaseType = CaseTypeCodes.Parse(entity.Case.Type),
+        AuditWorkflow = PrincipalAuditWorkflowPolicy.Parse(entity.Case.AuditWorkflow),
         HeldAtUtc = entity.HeldAtUtc,
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc,

@@ -55,6 +55,7 @@ public sealed class EfCaseQueryStore(
             {
                 item.Id,
                 item.Type,
+                item.AuditWorkflow,
                 item.CustodyState,
                 item.StandaloneAuditEvidenceId,
                 RegistrationRecorded = context.CaseDataFields.Any(field =>
@@ -91,6 +92,7 @@ public sealed class EfCaseQueryStore(
                 new CaseVehicleGate(item.RegistrationRecorded, item.MileageRecorded),
                 OriginalReportPolicy.IsMissing(
                     CaseTypeCodes.Parse(item.Type),
+                    PrincipalAuditWorkflowPolicy.Parse(item.AuditWorkflow),
                     item.StandaloneAuditEvidenceId,
                     item.HasCurrentAuditReport)));
     }
@@ -1299,6 +1301,7 @@ public sealed class EfCaseQueryStore(
             DueBy = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.DueBy,
             InstructionComplete = caseEntity.InstructionComplete,
             ImagesComplete = caseEntity.ImagesComplete,
+            AuditWorkflow = caseEntity.AuditWorkflow,
             HoldReviewOn = workflow == null ? null : workflow.HoldReviewOn,
             HeldAtUtc = workflow == null ? null : workflow.HeldAtUtc,
             StateEnteredAtUtc = workflow == null ? null : workflow.StateEnteredAtUtc,
@@ -1400,6 +1403,7 @@ public sealed class EfCaseQueryStore(
             DueBy = workflow.DueWork == null ? null : workflow.DueWork!.DueBy,
             InstructionComplete = caseEntity.InstructionComplete,
             ImagesComplete = caseEntity.ImagesComplete,
+            AuditWorkflow = caseEntity.AuditWorkflow,
             HoldReviewOn = workflow.HoldReviewOn,
             HeldAtUtc = workflow.HeldAtUtc,
             StateEnteredAtUtc = workflow.StateEnteredAtUtc,
@@ -1695,6 +1699,7 @@ public sealed class EfCaseQueryStore(
     {
         InstructionComplete = item.InstructionComplete,
         ImagesComplete = item.ImagesComplete,
+        AuditWorkflow = PrincipalAuditWorkflowPolicy.Parse(item.AuditWorkflow),
         HoldReviewOn = item.HoldReviewOn,
         HeldAtUtc = item.HeldAtUtc,
         StateEnteredAtUtc = item.StateEnteredAtUtc,
@@ -1772,6 +1777,7 @@ public sealed class EfCaseQueryStore(
         {
             SignOffEngineerId = entity.SignOffEngineerId,
             CaseType = CaseTypeCodes.Parse(entity.Case.Type),
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.Parse(entity.Case.AuditWorkflow),
             HasOpenQuery = entity.HasOpenQuery
         };
         if (entity.ArchivedAtUtc is null)
@@ -1924,6 +1930,7 @@ public sealed class EfCaseQueryStore(
         public string? VehicleModel { get; init; }
         public bool InstructionComplete { get; init; }
         public bool ImagesComplete { get; init; }
+        public required string AuditWorkflow { get; init; }
         public DateOnly? HoldReviewOn { get; init; }
         public DateTimeOffset? HeldAtUtc { get; init; }
         public DateTimeOffset? StateEnteredAtUtc { get; init; }

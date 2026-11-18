@@ -520,7 +520,10 @@ which the Decisions section no longer repeats.
 
 ### Original report
 
-On an Audit Case only: who wrote the original report (the assessors Core's
+On an Audit Case of an original engineer's report only (a Garage
+authorisation & invoice Audit has no original report, and so no such section
+or aside card; operator, 17 November 2026, [R1138](../rulings.md)): who wrote
+the original report (the assessors Core's
 third-party report profiles know are offered, any other is typed), its date,
 its roadworthiness and its repairable status. They are Case data, edited in
 the page-wide session (v28 P51, ruled 20 September 2026). The engineers

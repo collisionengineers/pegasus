@@ -555,6 +555,63 @@ public sealed partial class CaseCreateWebTests
     }
 
     /// <summary>
+    /// A standalone Audit takes its Principal's Audit workflow when it is
+    /// created and keeps it when the Principal's setting changes later
+    /// (operator, 17 November 2026; R1138). On the Garage authorisation and
+    /// invoice workflow it has no original report, so none is missing.
+    /// </summary>
+    [Fact]
+    public async Task AStandaloneAuditTakesItsPrincipalsAuditWorkflowAndKeepsIt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await StoreReceiptAsync(
+            factory.Services,
+            [],
+            draft: null,
+            classification: MailClassificationResult.Classified(
+                MailCategory.NewInstruction,
+                [],
+                "A standalone Audit instruction was identified.",
+                "test-audit-classification",
+                1,
+                CaseType.Audit));
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        await SetAuditWorkflowAsync(factory.Services, PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await SetAuditWorkflowAsync(factory.Services, PrincipalAuditWorkflowPolicy.OriginalEngineerReportCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.Equal(
+            PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode,
+            await context.Cases.AsNoTracking()
+                .Where(item => item.Id == caseId)
+                .Select(item => item.AuditWorkflow)
+                .SingleAsync());
+
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.OperatorLabels.OriginalReportMissing, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-section-link=\"original-report\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
+    }
+
+    private static async Task SetAuditWorkflowAsync(IServiceProvider services, string code)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.Equal(1, await context.Principals
+            .Where(item => item.Code == PrincipalCode)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.AuditWorkflow, code)));
+    }
+
+    /// <summary>
     /// The direct form offers Audit (operator, 30 October 2026, R595): the
     /// Case takes its own a. reference and shows Original report missing
     /// until a filed document is recorded as the original report.

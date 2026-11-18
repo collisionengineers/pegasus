@@ -137,6 +137,9 @@ public sealed class EfManualCaseCreationStore(
             Sequence = allocated.Sequence,
             Reference = allocated.Reference,
             Type = CaseTypeCodes.ToCode(request.CaseType),
+            // A standalone Audit takes its Principal's Audit workflow now and keeps it (R1138).
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(PrincipalAuditWorkflowPolicy.ForNewCase(
+                request.CaseType, PrincipalAuditWorkflowPolicy.Parse(principal.AuditWorkflow))),
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             InstructionComplete = completeness.InstructionComplete,

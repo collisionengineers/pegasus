@@ -365,6 +365,114 @@ public sealed class OrganizationAdministrationTests
     }
 
     /// <summary>
+    /// R1138, R1147: a successor code keeps the Audit workflow its
+    /// predecessor's Audits took, and its own invoice with what it prints.
+    /// </summary>
+    [Fact]
+    public void ASuccessorInheritsItsPredecessorsAuditWorkflowAndInvoice()
+    {
+        var predecessor = Principal(version: 3) with
+        {
+            AuditWorkflow = AuditWorkflowKind.GarageAuthorisationAndInvoice,
+            PrincipalInvoice = PrincipalInvoiceKind.UlaInvoice,
+            InvoiceVatNumber = "GB 123 4567 89",
+            InvoicePaymentTerms = "30 days"
+        };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal(AuditWorkflowKind.GarageAuthorisationAndInvoice, replacement.Successor.AuditWorkflow);
+        Assert.Equal(PrincipalInvoiceKind.UlaInvoice, replacement.Successor.PrincipalInvoice);
+        Assert.Equal("GB 123 4567 89", replacement.Successor.InvoiceVatNumber);
+        Assert.Equal("30 days", replacement.Successor.InvoicePaymentTerms);
+    }
+
+    /// <summary>
+    /// The Audit workflow and the Principal's own invoice, with its VAT number
+    /// and payment terms, are saved with the report settings and move the
+    /// version only when one of them changes (R1138, R1147, R1148).
+    /// </summary>
+    [Fact]
+    public void TheAuditWorkflowAndTheInvoiceChangeWithTheReportSettings()
+    {
+        var current = Principal(version: 3);
+        Assert.Equal(AuditWorkflowKind.OriginalEngineerReport, current.AuditWorkflow);
+        Assert.Equal(PrincipalInvoiceKind.None, current.PrincipalInvoice);
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
+            principalInvoice: PrincipalInvoiceKind.UlaInvoice,
+            invoiceVatNumber: "  GB 123 4567 89 ",
+            invoicePaymentTerms: " 30 days ");
+
+        Assert.Equal(AuditWorkflowKind.GarageAuthorisationAndInvoice, updated.AuditWorkflow);
+        Assert.Equal(PrincipalInvoiceKind.UlaInvoice, updated.PrincipalInvoice);
+        Assert.Equal("GB 123 4567 89", updated.InvoiceVatNumber);
+        Assert.Equal("30 days", updated.InvoicePaymentTerms);
+        Assert.Equal(4, updated.Version);
+
+        var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
+            principalInvoice: PrincipalInvoiceKind.UlaInvoice,
+            invoiceVatNumber: "GB 123 4567 89",
+            invoicePaymentTerms: "30 days");
+        Assert.Equal(4, unchanged.Version);
+
+        var cleared = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            defaultFee: current.DefaultFee,
+            reportNames: null,
+            auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
+            principalInvoice: PrincipalInvoiceKind.UlaInvoice,
+            invoiceVatNumber: "   ",
+            invoicePaymentTerms: null);
+        Assert.Null(cleared.InvoiceVatNumber);
+        Assert.Null(cleared.InvoicePaymentTerms);
+        Assert.Equal(5, cleared.Version);
+    }
+
+    /// <summary>R1148: the Invoice VAT number has at most 20 characters and the payment terms 100.</summary>
+    [Fact]
+    public void AnInvoiceVatNumberOrPaymentTermsOverTheirLengthIsRefused()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                Principal(version: 3),
+                expectedVersion: 3,
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null,
+                invoiceVatNumber: new string('7', PrincipalInvoicePolicy.MaximumVatNumberLength + 1)));
+        Assert.Throws<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                Principal(version: 3),
+                expectedVersion: 3,
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null,
+                invoicePaymentTerms: new string('t', PrincipalInvoicePolicy.MaximumPaymentTermsLength + 1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+                Principal(version: 3),
+                expectedVersion: 3,
+                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportNames: null,
+                auditWorkflow: (AuditWorkflowKind)99));
+    }
+
+    /// <summary>
     /// The default fee is saved with the report settings and moves the
     /// version only when it changes.
     /// </summary>

@@ -44,6 +44,7 @@ public sealed class MarkAsOriginalReportTests
         Assert.Throws<InvalidOperationException>(() =>
             OriginalReportPolicy.RequireEligible(
                 CaseType.Audit,
+                AuditWorkflowKind.OriginalEngineerReport,
                 CaseLifecycleState.PrincipalCancelled,
                 DocumentSemanticRole.Instruction));
     }
@@ -54,6 +55,7 @@ public sealed class MarkAsOriginalReportTests
         Assert.Throws<InvalidOperationException>(() =>
             OriginalReportPolicy.RequireEligible(
                 CaseType.Inspection,
+                AuditWorkflowKind.OriginalEngineerReport,
                 CaseLifecycleState.NotReady,
                 DocumentSemanticRole.Instruction));
     }
@@ -64,8 +66,32 @@ public sealed class MarkAsOriginalReportTests
         Assert.Throws<InvalidOperationException>(() =>
             OriginalReportPolicy.RequireEligible(
                 CaseType.Audit,
+                AuditWorkflowKind.OriginalEngineerReport,
                 CaseLifecycleState.NotReady,
                 DocumentSemanticRole.Image));
+    }
+
+    /// <summary>
+    /// A Garage authorisation and invoice Audit has no original report
+    /// (operator, 17 November 2026; R1138): none is missing, none awaits
+    /// recognition and none may be marked.
+    /// </summary>
+    [Fact]
+    public void AGarageAuthorisationAuditHasNoOriginalReport()
+    {
+        Assert.False(OriginalReportPolicy.IsMissing(
+            CaseType.Audit, AuditWorkflowKind.GarageAuthorisationAndInvoice, null, false));
+        Assert.False(OriginalReportPolicy.ReadsTheDocuments(
+            CaseType.Audit, AuditWorkflowKind.GarageAuthorisationAndInvoice, null));
+        Assert.False(OriginalReportPolicy.AwaitsRecognition(
+            CaseType.Audit, AuditWorkflowKind.GarageAuthorisationAndInvoice, CaseLifecycleState.NotReady, false, null, false));
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            OriginalReportPolicy.RequireEligible(
+                CaseType.Audit,
+                AuditWorkflowKind.GarageAuthorisationAndInvoice,
+                CaseLifecycleState.NotReady,
+                DocumentSemanticRole.Other));
+        Assert.Equal(PrincipalAuditWorkflowPolicy.NoOriginalReport, refused.Message);
     }
 
     [Fact]
@@ -108,7 +134,8 @@ public sealed class MarkAsOriginalReportTests
     {
         Assert.Equal(
             missing,
-            OriginalReportPolicy.IsMissing(caseType, hasIntakeEvidence ? Guid.NewGuid() : null, hasFiledReport));
+            OriginalReportPolicy.IsMissing(
+                caseType, AuditWorkflowKind.OriginalEngineerReport, hasIntakeEvidence ? Guid.NewGuid() : null, hasFiledReport));
     }
 
     [Theory]
@@ -122,8 +149,10 @@ public sealed class MarkAsOriginalReportTests
     {
         Assert.Equal(
             awaits,
-            OriginalReportPolicy.AwaitsRecognition(CaseType.Audit, state, archived, null, false));
-        Assert.False(OriginalReportPolicy.AwaitsRecognition(CaseType.Audit, state, archived, null, true));
+            OriginalReportPolicy.AwaitsRecognition(
+                CaseType.Audit, AuditWorkflowKind.OriginalEngineerReport, state, archived, null, false));
+        Assert.False(OriginalReportPolicy.AwaitsRecognition(
+            CaseType.Audit, AuditWorkflowKind.OriginalEngineerReport, state, archived, null, true));
     }
 
     [Theory]

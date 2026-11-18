@@ -299,8 +299,16 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>The Case type chip; absent for a plain Inspection.</summary>
-    /// <summary>A standalone Audit Case carries the Original report section (v28 P51).</summary>
-    public bool IsAuditCase => Case?.Summary.CaseType == CaseType.Audit;
+    /// <summary>
+    /// A standalone Audit of an original engineer's report carries the
+    /// Original report section (v28 P51); a Garage authorisation and invoice
+    /// Audit has no original report (operator, 17 November 2026; R1138).
+    /// </summary>
+    public bool IsAuditCase => Case?.Summary is
+    {
+        CaseType: CaseType.Audit,
+        AuditWorkflow: AuditWorkflowKind.OriginalEngineerReport
+    };
 
     /// <summary>Damage and Valuation read inside Vehicle (v28 P26): their hosts stay, their links go, the Vehicle link speaks for them.</summary>
     public static bool IsNestedSection(string key) => key is "damage" or "valuation";
