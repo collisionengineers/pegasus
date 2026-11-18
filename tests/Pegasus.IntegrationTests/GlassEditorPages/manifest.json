@@ -589,6 +589,17 @@
         "doSave": "1",
         "hasFile": true
       }
+    },
+    "partList": {
+      "file": "part_list.html",
+      "note": "Whole blocks cut from the list.php of 7 September 2026 (glasses7.har), each partlist.addPart line kept byte for byte, by a cut script in the operator's workspace; the address is the one the browser asked for, with the made-up key.",
+      "address": "https://repairestimate.autovistagroup.com/ere/aco/list.php?ksid=Q0TESTKEY000000000000000000001&cml=C&html5svg=1&ds=DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022&win7=1",
+      "groups": "DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022",
+      "rows": 100
+    },
+    "equipment274": {
+      "file": "equipment_274.html",
+      "note": "The map of part-list row 274 (Front Door Outer Handle, left) on 7 September 2026, the vehicle of part_list.html"
     }
   }
 }

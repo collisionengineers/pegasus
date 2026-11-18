@@ -19,6 +19,12 @@ public sealed partial class GlassRepairEstimateGatewayTests
 
     private static readonly DateTimeOffset LineRecordedAtUtc = new(2026, 11, 18, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The rows whose equipment maps a build of the two doors reads.</summary>
+    private static readonly string[] DoorMaps = ["rowid=771", "rowid=790"];
+
+    /// <summary>The row pairs whose dialogs a build of the two doors asks for.</summary>
+    private static readonly string[] DoorDialogs = ["mcode=771|772", "mcode=790|791"];
+
     /// <summary>How many acts were done as each of the two posts was made.</summary>
     private static readonly int[] DoneAtEachPost = [0, 1];
 
@@ -44,7 +50,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(new GlassEstimateBuildFigures(176.96m, null), charge.Served);
         Assert.True(GlassEstimateBuildPolicy.PriceDiffers(charge));
         Assert.Equal(GlassEstimateBuildOutcome.LeftOff, build.Acts[1].Outcome);
-        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, build.Acts[1].ReasonCode);
+        Assert.Equal(GlassEstimateBuildPolicy.NoKeyCode, build.Acts[1].ReasonCode);
         Assert.Equal(GlassEstimateBuildOutcome.AddedByGlass, build.Acts[2].Outcome);
 
         // One posted position, one save, and the build's own return relayed
@@ -246,15 +252,127 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(0, harness.Mva.Count("GET /ere/acolib/aco_call_xml.php"));
     }
 
-    private static RepairSpecificationVersion Outside(params CaseEstimateLineRecord[] lines) => new(
+    /// <summary>
+    /// A Glass's export's new parts (R1172): one whose row needs no equipment
+    /// answer is found by its code and side, its equipment map read, and its
+    /// dialog posted as served with Part, figures and all; one whose rows wait
+    /// on equipment is left off with that reason and nothing is asked for it;
+    /// one whose dialog serves the other side is refused before it is posted;
+    /// a paint line is left off.
+    /// </summary>
+    [Fact]
+    public async Task ABuildPlacesAPartWhoseRowNeedsNoEquipmentAnswerAndLeavesTheRestOff()
+    {
+        var harness = Harness.Create();
+        var outside = OutsideFrom(
+            RepairSpecificationSourceRoute.Glasses,
+            OutsideLine(1, "new_part", "Front Door Shell (L)", workUnits: 3.7m, price: 942.95m, guideCode: "2020001"),
+            OutsideLine(2, "paint_new", "Front Door Shell (L)", workUnits: 1.5m, guideCode: "2015"),
+            OutsideLine(3, "new_part", "Front Bumper Lining", workUnits: 1.8m, price: 379m, guideCode: "1010800"),
+            OutsideLine(4, "new_part", "Front Door Shell (R)", workUnits: 3.7m, price: 942.95m, guideCode: "2020002"),
+            OutsideLine(5, "specialist_fixed", Charge, price: 176.96m));
+
+        var session = await harness.BuildAsync(outside);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        var acts = session.Build!.Acts;
+        Assert.Equal(GlassEstimateBuildOutcome.Added, acts[0].Outcome);
+        Assert.Equal(new GlassEstimateBuildFigures(545.24m, 2.90m), acts[0].Served);
+        Assert.True(GlassEstimateBuildPolicy.PriceDiffers(acts[0]));
+        Assert.True(GlassEstimateBuildPolicy.HoursDiffers(acts[0]));
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[1].Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, acts[1].ReasonCode);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[2].Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, acts[2].ReasonCode);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[3].Outcome);
+        Assert.Equal(GlassFailure.EditorRefused, acts[3].ReasonCode);
+        Assert.Equal(GlassEstimateBuildOutcome.Added, acts[4].Outcome);
+        Assert.Equal(4, session.Build.Total);
+
+        // The list once; the maps of the two doors only (the lining's rows
+        // need equipment by the list alone); a dialog for each door; and
+        // posts for the left door, its mandatory parts and the special
+        // operation, none for the right door.
+        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/list.php"));
+        Assert.Contains("&ds=" + GlassRepairEstimateGateway.PartListGroups + "&", Assert.Single(Asked(harness, "GET", "list.php")), StringComparison.Ordinal);
+        Assert.Equal(
+            DoorMaps,
+            Asked(harness, "GET", "service.php").Where(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal))
+                .Select(query => query.Split('&').Single(part => part.StartsWith("rowid=", StringComparison.Ordinal))));
+        Assert.Equal(
+            DoorDialogs,
+            Asked(harness, "GET", "comp.php").Select(query => query.Split('&').Single(part => part.StartsWith("mcode=", StringComparison.Ordinal))));
+        var posts = Asked(harness, "POST", "compproc.php");
+        Assert.Equal(3, posts.Count);
+        Assert.DoesNotContain(posts, query => query.Contains("790", StringComparison.Ordinal));
+        Assert.Single(harness.Import.Requests);
+    }
+
+    /// <summary>An Audatex sheet's new part is found by its part number, and its side is checked as served.</summary>
+    [Fact]
+    public async Task AnAudatexPartIsFoundByItsPartNumber()
+    {
+        var harness = Harness.Create();
+        var outside = Outside(
+            OutsideLine(1, "new_part", "Front Door Shell (L)", workUnits: 3.7m, price: 942.95m, partNumber: "41009628759"),
+            OutsideLine(2, "new_part", "Front Door Outer Handle (L)", price: 66.30m, partNumber: "5G0837205NGRU"));
+
+        var session = await harness.BuildAsync(outside);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        Assert.Equal(GlassEstimateBuildOutcome.Added, session.Build!.Acts[0].Outcome);
+        Assert.Equal(GlassEstimateBuildKeyKind.PartNumber, session.Build.Acts[0].KeyKind);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, session.Build.Acts[1].Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, session.Build.Acts[1].ReasonCode);
+        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/comp.php"));
+    }
+
+    /// <summary>A part list that cannot be read leaves each part off with the reason; the rest is still built.</summary>
+    [Fact]
+    public async Task APartListThatCannotBeReadLeavesThePartsOff()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Enqueue("GET /ere/aco/list.php", new Reply(HttpStatusCode.InternalServerError, string.Empty));
+        var outside = OutsideFrom(
+            RepairSpecificationSourceRoute.Glasses,
+            OutsideLine(1, "new_part", "Front Door Shell (L)", price: 942.95m, guideCode: "2020001"),
+            OutsideLine(2, "specialist_fixed", Charge, price: 176.96m));
+
+        var session = await harness.BuildAsync(outside);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, session.Build!.Acts[0].Outcome);
+        Assert.Equal(GlassFailure.EditorRequest, session.Build.Acts[0].ReasonCode);
+        Assert.Equal(GlassEstimateBuildOutcome.Added, session.Build.Acts[1].Outcome);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
+    }
+
+    private static RepairSpecificationVersion Outside(params CaseEstimateLineRecord[] lines) =>
+        OutsideFrom(RepairSpecificationSourceRoute.AudatexPdf, lines);
+
+    private static RepairSpecificationVersion OutsideFrom(
+        RepairSpecificationSourceRoute route, params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
-        new(RepairSpecificationSourceRoute.AudatexPdf, null, null, null),
+        new(route, null, null, null),
         lines,
         "engineer", LineRecordedAtUtc,
         new("Repairer", 60m, null, 20m));
 
     private static CaseEstimateLineRecord OutsideLine(
-        int position, string type, string description, decimal? workUnits = null, decimal? price = null) => new(
-        Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
+        int position,
+        string type,
+        string description,
+        decimal? workUnits = null,
+        decimal? price = null,
+        string? guideCode = null,
+        string? partNumber = null) => new(
+        Guid.NewGuid(), position, type, guideCode, description, workUnits, price, false, partNumber, null,
         null, null, ActorKind.Staff, "engineer", LineRecordedAtUtc);
+
+    /// <summary>The scripted editor's requests to one page, with their queries unescaped.</summary>
+    private static List<string> Asked(Harness harness, string method, string page) =>
+        harness.Mva.Requests
+            .Where(request => request.Method == method && request.Path == "/ere/aco/" + page)
+            .Select(request => Uri.UnescapeDataString(request.Query))
+            .ToList();
 }

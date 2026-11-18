@@ -182,6 +182,62 @@ public sealed class GlassEditorPagesTests
             at.SpecialList("DS-AUXWORK-702|SS-FREEPART"));
     }
 
+    /// <summary>The part list is asked for with the group list in its address, as the browser asked for it.</summary>
+    [Fact]
+    public void ThePartListIsAskedForAsTheBrowserAskedForIt()
+    {
+        var page = GlassEditorFixture.Page("partList");
+        var at = new GlassEditorAddresses(
+            GlassEditorFixture.Session(),
+            new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)));
+
+        Assert.Equal(page.GetProperty("groups").GetString(), GlassRepairEstimateGateway.PartListGroups);
+        Assert.Equal(page.GetProperty("address").GetString(), at.PartList(GlassRepairEstimateGateway.PartListGroups));
+    }
+
+    /// <summary>
+    /// Each <c>partlist.addPart</c> line is one row, with the drawing, its
+    /// number, the part code and the name filled down from the row above and
+    /// a criteria of 0 read as none, as the list's own code holds them.
+    /// </summary>
+    [Fact]
+    public void ThePartListIsReadRowByRowAsTheEditorHoldsIt()
+    {
+        var page = GlassEditorFixture.Page("partList");
+
+        var list = GlassEditorPages.PartList(GlassEditorFixture.Text(page.GetProperty("file").GetString()!));
+
+        Assert.NotNull(list);
+        Assert.Equal(page.GetProperty("rows").GetInt32(), list.Count);
+        var lining = list[0];
+        Assert.Equal("0", lining.Id);
+        Assert.True(lining.IsHead);
+        Assert.True(lining.Paintable);
+        Assert.Null(lining.Side);
+        Assert.Equal("1010800", lining.Code);
+        Assert.Equal("6F0807221DGRU", lining.Number);
+        Assert.Equal("379.00", lining.Price);
+        Assert.Equal("Front Bumper Lining", lining.Name);
+        var firstTime = list[1];
+        Assert.False(firstTime.IsPart);
+        Assert.True(firstTime.Has('t'));
+        Assert.Equal("ER", firstTime.Operations);
+        Assert.Equal(string.Empty, firstTime.Criteria);
+        Assert.Equal("1010800", firstTime.Code);
+        Assert.Equal("701910520101", firstTime.Drawing);
+        Assert.Equal("12000", list[2].Criteria);
+        var variant = Assert.Single(list, row => row.Id == "275");
+        Assert.True(variant.IsPart);
+        Assert.False(variant.IsHead);
+        Assert.Equal("L", variant.Side);
+        Assert.Equal("2025851", variant.Code);
+        Assert.Equal("800", variant.Criteria);
+        Assert.True(Assert.Single(list, row => row.Id == "65").ShownByEquipment);
+        Assert.False(lining.ShownByEquipment);
+        Assert.Equal("R", Assert.Single(list, row => row.Id == "20").Side);
+        Assert.Null(GlassEditorPages.PartList("<html><body>Please wait</body></html>"));
+    }
+
     [Fact]
     public void SaveAndExitIsReadToTheWayHomeExactlyAsThePageGivesIt()
     {

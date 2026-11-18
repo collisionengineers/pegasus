@@ -6,9 +6,10 @@ namespace Pegasus.Core.Tests.Assessment;
 /// <summary>
 /// How a repair spec made outside Pegasus becomes a build in Glass's
 /// (operator, 18 November 2026; R1168, R1169, R1172): one act per line in
-/// the spec's order, special operations tried and chosen by exact name,
-/// Glass's own operations not sent, and every other line left off as not
-/// built in this version.
+/// the spec's order, special operations tried and chosen by exact name, new
+/// parts tried by Glass's part code and side or by part number, Glass's own
+/// operations not sent, and every other line left off as not built in this
+/// version.
 /// </summary>
 public sealed class GlassEstimateBuildPolicyTests
 {
@@ -31,7 +32,7 @@ public sealed class GlassEstimateBuildPolicyTests
 
         Assert.NotNull(build);
         Assert.Equal(InSpecOrder, build.Acts.Select(act => act.SourcePositions.Single()));
-        Assert.Equal(2, build.Total);
+        Assert.Equal(3, build.Total);
         Assert.Equal(0, build.Done);
         Assert.True(build.Running);
         Assert.False(build.Placed);
@@ -64,7 +65,6 @@ public sealed class GlassEstimateBuildPolicyTests
     }
 
     [Theory]
-    [InlineData("new_part", GlassEstimateBuildKind.Part)]
     [InlineData("paint_new", GlassEstimateBuildKind.Paint)]
     [InlineData("paint_repair", GlassEstimateBuildKind.Paint)]
     [InlineData("paint_blend", GlassEstimateBuildKind.Paint)]
@@ -85,7 +85,7 @@ public sealed class GlassEstimateBuildPolicyTests
         Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, act.ReasonCode);
     }
 
-    /// <summary>The key each line would be found by, kept for the versions that build it (design table).</summary>
+    /// <summary>The key each line is found by in Glass's, and the side its description names (design table).</summary>
     [Fact]
     public void APartIsKeyedByItsGlassCodeOrItsAudatexPartNumberAndASideIsRead()
     {
@@ -100,11 +100,70 @@ public sealed class GlassEstimateBuildPolicyTests
             RepairSpecificationSourceRoute.Manual);
 
         Assert.Equal("2020001", fromGlass.Key);
+        Assert.Equal(GlassEstimateBuildKeyKind.PartCode, fromGlass.KeyKind);
         Assert.Equal("L", fromGlass.Side);
         Assert.Equal("41007408961", fromAudatex.Key);
+        Assert.Equal(GlassEstimateBuildKeyKind.PartNumber, fromAudatex.KeyKind);
         Assert.Equal("R", fromAudatex.Side);
         Assert.Null(typedIn.Key);
+        Assert.Equal(GlassEstimateBuildKeyKind.None, typedIn.KeyKind);
         Assert.Null(typedIn.Side);
+    }
+
+    /// <summary>A new part with a key is an act to try: its row is chosen at Glass's (R1172).</summary>
+    [Theory]
+    [InlineData(RepairSpecificationSourceRoute.Glasses)]
+    [InlineData(RepairSpecificationSourceRoute.AudatexPdf)]
+    public void ANewPartWithAKeyIsAnActToTry(RepairSpecificationSourceRoute route)
+    {
+        var act = OnlyAct(
+            Line(1, "new_part", "Front Door Shell (L)", guideCode: "2020001", partNumber: "41007408961", price: 942.95m),
+            route);
+
+        Assert.Equal(GlassEstimateBuildKind.Part, act.Kind);
+        Assert.True(act.Sends);
+        Assert.Equal(GlassEstimateBuildOutcome.Pending, act.Outcome);
+        Assert.Null(act.ReasonCode);
+        Assert.Equal(new GlassEstimateBuildFigures(942.95m, null), act.Source);
+    }
+
+    /// <summary>A new part with nothing to find it by in Glass's is left off with that reason.</summary>
+    [Theory]
+    [InlineData(RepairSpecificationSourceRoute.Manual, "2020001", "41007408961")]
+    [InlineData(RepairSpecificationSourceRoute.AiDraft, "2020001", "41007408961")]
+    [InlineData(RepairSpecificationSourceRoute.Json, "2020001", "41007408961")]
+    [InlineData(RepairSpecificationSourceRoute.Glasses, null, "41007408961")]
+    [InlineData(RepairSpecificationSourceRoute.AudatexPdf, "2020001", "  ")]
+    public void ANewPartWithNothingToFindItByIsLeftOff(
+        RepairSpecificationSourceRoute route, string? guideCode, string? partNumber)
+    {
+        var act = OnlyAct(Line(1, "new_part", "Front Door Shell (L)", guideCode: guideCode, partNumber: partNumber), route);
+
+        Assert.False(act.Sends);
+        Assert.Equal(GlassEstimateBuildOutcome.LeftOff, act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NoKeyCode, act.ReasonCode);
+        Assert.Null(act.Key);
+        Assert.Equal(GlassEstimateBuildKeyKind.None, act.KeyKind);
+    }
+
+    /// <summary>
+    /// A paint line is left off even beside its part's line (R1172): a
+    /// Glass's export's paint row carries a paint code (1640 for the bonnet),
+    /// not the part's code (1060000), so nothing ties the two.
+    /// </summary>
+    [Fact]
+    public void APaintLineIsLeftOffBesideItsPart()
+    {
+        var build = GlassEstimateBuildPolicy.Plan(Spec(
+            RepairSpecificationSourceRoute.Glasses,
+            Line(1, "new_part", "Bonnet", guideCode: "1060000", price: 361.74m),
+            Line(2, "paint_new", "Bonnet", guideCode: "1640", workUnits: 2.8m)))!;
+
+        Assert.True(build.Acts[0].Sends);
+        Assert.Equal(GlassEstimateBuildKind.Paint, build.Acts[1].Kind);
+        Assert.False(build.Acts[1].Sends);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, build.Acts[1].ReasonCode);
+        Assert.Equal(1, build.Total);
     }
 
     [Fact]
@@ -119,7 +178,8 @@ public sealed class GlassEstimateBuildPolicyTests
     {
         var build = GlassEstimateBuildPolicy.Plan(Spec(
             RepairSpecificationSourceRoute.AudatexPdf,
-            Line(1, "new_part", "Bonnet", partNumber: "1234", price: 310m)));
+            Line(1, "new_part", "Bonnet", price: 310m),
+            Line(2, "paint_new", "Bonnet", workUnits: 2.8m)));
 
         Assert.NotNull(build);
         Assert.Equal(0, build.Total);

@@ -143,6 +143,90 @@ public sealed class GlassEditorClientTests
         Assert.Single(editor.Requests);
     }
 
+    /// <summary>A dialog that serves another side than the line's is refused before anything is posted.</summary>
+    [Fact]
+    public async Task ADialogForTheOtherSideIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.PaintablePart, "771|772", "2020002", Button: "BSS", ExpectedSide: "R"),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.False(refused.OutcomeUnknown);
+        Assert.Equal("The dialog serves side L, not R.", refused.Detail);
+        Assert.Single(editor.Requests);
+    }
+
+    /// <summary>A part with no side is refused when its dialog serves one.</summary>
+    [Fact]
+    public async Task ADialogWithASideIsNeverPostedForAPartWithNone()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.PaintablePart, "771|772", "2020001", Button: "BSS", ExpectedSide: string.Empty),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal("The dialog serves side L, not none.", refused.Detail);
+        Assert.Single(editor.Requests);
+    }
+
+    /// <summary>
+    /// A right-hand dialog carries the left code first and the right code
+    /// second; a right-hand part is checked against the second.
+    /// </summary>
+    [Fact]
+    public async Task ARightHandPartIsCheckedAgainstTheRightHandCode()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("reinforcement_right.dialog.html")));
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("reinforcement_right.dialog.html")));
+        editor.Enqueue("POST compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("reinforcement_right.answer.html")));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+        const string Rows = "1783|ER|1786|AE|1792";
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(), NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.Part, Rows, "1012401", ExpectedSide: "R"), default));
+        var added = await client.AddAsync(
+            GlassEditorFixture.Session(), NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.Part, Rows, "1012402", ExpectedSide: "R"), default);
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal("The dialog carries part code 1012402, not 1012401.", refused.Detail);
+        Assert.Equal("1012402", added.Value.Summary.RightPartCode);
+        Assert.Equal(GlassEditorFixture.Text("reinforcement_right.post.txt"), editor.Requests[2].Body);
+    }
+
+    /// <summary>The part list is asked for at the address the browser asked for and read row by row.</summary>
+    [Fact]
+    public async Task ThePartListIsReadFromTheAddressTheBrowserAskedFor()
+    {
+        using var editor = new ScriptedEditor();
+        var page = GlassEditorFixture.Page("partList");
+        editor.Enqueue("GET list.php", new(HttpStatusCode.OK, GlassEditorFixture.Text(page.GetProperty("file").GetString()!)));
+        var client = Client(editor);
+
+        var read = await client.ReadPartListAsync(GlassEditorFixture.Session(), page.GetProperty("groups").GetString()!, default);
+
+        Assert.Equal(page.GetProperty("rows").GetInt32(), read.Value.Count);
+        var only = Assert.Single(editor.Requests);
+        Assert.Equal(page.GetProperty("address").GetString(), "https://" + only.Host + only.Path + Uri.UnescapeDataString(only.Query));
+        Assert.Equal(GlassEditorFixture.Base + "acofr.php", only.Referer?.Split('?')[0]);
+    }
+
     [Fact]
     public async Task APartWithMandatoryPartsIsConfirmedWithTheTicksAskedFor()
     {
