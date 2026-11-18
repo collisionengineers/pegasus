@@ -1313,7 +1313,11 @@ The dialog also shows what the Principal's report sending rules decided
 - the Files rows, with required companions always ticked and
   marked "(required for this Principal)", the other work's report and its
   documents as rows, off, once the Audit exists, and the filed estimates the
-  rules attach as rows, on, under their filed names with no Rename (R671). A
+  rules attach as rows, on, under their filed names with no Rename (R671),
+  then each External estimate and Repair invoice the Principal's Offer ticks
+  list as a row, off, under its filed name and its document type with no
+  Rename, one the filed estimates already carry left out
+  ([R1151](../rulings.md), [R1158](../rulings.md)). A
   required companion that is not generated says so and withholds Send report,
   and its Generate is in the More menu. Any warning appears as a hint;
 - a read-only "After sending" list of what staff still owe, and

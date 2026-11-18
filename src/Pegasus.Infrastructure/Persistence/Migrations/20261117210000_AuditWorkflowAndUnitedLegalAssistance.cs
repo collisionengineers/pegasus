@@ -90,7 +90,8 @@ public partial class AuditWorkflowAndUnitedLegalAssistance : Migration
     /// The United Legal Assistance record, as a Principal Contact saved in
     /// Contacts would be (R1145, R1152): its address, telephone and e-mail,
     /// always Image Based Assessment, the standard default fee and report
-    /// names, the default report sending rules, the Garage authorisation and
+    /// names, the default report sending rules with both Offer ticks on
+    /// (R1151), the Garage authorisation and
     /// invoice Audit workflow and the ULA Invoice, with no Invoice VAT number,
     /// payment terms or notes. A database that already holds the code or the
     /// name keeps what it has. Held apart so a test can run it a second time.
@@ -102,7 +103,7 @@ public partial class AuditWorkflowAndUnitedLegalAssistance : Migration
         BEGIN
             INSERT INTO [dbo].[Organizations] ([Active], [Address], [Email], [Id], [Name], [NotesOnEveryCase], [Postcode], [Role], [Telephone], [Version]) VALUES (1, N'130c Lord Street' + NCHAR(13) + NCHAR(10) + N'Southport', N'claims@united-legal.co.uk', '{{OrganizationId}}', N'United Legal Assistance Limited', NULL, N'PR9 0AE', N'principal', N'0330 999 9000', 0);
             INSERT INTO [dbo].[PrincipalSequenceLineages] ([CreatedAtUtc], [Id]) VALUES ('2026-11-17T21:00:00+00:00', '{{LineageId}}');
-            INSERT INTO [dbo].[Principals] ([AuditWorkflow], [Code], [DefaultFee], [Id], [InspectionMode], [InvoicePaymentTerms], [InvoiceVatNumber], [IsActive], [OrganizationId], [PredecessorId], [PrincipalInvoice], [ReferenceScheme], [ReportSendingRulesJson], [SalvageMatrixJson], [SequenceLineageId], [SuccessorId], [Version]) VALUES (N'garage_authorisation_and_invoice', N'ULA', 180.00, '{{PrincipalId}}', N'image_based_assessment', NULL, NULL, 1, '{{OrganizationId}}', NULL, N'ula_invoice', N'principal_sequence', N'{"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":[],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[]}', NULL, '{{LineageId}}', NULL, 0);
+            INSERT INTO [dbo].[Principals] ([AuditWorkflow], [Code], [DefaultFee], [Id], [InspectionMode], [InvoicePaymentTerms], [InvoiceVatNumber], [IsActive], [OrganizationId], [PredecessorId], [PrincipalInvoice], [ReferenceScheme], [ReportSendingRulesJson], [SalvageMatrixJson], [SequenceLineageId], [SuccessorId], [Version]) VALUES (N'garage_authorisation_and_invoice', N'ULA', 180.00, '{{PrincipalId}}', N'image_based_assessment', NULL, NULL, 1, '{{OrganizationId}}', NULL, N'ula_invoice', N'principal_sequence', N'{"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":[],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false,"offerExternalEstimates":true,"offerRepairInvoices":true},"garageFigures":false,"reminders":[],"rules":[]}', NULL, '{{LineageId}}', NULL, 0);
         END
         """;
 

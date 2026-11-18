@@ -945,6 +945,7 @@ public sealed partial class DetailsModel
         string[]? holdsDone,
         string? subject,
         bool deleteCaseCorrespondence,
+        Guid[]? offeredFile,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -999,7 +1000,9 @@ public sealed partial class DetailsModel
                     Subject: subject,
                     AttachmentNames: PostedAttachmentNames("fileName"),
                     // The dialog's Delete case correspondence tick (R902 to R905).
-                    TidiesCaseCorrespondence: deleteCaseCorrespondence),
+                    TidiesCaseCorrespondence: deleteCaseCorrespondence,
+                    // The offered Case files staff ticked (R1151).
+                    OfferedFileIds: offeredFile ?? []),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

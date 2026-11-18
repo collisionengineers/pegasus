@@ -206,6 +206,55 @@ public sealed class AutomationSendIngressTests
         var request = Assert.Single(sends.Requests);
         Assert.Equal(caseId, request.CaseId);
         Assert.True(request.TidiesCaseCorrespondence);
+        // No offered Case file was named (R1151).
+        Assert.Null(request.OfferedFileIds);
+    }
+
+    /// <summary>
+    /// caseDocumentIds names the offered Case files to attach, as the Send
+    /// report dialog's unticked rows do when ticked (R1151): the send carries
+    /// them to the staff command, which refuses one the plan does not offer.
+    /// </summary>
+    [Fact]
+    public async Task ReportSendCarriesTheOfferedCaseFilesNamed()
+    {
+        var generationId = Guid.NewGuid();
+        var sends = new RecordingReportSend();
+        var mailbox = OutgoingMailbox();
+        var invoice = Guid.NewGuid();
+        var estimate = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory).WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ISendCaseReport>();
+                services.AddSingleton<ISendCaseReport>(sends);
+                services.RemoveAll<IApprovedMailboxStore>();
+                services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailbox));
+                WithCurrentGeneration(services, generationId);
+            }));
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, SendScopes);
+        await EnsureInReviewAsync(mcpFactory, client, token, caseId);
+        var version = await GetWorkflowVersionAsync(mcpFactory, caseId);
+
+        using var sent = await PostMcpAsync(client, token, ToolCallPayload(17, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-offered-files",
+            coveringMessage = "Please find our report attached.",
+            to = Handler,
+            fromMailbox = mailbox.Address,
+            caseDocumentIds = new[] { invoice, estimate },
+        }));
+        var result = await ReadStructuredContentAsync(sent);
+        Assert.Equal(nameof(StaffMailState.Submitted), result.GetProperty("state").GetString());
+
+        var request = Assert.Single(sends.Requests);
+        Assert.Equal(caseId, request.CaseId);
+        Assert.Equal([invoice, estimate], request.OfferedFileIds);
     }
 
     [Fact]

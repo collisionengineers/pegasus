@@ -700,7 +700,8 @@ public sealed class PrincipalReportSendingSeedTests
     /// one active Principal, code ULA, always Image Based Assessment, on the
     /// Garage authorisation and invoice Audit workflow with the ULA Invoice,
     /// the standard default fee and report names, the default sending rules
-    /// and no Invoice VAT number, payment terms or notes. No other Principal
+    /// with both Offer ticks on (R1151), and no Invoice VAT number, payment
+    /// terms or notes. No other Principal
     /// is on that workflow or has an invoice of its own, and the seed met
     /// again changes nothing.
     /// </summary>
@@ -723,7 +724,13 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Null(principal.InspectionReportNameFirst);
         Assert.Null(principal.AuditReportNameFirst);
         Assert.Null(principal.SalvageMatrixJson);
-        Assert.Equal(PrincipalReportSendingRules.Default, principals["ULA"].Rules);
+        var offering = PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
+        };
+        Assert.Equal(offering, principals["ULA"].Rules);
+        // Stored as the serializer writes it, the two Offer ticks after the rest.
+        Assert.Equal(EfOrganizationAdministration.ToReportSendingJson(offering), principal.ReportSendingRulesJson);
         var organization = organizations[principal.OrganizationId];
         Assert.Equal("United Legal Assistance Limited", organization.Name);
         Assert.Equal("principal", organization.Role);

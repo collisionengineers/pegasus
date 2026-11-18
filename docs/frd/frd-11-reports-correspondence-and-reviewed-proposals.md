@@ -367,7 +367,8 @@ separately addressable artifact in custody:
   pack to generate.
 
 A delivery attaches the documents the operator chose. A Principal's report
-sending rules can also require companions and attach the Case's filed estimates
+sending rules can also require companions, attach the Case's filed estimates
+and offer its External estimates and Repair invoices for staff to tick
 ([Report sending rules](#report-sending-rules)). Without a choice every
 artifact the generation holds attaches and a partly confirmed generation
 yields nothing; with a choice, exactly the chosen documents must be present
@@ -423,14 +424,15 @@ for the send, the report included, the stem alone, since every delivered
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
 Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R665, R671, R672). A name staff give
+not renamed (operator, 4 November 2026, R665, R671, R672), and so do the
+offered Case files staff tick ([R1151](../rulings.md)). A name staff give
 follows custody's rule: a character no file name can hold becomes `_`, and
 the whole name, `.pdf` included, is at most 120 characters; a longer one is
 refused with "A file name cannot exceed 120 characters." No two attachments
 of one send share a name, case ignored: a later document whose name an
 earlier attachment already carries gains " (2)", " (3)" and so on before
 `.pdf`, its stem shortened to keep within 120 characters, and since a filed
-estimate keeps its filed name, a document carrying it is the one numbered
+estimate or an offered Case file keeps its filed name, a document carrying it is the one numbered
 (operator, 10 November 2026; [R895](../rulings.md), [R896](../rulings.md)). The delivery
 carries one covering message, which starts as
 the Case report delivery template
@@ -645,7 +647,8 @@ same click as Send report (operator, 4 November 2026, R665).
 - **Attach overrides.** A rule that holds replaces the Attach choices it
   names for that send, in rule order, so a later rule wins; the ones it
   leaves As the Principal keep the Principal's (operator, 16 October 2026).
-  The companions, filed estimates and fee note below follow the result.
+  The companions, filed estimates, offered Case files and fee note below
+  follow the result.
 - **Required companions.** A Principal may require the images document, the
   figure breakdown (the Repair Spec) or both. A required companion is ticked
   and cannot be unticked, and Send report is withheld while it is not
@@ -654,6 +657,19 @@ same click as Send report (operator, 4 November 2026, R665).
   recognised filed estimates in the Audatex format; one that sends the estimate
   attaches the recognised ones in any other format. They are rechecked at send
   like every other attachment. None filed is a warning, not a hold.
+- **Offered Case files.** A Principal that offers external estimates, repair
+  invoices or both lists each confirmed, current External estimate or Repair
+  invoice on the Case, in the Case's file order, as a Files row on the form,
+  unticked, after the ULA Invoice and the filed estimates; staff tick the
+  ones that go. A file the Estimate or Audatex tick already attaches is not
+  offered a second time. A ticked file attaches after the filed estimates,
+  in the offered order, under the name it was filed with, and is rechecked at
+  send like every other attachment. A send naming a file the form does not
+  offer now (removed, another Case's, or of a type the rules no longer offer)
+  is refused with "One or more selected attachments changed or are no longer
+  available. Review the attachments and try again." and sends nothing
+  (operator, 17 November 2026; [R1151](../rulings.md),
+  [R1158](../rulings.md)).
 - **Report images.** A Principal whose report carries no vehicle images has its
   report generated without them
   ([Report generation entry point](#report-generation-entry-point)); the images

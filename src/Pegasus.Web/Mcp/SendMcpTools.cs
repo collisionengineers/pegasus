@@ -99,6 +99,7 @@ internal sealed class SendMcpTools(
         [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. Filed estimates keep their filed names; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
         [Description("Names for the other report's documents, as attachmentNames takes them. Read only with otherReport.")] Dictionary<string, string>? otherAttachmentNames = null,
         [Description("true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the send form's Delete case correspondence tick does. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
+        [Description("The occurrence identifiers of offered Case files to attach as well: the Case's confirmed External estimates and Repair invoices that the Principal's report sending rules offer. An identifier that is not offered is refused.")] Guid[]? caseDocumentIds = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -171,7 +172,9 @@ internal sealed class SendMcpTools(
                                 second,
                                 Subject: subject,
                                 AttachmentNames: names,
-                                TidiesCaseCorrespondence: deleteCaseCorrespondence),
+                                TidiesCaseCorrespondence: deleteCaseCorrespondence,
+                                // Offered Case files, refused unless offered (R1151).
+                                OfferedFileIds: caseDocumentIds),
                             cancellationToken),
                         cancellationToken);
                 }

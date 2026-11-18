@@ -1540,6 +1540,132 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// R1151: each External estimate and Repair invoice the Principal's Offer
+    /// ticks list is a Files row after the ULA Invoice, unticked, named with
+    /// its document type and size, posting its occurrence; a file the
+    /// Estimate or Audatex tick already attaches is not offered again
+    /// (R1158).
+    /// </summary>
+    [Fact]
+    public async Task TheDialogOffersEachOfferedFileUntickedAfterTheUlaInvoice()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var estimate = new OfferedCaseFile(
+            Guid.NewGuid(),
+            Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate,
+            new(Guid.NewGuid(), Guid.NewGuid(), new string('e', 64), 2048, "Garage estimate.pdf", "application/pdf"));
+        var invoice = new OfferedCaseFile(
+            Guid.NewGuid(),
+            Pegasus.Core.Documents.DocumentSemanticRole.RepairInvoice,
+            new(Guid.NewGuid(), Guid.NewGuid(), new string('f', 64), 1024, "Repair invoice.pdf", "application/pdf"));
+        var recognised = new OfferedCaseFile(
+            Guid.NewGuid(),
+            Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate,
+            new(Guid.NewGuid(), Guid.NewGuid(), new string('a', 64), 500, "Audatex estimate.pdf", "application/pdf"));
+        var facts = new ReportDispatchFacts(
+            "QDOS26001", "PK12TMZ", "Principal Ltd",
+            PrincipalReportSendingRules.Default with
+            {
+                Attach = ReportSendingAttachments.Default with
+                {
+                    Audatex = true,
+                    OfferExternalEstimates = true,
+                    OfferRepairInvoices = true
+                }
+            },
+            null)
+        {
+            OriginalSender = "handler@principal.example",
+            FiledEstimates = [new FiledEstimateAttachment(recognised.Attachment, Pegasus.Core.Assessment.EstimateFormats.AudatexProvider)],
+            OfferableFiles = [estimate, recognised, invoice]
+        };
+        using var factory = WithDispatchFacts(
+            baseFactory,
+            caseId,
+            new FakeCurrentGeneration(
+                caseId,
+                feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+                principalInvoiceStatus: CaseReportArtifactStatus.Confirmed,
+                principalInvoice: PrincipalInvoiceFacts),
+            facts,
+            CaseReportSendHistory.None);
+        using var client = Client(factory);
+
+        var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
+
+        var form = FormHtml(html, "SendReport");
+        Assert.Equal(
+            [estimate.OccurrenceId.ToString("D"), invoice.OccurrenceId.ToString("D")],
+            InputValues(form, "offeredFile"));
+        foreach (var (file, label) in new[]
+        {
+            (estimate, Pegasus.Web.Presentation.OperatorLabels.DocumentRole(Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate)),
+            (invoice, Pegasus.Web.Presentation.OperatorLabels.DocumentRole(Pegasus.Core.Documents.DocumentSemanticRole.RepairInvoice))
+        })
+        {
+            var row = Regex.Match(
+                form,
+                $"<div class=\"send-file\" data-send-file=\"offered\" data-report-offered-file=\"{file.OccurrenceId:D}\">[\\s\\S]*?</div>\\s*</div>");
+            Assert.True(row.Success, "Each offered file is a Files row.");
+            var tick = InputTag(row.Value, "name=\"offeredFile\"");
+            Assert.DoesNotContain("checked", tick, StringComparison.Ordinal);
+            Assert.Contains($"aria-label=\"{label}\"", tick, StringComparison.Ordinal);
+            Assert.Contains($"<b data-send-file-label>{file.Attachment.FileName}</b>", row.Value, StringComparison.Ordinal);
+            Assert.Contains(
+                Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.KindAndSize(label, file.Attachment.ContentLength),
+                row.Value,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("data-rename-file", row.Value, StringComparison.Ordinal);
+            Assert.True(
+                form.IndexOf($"data-send-file=\"{CaseReportArtifactKind.PrincipalInvoice}\"", StringComparison.Ordinal)
+                    < row.Index);
+        }
+        // The file the Audatex tick attaches is its filed estimate row only.
+        Assert.DoesNotContain(recognised.OccurrenceId.ToString("D"), form, StringComparison.Ordinal);
+        Assert.Contains("<b data-send-file-label>Audatex estimate.pdf</b>", form, StringComparison.Ordinal);
+    }
+
+    /// <summary>The offered files staff ticked reach the send (R1151).</summary>
+    [Fact]
+    public async Task SendReportCarriesTheTickedOfferedFiles()
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var caseId = Guid.NewGuid();
+        var send = new RecordingSendReport(StaffMailState.Submitted);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            sendReport: send);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        var estimate = Guid.NewGuid();
+        var invoice = Guid.NewGuid();
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", Guid.NewGuid().ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("coveringMessage", "Edited by staff.\r\n\r\nKind regards"),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("offeredFile", estimate.ToString("D")),
+                ("offeredFile", invoice.ToString("D"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(send.Requests);
+        Assert.Equal([estimate, invoice], request.OfferedFileIds);
+    }
+
+    /// <summary>
     /// A companion the Principal requires is attached as a fixed value and
     /// labelled as required once it is generated; one that is not generated
     /// yet is named and withholds Send report.
