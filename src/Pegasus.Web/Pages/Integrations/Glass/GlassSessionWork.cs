@@ -180,7 +180,7 @@ public sealed partial class GlassSessionWork(
                         built.CaseId,
                         lease.Version,
                         lease.Token,
-                        ReopenOperationKey(built),
+                        GlassRepairEstimateSessionPolicy.BuildReopenOperationKey(built),
                         sessionId)
                     {
                         SpecificationId = specificationId,
@@ -197,10 +197,6 @@ public sealed partial class GlassSessionWork(
             }
         }
     }
-
-    /// <summary>The operation key of the reopen that follows a build: one per build.</summary>
-    private static string ReopenOperationKey(GlassRepairEstimateSession built) =>
-        $"{built.OperationKey}:reopen";
 
     private static bool IsExpectedRefusal(Exception exception) =>
         exception is GlassRepairEstimateRefusalException

@@ -160,6 +160,44 @@ public static class GlassRepairEstimateSessionPolicy
         return followsCase ? (registration, mileage) : (recordedRegistration, recordedMileage);
     }
 
+    /// <summary>
+    /// The operation key of the reopen a build's own work makes of the spec it
+    /// landed (operator, 18 November 2026; R1171): the build's own key with a
+    /// suffix. Operation keys are unique, so it names that one reopen and no
+    /// other session, and a second run of it is a replay that sends nothing.
+    /// </summary>
+    public static string BuildReopenOperationKey(GlassRepairEstimateSession build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        return build.OperationKey + ":reopen";
+    }
+
+    /// <summary>
+    /// The build whose list the member of staff sees on the Case (R1173):
+    /// their newest session's, or, while their newest session is the reopen
+    /// that build's own work made, the build's, because that reopen is part
+    /// of the same press. Their next press of Glass's makes a newer session
+    /// and ends it. <paramref name="previous"/> is the session made directly
+    /// before <paramref name="newest"/>.
+    /// </summary>
+    public static GlassEstimateBuild? ListedBuild(
+        GlassRepairEstimateSession? newest, GlassRepairEstimateSession? previous)
+    {
+        if (newest is null)
+        {
+            return null;
+        }
+        if (newest.Build is not null)
+        {
+            return newest.Build;
+        }
+
+        return previous is { Build.BuiltSpecificationId: not null }
+            && string.Equals(newest.OperationKey, BuildReopenOperationKey(previous), StringComparison.Ordinal)
+                ? previous.Build
+                : null;
+    }
+
     public static bool OccupiesAccount(GlassRepairEstimateSessionState state) => state is
         GlassRepairEstimateSessionState.Prepared or GlassRepairEstimateSessionState.Launching
         or GlassRepairEstimateSessionState.Active or GlassRepairEstimateSessionState.Importing
