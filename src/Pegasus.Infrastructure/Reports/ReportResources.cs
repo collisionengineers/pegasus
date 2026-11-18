@@ -64,6 +64,18 @@ internal static class ReportResources
     private static readonly Lazy<Image> SharedEvaHeader = new(() => Shared("eva.header.jpg"));
     private static readonly Lazy<Image> SharedEvaFooter = new(() => Shared("eva.footer.jpg"));
 
+    /// <summary>
+    /// The ULA Invoice's logo and its footer banner, the images its draft
+    /// carries (R1147). The banner is the whole footer, its words included,
+    /// so the invoice prints no footer text. Shared as the logo is.
+    /// </summary>
+    internal static Image UlaLogo() => SharedUlaLogo.Value;
+
+    internal static Image UlaFooter() => SharedUlaFooter.Value;
+
+    private static readonly Lazy<Image> SharedUlaLogo = new(() => Shared("ula.logo.jpg"));
+    private static readonly Lazy<Image> SharedUlaFooter = new(() => Shared("ula.footer.jpg"));
+
     private static Image Shared(string suffix)
     {
         using var stream = Open(suffix);

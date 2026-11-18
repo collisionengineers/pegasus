@@ -236,6 +236,7 @@ public sealed class CaseReportDeliveryTests
         Assert.Equal("images document", CaseReportDeliveryPolicy.CompanionWords(CaseReportArtifactKind.ImagePack));
         Assert.Equal("figure breakdown", CaseReportDeliveryPolicy.CompanionWords(CaseReportArtifactKind.RepairSpecification));
         Assert.Equal("fee note", CaseReportDeliveryPolicy.CompanionWords(CaseReportArtifactKind.FeeNote));
+        Assert.Equal("ULA Invoice", CaseReportDeliveryPolicy.CompanionWords(CaseReportArtifactKind.PrincipalInvoice));
     }
 
     // ---- generation and readiness ------------------------------------------------

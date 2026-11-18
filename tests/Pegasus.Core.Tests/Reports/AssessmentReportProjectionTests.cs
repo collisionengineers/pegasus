@@ -206,6 +206,22 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
+    /// The Principal's own invoice's facts reach the snapshot as the source
+    /// loaded them, and a Principal with none freezes none (R1147).
+    /// </summary>
+    [Fact]
+    public void ThePrincipalsInvoiceFactsReachTheSnapshotAsLoaded()
+    {
+        var invoice = new UlaInvoiceSnapshot(
+            ["United Legal Assistance", "Southport PR9 0AE"], ["Alex Example"], "FORD FOCUS", "GB 1", "30 days");
+
+        Assert.Null(AssessmentReportProjection.Project(ReadyInput()).Snapshot!.PrincipalInvoice);
+        Assert.Same(
+            invoice,
+            AssessmentReportProjection.Project(ReadyInput() with { PrincipalInvoice = invoice }).Snapshot!.PrincipalInvoice);
+    }
+
+    /// <summary>
     /// The markers are the report's picture only: they reach the snapshot as
     /// discs and name no impact (v46).
     /// </summary>

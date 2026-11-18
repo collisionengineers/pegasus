@@ -224,7 +224,10 @@ The Principal section of a Contact carries:
   ULA Invoice, the invoice Generate report also makes in the Principal's own
   name. With it go an Invoice VAT number of 20 characters at most and Invoice
   payment terms of 100 at most, each printed as typed and left off the
-  invoice when empty. A successor code inherits its predecessor's. United
+  invoice when empty. Generate report reads the setting and the two values
+  when it freezes the report, and makes the ULA Invoice from them
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
+  A successor code inherits its predecessor's. United
   Legal Assistance Limited, code `ULA`, is the one Principal seeded on the
   Garage authorisation & invoice workflow with the ULA Invoice
   ([R1145](../rulings.md), [R1152](../rulings.md));

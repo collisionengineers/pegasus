@@ -126,7 +126,68 @@ public sealed partial class AssessmentReportDraftWebTests
             InputValue(reportForm, "operationKey"),
             InputValue(reportForm, "feeNoteOperationKey"));
         Assert.DoesNotContain("handler=GenerateFeeNote", html, StringComparison.Ordinal);
+        // The Principal's own invoice follows the fee note under a key of its own (R1147).
+        var invoiceKey = InputValue(reportForm, "principalInvoiceOperationKey");
+        Assert.False(string.IsNullOrWhiteSpace(invoiceKey));
+        Assert.NotEqual(InputValue(reportForm, "operationKey"), invoiceKey);
+        Assert.NotEqual(InputValue(reportForm, "feeNoteOperationKey"), invoiceKey);
     }
+
+    /// <summary>
+    /// A confirmed report and fee note whose Principal's own invoice is due
+    /// and not confirmed offers Generate report again with the report's own
+    /// key, as for a fee note: the report replays and the invoice is made,
+    /// under its retained key when it was tried before (R1147).
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(CaseReportArtifactStatus.Failed)]
+    public async Task AConfirmedReportWhoseInvoiceIsDueOffersGenerateReportReplayingTheReport(
+        CaseReportArtifactStatus? invoiceStatus)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string retainedOperationKey = "retained-principal-invoice-operation";
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+                    reportOperationKey: "confirmed-report-operation",
+                    principalInvoiceStatus: invoiceStatus,
+                    principalInvoiceOperationKey: retainedOperationKey,
+                    principalInvoice: PrincipalInvoiceFacts));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        var reportForm = FormHtml(html, "GenerateReport");
+
+        Assert.Equal("confirmed-report-operation", InputValue(reportForm, "operationKey"));
+        var invoiceKey = InputValue(reportForm, "principalInvoiceOperationKey");
+        if (invoiceStatus is null)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(invoiceKey));
+            Assert.NotEqual(retainedOperationKey, invoiceKey);
+        }
+        else
+        {
+            Assert.Equal(retainedOperationKey, invoiceKey);
+        }
+    }
+
+    /// <summary>What the Principal's own invoice prints beyond the report, for a Principal that has one.</summary>
+    private static readonly UlaInvoiceSnapshot PrincipalInvoiceFacts = new(
+        ["United Legal Assistance Limited", "130c Lord Street", "Southport PR9 0AE"],
+        ["Alex Example"],
+        "FORD FOCUS");
 
     [Fact]
     public async Task ConfirmedReportDoesNotRenderAFreshConflictingSubmission()
@@ -324,6 +385,49 @@ public sealed partial class AssessmentReportDraftWebTests
             StringComparison.Ordinal);
         Assert.Contains("checked=\"checked\"", AttachChoice(html, CaseReportArtifactKind.FeeNote), StringComparison.Ordinal);
         Assert.DoesNotContain("checked", AttachChoice(html, CaseReportArtifactKind.RepairSpecification), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The ULA Invoice is listed after the fee note and starts ticked, as the
+    /// fee note does (R1151).
+    /// </summary>
+    [Fact]
+    public async Task AttachStartsWithTheUlaInvoiceTicked()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+                    principalInvoiceStatus: CaseReportArtifactStatus.Confirmed,
+                    principalInvoice: PrincipalInvoiceFacts));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+
+        Assert.Contains(
+            "checked=\"checked\"",
+            AttachChoice(html, CaseReportArtifactKind.PrincipalInvoice),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"aria-label=\"{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.AttachPrincipalInvoice}\"",
+            AttachChoice(html, CaseReportArtifactKind.PrincipalInvoice),
+            StringComparison.Ordinal);
+        Assert.True(
+            html.IndexOf($"data-send-file=\"{CaseReportArtifactKind.FeeNote}\"", StringComparison.Ordinal)
+                < html.IndexOf($"data-send-file=\"{CaseReportArtifactKind.PrincipalInvoice}\"", StringComparison.Ordinal));
+        // The invoice is confirmed, so Generate report is not offered for it.
         Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
     }
 
@@ -1992,7 +2096,10 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? imagePackStatus = null,
         string? imagePackOperationKey = null,
         bool reportFiled = false,
-        bool stale = false)
+        bool stale = false,
+        CaseReportArtifactStatus? principalInvoiceStatus = null,
+        string? principalInvoiceOperationKey = null,
+        UlaInvoiceSnapshot? principalInvoice = null)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -2005,7 +2112,10 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecOperationKey,
             imagePackStatus,
             imagePackOperationKey,
-            reportFiled) is var generation && stale
+            reportFiled,
+            principalInvoiceStatus,
+            principalInvoiceOperationKey,
+            principalInvoice) is var generation && stale
                 ? generation with { State = CaseReportGenerationState.Stale }
                 : generation;
 
@@ -2145,11 +2255,15 @@ public sealed partial class AssessmentReportDraftWebTests
         string? repairSpecOperationKey = null,
         CaseReportArtifactStatus? imagePackStatus = null,
         string? imagePackOperationKey = null,
-        bool reportFiled = false)
+        bool reportFiled = false,
+        CaseReportArtifactStatus? principalInvoiceStatus = null,
+        string? principalInvoiceOperationKey = null,
+        UlaInvoiceSnapshot? principalInvoice = null)
     {
         reportOperationKey ??= "operation-1";
         var input = ReadyInput(caseId);
-        var report = AssessmentReportProjection.Project(input).Snapshot!;
+        // The Principal's own invoice's facts, frozen only for a Principal that has one (R1147).
+        var report = AssessmentReportProjection.Project(input).Snapshot! with { PrincipalInvoice = principalInvoice };
         var generationId = Guid.NewGuid();
         var snapshot = new CaseReportGenerationSnapshot(
             caseId, 0, "CE-100", reportOperationKey, CaseReportActor.None, ReportFixtureAtUtc,
@@ -2202,6 +2316,13 @@ public sealed partial class AssessmentReportDraftWebTests
             imagePackStatus,
             imagePackOperationKey,
             "CE_100_images.pdf");
+        AddCompanionArtifact(
+            artifacts,
+            generationId,
+            CaseReportArtifactKind.PrincipalInvoice,
+            principalInvoiceStatus,
+            principalInvoiceOperationKey,
+            "ULA_Invoice_P_100.pdf");
         return new(
             generationId, caseId, 0, 1, new string('b', 64), snapshot,
             AssessmentReportContract.TemplateVersion, "fake",

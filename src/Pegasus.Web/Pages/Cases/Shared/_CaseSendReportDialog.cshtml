@@ -43,6 +43,7 @@
     static string KindLabel(CaseReportArtifactKind kind) => kind switch
     {
         CaseReportArtifactKind.FeeNote => ReportLabels.AttachFeeNote,
+        CaseReportArtifactKind.PrincipalInvoice => ReportLabels.AttachPrincipalInvoice,
         CaseReportArtifactKind.RepairSpecification => ReportLabels.AttachRepairSpec,
         CaseReportArtifactKind.ImagePack => ReportLabels.AttachImages,
         _ => ReportLabels.AttachReport,
@@ -52,6 +53,7 @@
         {
             CaseReportArtifactKind.AssessmentReport,
             CaseReportArtifactKind.FeeNote,
+            CaseReportArtifactKind.PrincipalInvoice,
             CaseReportArtifactKind.RepairSpecification,
             CaseReportArtifactKind.ImagePack,
         }
@@ -209,9 +211,9 @@
                     </div>
                     @* Items D and E: one row per attachment. The include tick
                        follows P22's Attach rules (the report, and a companion
-                       the Principal requires, always on; the fee note on; the
-                       rest off; the other work's report off; a filed estimate
-                       on, posting nothing). The name opens the file in the
+                       the Principal requires, always on; the fee note and the
+                       ULA Invoice on (R1151); the rest off; the other work's
+                       report off; a filed estimate on, posting nothing). The name opens the file in the
                        Case viewer; Rename gives this send the name typed, .pdf
                        kept, and Reset the policy name; a filed estimate keeps
                        its filed name. *@
@@ -241,7 +243,7 @@
                                         {
                                             <label class="choice" for="@attachId">
                                                 <input type="checkbox" id="@attachId" name="attach" value="@kind"
-                                                       checked="@(kind == CaseReportArtifactKind.FeeNote)"
+                                                       checked="@(kind is CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice)"
                                                        data-report-attach-choice="@kind" aria-label="@label" />
                                             </label>
                                         }

@@ -1283,7 +1283,8 @@ the To and Cc boxes with the Case's known addresses offered on every one
 (v28 P21), Subject prefilled with the derived subject for staff to change
 (R667), the covering message in an editable box pre-filled from the Case
 report delivery template, and **Files**, one row per document the send can
-carry, each with its include tick (v28 P22; Report and Fee note ticked), its
+carry, each with its include tick (v28 P22; Report and Fee note ticked, and
+the ULA Invoice after the Fee note, ticked; [R1151](../rulings.md)), its
 name, its kind and size ("Report · 1.2 MB", "Fee note · under 0.1 MB", and
 "Inspection · Report · 1.2 MB" for the other work's rows), and Rename, named
 "Rename {file name}" for the name the row currently shows, so a rename or

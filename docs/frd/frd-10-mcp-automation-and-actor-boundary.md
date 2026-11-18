@@ -302,14 +302,21 @@ A Case is never deleted.
 report generations with their artifacts, filing state and SHA-256, the
 recorded report approval, the linked report-Sent evidence and the retained
 Sent evidence available to link. `pegasus_report_action` generates the report,
-which goes on to make its separate fee note, and the Repair Spec and images
-documents of a confirmed generation; records report approval of one stored
+which goes on to make its separate fee note and then, for a Principal whose
+setting asks for it, the ULA Invoice (operator, 17 November 2026;
+[R1147](../rulings.md);
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
+and the Repair Spec and images documents of a confirmed generation; records
+report approval of one stored
 artifact; and links or unlinks report-Sent evidence, each through the staff
 command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 Report approval is by staff or the Automation actor (operator, 7 October
 2026). A report that is not ready answers with its readiness reasons and
 records nothing. An approval, archive or evidence link the Actor records is
-attributed to it and reads back as the Automation actor.
+attributed to it and reads back as the Automation actor. A generate_report
+result gives the fee note's outcome as `feeNoteOutcome` and the ULA Invoice's
+as `principalInvoiceOutcome`, each null when none was made; there is no act
+that makes the ULA Invoice on its own.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
 it in the report or takes it out, marks the Audit's original report, changes
@@ -365,8 +372,10 @@ its parameters describe.
   no hold and overrides no Stop of the Principal's report sending rules
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
   It holds the Case's lease for its one send unless a lease token is
-  presented. Its result is the send's state and `attachments`, the file
-  names the e-mail carries, in order (R703); a caller reports what was sent
+  presented. Its `attach` takes `FeeNote`, `PrincipalInvoice` (the ULA
+  Invoice), `RepairSpecification` and `ImagePack`. Its result is the send's
+  state and `attachments`, the file names the e-mail carries, in order
+  (R703); a caller reports what was sent
   from `attachments`, not from what it asked for (R704).
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser; `reply`,

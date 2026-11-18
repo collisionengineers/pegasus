@@ -1151,6 +1151,7 @@ public static class CaseWorkspaceLabels
         public const string ReportGenerated = "The report was generated.";
         public const string ReportNotGenerated = "The report could not be generated.";
         public const string FeeNoteNotGenerated = "The fee note could not be generated.";
+        public const string PrincipalInvoiceNotGenerated = "The ULA Invoice could not be generated.";
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
@@ -1191,6 +1192,7 @@ public static class CaseWorkspaceLabels
             CaseReportArtifactKind.AssessmentReport => "The report",
             CaseReportArtifactKind.FeeNote => "The fee note",
             CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
+            CaseReportArtifactKind.PrincipalInvoice => "The ULA Invoice",
             _ => "The images",
         };
 
@@ -1260,6 +1262,7 @@ public static class CaseWorkspaceLabels
         public const string Attach = "Attach";
         public const string AttachReport = "Report";
         public const string AttachFeeNote = "Fee note";
+        public const string AttachPrincipalInvoice = "ULA Invoice";
         public const string AttachRepairSpec = "Repair Spec";
         public const string AttachImages = "Images";
         public const string FileName = "File name";
