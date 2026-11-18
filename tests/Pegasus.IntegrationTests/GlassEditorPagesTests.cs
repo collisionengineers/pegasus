@@ -191,7 +191,7 @@ public sealed class GlassEditorPagesTests
             GlassEditorFixture.Session(),
             new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)));
 
-        Assert.Equal(page.GetProperty("groups").GetString(), GlassRepairEstimateGateway.PartListGroups);
+        Assert.Equal(GlassRepairEstimateGateway.PartListGroups, page.GetProperty("groups").GetString());
         Assert.Equal(page.GetProperty("address").GetString(), at.PartList(GlassRepairEstimateGateway.PartListGroups));
     }
 
