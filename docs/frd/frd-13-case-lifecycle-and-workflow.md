@@ -216,8 +216,8 @@ never changes the Case state and records no handoff.
   with every requirement met it enters Review, and a garage Audit whose
   wait has ended returns to With Engineer. The release's history line shows
   the move; a garage Audit's move is a line of its own after it, in the
-  sweep's words (operator, 18 November 2026; [R1178](../rulings.md),
-  [R1182](../rulings.md)).
+  sweep's words (operator, 18 November 2026; [R1196](../rulings.md),
+  [R1199](../rulings.md)).
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review,
   With Engineer and Report sent under the normal edit authority. They are
@@ -431,7 +431,7 @@ invoice moves the Case at once, and so does filing the External estimate
 move a complete Not ready Case into Review: Change type and an Automation
 upload in their own save, and a file added from the Case as it is filed.
 Each move is a line of its own in the Case's history (operator, 18 November
-2026; [R1177](../rulings.md)). A file that arrives or takes its type any
+2026; [R1195](../rulings.md)). A file that arrives or takes its type any
 other way, an e-mailed attachment say, or that is filed while somebody is
 editing the Case, is moved on by the Worker's one-minute sweep, which leaves
 a Case somebody is editing until the edit session ends.
@@ -439,7 +439,7 @@ a Case somebody is editing until the edit session ends.
 **Total loss and cash in lieu.** A recorded Outcome of Total loss or Cash in
 lieu waives both: Authorise garage is not asked, a Case already waiting for
 its invoice returns to With Engineer in the save that records the Outcome,
-inside an edit session too ([R1177](../rulings.md)), and neither holds the
+inside an edit session too ([R1195](../rulings.md)), and neither holds the
 report ([R1143](../rulings.md)).
 
 **Undo garage authorisation** is in the Actions menu once the garage is
@@ -585,7 +585,7 @@ Automation Actor action.
 | Review | With Engineer | Assign Engineer or Take, to an Engineer or Unassigned (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)), or the headless start command |
 | With Engineer | With Engineer, another Engineer or Unassigned | Assign Engineer or Take (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
 | Not ready, Review, With Engineer | Held | Place on Hold (reason) |
-| Held | previous state | Release Hold (reason); a Case returning to Not ready whose requirements were met while it was held moves on at once, as a Not ready Case would ([R1178](../rulings.md)) |
+| Held | previous state | Release Hold (reason); a Case returning to Not ready whose requirements were met while it was held moves on at once, as a Not ready Case would ([R1196](../rulings.md)) |
 | With Engineer | Report sent | Mark report sent, or the Worker's automatic link of the report's Sent evidence, an Inspection + Audit Case with no Audit included (operator, 5 November 2026; R705) |
 | Report sent | With Engineer | Return to Engineer (reason), or Unlink report evidence |
 | With Engineer, Report sent | Review | Return to Review (reason) |

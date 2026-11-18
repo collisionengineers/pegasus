@@ -95,8 +95,18 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </remarks>
 public sealed class EfGlassRepairEstimateSessionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IGlassRepairEstimateSessionStore, IGlassRepairEstimateSessionReader
+    TimeProvider timeProvider)
+    : IGlassRepairEstimateSessionStore, IGlassRepairEstimateSessionReader, IGlassSessionHelpStore
 {
+    /// <summary>The history rows of a Glass's session are written against its own aggregate.</summary>
+    private const string SessionAggregate = "glass-repair-estimate-session";
+
+    /// <summary>A member of staff turned Automation help on or off for their session (R1170).</summary>
+    private const string HelpEvent = "glass_session_help";
+
+    /// <summary>One act the Automation made in a member of staff's session with help on.</summary>
+    private const string HelpActEvent = "glass_session_help_act";
+
     /// <summary>
     /// How a build is written: enums by name, so a stored build reads the same
     /// whatever order the members are declared in, and no derived count.
@@ -131,6 +141,116 @@ public sealed class EfGlassRepairEstimateSessionStore(
         var entity = await context.Set<GlassRepairEstimateSessionEntity>()
             .AsNoTracking()
             .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : ToSession(entity);
+    }
+
+    public async Task<GlassRepairEstimateCaseSession?> GetForCaseWithBuildAsync(
+        Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var sessions = context.Set<GlassRepairEstimateSessionEntity>().AsNoTracking();
+        // One statement: the same order as GetForCaseAsync, two rows (the
+        // newest session and the one made directly before it), and the
+        // Case's newest Automation session beside them (design 07 section 2).
+        var own = sessions
+            .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId
+                && item.OwnerKind == GlassSessionOwner.Staff)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(2);
+        var automation = sessions
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(1);
+        var entities = await own.Concat(automation).ToListAsync(cancellationToken);
+        if (entities.Count == 0)
+        {
+            return null;
+        }
+
+        // A union keeps no order, so the rows are put in it here.
+        var staff = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Staff)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(ToSession)
+            .ToList();
+        var newest = staff.Count > 0 ? staff[0] : null;
+        var previous = staff.Count > 1 ? staff[1] : null;
+        var automationSession = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Automation)
+            .Select(ToSession)
+            .FirstOrDefault();
+        return new(newest, GlassRepairEstimateSessionPolicy.ListedBuild(newest, previous), automationSession);
+    }
+
+    /// <summary>
+    /// One query on the Case and the owner, as <see cref="GetAutomationForCaseAsync"/>
+    /// makes, reading every Automation session of the Case that has work
+    /// recorded; the key is found in their acts here.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+        Guid caseId, string operationKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation
+                && item.AutomationJson != null)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .ToListAsync(cancellationToken);
+        return entities
+            .Select(ToSession)
+            .FirstOrDefault(session => GlassAutomationPositionPolicy.Find(session.Automation, operationKey) is not null);
+    }
+
+    /// <summary>
+    /// One statement on the Case, as <see cref="GetForCaseWithBuildAsync"/>
+    /// makes: the Case's staff sessions that are <c>Active</c> or have had
+    /// help on, and its newest Automation session beside them.
+    /// </summary>
+    public async Task<GlassSessionHelpCandidates> FindHelpableForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var sessions = context.Set<GlassRepairEstimateSessionEntity>().AsNoTracking();
+        var staff = sessions
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Staff
+                && (item.State == GlassRepairEstimateSessionState.Active || item.HelpOnAtUtc != null));
+        var automation = sessions
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(1);
+        var entities = await staff.Concat(automation).ToListAsync(cancellationToken);
+
+        // A union keeps no order, so the rows are put in it here.
+        var staffSessions = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Staff)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(ToSession)
+            .ToList();
+        var automationSession = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Automation)
+            .Select(ToSession)
+            .FirstOrDefault();
+        return new(automationSession, staffSessions);
+    }
+
+    public async Task<GlassRepairEstimateSession?> GetAutomationForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.Id)
             .FirstOrDefaultAsync(cancellationToken);
@@ -191,6 +311,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             Id = session.Id,
             CaseId = session.CaseId,
             UserId = session.PegasusUserId,
+            OwnerKind = OwnerOf(session.OwnerKind),
             CredentialGeneration = session.CredentialGeneration,
             NormalizedAccountKey = accountKey,
             ActiveAccountKey = OccupiesAccount(session.State) ? accountKey : null,
@@ -204,6 +325,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             ProtectedSession = material.ProtectedProviderState,
             ResultArtifactsJson = material.ResultArtifactsJson,
             BuildJson = WriteBuild(session.Build),
+            AutomationJson = WriteAutomation(session.Automation),
             LastError = session.FailureCode,
             Version = session.Version,
         };
@@ -281,6 +403,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         // ones GetAsync handed it.
         entity.ResultArtifactsJson = material.ResultArtifactsJson;
         entity.BuildJson = WriteBuild(session.Build);
+        entity.AutomationJson = WriteAutomation(session.Automation);
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
         AddHistory(context, entity, previousState, session.State, now);
@@ -320,8 +443,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
 
     /// <summary>
     /// A replayed operation key must name the same launch: the same Case, the
-    /// same Pegasus user, the same credential generation and the same
-    /// account key. Anything else under that key is a collision, and
+    /// same owner (the same Pegasus user, or the Automation), the same
+    /// credential generation and the same account key. Anything else under that key is a collision, and
     /// returning the recorded session would hand one launch's provider material
     /// to another — a rotated credential or a different account is a different
     /// launch even when the Case and user match. The protected provider state
@@ -335,6 +458,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         string operationKey) =>
         replay.CaseId == session.CaseId
         && replay.UserId == session.PegasusUserId
+        && string.Equals(replay.OwnerKind, OwnerOf(session.OwnerKind), StringComparison.Ordinal)
         && replay.CredentialGeneration == session.CredentialGeneration
         && string.Equals(replay.NormalizedAccountKey, accountKey, StringComparison.Ordinal)
             ? ToMaterial(replay)
@@ -344,8 +468,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 $"Operation key '{operationKey}' already names another Glass's session.");
 
     /// <summary>
-    /// A save names the session it read. Case, user, credential generation and
-    /// operation key are the launch's identity and never change. The external
+    /// A save names the session it read. Case, user, owner, credential
+    /// generation and operation key are the launch's identity and never change. The external
     /// account is fixed at creation and read from the row, so a save neither
     /// restates nor can move it.
     /// </summary>
@@ -354,11 +478,12 @@ public sealed class EfGlassRepairEstimateSessionStore(
     {
         if (entity.CaseId != session.CaseId
             || entity.UserId != session.PegasusUserId
+            || !string.Equals(entity.OwnerKind, OwnerOf(session.OwnerKind), StringComparison.Ordinal)
             || entity.CredentialGeneration != session.CredentialGeneration
             || !string.Equals(entity.OperationKey, session.OperationKey, StringComparison.Ordinal))
         {
             throw new ArgumentException(
-                "The write names a different Case, user, credential generation or operation "
+                "The write names a different Case, user, owner, credential generation or operation "
                 + "than the Glass's session it is saving.",
                 nameof(session));
         }
@@ -385,22 +510,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.ActiveAccountKey == normalizedExternalAccountKey, cancellationToken);
-        return entity is null ? null : ToSession(entity);
-    }
-
-    /// <summary>
-    /// The staff member's session that holds an account now, wherever it was
-    /// launched, so every Case they open can say where it is.
-    /// </summary>
-    public async Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
-        Guid pegasusUserId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
-            .AsNoTracking()
-            .Where(item => item.UserId == pegasusUserId && item.ActiveAccountKey != null)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
         return entity is null ? null : ToSession(entity);
     }
 
@@ -467,7 +576,26 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.CallbackConsumedAtUtc)
         {
             Build = ReadBuild(entity.BuildJson),
+            OwnerKind = string.Equals(entity.OwnerKind, GlassSessionOwner.Automation, StringComparison.Ordinal)
+                ? ActorKind.Automation
+                : ActorKind.Staff,
+            Automation = ReadAutomation(entity.AutomationJson),
+            HelpOnAtUtc = entity.HelpOnAtUtc,
         };
+
+    /// <summary>The stored owner: Staff or Automation, and no other actor runs a session.</summary>
+    private static string OwnerOf(ActorKind owner) => owner switch
+    {
+        ActorKind.Staff => GlassSessionOwner.Staff,
+        ActorKind.Automation => GlassSessionOwner.Automation,
+        _ => throw new ArgumentOutOfRangeException(nameof(owner), "Only staff or the Automation run a Glass's session."),
+    };
+
+    private static string? WriteAutomation(GlassAutomationWork? work) =>
+        work is null ? null : JsonSerializer.Serialize(work, BuildJson);
+
+    private static GlassAutomationWork? ReadAutomation(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<GlassAutomationWork>(json, BuildJson);
 
     private static string? WriteBuild(GlassEstimateBuild? build) =>
         build is null ? null : JsonSerializer.Serialize(build, BuildJson);
@@ -565,6 +693,121 @@ public sealed class EfGlassRepairEstimateSessionStore(
         }
     }
 
+    /// <summary>
+    /// The one write that turns help on or off: an update of the one column
+    /// where the session is the actor's own, a staff session, <c>Active</c>
+    /// and not already as asked, so the session's version, its concurrency
+    /// token and every other column are left as they are; then its history
+    /// row, in the same transaction.
+    /// </summary>
+    public async Task<bool> SetHelpAsync(
+        Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind != ActorKind.Staff || !Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return false;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        DateTimeOffset? helpOn = turnOn ? now : null;
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        var own = context.Set<GlassRepairEstimateSessionEntity>()
+            .Where(item => item.Id == sessionId
+                && item.UserId == staffId
+                && item.OwnerKind == GlassSessionOwner.Staff
+                && item.State == GlassRepairEstimateSessionState.Active);
+        own = turnOn ? own.Where(item => item.HelpOnAtUtc == null) : own.Where(item => item.HelpOnAtUtc != null);
+        var changed = await own.ExecuteUpdateAsync(
+            setters => setters.SetProperty(item => item.HelpOnAtUtc, helpOn), cancellationToken);
+        if (changed == 0)
+        {
+            return false;
+        }
+
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = SessionAggregate,
+            AggregateId = sessionId.ToString("D"),
+            EventKind = HelpEvent,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role).ToArray()),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = sessionId.ToString("D"),
+            Reason = turnOn ? "Automation help turned on" : "Automation help turned off",
+            BeforeJson = JsonSerializer.Serialize(new { HelpOn = !turnOn }),
+            AfterJson = JsonSerializer.Serialize(new { HelpOn = turnOn }),
+            PolicyVersion = "glass-session-help-v1",
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// The act as JSON on the session's history, under its operation key, with
+    /// the Case it was made on so a replay is answered only on that Case.
+    /// Nothing in the act is secret: no key, address or cookie.
+    /// </summary>
+    public async Task RecordHelpActAsync(
+        Guid sessionId, Guid caseId, ActionActor actor, GlassAutomationAct act, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(act);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = SessionAggregate,
+            AggregateId = sessionId.ToString("D"),
+            EventKind = HelpActEvent,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role).ToArray()),
+            OccurredAtUtc = timeProvider.GetUtcNow(),
+            Outcome = "Succeeded",
+            CorrelationId = act.OperationKey,
+            Reason = string.Concat("Automation help ", act.Action.ToString(), " ", act.Outcome.ToString()),
+            AfterJson = JsonSerializer.Serialize(new HelpActRecord(caseId, act), BuildJson),
+            PolicyVersion = "glass-session-help-v1",
+        });
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>One read on the history's operation-key index, then the Case is matched here.</summary>
+    public async Task<GlassSessionHelpRecordedAct?> FindHelpActAsync(
+        Guid caseId, string operationKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.ActionHistory
+            .AsNoTracking()
+            .Where(item => item.AggregateType == SessionAggregate
+                && item.CorrelationId == operationKey
+                && item.EventKind == HelpActEvent)
+            .Select(item => new { item.AggregateId, item.AfterJson })
+            .ToListAsync(cancellationToken);
+        foreach (var row in rows)
+        {
+            if (row.AfterJson is { Length: > 0 } json
+                && JsonSerializer.Deserialize<HelpActRecord>(json, BuildJson) is { } recorded
+                && recorded.CaseId == caseId
+                && Guid.TryParse(row.AggregateId, out var sessionId))
+            {
+                return new(sessionId, recorded.Act);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A help act's history row: the Case it was made on, and the act.</summary>
+    private sealed record HelpActRecord(Guid CaseId, GlassAutomationAct Act);
+
     private static bool OccupiesAccount(GlassRepairEstimateSessionState state) =>
         GlassRepairEstimateSessionPolicy.OccupiesAccount(state);
 
@@ -576,7 +819,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         context.ActionHistory.Add(new()
         {
             Id = Guid.NewGuid(),
-            AggregateType = "glass-repair-estimate-session",
+            AggregateType = SessionAggregate,
             AggregateId = entity.Id.ToString("D"),
             EventKind = reason is null ? "glass_session_transition" : "glass_session_closed",
             ActorKind = actor?.Kind.ToString() ?? ActorKind.SystemWorker.ToString(),

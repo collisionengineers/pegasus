@@ -95,7 +95,7 @@ internal static class CaseGarage
     /// Whether a save recorded an Outcome that waives the garage's
     /// authorisation and invoice where the Outcome before did not: the
     /// assessment saves that end a waiting Case's wait in the same save
-    /// (R1143, R1177).
+    /// (R1143, R1195).
     /// </summary>
     internal static bool RecordsWaivingOutcome(
         IReadOnlyDictionary<string, string?> before,

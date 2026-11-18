@@ -5,6 +5,21 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Third CI runner - 18 November 2026
+
+- On R1174, `pegasus-a` (id 59485411) joined `pegasus-wsl` and
+  `pegasus-s1m5c7p`: Ubuntu 24.04 on the machine `a`, 4 cores and 7.6 GB, one
+  job at a time, the settings of the other two
+  ([runbook](runbook.md#ci-runner-and-image)). Its connection runs at about
+  0.8 MB/s.
+- It registered unpaused before it held `ci:1`, so `sql-integration-coverage`
+  on !46 and `infrastructure` on !47 failed pulling the image after their
+  5- and 10-minute timeouts; both were retried, and the !47 retry passed.
+  `ci:1` was then streamed from the first box (32 minutes).
+- Its first shard, `sql-integration 3/6` on !47, passed in 41 minutes: a cold
+  NuGet restore of 19 minutes, a 5.5-minute build and 14 minutes 20 seconds of
+  tests. Later jobs restore from its warm `pegasus-ci-cache` volume.
+
 ## Test instance OCR and old-system folder settings - 17 November 2026
 
 - On R1111, `Box__OldSystemRootFolderId=3220448509` (R970), `Features__LiveOcr=true`

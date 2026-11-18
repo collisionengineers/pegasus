@@ -102,7 +102,7 @@ internal sealed class EfDocumentCustodyStore(
             await context.SaveChangesAsync(cancellationToken);
             // A garage Audit's External estimate or Repair invoice moves the
             // Case in the same save, within the one version an upload takes,
-            // as an image's completion does (R1177).
+            // as an image's completion does (R1195).
             if (EndsGarageWait(command.SemanticRole)
                 && await EfCaseWorkflowStore.EndGarageWaitAsync(
                     context, workflow, command.Actor, beforeVersion, now, cancellationToken))
@@ -1056,7 +1056,7 @@ internal sealed class EfDocumentCustodyStore(
             await SaveStalingChangedReportImagesAsync(
                 context, command.CaseId, reportImagesBefore, now, cancellationToken);
         }
-        // The move is its own Case change, after the type's (R997, R1177).
+        // The move is its own Case change, after the type's (R997, R1195).
         if (EndsGarageWait(command.NewRole)
             && await EfCaseWorkflowStore.EndGarageWaitAsync(
                 context, workflow, command.Actor, null, now, cancellationToken))

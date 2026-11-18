@@ -180,6 +180,8 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
                 ["Glass:RepairProfileId"] = "4063",
                 ["Glass:ValuationAccount:Username"] = "valuation-test",
                 ["Glass:ValuationAccount:Password"] = "synthetic-password",
+                ["Glass:AutomationAccount:Username"] = "automation-test",
+                ["Glass:AutomationAccount:Password"] = "synthetic-automation-password",
                 ["Cazana:CompanionAccount:Email"] = "companion@example.test",
                 ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
                 ["Brego:ValuationAccount:Email"] = "brego@example.test",
@@ -213,6 +215,34 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
         var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
 
         Assert.Equal("Graph:ClientSecret is required for Features:LiveGraphMail.", configurationException.Message);
+    }
+
+    /// <summary>
+    /// The Automation's own Glass's login (R1177) is required wherever
+    /// Glass's is composed: a host without it stops at start naming the key,
+    /// not at the Automation's first start.
+    /// </summary>
+    [Theory]
+    [InlineData("Glass:AutomationAccount:Username")]
+    [InlineData("Glass:AutomationAccount:Password")]
+    public void LiveGlassWithoutTheAutomationLoginFailsAtStartNamingTheKey(string missingKey)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Runtime:Profile"] = "DevelopmentOffline",
+            ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), "pegasus-live-glass-no-automation-login"),
+            ["Features:LocalIntake"] = "false",
+            ["Features:LiveGlass"] = "true",
+            ["Glass:AutomationAccount:Username"] = "automation-test",
+            ["Glass:AutomationAccount:Password"] = "synthetic-automation-password",
+        };
+        settings[missingKey] = null;
+        using var factory = new ConfiguredWebApplicationFactory("Development", settings);
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
+
+        Assert.Equal($"{missingKey} is required for Features:LiveGlass.", configurationException.Message);
     }
 
     [Fact]

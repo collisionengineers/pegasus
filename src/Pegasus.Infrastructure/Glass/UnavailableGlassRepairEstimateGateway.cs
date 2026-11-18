@@ -98,5 +98,57 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
         GetEstimatorUrlAsync(actor, material.Session.Id, cancellationToken);
 
+    public Task<GlassRepairEstimateStep> PrepareAutomationLaunchAsync(
+        GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
+        PrepareLaunchAsync(request, cancellationToken);
+
+    public Task<GlassRepairEstimateSession> ContinueAutomationStartAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+        ContinueLaunchAsync(request, cancellationToken);
+
+    public Task<GlassRepairEstimateStep> PrepareAutomationFinishAsync(
+        GlassAutomationFinishRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassRepairEstimateStep>(Unavailable());
+    }
+
+    public Task<GlassRepairEstimateSession> ContinueAutomationFinishAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+        ContinueLaunchAsync(request, cancellationToken);
+
+    public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
+        ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationEstimate?>(Unavailable());
+    }
+
+    public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
+        GlassAutomationCatalogueQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationCatalogue?>(Unavailable());
+    }
+
+    public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
+        GlassAutomationPositionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationPositionStep?>(Unavailable());
+    }
+
+    public Task<GlassAutomationPositionStep> ContinueAutomationPositionAsync(
+        GlassAutomationPositionContinueRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationPositionStep>(Unavailable());
+    }
+
     private static InvalidOperationException Unavailable() => new(UnavailableMessage);
 }

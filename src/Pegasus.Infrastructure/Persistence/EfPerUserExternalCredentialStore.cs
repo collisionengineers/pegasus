@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -50,14 +49,23 @@ public sealed class EfPerUserExternalCredentialStore(
             payload.Password);
     }
 
-    public async Task<bool> IsEnabledAsync(
+    public async Task<PerUserExternalCredentialReference?> GetEnabledReferenceAsync(
         ActionActor actor,
         ExternalCredentialProvider provider,
         CancellationToken cancellationToken)
     {
         var staffId = ReaderStaffIdOf(actor);
         await using var readContext = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await EnabledCredentials(readContext, staffId, provider).AnyAsync(cancellationToken);
+        // The reference's columns only: the protected secret is not read.
+        return await EnabledCredentials(readContext, staffId, provider)
+            .Select(item => new PerUserExternalCredentialReference(
+                item.UserId,
+                ExternalCredentialProvider.GlassRepairEstimate,
+                item.CredentialGeneration,
+                item.NormalizedAccountKey,
+                item.Enabled,
+                item.Version))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>
@@ -190,7 +198,7 @@ public sealed class EfPerUserExternalCredentialStore(
                 Id = Guid.NewGuid(),
                 Provider = ProviderName(provider),
                 UserId = pegasusUserId,
-                NormalizedAccountKey = NormalizeAccountKey(provider, username),
+                NormalizedAccountKey = GlassAccountKey.Of(username),
                 CredentialGeneration = 1,
                 ProtectedCredential = string.Empty,
                 UpdatedBy = actor.SubjectId,
@@ -210,7 +218,7 @@ public sealed class EfPerUserExternalCredentialStore(
         }
 
         entity.Enabled = enabled;
-        entity.NormalizedAccountKey = NormalizeAccountKey(provider, username);
+        entity.NormalizedAccountKey = GlassAccountKey.Of(username);
         entity.UpdatedBy = actor.SubjectId;
         entity.UpdatedAtUtc = timeProvider.GetUtcNow();
         entity.ProtectedCredential = CreateProtector(
@@ -394,12 +402,6 @@ public sealed class EfPerUserExternalCredentialStore(
             throw new DbUpdateConcurrencyException();
         }
     }
-
-    private static string NormalizeAccountKey(
-        ExternalCredentialProvider provider,
-        string username) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
-                $"{ProviderName(provider)}\n{username.ToUpperInvariant()}")));
 
     private static string ProviderName(ExternalCredentialProvider provider) =>
         provider switch
