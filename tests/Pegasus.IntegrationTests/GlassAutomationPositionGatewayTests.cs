@@ -386,6 +386,41 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(requests + 1, harness.Mva.Requests.Count);
     }
 
+    /// <summary>
+    /// A key an earlier, closed session of the Case recorded is answered
+    /// from that session in a new one, at any version: the recorded outcome
+    /// comes back and nothing is sent to Glass's again.
+    /// </summary>
+    [Fact]
+    public async Task AKeyAClosedSessionRecordedIsAnsweredInTheNextAndNeverSendsTwice()
+    {
+        var harness = Harness.Create();
+        var first = await AutomationStartAsync(harness);
+        var added = await PositionAsync(harness, Add(harness, first, "mcp:add-1",
+            GlassAutomationPositionKind.SpecialOperation, "AC0000073"));
+        Assert.Equal(GlassAutomationActOutcome.Added, added.Act.Outcome);
+        await harness.Gateway.CloseAsync(
+            new(harness.Automation, first.Id, added.Session.Version, true, "Started again."), CancellationToken.None);
+        var second = await AutomationStartAsync(harness, "mcp:start-2");
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal(GlassRepairEstimateSessionState.Active, second.State);
+        var requests = harness.Mva.Requests.Count;
+
+        var replayed = await harness.Gateway.PrepareAutomationPositionAsync(
+            Add(harness, second with { Version = second.Version + 5 }, "mcp:add-1",
+                GlassAutomationPositionKind.SpecialOperation, "AC0000073"),
+            CancellationToken.None);
+
+        Assert.NotNull(replayed);
+        Assert.False(replayed.Owed);
+        Assert.Equal(first.Id, replayed.Session.Id);
+        Assert.Equal(GlassAutomationActOutcome.Added, replayed.Act.Outcome);
+        Assert.Equal(added.Act.PositionIds, replayed.Act.PositionIds);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Null(harness.Store.Material(second.Id).Session.Automation);
+        Assert.Equal(1, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
     /// <summary>A stale session version is refused before anything is claimed or asked.</summary>
     [Fact]
     public async Task AStaleSessionVersionIsRefused()

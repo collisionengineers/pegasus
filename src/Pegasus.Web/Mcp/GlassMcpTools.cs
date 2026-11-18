@@ -344,12 +344,15 @@ internal sealed class GlassMcpTools(
                 var asked = PositionRequest(
                     context.Actor, action, key, RequireValue(expectedSessionVersion, "expectedSessionVersion"),
                     kind, row, operation, side, positionId);
-                var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
-                // The same key again answers the act as recorded and sends nothing.
-                if (GlassAutomationPositionPolicy.Find(session?.Automation, key) is { } recorded)
+                // The same key again answers the act as recorded and sends
+                // nothing, whichever of the Case's Automation sessions holds it.
+                if (await store.FindAutomationActSessionAsync(caseId, key, cancellationToken) is { } replayed
+                    && GlassAutomationPositionPolicy.Find(replayed.Automation, key) is { } recorded)
                 {
-                    return new GlassPositionActToolResult(caseId, Map(session), MapAct(recorded), key);
+                    return new GlassPositionActToolResult(caseId, Map(replayed), MapAct(recorded), key);
                 }
+
+                var session = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
                 if (session is not { State: GlassRepairEstimateSessionState.Active })
                 {
                     throw new McpException(AutomationToolText.GlassNoSession);

@@ -3690,6 +3690,14 @@ public sealed partial class GlassRepairEstimateGatewayTests
                 .FirstOrDefault(session =>
                     session.NormalizedExternalAccountKey == normalizedExternalAccountKey && Occupies(session.State)));
 
+        public Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+            Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            Task.FromResult(Sessions.Values
+                .Select(item => item.Session)
+                .Where(session => session.CaseId == caseId && session.OwnerKind == ActorKind.Automation)
+                .OrderByDescending(session => session.CreatedAtUtc)
+                .FirstOrDefault(session => GlassAutomationPositionPolicy.Find(session.Automation, operationKey) is not null));
+
         public async Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)
         {
@@ -3767,6 +3775,10 @@ public sealed partial class GlassRepairEstimateGatewayTests
         public Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
             string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
             inner.FindLiveForAccountAsync(normalizedExternalAccountKey, cancellationToken);
+
+        public Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+            Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            inner.FindAutomationActSessionAsync(caseId, operationKey, cancellationToken);
 
         public Task SupersedeAsync(
             Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken) =>

@@ -673,6 +673,14 @@ public interface IGlassRepairEstimateSessionStore
         string normalizedExternalAccountKey, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The newest of the Case's Automation sessions whose acts hold one
+    /// recorded under the operation key, or null: a replayed key answers what
+    /// it recorded whichever session recorded it, and never sends twice.
+    /// </summary>
+    Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+        Guid caseId, string operationKey, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Ends every other staff member's live session on a stock vehicle of
     /// this Case and frees their accounts, so the staff member who now holds
     /// the Case edit can reopen its estimate (operator, 6 October 2026). One
