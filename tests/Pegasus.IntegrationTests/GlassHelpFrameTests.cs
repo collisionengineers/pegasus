@@ -138,13 +138,13 @@ public sealed class GlassHelpKeysTests
         var clock = new ManualClock(Start);
         var keys = new GlassHelpKeys(GlassHelpFrameTests.Options, clock);
         var sessionId = Guid.NewGuid();
-        Assert.Equal(new GlassHelpPoll(false, 0), keys.Poll(sessionId));
+        Assert.Equal(new GlassHelpPoll(false, 0), keys.Poll(sessionId, 0));
 
         keys.Hold(sessionId, Frame(keys, FirstKey));
         keys.Hold(sessionId, Frame(keys, SecondKey));
 
         Assert.Equal(SecondKey, keys.Session(sessionId)?.Key);
-        Assert.Equal(new GlassHelpPoll(true, 0), keys.Poll(sessionId));
+        Assert.Equal(new GlassHelpPoll(true, 0), keys.Poll(sessionId, 0));
         Assert.Null(keys.Session(Guid.NewGuid()));
     }
 
@@ -157,12 +157,12 @@ public sealed class GlassHelpKeysTests
         keys.Hold(sessionId, Frame(keys, FirstKey));
 
         clock.Now = Start + TimeSpan.FromSeconds(20);
-        Assert.True(keys.Poll(sessionId).Held);
+        Assert.True(keys.Poll(sessionId, 0).Held);
         clock.Now = Start + TimeSpan.FromSeconds(50);
-        Assert.True(keys.Poll(sessionId).Held);
+        Assert.True(keys.Poll(sessionId, 0).Held);
 
         clock.Now = Start + TimeSpan.FromSeconds(81);
-        Assert.False(keys.Poll(sessionId).Held);
+        Assert.False(keys.Poll(sessionId, 0).Held);
         Assert.Null(keys.Session(sessionId));
     }
 
@@ -175,7 +175,7 @@ public sealed class GlassHelpKeysTests
 
         keys.Drop(sessionId);
 
-        Assert.False(keys.Poll(sessionId).Held);
+        Assert.False(keys.Poll(sessionId, 0).Held);
     }
 
     private static GlassHelpFrame Frame(GlassHelpKeys keys, string key) =>

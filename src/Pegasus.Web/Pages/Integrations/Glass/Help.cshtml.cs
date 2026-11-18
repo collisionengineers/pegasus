@@ -74,10 +74,6 @@ public sealed partial class HelpModel(
     /// <summary>A body is a frame address and a few fields; nothing larger is read.</summary>
     private const int MaximumBodyBytes = 8 * 1024;
 
-    private const int HelpOnPollMilliseconds = 2_000;
-
-    private const int HelpOffPollMilliseconds = 10_000;
-
     public IActionResult OnGet() => NotFound();
 
     public IActionResult OnPost() => NotFound();
@@ -179,7 +175,7 @@ public sealed partial class HelpModel(
             return Ended();
         }
 
-        var poll = keys.Poll(session.Id);
+        var poll = keys.Poll(session.Id, body.Seen);
         var help = HelpOn(session);
         return new JsonResult(new
         {
@@ -191,20 +187,16 @@ public sealed partial class HelpModel(
     }
 
     /// <summary>
-    /// Whether the staff member has turned help on for the session. Nothing
-    /// turns it on yet, so every answer says off; this is the one place that
-    /// changes when the Case page offers the control.
+    /// Whether the staff member has turned help on for the session from the
+    /// Case page (R1170, R1183): the session's own flag.
     /// </summary>
-    private static bool HelpOn(GlassRepairEstimateSession session)
-    {
-        ArgumentNullException.ThrowIfNull(session);
-        return false;
-    }
+    private static bool HelpOn(GlassRepairEstimateSession session) => GlassSessionHelpPolicy.HelpOn(session);
 
     private static string HelpWord(bool on) => on ? "on" : "off";
 
     /// <summary>How long the helper waits before its next poll: shorter while help is on.</summary>
-    private static int NextPoll(bool help) => help ? HelpOnPollMilliseconds : HelpOffPollMilliseconds;
+    private static int NextPoll(bool help) =>
+        (int)(help ? GlassHelpKeys.HelpOnPoll : GlassHelpKeys.HelpOffPoll).TotalMilliseconds;
 
     /// <summary>Resolved only on a host that reaches Glass's, the one kind that composes it.</summary>
     private GlassHelpKeys Keys => HttpContext.RequestServices.GetRequiredService<GlassHelpKeys>();
@@ -274,6 +266,10 @@ public sealed partial class HelpModel(
     /// <summary>The key hand-off: the protocol, the editor's main-frame address and the helper's version.</summary>
     private sealed record KeyBody(int V, string? Frame, string? Version);
 
-    /// <summary>A poll: the protocol, the session's return token and the helper's version.</summary>
-    private sealed record PollBody(int V, string? Token, string? Version);
+    /// <summary>
+    /// A poll: the protocol, the session's return token, the last ask to show
+    /// the selected list again that the window has shown, and the helper's
+    /// version.
+    /// </summary>
+    private sealed record PollBody(int V, string? Token, long Seen, string? Version);
 }

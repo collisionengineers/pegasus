@@ -1476,6 +1476,9 @@ public static class DependencyInjection
         // The editor keys the Pegasus helper hands over live in this host's
         // memory alone (R1170): one holder for the process.
         services.AddSingleton<GlassHelpKeys>();
+        // The Automation's help in a member of staff's open session: the keys,
+        // an editor client and the help store's history rows, nothing more.
+        services.AddScoped<GlassSessionHelp>();
         return services;
     }
 

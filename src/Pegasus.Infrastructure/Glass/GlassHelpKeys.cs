@@ -53,8 +53,16 @@ public readonly record struct GlassHelpPoll(bool Held, long Refresh);
 /// host restarts; the helper's next poll then hears that a key is needed.
 /// </para>
 /// <para>
-/// Public because the Web host's Help page holds it; what it holds stays
-/// inside this assembly.
+/// Beside each key it keeps the cookies Glass's set for Pegasus's own
+/// requests on it and when Pegasus last sent one, how many times Pegasus has
+/// asked the window to show its selected list again, and the last of those
+/// asks the window says it has shown. One help act at a time holds a
+/// session (<see cref="TryEnter"/>), so Pegasus never sends two requests on
+/// one key at once.
+/// </para>
+/// <para>
+/// Public because the Web host's Help page and Case page hold it; what it
+/// holds stays inside this assembly.
 /// </para>
 /// </remarks>
 public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvider timeProvider)
@@ -62,12 +70,34 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
     /// <summary>How long a key is kept with no poll.</summary>
     public static readonly TimeSpan Silence = TimeSpan.FromSeconds(30);
 
+    /// <summary>How often the helper polls while help is on: a position shows in the window within one poll.</summary>
+    public static readonly TimeSpan HelpOnPoll = TimeSpan.FromSeconds(2);
+
+    /// <summary>How often the helper polls while help is off.</summary>
+    public static readonly TimeSpan HelpOffPoll = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How long an act waits to hear that the window has shown it: one poll
+    /// at help's cadence, the helper's report a second after its reload, and
+    /// a second for the way there and back.
+    /// </summary>
+    public static readonly TimeSpan ShowWait = HelpOnPoll + TimeSpan.FromSeconds(2);
+
+    /// <summary>How often a waiting act looks again.</summary>
+    private static readonly TimeSpan ShowLook = TimeSpan.FromMilliseconds(100);
+
     private readonly ConcurrentDictionary<Guid, Held> held = new();
+
+    private readonly ConcurrentDictionary<Guid, byte> busy = new();
 
     /// <summary>The handed-over address read, or null when it is not this host's editor frame.</summary>
     public GlassHelpFrame? Read(string? frameAddress) => GlassEditorPages.HelpFrame(frameAddress, options);
 
-    /// <summary>Keeps the frame's key for the session, replacing any older one.</summary>
+    /// <summary>
+    /// Keeps the frame's key for the session, replacing any older one. The
+    /// refresh count and what the window has shown carry over to the newer
+    /// key, so the helper's next poll reads the same count.
+    /// </summary>
     public void Hold(Guid sessionId, GlassHelpFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
@@ -82,26 +112,34 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
 
         held.AddOrUpdate(
             sessionId,
-            _ => new Held(frame.Session, now, 0),
-            (_, older) => new Held(frame.Session, now, older.Refresh));
+            _ => new Held(frame.Session, now, 0, 0, null),
+            (_, older) => new Held(frame.Session, now, older.Refresh, older.Seen, null));
     }
 
     /// <summary>
-    /// A poll from the session's window: it keeps a held key alive and says
-    /// whether one is held. A key past <see cref="Silence"/> is dropped first.
+    /// A poll from the session's window: it keeps a held key alive, records
+    /// the last ask to show the selected list again that the window says it
+    /// has shown (<paramref name="seen"/>, never past the count), and says
+    /// whether a key is held. A key past <see cref="Silence"/> is dropped first.
     /// </summary>
-    public GlassHelpPoll Poll(Guid sessionId)
+    public GlassHelpPoll Poll(Guid sessionId, long seen)
     {
         var now = timeProvider.GetUtcNow();
-        if (Current(sessionId, now) is not { } entry)
+        while (Current(sessionId, now) is { } entry)
         {
-            return new(false, 0);
+            var shown = Math.Max(entry.Seen, Math.Min(seen, entry.Refresh));
+            // A lost race with a newer hand-off or an act is tried again.
+            if (held.TryUpdate(sessionId, entry with { SeenAtUtc = now, Seen = shown }, entry))
+            {
+                return new(true, entry.Refresh);
+            }
         }
 
-        // A lost race with a newer hand-off leaves the newer one, which is as fresh.
-        held.TryUpdate(sessionId, entry with { SeenAtUtc = now }, entry);
-        return new(true, entry.Refresh);
+        return new(false, 0);
     }
+
+    /// <summary>Whether a live key is held for the session: the Case page's "connected", a memory read.</summary>
+    public bool IsHeld(Guid sessionId) => Current(sessionId, timeProvider.GetUtcNow()) is not null;
 
     /// <summary>Forgets the session's key: the session is no longer <c>Active</c>.</summary>
     public void Drop(Guid sessionId) => held.TryRemove(sessionId, out _);
@@ -109,6 +147,86 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
     /// <summary>The held editor session, or null when no live key is held.</summary>
     internal GlassEditorSession? Session(Guid sessionId) =>
         Current(sessionId, timeProvider.GetUtcNow())?.Session;
+
+    /// <summary>When Pegasus last sent a request on the session's key, or null before its first.</summary>
+    internal DateTimeOffset? LastRequestAtUtc(Guid sessionId) =>
+        held.TryGetValue(sessionId, out var entry) ? entry.LastRequestAtUtc : null;
+
+    /// <summary>
+    /// Keeps the cookies Glass's set on Pegasus's requests and when the last
+    /// was sent, while the key they were sent on is still the one held; a
+    /// newer key handed over meanwhile is left as it is.
+    /// </summary>
+    internal void Keep(Guid sessionId, GlassEditorSession session, DateTimeOffset? lastRequestAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        while (held.TryGetValue(sessionId, out var entry)
+            && string.Equals(entry.Session.Key, session.Key, StringComparison.Ordinal)
+            && string.Equals(entry.Session.Url0, session.Url0, StringComparison.Ordinal))
+        {
+            if (held.TryUpdate(
+                sessionId,
+                entry with { Session = entry.Session with { Cookies = session.Cookies }, LastRequestAtUtc = lastRequestAtUtc },
+                entry))
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asks the window to show its selected list again: the session's
+    /// refresh count rises by one and the new count is answered; zero when no
+    /// key is held, as no window would hear it.
+    /// </summary>
+    internal long Refresh(Guid sessionId)
+    {
+        while (held.TryGetValue(sessionId, out var entry))
+        {
+            var raised = entry with { Refresh = entry.Refresh + 1 };
+            if (held.TryUpdate(sessionId, raised, entry))
+            {
+                return raised.Refresh;
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Whether the window says it has shown the ask numbered
+    /// <paramref name="refresh"/>, waiting for at most <see cref="ShowWait"/>.
+    /// </summary>
+    internal async Task<bool> ShownAsync(Guid sessionId, long refresh, CancellationToken cancellationToken)
+    {
+        if (refresh <= 0)
+        {
+            return false;
+        }
+
+        // Counted, not timed by the clock, so a clock that stands still cannot hold an act.
+        var looks = (int)(ShowWait / ShowLook);
+        for (var look = 0; look <= looks; look++)
+        {
+            if (held.TryGetValue(sessionId, out var entry) && entry.Seen >= refresh)
+            {
+                return true;
+            }
+            if (look < looks)
+            {
+                await Task.Delay(ShowLook, timeProvider, cancellationToken);
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The one-at-a-time gate: a holder while no other help act holds the
+    /// session, or null when one does. Disposing the holder frees it.
+    /// </summary>
+    internal IDisposable? TryEnter(Guid sessionId) =>
+        busy.TryAdd(sessionId, 0) ? new Gate(busy, sessionId) : null;
 
     private Held? Current(Guid sessionId, DateTimeOffset now)
     {
@@ -128,9 +246,16 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
     private static bool Fresh(Held entry, DateTimeOffset now) => now - entry.SeenAtUtc <= Silence;
 
     /// <summary>
-    /// One held key: the editor session, when the window was last heard from,
-    /// and the count of asks to show the selected list again, which nothing
-    /// raises yet.
+    /// One held key: the editor session with the cookies of Pegasus's own
+    /// requests, when the window was last heard from, the count of asks to
+    /// show the selected list again, the last of them the window has shown,
+    /// and when Pegasus last sent a request on it.
     /// </summary>
-    private sealed record Held(GlassEditorSession Session, DateTimeOffset SeenAtUtc, long Refresh);
+    private sealed record Held(
+        GlassEditorSession Session, DateTimeOffset SeenAtUtc, long Refresh, long Seen, DateTimeOffset? LastRequestAtUtc);
+
+    private sealed class Gate(ConcurrentDictionary<Guid, byte> busy, Guid sessionId) : IDisposable
+    {
+        public void Dispose() => busy.TryRemove(sessionId, out _);
+    }
 }
