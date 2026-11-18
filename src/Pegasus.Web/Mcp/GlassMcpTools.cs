@@ -107,10 +107,11 @@ internal sealed class GlassMcpTools(
                     && session is { State: GlassRepairEstimateSessionState.Active }
                     && !queue.IsInFlight(session.Id))
                 {
+                    var sessionId = session.Id;
                     var read = await RunHereAsync(
-                        session.Id,
+                        sessionId,
                         "GlassAutomationRead",
-                        token => gateway.ReadAutomationEstimateAsync(context.Actor, session.Id, token),
+                        token => gateway.ReadAutomationEstimateAsync(context.Actor, sessionId, token),
                         cancellationToken);
                     if (read is not null)
                     {
@@ -189,13 +190,19 @@ internal sealed class GlassMcpTools(
     {
         // Work already in hand for the Automation's session here is not
         // overtaken: the session is answered as it stands.
-        if (await sessions.GetAutomationForCaseAsync(caseId, cancellationToken) is { } current
-            && queue.IsInFlight(current.Id))
+        var current = await sessions.GetAutomationForCaseAsync(caseId, cancellationToken);
+        if (current is not null && queue.IsInFlight(current.Id))
         {
             return current;
         }
 
         var sessionId = AutomationMcpErrors.DeriveOperationGuid("glass-start", actor, key);
+        // The Automation's live session here is the one a start continues.
+        var live = current is not null
+            && current.Id != sessionId
+            && GlassRepairEstimateSessionPolicy.OccupiesAccount(current.State)
+                ? current.Id
+                : (Guid?)null;
         return await leases.RunCaseAsync(
             caseId,
             expectedVersion,
@@ -204,9 +211,11 @@ internal sealed class GlassMcpTools(
             key,
             async token =>
             {
-                // Held busy from before its claim, so nothing settles it
-                // between the claim and its work.
+                // Both sessions a start may act on are held busy from before
+                // its claim, so nothing settles either between the claim and
+                // its work.
                 using var reservation = queue.Reserve(sessionId);
+                using var continued = live is { } liveId ? queue.Reserve(liveId) : null;
                 GlassRepairEstimateStep step;
                 try
                 {
@@ -226,9 +235,9 @@ internal sealed class GlassMcpTools(
                 }
 
                 var id = step.Session.Id;
-                using var continued = id == sessionId ? null : queue.Reserve(id);
+                using var late = id == sessionId || id == live ? null : queue.Reserve(id);
                 await RunAsync(
-                    continued ?? reservation,
+                    id == sessionId ? reservation : late ?? continued!,
                     "GlassAutomationStart",
                     (work, workToken) => work.GetRequiredService<IGlassRepairEstimateGateway>()
                         .ContinueAutomationStartAsync(new(actor, id), workToken),
