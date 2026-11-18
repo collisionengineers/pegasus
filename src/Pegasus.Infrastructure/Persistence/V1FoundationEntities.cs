@@ -222,9 +222,22 @@ internal sealed class GlassRepairEstimateSessionEntity : IApplicationManagedConc
     public string? ResultArtifactsJson { get; set; }
     // The rebuild of an outside repair spec this session runs, as JSON; null for an ordinary launch.
     public string? BuildJson { get; set; }
+    // Who runs the session: Staff (UserId names them) or Automation (UserId is empty).
+    public string OwnerKind { get; set; } = GlassSessionOwner.Staff;
+    // What an Automation session has done, as JSON; null for a staff session.
+    public string? AutomationJson { get; set; }
+    // When the owning member of staff turned Automation help on; null while off (R1170).
+    public DateTimeOffset? HelpOnAtUtc { get; set; }
     public string? LastError { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
+}
+
+/// <summary>The values of <see cref="GlassRepairEstimateSessionEntity.OwnerKind"/>.</summary>
+internal static class GlassSessionOwner
+{
+    public const string Staff = nameof(Pegasus.Core.Identity.ActorKind.Staff);
+    public const string Automation = nameof(Pegasus.Core.Identity.ActorKind.Automation);
 }
 
 internal sealed class CaseReportGenerationEntity

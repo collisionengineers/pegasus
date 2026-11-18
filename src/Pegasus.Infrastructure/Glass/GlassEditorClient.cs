@@ -38,8 +38,12 @@ internal enum GlassEditorDialog
 /// One position to add: the dialog, its rows (<c>753|754</c>) or code
 /// (<c>AC0000073</c>), the part code the dialog must carry, the button to
 /// press on a <c>comp.php</c> dialog (<c>BSS</c> Part, <c>BLL</c> Paint,
-/// <c>BSL</c> Part and Paint), what to change on a <c>part.php</c> dialog,
-/// and which optional parts to tick if the editor lists mandatory parts.
+/// <c>BSL</c> Part and Paint), what to change on the dialog (on a
+/// <c>comp.php</c> dialog only the operation and the OK to a part with no
+/// figures),
+/// which optional parts to tick if the editor lists mandatory parts, and the
+/// side the dialog must serve: <c>L</c>, <c>R</c>, empty for a part with no
+/// side, or null when the side is not checked (a special operation).
 /// </summary>
 internal sealed record GlassEditorAddRequest(
     GlassEditorDialog Dialog,
@@ -47,7 +51,8 @@ internal sealed record GlassEditorAddRequest(
     string ExpectedPartCode,
     string? Button = null,
     GlassEditorChange? Change = null,
-    IReadOnlyCollection<string>? Ticks = null);
+    IReadOnlyCollection<string>? Ticks = null,
+    string? ExpectedSide = null);
 
 /// <summary>
 /// What an add did: the dialog's summary and notes, the parts the
@@ -102,6 +107,18 @@ internal sealed class GlassEditorClient(
     private readonly TimeSpan pace = pause ?? DefaultPause;
 
     private DateTimeOffset? last;
+
+    /// <summary>
+    /// When this client last sent a request, or null before its first. A
+    /// client that continues an editor another client opened is given that
+    /// client's, so its first request still waits out the pause (design 07
+    /// section 6), and its own is read back afterwards to be kept.
+    /// </summary>
+    public DateTimeOffset? LastRequestAtUtc
+    {
+        get => last;
+        init => last = value;
+    }
 
     /// <summary>
     /// Opens the editor from the launch address Pegasus's own estimate start
@@ -182,6 +199,21 @@ internal sealed class GlassEditorClient(
         return new(list, session with { Cookies = Snapshot(jar) });
     }
 
+    /// <summary>
+    /// The vehicle's part list (<c>list.php</c>), asked for with the editor's
+    /// group list as the graph page asks for it, read row by row.
+    /// </summary>
+    public async Task<GlassEditorReply<IReadOnlyList<GlassEditorPartRow>>> ReadPartListAsync(
+        GlassEditorSession session, string groups, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(groups);
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.PartList(groups), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var list = GlassMvaClient.Matched(() => GlassEditorPages.PartList(text), GlassFailure.EditorAnswer)
+            ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=part-list");
+        return new(list, session with { Cookies = Snapshot(jar) });
+    }
+
     /// <summary>One part-list row's equipment map, as the nested lists the page holds.</summary>
     public async Task<GlassEditorReply<IReadOnlyList<IReadOnlyList<string>>>> ReadEquipmentMapAsync(
         GlassEditorSession session, string row, CancellationToken cancellationToken)
@@ -216,9 +248,9 @@ internal sealed class GlassEditorClient(
             GlassEditorDialog.SpecialOperation => ("part.php", "A"),
             _ => throw new ArgumentOutOfRangeException(nameof(request), "The dialog is not one the editor has."),
         };
-        if (request.Dialog == GlassEditorDialog.PaintablePart && (string.IsNullOrEmpty(request.Button) || request.Change is not null))
+        if (request.Dialog == GlassEditorDialog.PaintablePart && string.IsNullOrEmpty(request.Button))
         {
-            throw new ArgumentException("A comp.php dialog is pressed with a button and takes no change.", nameof(request));
+            throw new ArgumentException("A comp.php dialog is pressed with a button.", nameof(request));
         }
 
         var (jar, at) = Begin(session);
@@ -226,7 +258,7 @@ internal sealed class GlassEditorClient(
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var build = GlassMvaClient.Matched(
             () => request.Dialog == GlassEditorDialog.PaintablePart
-                ? GlassEditorDialogs.PartPost(dialog, request.Button!)
+                ? GlassEditorDialogs.PartPost(dialog, request.Button!, request.Change)
                 : GlassEditorDialogs.PlainPost(dialog, request.Change),
             GlassFailure.EditorDialog);
         if (build.Error is not null)
@@ -237,11 +269,27 @@ internal sealed class GlassEditorClient(
         {
             throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
         }
-        if (build.Summary is null || build.Summary.PartCode != request.ExpectedPartCode)
+        if (build.Summary is null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries no part code.");
+        }
+
+        // The side first: a right-hand part's code is the record's second code line.
+        var servedSide = (build.Summary.Side ?? string.Empty).Trim();
+        if (request.ExpectedSide is { } expectedSide && servedSide != expectedSide.Trim())
         {
             throw new GlassMvaStageException(
                 GlassFailure.EditorRefused,
-                detail: "The dialog carries part code " + (build.Summary?.PartCode ?? "none") + ", not " + request.ExpectedPartCode + ".");
+                detail: "The dialog serves side " + (servedSide.Length == 0 ? "none" : servedSide) + ", not "
+                    + (expectedSide.Trim().Length == 0 ? "none" : expectedSide.Trim()) + ".");
+        }
+
+        var servedCode = servedSide == "R" ? build.Summary.RightPartCode : build.Summary.PartCode;
+        if (servedCode != request.ExpectedPartCode)
+        {
+            throw new GlassMvaStageException(
+                GlassFailure.EditorRefused,
+                detail: "The dialog carries part code " + (servedCode ?? "none") + ", not " + request.ExpectedPartCode + ".");
         }
         if (build.Action is null)
         {

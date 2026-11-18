@@ -125,6 +125,13 @@ internal static class AutomationToolScopes
             "pegasus_report_send",
             "pegasus_mail_send",
             "pegasus_photo_link_send"
+        ]),
+        (AutomationMcp.GlassScope,
+        [
+            "pegasus_glass_session_get",
+            "pegasus_glass_session_act",
+            "pegasus_glass_catalogue_search",
+            "pegasus_glass_position_act"
         ])
     ];
 

@@ -725,6 +725,8 @@ public static partial class OperatorLabels
             "automation.mail" => "Mail",
             "automation.jobs" => "AI jobs",
             "automation.send" => "Sending",
+            // Operator, 18 November 2026: R1179
+            "automation.glass" => "Glass's",
             _ => key
         };
     }
