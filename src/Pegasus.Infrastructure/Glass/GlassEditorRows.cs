@@ -6,7 +6,8 @@ namespace Pegasus.Infrastructure.Glass;
 /// The rows one line of an outside estimate is placed by: the head row it was
 /// found by and the row pair its dialog is asked for with (<c>17|18</c>), or
 /// the reason no row was chosen. <see cref="Same"/> is what makes two heads
-/// the same part: part number, price and Replace hours.
+/// the same part: part number, price and the operation's hours (Replace's,
+/// or the operation's own time row's).
 /// </summary>
 internal sealed record GlassEditorRowChoice(
     GlassEditorPartRow? Head, string? Rows, string? ReasonCode, string? Same = null)
@@ -49,14 +50,43 @@ internal sealed record GlassEditorRowChoice(
 /// </para>
 ///
 /// <para>
+/// <b>Repair and remove-and-refit (R1172).</b> The editor asks for a part's
+/// dialog by the same row pair whatever the operation (its list code's
+/// <c>getSelPartTime</c>); the operation is chosen in the dialog, which
+/// serves the operation's hours from the operation's own time row. So a
+/// Repair (<c>I</c>) or remove-and-refit (<c>AE</c>) line is placed by the
+/// pair Replace would be, only when the head is certain as above, offers
+/// the operation as well as Replace, its map's remove-and-refit group lists
+/// no entry that needs equipment and at most one entry, and the block has at
+/// most one time row of the operation (the map's own <c>AE</c> entry where
+/// it names one). A head that offers no Replace is left off: the editor
+/// asks for it with another time row, chosen differently with and without
+/// the row's map.
+/// </para>
+///
+/// <para>
 /// <b>Judged offline.</b> On the captured list of 7 September 2026 (5,163
 /// rows) the editor's own code, run with the row's side as a browser sets it,
 /// agreed with this rule on every one of the 536 code-and-side lines and 417
-/// part numbers it calls certain.
+/// part numbers it calls certain. For the two other operations it agreed,
+/// with no equipment question open, on the same row pair and on its own
+/// choice of the operation's time rows, for every one of the 499
+/// code-and-side lines it calls certain for remove-and-refit and the 491 for
+/// Repair, with the rows' equipment maps fed to it and without (18 November
+/// 2026).
 /// </para>
 /// </summary>
 internal static class GlassEditorRows
 {
+    /// <summary>Glass's code for Replace, the operation a part is placed with.</summary>
+    public const string Replace = "ER";
+
+    /// <summary>Glass's code for Repair ("R").</summary>
+    public const string Repair = "I";
+
+    /// <summary>Glass's code for Uninstall and install ("UI"): remove and refit.</summary>
+    public const string RemoveAndRefit = "AE";
+
     /// <summary>
     /// The head rows a line is found by, as indexes into the list in its
     /// order, or the reason there are none to try.
@@ -110,10 +140,11 @@ internal static class GlassEditorRows
     private static readonly int[] NoHeads = [];
 
     /// <summary>
-    /// What the list alone says of a head: the reason it is not certain, or
-    /// null when its equipment map is to be read next.
+    /// What the list alone says of a head for an operation (Replace when
+    /// none is named): the reason it is not certain, or null when its
+    /// equipment map is to be read next.
     /// </summary>
-    public static string? ListRefusal(IReadOnlyList<GlassEditorPartRow> list, int head)
+    public static string? ListRefusal(IReadOnlyList<GlassEditorPartRow> list, int head, string operation = Replace)
     {
         ArgumentNullException.ThrowIfNull(list);
         var row = list[head];
@@ -121,7 +152,11 @@ internal static class GlassEditorRows
         {
             return GlassEstimateBuildPolicy.EquipmentCode;
         }
-        if (!row.Operations.Contains("ER", StringComparison.Ordinal))
+        if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
+        {
+            return GlassEstimateBuildPolicy.NoRowCode;
+        }
+        if (operation != Replace && !OperationsOf(row).Contains(operation))
         {
             return GlassEstimateBuildPolicy.NoRowCode;
         }
@@ -136,12 +171,16 @@ internal static class GlassEditorRows
             : null;
     }
 
-    /// <summary>One head, decided with its equipment map as the editor serves it.</summary>
+    /// <summary>
+    /// One head, decided for an operation (Replace when none is named) with
+    /// its equipment map as the editor serves it.
+    /// </summary>
     public static GlassEditorRowChoice Decide(
-        IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlyList<IReadOnlyList<string>> map)
+        IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlyList<IReadOnlyList<string>> map,
+        string operation = Replace)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (ListRefusal(list, head) is { } refused)
+        if (ListRefusal(list, head, operation) is { } refused)
         {
             return GlassEditorRowChoice.Refused(refused);
         }
@@ -154,8 +193,14 @@ internal static class GlassEditorRows
         }
 
         var parts = map[1];
-        var replace = Group(map, "ER");
+        var replace = Group(map, Replace);
         if (parts.Count > 1 || replace.Count > 1 || !parts.All(Plain) || !replace.All(Plain))
+        {
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
+        }
+
+        var refit = Group(map, RemoveAndRefit);
+        if (operation != Replace && (refit.Count > 1 || !refit.All(Plain)))
         {
             return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
         }
@@ -164,13 +209,32 @@ internal static class GlassEditorRows
             return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
         }
 
-        var block = Block(list, head);
+        var block = Block(list, head).ToList();
         var time = replace.Count == 1
-            ? block.FirstOrDefault(other => other.Id == RowOf(replace[0]))
-            : block.FirstOrDefault(other => other.Has('t') && other.Operations == "ER" && other.Criteria.Length == 0);
-        return time is null
-            ? GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.NoRowCode)
-            : new GlassEditorRowChoice(row, row.Id + "|" + time.Id, null, row.Number + "|" + row.Price + "|" + time.Price);
+            ? block.Find(other => other.Id == RowOf(replace[0]))
+            : block.Find(other => other.Has('t') && other.Operations == Replace && other.Criteria.Length == 0);
+        if (time is null)
+        {
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.NoRowCode);
+        }
+        if (operation == Replace)
+        {
+            return new GlassEditorRowChoice(row, row.Id + "|" + time.Id, null, row.Number + "|" + row.Price + "|" + time.Price);
+        }
+
+        // The operation's own hours: the map's remove-and-refit entry where it
+        // names one, else the block's time rows of the operation; more than
+        // one is a choice the dialog makes and Pegasus cannot see.
+        var own = operation == RemoveAndRefit && refit.Count == 1
+            ? block.FindAll(other => other.Id == RowOf(refit[0]))
+            : block.FindAll(other => other.Has('t') && other.Operations.Trim() == operation);
+        if (own.Count > 1)
+        {
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.AmbiguousRowCode);
+        }
+
+        return new GlassEditorRowChoice(
+            row, row.Id + "|" + time.Id, null, row.Number + "|" + row.Price + "|" + (own.Count == 1 ? own[0].Price : string.Empty));
     }
 
     /// <summary>
@@ -193,6 +257,22 @@ internal static class GlassEditorRows
         return decided.Select(choice => choice.Same).Distinct(StringComparer.Ordinal).Skip(1).Any()
             ? GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.AmbiguousRowCode)
             : decided[0];
+    }
+
+    /// <summary>The operations a row offers, two letters each (<c>ERAEI </c> is Replace, remove-and-refit and Repair).</summary>
+    private static List<string> OperationsOf(GlassEditorPartRow row)
+    {
+        var operations = new List<string>();
+        for (var index = 0; index < row.Operations.Length; index += 2)
+        {
+            var operation = row.Operations.Substring(index, Math.Min(2, row.Operations.Length - index)).Trim();
+            if (operation.Length > 0)
+            {
+                operations.Add(operation);
+            }
+        }
+
+        return operations;
     }
 
     /// <summary>A head and the rows after it, up to the next row marked <c>b</c>: the rows its map covers.</summary>
