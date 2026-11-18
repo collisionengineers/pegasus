@@ -21,6 +21,8 @@ public static class GarageAuthorisationPolicy
     /// <summary>The chase reason while the Case waits for the repairer's invoice (R1144).</summary>
     public const string AwaitingRepairInvoice = "Awaiting repair invoice";
 
+    // The two refusals and the three history reasons below are worded as
+    // the operator kept them (18 November 2026; R1165).
     public const string AuthoriseNotOffered = "Authorise garage is not offered on this Case.";
     public const string UndoNotOffered = "Undo garage authorisation is not offered on this Case.";
 
