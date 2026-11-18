@@ -138,10 +138,12 @@ public sealed record GlassSpecialOperation(string Code, string Name);
 /// operator, 18 November 2026). Every line of the spec becomes one act, in
 /// the spec's order. A line Glass's has no row for is left off and listed
 /// (R1169); a rebuilt line carries Glass's own figures (R1168). This version
-/// builds special operations and new parts (R1172): a part only where its
-/// row needs no equipment answer, which the build decides from Glass's own
-/// part list. Every other line is left off as not built in this version, and
-/// later versions change only the outcome a line type gets.
+/// builds special operations, new parts, and repair and remove-and-refit
+/// lines (R1172): a part's line only where its row needs no equipment
+/// answer, which the build decides from Glass's own part list, and a repair
+/// or remove-and-refit line with whatever hours Glass's serves for it. Every
+/// other line is left off as not built in this version, and later versions
+/// change only the outcome a line type gets.
 /// </summary>
 public static class GlassEstimateBuildPolicy
 {
@@ -166,6 +168,13 @@ public static class GlassEstimateBuildPolicy
     /// before it gives the row.
     /// </summary>
     public const string EquipmentCode = "glass.build.equipment";
+
+    /// <summary>
+    /// The note a Glass's PDF's line starts with when its printed operation
+    /// is PR, Partial repair: a <c>repair</c> line of another operation
+    /// than Repair, which this version does not build.
+    /// </summary>
+    public const string PartialRepairNote = "Printed operation: PR.";
 
     /// <summary>Not sent: an earlier line was posted and its answer was not confirmed, so the build stopped adding.</summary>
     public const string StoppedCode = "glass.build.stopped";
@@ -270,11 +279,16 @@ public static class GlassEstimateBuildPolicy
     /// One line's act, by its type and the route the spec came from. A
     /// Specialist line is tried by its name, and a new part by Glass's part
     /// code and side (a Glass's export) or by its part number (an Audatex
-    /// sheet); an included operation and paint preparation are Glass's own to
-    /// add; every other line waits for a later version. A paint line is left
-    /// off even beside its part's line (R1172): a Glass's export's paint row
-    /// carries a paint code (1640 for a bonnet), not its part's code, so
-    /// nothing on the spec ties the two (export of 5 October 2026).
+    /// sheet); a repair or remove-and-refit line of a Glass's export is tried
+    /// by Glass's part code and side, and on any other route it has no
+    /// Glass's part code to be tried by; an included operation and paint
+    /// preparation are Glass's own to add; every other line waits for a
+    /// later version. A paint line is left off even beside its part's line
+    /// (R1172): a Glass's export's paint row carries a paint code (1640 for a
+    /// bonnet), not its part's code, so nothing on the spec ties the two
+    /// (export of 5 October 2026). A Glass's PDF writes both Repair (R) and
+    /// Partial repair (PR) as a repair line; a partial repair is left off,
+    /// as it is not the Repair the build would send.
     /// </summary>
     private static GlassEstimateBuildAct ActOf(RepairSpecificationSourceRoute route, CaseEstimateLineRecord line)
     {
@@ -292,6 +306,11 @@ public static class GlassEstimateBuildPolicy
             "new_part" => (GlassEstimateBuildKind.Part, null, GlassEstimateBuildKeyKind.None),
             "paint_new" or "paint_repair" or "paint_blend" => (GlassEstimateBuildKind.Paint,
                 route == RepairSpecificationSourceRoute.Glasses ? line.GuideCode : null, GlassEstimateBuildKeyKind.None),
+            "repair" when route == RepairSpecificationSourceRoute.Glasses
+                && line.Justification?.StartsWith(PartialRepairNote, StringComparison.Ordinal) != true =>
+                (GlassEstimateBuildKind.Repair, Present(line.GuideCode), GlassEstimateBuildKeyKind.PartCode),
+            "rnr" when route == RepairSpecificationSourceRoute.Glasses =>
+                (GlassEstimateBuildKind.RemoveAndRefit, Present(line.GuideCode), GlassEstimateBuildKeyKind.PartCode),
             "repair" => (GlassEstimateBuildKind.Repair, line.GuideCode, GlassEstimateBuildKeyKind.None),
             "rnr" => (GlassEstimateBuildKind.RemoveAndRefit, line.GuideCode, GlassEstimateBuildKeyKind.None),
             "paint_prep" => (GlassEstimateBuildKind.PaintPreparation, null, GlassEstimateBuildKeyKind.None),
@@ -305,6 +324,12 @@ public static class GlassEstimateBuildPolicy
             GlassEstimateBuildKind.SpecialOperation => (true, GlassEstimateBuildOutcome.Pending, null),
             GlassEstimateBuildKind.Part when position.Key is null => (false, GlassEstimateBuildOutcome.LeftOff, NoKeyCode),
             GlassEstimateBuildKind.Part => (true, GlassEstimateBuildOutcome.Pending, null),
+            GlassEstimateBuildKind.Repair or GlassEstimateBuildKind.RemoveAndRefit
+                when position.KeyKind == GlassEstimateBuildKeyKind.PartCode && position.Key is null =>
+                (false, GlassEstimateBuildOutcome.LeftOff, NoKeyCode),
+            GlassEstimateBuildKind.Repair or GlassEstimateBuildKind.RemoveAndRefit
+                when position.KeyKind == GlassEstimateBuildKeyKind.PartCode =>
+                (true, GlassEstimateBuildOutcome.Pending, null),
             GlassEstimateBuildKind.IncludedOperation or GlassEstimateBuildKind.PaintPreparation =>
                 (false, GlassEstimateBuildOutcome.AddedByGlass, null),
             _ => (false, GlassEstimateBuildOutcome.LeftOff, NotBuiltCode),
