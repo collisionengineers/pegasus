@@ -81,7 +81,7 @@
     void CaseFileRow(Guid occurrenceId, StaffMailAttachment file, string kindLabel, string rowMark, Guid? offeredId)
     {
         var name = file.FileName;
-        var extension = Path.GetExtension(name);
+        var extension = System.IO.Path.GetExtension(name);
         var preview = CaseDocumentPreviews.KindOf(file.MediaType, name);
         var versionId = file.VersionId.GetValueOrDefault();
         var download = CaseFileAddresses.Download(caseId, occurrenceId, versionId);
