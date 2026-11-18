@@ -65,7 +65,7 @@ public sealed class EfContactDirectoryAdministration(
         var contacts = context.Organizations.AsNoTracking().Where(item => item.Role == role);
         // A Principal is found by the start of its name or of any code it holds, an
         // earlier one included; every other type by its name only (operator,
-        // 18 November 2026; R1183).
+        // 18 November 2026; R1190).
         if (!string.IsNullOrWhiteSpace(prefix))
         {
             contacts = query.Role == ContactRole.Principal

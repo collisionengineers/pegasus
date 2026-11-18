@@ -140,6 +140,81 @@ public sealed class ProviderWorkQueueTests
         }
     }
 
+    /// <summary>
+    /// Work that names its own time cap is cancelled at that cap, not at the
+    /// queue's: a Glass's build runs longer than any other provider work, and
+    /// its cap is its own.
+    /// </summary>
+    [Fact]
+    public async Task WorkThatNamesItsOwnCapIsCancelledAtThatCap()
+    {
+        var queue = new ProviderWorkQueue();
+        using var services = new ServiceCollection().BuildServiceProvider();
+        using var service = new ProviderWorkService(
+            queue,
+            services.GetRequiredService<IServiceScopeFactory>(),
+            TimeProvider.System,
+            NullLogger<ProviderWorkService>.Instance);
+        var key = Guid.NewGuid();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await service.StartAsync(CancellationToken.None);
+        try
+        {
+            using (var reservation = queue.Reserve(key))
+            {
+                Assert.Equal(ProviderWorkAdmission.Queued, reservation.Admit(new ProviderWork(
+                    key,
+                    "Test",
+                    async (_, cancellationToken) =>
+                    {
+                        try
+                        {
+                            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            cancelled.SetResult();
+                            throw;
+                        }
+                    },
+                    Cap: TimeSpan.FromMilliseconds(200))));
+            }
+
+            await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            for (var attempt = 0; queue.IsInFlight(key); attempt++)
+            {
+                Assert.True(attempt < 100, "The capped work was not let go.");
+                await Task.Delay(TimeSpan.FromMilliseconds(50));
+            }
+        }
+        finally
+        {
+            cancelled.TrySetResult();
+            await service.StopAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>A Glass's build carries its own cap, longer than the queue's.</summary>
+    [Fact]
+    public void AGlassBuildCarriesItsOwnCap()
+    {
+        var session = new Pegasus.Core.Assessment.GlassRepairEstimateSession(
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, "account",
+            Pegasus.Core.Assessment.GlassRepairEstimateSessionState.Prepared, 0, "build",
+            DateTimeOffset.UnixEpoch, null, null, null);
+        var actor = Pegasus.Core.Identity.ActionActor.Staff(session.PegasusUserId, [Pegasus.Core.Identity.StaffRole.User]);
+
+        var build = Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.For(
+            actor, new(session, Pegasus.Core.Assessment.GlassRepairEstimateContinuation.Build));
+        var launch = Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.For(
+            actor, new(session, Pegasus.Core.Assessment.GlassRepairEstimateContinuation.Launch));
+
+        Assert.Equal("GlassBuild", build.Kind);
+        Assert.Equal(Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.BuildTimeCap, build.Cap);
+        Assert.True(build.Cap > ProviderWorkService.TimeCap);
+        Assert.Null(launch.Cap);
+    }
+
     private static ProviderWork Work(Guid key, Func<IServiceProvider, CancellationToken, Task> run) =>
         new(key, "Test", run);
 }

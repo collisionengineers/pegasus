@@ -683,7 +683,7 @@ public sealed partial class ContactIndexWebTests
     }
 
     /// <summary>
-    /// R1183: the search finds a Principal by the start of any code it holds, in
+    /// R1190: the search finds a Principal by the start of any code it holds, in
     /// any case and an earlier code included, and shows its current code; a contact
     /// linked to that Principal is still found by its name only.
     /// </summary>

@@ -12,7 +12,9 @@
   **Use repair spec** switches back to another one.
 - A Glass's estimate belongs to its repair spec. **Glass's** on that spec
   reopens the same estimate, and its saved return updates that spec. On any
-  other spec it starts a new estimate.
+  other spec it starts a new estimate. On a spec with lines made outside
+  Pegasus it first asks whether to import that spec into Glass's, and the
+  import lands as a new Glass's spec beside it (18 November 2026; R1171).
 - An imported spec takes the Standard labour-rate card. AI and
   automation material stays a Draft until a staff member presses
   **Use repair spec**.
@@ -289,6 +291,13 @@ version.
 - On a repair spec that belongs to a Glass's estimate, it reopens that
   estimate in a new session, under the pressing staff member's own account.
   No vehicle is made.
+- On a spec with lines that belongs to no Glass's estimate, it first asks
+  "Import into Glass's?": "This estimate was made outside Pegasus. Import it
+  into Glass's and open it there?" (18 November 2026; R1171). **Import and
+  open** rebuilds the spec in Glass's (below). **Open an empty estimate** is
+  the press the next item describes, and **Cancel** closes the question.
+  Every such spec is asked, whatever route it came by, and the outside
+  estimate's vehicle is not checked against the Case.
 - On any other spec, on **New repair spec**, or with no spec, it starts a new
   estimate on a new stock vehicle. This is how a Case comes to hold a second
   Glass's spec.
@@ -297,6 +306,36 @@ A fresh estimate for a spec comes from clearing its lines inside the
 estimator, or from discarding the spec. The portal's own Reset Repair Estimate
 is not supported: the vehicle then shows no estimate and the reopen is refused
 at `glass.details.profile`.
+
+**Rebuilding an estimate made outside Pegasus (18 November 2026; R1168,
+R1169, R1171, R1173).** **Import and open** starts a new estimate on a new
+stock vehicle, as any first press does. Pegasus then opens Glass's editor
+itself, adds the spec's lines as Glass's own dialogs serve them, saves, and
+brings the estimate back through the return path, so it lands as a new
+Glass's repair spec beside the outside one. No figure is typed: a rebuilt
+line carries Glass's own figures (R1168). A line Glass's has no row for is
+left off and listed (R1169). In this version a Specialist line is added
+when exactly one row of Glass's special-operation list has exactly its
+name; an included operation and paint preparation are not sent, because
+Glass's adds them itself; every other line is left off and listed as not
+built in this version.
+
+- A line whose dialog Glass's refuses before anything is sent is left off
+  and listed, and the build goes on.
+- A line whose answer is lost is listed as not confirmed, and nothing more is
+  added. What Glass's saved is brought back, and its export decides what the
+  new spec holds.
+- When Glass's editor cannot be opened, or nothing could be placed, nothing
+  is saved, and the staff member gets the empty estimate **Open an empty
+  estimate** gives.
+- A save whose outcome cannot be known leaves the session `Unknown`,
+  holding the account, as any lost answer does; a save Glass's reports as
+  not made leaves it `Failed`. Nothing is imported either way.
+
+The staff member who ran the build sees, on the new spec, the list of the
+outside estimate's lines: what was sent, or why not, and Glass's price or
+hours where they differ from the outside estimate's. It stays until their
+next Glass's session on the Case (R1173).
 
 **Any staff member who holds the Case edit may reopen a spec's estimate.**
 While a colleague holds the edit, nobody else can press Glass's. After a
@@ -310,9 +349,13 @@ arrives with the next return.
 reopen and a continued session check the Case authority, the account and the
 vehicle, record the session, and answer at once. The provider work then runs in the background
 ([ADR-0058](../adr/0058-glass-provider-work-in-the-web-host.md)). The Glass's
-window says "Preparing Glass's…" while it runs. When the estimator is ready,
-the window refreshes the Case's Glass's controls and opens the estimator. If
-the launch did not open, the window hands the outcome back to the Case.
+window says "Preparing Glass's…" while it runs. While a build runs it says
+"Building the estimate in Glass's… 12 of 34", the lines tried so far of
+those it tries (18 November 2026; R1171), and once the build's return is brought
+back it reports the outcome on the Case as after any return. When the
+estimator is ready, the window refreshes the Case's Glass's controls and
+opens the estimator. If the launch did not open, the window hands the
+outcome back to the Case.
 
 The provider's return is the same. It is checked and claimed at once: a
 stranger is refused before the one-use token is spent. The window then says
@@ -382,7 +425,10 @@ running for it is settled when the window next asks:
 - Prepared never reached the provider. It stays Prepared and can be
   continued, and the Case says the estimate did not start.
 - Launching or a claimed import may have reached the provider. It becomes
-  `Unknown`, keeps the account, and follows the Unknown rule below.
+  `Unknown`, keeps the account, and follows the Unknown rule below. A build
+  is Launching until its own return is claimed. One stopped part-way is not
+  taken up again: pressing **Glass's** continues the session as a launch, so
+  no line is sent twice (18 November 2026; R1171).
 - A claimed import keeps the provider's return with its claim. If the relay
   back to Glass's had not begun, continuing the session makes it once. If
   it had begun, continuing looks the export up again and never relays again.
@@ -586,7 +632,7 @@ operator, 22 October 2026).
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) until discarded, which deletes it. At most one spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
+| Glass's session | prepared (work running in the background), launched, building (a launch that rebuilds a spec made outside Pegasus, held as launching until its own return is claimed; 18 November 2026, R1171), `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour
 
@@ -647,6 +693,11 @@ recorded in operations as it passes:
     return; busy buttons on the Glass's paths; and a changed registration
     refused on a real stock vehicle while a session with no recorded vehicle
     follows the Case.
+13. Glass's on a spec imported from another system with Specialist lines
+    named as Glass's special operations: the question, **Import and open**,
+    the window's progress, and a new Glass's spec beside the outside one
+    with its list; then **Open an empty estimate** on the same spec gives a
+    new empty estimate (18 November 2026; R1171 to R1173).
 
 Manual export/import does not satisfy this integration's acceptance.
 Supplier startup failures remain open until that journey passes

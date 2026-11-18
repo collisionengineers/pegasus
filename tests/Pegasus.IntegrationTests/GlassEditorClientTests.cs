@@ -1,0 +1,333 @@
+using System.Net;
+using Pegasus.Infrastructure.Glass;
+
+namespace Pegasus.IntegrationTests;
+
+/// <summary>
+/// The editor client against a scripted editor that answers from the pages
+/// cut from real browser captures: what it asks for, in what order, with
+/// which cookies and referrers, and what it refuses to do.
+/// </summary>
+public sealed class GlassEditorClientTests
+{
+    private const string EmptyEstimate = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
+
+    private static readonly string[] LoadBalancerCookies =
+    [
+        "AWSALB=one; Path=/",
+        "AWSALBCORS=two; Path=/; SameSite=None; Secure",
+    ];
+
+    private static readonly string[] WholeSession =
+    [
+        "GET /ere/acolib/aco_call_xml.php",
+        "GET /ere/aco/aco.php",
+        "GET /ere/aco/aco2.php",
+        "GET /ere/aco/selected.php",
+        "GET /ere/aco/part.php",
+        "POST /ere/aco/compproc.php",
+        "GET /ere/aco/selected.php",
+        "GET /ere/aco/service.php",
+        "GET /ere/aco/close.php",
+        "GET /ere/acolib/aco_call_xml.php",
+    ];
+
+    private static readonly string[] Removal =
+    [
+        "GET /ere/aco/part.php",
+        "GET /ere/aco/compproc.php",
+        "GET /ere/aco/selected.php",
+    ];
+
+    private static readonly DateTimeOffset Now = DateTimeOffset.FromUnixTimeMilliseconds(1794979937000);
+
+    private static string LaunchAddress =>
+        GlassEditorFixture.Page("opening").GetProperty("launchAddress").GetString()!;
+
+    [Fact]
+    public async Task OpeningReadsTheKeyAndSendsBackTheCookiesItWasGiven()
+    {
+        using var editor = new ScriptedEditor();
+        ScriptOpening(editor);
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, EmptyEstimate));
+        var client = Client(editor);
+
+        var session = await client.OpenAsync(LaunchAddress, default);
+        var read = await client.ReadEstimateAsync(session, default);
+
+        Assert.Equal(GlassEditorFixture.Key, session.Key);
+        Assert.Equal(GlassEditorFixture.Base, session.BaseAddress);
+        Assert.Equal("one", session.Cookies["AWSALB"]);
+        Assert.Equal("two", session.Cookies["AWSALBCORS"]);
+        Assert.Null(editor.Requests[0].Cookie);
+        Assert.Equal("https://pegasus.test/", editor.Requests[0].Referer);
+        Assert.Equal(LaunchAddress, editor.Requests[1].Referer);
+        Assert.All(editor.Requests.Skip(1), request => Assert.Equal("AWSALB=one; AWSALBCORS=two", request.Cookie));
+        Assert.All(editor.Requests, request => Assert.Equal("repairestimate.autovistagroup.com", request.Host));
+        Assert.True(read.Value.Found);
+        Assert.Empty(read.Value.Positions);
+        Assert.DoesNotContain(GlassEditorFixture.Key, session.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("one", session.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AWholeSessionAsksForWhatTheBrowserAsksForAndAnswersTheWayHome()
+    {
+        using var editor = new ScriptedEditor();
+        ScriptOpening(editor);
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, EmptyEstimate));
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_fixed_price.dialog.html")));
+        editor.Enqueue("POST compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_fixed_price.answer.html")));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("save.answer.html")));
+        editor.Enqueue("GET close.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("close.html")));
+        editor.Enqueue("GET aco_call_xml.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("return.html")));
+        var client = Client(editor);
+
+        var session = await client.OpenAsync(LaunchAddress, default);
+        var read = await client.ReadEstimateAsync(session, default);
+        var added = await client.AddAsync(
+            read.Session, read.Value, new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000073", "73"), default);
+        var home = await client.SaveAndExitAsync(added.Session, default);
+
+        Assert.Equal(WholeSession, editor.Requests.Select(request => request.Method + " " + request.Path));
+        Assert.Equal(
+            GlassEditorFixture.Page("closing").GetProperty("home").GetProperty("address").GetString(),
+            home);
+        Assert.Equal(GlassEditorFixture.Text("special_fixed_price.post.txt"), editor.Requests[5].Body);
+        Assert.Equal("?ksid=" + GlassEditorFixture.Key + "&mcode=AC0000073&cml=A&dialogCodePage=iso-8859-1&dummy=1794979937000",
+            editor.Requests[4].Query);
+        Assert.Equal(GlassEditorFixture.Base + "part.php" + editor.Requests[4].Query, editor.Requests[5].Referer);
+        Assert.Equal(".Assessment Damage Appraisal Charge", added.Value.Summary.Description);
+        Assert.Empty(added.Value.Listed);
+        Assert.Equal(GlassEditorFixture.Strings(GlassEditorFixture.Page("selected"), "positions"), added.Value.Added);
+        Assert.Equal(
+            GlassEditorFixture.Page("closing").GetProperty("backAddress").GetString(),
+            "https://" + editor.Requests[9].Host + editor.Requests[9].Path + editor.Requests[9].Query);
+    }
+
+    [Fact]
+    public async Task ADialogWithAProblemIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Hours: "0.80")),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.False(refused.OutcomeUnknown);
+        Assert.Contains("the dialog asks for a reason", refused.Detail, StringComparison.Ordinal);
+        var only = Assert.Single(editor.Requests);
+        Assert.Equal("GET", only.Method);
+    }
+
+    [Fact]
+    public async Task ADialogForAnotherPartIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.PaintablePart, "771|772", "1060000", Button: "BSS"),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Single(editor.Requests);
+    }
+
+    [Fact]
+    public async Task APartWithMandatoryPartsIsConfirmedWithTheTicksAskedFor()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.dialog.html")));
+        editor.Enqueue("POST compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.answer.html")));
+        editor.Enqueue("POST compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("door_left_part.confirm_answer.html")));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+        var dialog = GlassEditorFixture.Dialog("door_left_part");
+
+        var added = await client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(
+                GlassEditorDialog.PaintablePart, "771|772", "2020001", Button: "BSS",
+                Ticks: GlassEditorFixture.Strings(dialog, "ticks")),
+            default);
+
+        Assert.Equal(GlassEditorFixture.Text("door_left_part.post.txt"), editor.Requests[1].Body);
+        Assert.Equal(GlassEditorFixture.Text("door_left_part.confirm.txt"), editor.Requests[2].Body);
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&cml=C&BX=1&mcode=771|772", Uri.UnescapeDataString(editor.Requests[2].Query));
+        Assert.Equal(3, added.Value.Listed.Count);
+    }
+
+    [Fact]
+    public async Task AnotherHostIsNeverAsked()
+    {
+        using var editor = new ScriptedEditor();
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.OpenAsync(
+            "https://elsewhere.test/ere/acolib/aco_call_xml.php?WorkTime=1", default));
+
+        Assert.Equal(GlassFailure.EditorHost, refused.FailureCode);
+        Assert.Empty(editor.Requests);
+    }
+
+    [Fact]
+    public async Task ARedirectIsAFailureAndIsNotFollowed()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET aco_call_xml.php", new(
+            HttpStatusCode.Found, string.Empty, Location: "https://repairestimate.autovistagroup.com/ere/aco/aco.php"));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.OpenAsync(LaunchAddress, default));
+
+        Assert.Equal(GlassFailure.EditorLaunch, refused.FailureCode);
+        Assert.Contains("redirect", refused.Detail, StringComparison.Ordinal);
+        Assert.Single(editor.Requests);
+    }
+
+    [Fact]
+    public async Task ABlockedLaunchIsRefused()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET aco_call_xml.php", new(
+            HttpStatusCode.OK, "<script>document.location.replace( 'blocked.html?caller=x' );</script>"));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.OpenAsync(LaunchAddress, default));
+
+        Assert.Equal(GlassFailure.EditorBlocked, refused.FailureCode);
+        Assert.Single(editor.Requests);
+    }
+
+    [Fact]
+    public async Task RemovalAsksForThePositionsDialogFirst()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("mirror_left.dialog.html")));
+        editor.Enqueue("GET compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("removed.answer.html")));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+        var id = GlassEditorFixture.Page("removed").GetProperty("id").GetString()!;
+
+        var after = await client.RemoveAsync(GlassEditorFixture.Session(), id, default);
+
+        Assert.Equal(Removal, editor.Requests.Select(request => request.Method + " " + request.Path));
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=1794979937000",
+            editor.Requests[0].Query);
+        Assert.Equal(GlassEditorFixture.Base + "part.php" + editor.Requests[0].Query, editor.Requests[1].Referer);
+        Assert.Equal("?ksid=" + GlassEditorFixture.Key + "&cml=C&partid=" + id + "&dummy=1794979937000", editor.Requests[1].Query);
+        Assert.DoesNotContain(id, after.Value.Positions);
+    }
+
+    [Fact]
+    public async Task ARemovalTheEstimateStillListsIsAFailure()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("mirror_left.dialog.html")));
+        editor.Enqueue("GET compproc.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("removed.answer.html")));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() =>
+            client.RemoveAsync(GlassEditorFixture.Session(), "C350926.27.C2027021.4646", default));
+
+        Assert.Equal(GlassFailure.EditorAnswer, refused.FailureCode);
+    }
+
+    private static GlassEditorEstimate NoPositions() => new(true, Array.Empty<string>(), Array.Empty<string>());
+
+    private static GlassEditorClient Client(ScriptedEditor editor) =>
+        new(new HttpClient(editor, disposeHandler: false), GlassEditorFixture.Options(), new GlassEditorFixture.FixedClock(Now), TimeSpan.Zero);
+
+    private static void ScriptOpening(ScriptedEditor editor)
+    {
+        editor.Enqueue("GET aco_call_xml.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("launch.html"), SetCookies: LoadBalancerCookies));
+        editor.Enqueue("GET aco.php", new(HttpStatusCode.OK, "<html><body></body></html>"));
+        editor.Enqueue("GET aco2.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("aco2.html")));
+    }
+}
+
+/// <summary>One scripted editor answer, its body sent as windows-1252 as the editor sends it.</summary>
+internal sealed record EditorReply(
+    HttpStatusCode Status, string Body, string? Location = null, IReadOnlyList<string>? SetCookies = null);
+
+/// <summary>What one request to the scripted editor carried.</summary>
+internal sealed record EditorRequest(
+    string Method, string Host, string Path, string Query, string? Body, string? Cookie, string? Referer);
+
+/// <summary>
+/// The scripted editor. Answers are queued by method and page name
+/// (<c>GET selected.php</c>) and served in order; a request nothing was
+/// queued for is answered 404.
+/// </summary>
+internal sealed class ScriptedEditor : HttpMessageHandler
+{
+    private readonly Dictionary<string, Queue<EditorReply>> replies = new(StringComparer.Ordinal);
+
+    public List<EditorRequest> Requests { get; } = [];
+
+    public void Enqueue(string route, EditorReply reply)
+    {
+        if (!replies.TryGetValue(route, out var queue))
+        {
+            queue = new Queue<EditorReply>();
+            replies[route] = queue;
+        }
+
+        queue.Enqueue(reply);
+    }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri!;
+        var path = uri.AbsolutePath;
+        Requests.Add(new(
+            request.Method.Method,
+            uri.Host,
+            path,
+            uri.Query,
+            request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
+            Header(request, "Cookie"),
+            Header(request, "Referer")));
+
+        var page = path[(path.LastIndexOf('/') + 1)..];
+        var route = request.Method.Method + " " + page;
+        if (!replies.TryGetValue(route, out var queue) || queue.Count == 0)
+        {
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }
+
+        var reply = queue.Dequeue();
+        var response = new HttpResponseMessage(reply.Status)
+        {
+            Content = new ByteArrayContent(GlassEditorText.Encode(reply.Body)),
+        };
+        if (reply.Location is not null)
+        {
+            response.Headers.Location = new Uri(reply.Location);
+        }
+        foreach (var cookie in reply.SetCookies ?? [])
+        {
+            response.Headers.TryAddWithoutValidation("Set-Cookie", cookie);
+        }
+
+        return response;
+    }
+
+    private static string? Header(HttpRequestMessage request, string name) =>
+        request.Headers.TryGetValues(name, out var values) ? string.Join(", ", values) : null;
+}

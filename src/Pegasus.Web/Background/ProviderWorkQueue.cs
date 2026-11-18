@@ -4,10 +4,12 @@ namespace Pegasus.Web.Background;
 
 /// <summary>
 /// One piece of provider work the Web host runs after the request that asked
-/// for it has answered. <see cref="Key"/> names the record the work acts on.
+/// for it has answered. <see cref="Key"/> names the record the work acts on;
+/// <see cref="Cap"/>, when given, is its own time cap in place of
+/// <see cref="ProviderWorkService.TimeCap"/>.
 /// </summary>
 public sealed record ProviderWork(
-    Guid Key, string Kind, Func<IServiceProvider, CancellationToken, Task> RunAsync)
+    Guid Key, string Kind, Func<IServiceProvider, CancellationToken, Task> RunAsync, TimeSpan? Cap = null)
 {
     public override string ToString() => $"{Kind} {Key:D}";
 }
