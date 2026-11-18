@@ -32,7 +32,7 @@ namespace Pegasus.IntegrationTests;
 /// <c>&lt;Estimation&gt;</c> fixture.
 /// </para>
 /// </summary>
-public sealed class GlassRepairEstimateGatewayTests
+public sealed partial class GlassRepairEstimateGatewayTests
 {
     private static readonly DateTimeOffset StartUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -3419,6 +3419,13 @@ public sealed class GlassRepairEstimateGatewayTests
                 .Where(link => link.Value.VehicleId == vehicleId)
                 .Select(link => (Guid?)link.Key)
                 .FirstOrDefault());
+
+        /// <summary>The repair specs of the work with their lines, as a build reads them.</summary>
+        public Dictionary<Guid, RepairSpecificationVersion> Specifications { get; } = [];
+
+        public Task<RepairSpecificationVersion?> FindBuildSourceAsync(
+            Guid workId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult(Specifications.GetValueOrDefault(specificationId));
     }
 
     private sealed class CredentialDouble : IPerUserExternalCredentialReader
@@ -3933,7 +3940,11 @@ public sealed class GlassRepairEstimateGatewayTests
                 ProfileId,
                 ExportPollInterval: TimeSpan.FromMilliseconds(5),
                 ExportTimeout: TimeSpan.FromMilliseconds(50),
-                maximumExportBytes);
+                maximumExportBytes)
+            {
+                // The editor's own pace is a browser's; here it waits for nothing.
+                EditorPause = TimeSpan.Zero,
+            };
             var caseAuthority = new CaseAuthorityDouble(new(Registration, MileageMiles, CaseAuthorityDouble.WorkId));
             var credentials = new CredentialDouble();
             var custody = new CustodyDouble();
@@ -3994,6 +4005,25 @@ public sealed class GlassRepairEstimateGatewayTests
             return launched;
         }
 
+        /// <summary>
+        /// Import and open on a repair spec made outside Pegasus: the launch's
+        /// prepare half with the build flag, then its provider work inline.
+        /// </summary>
+        public async Task<GlassRepairEstimateSession> BuildAsync(
+            RepairSpecificationVersion outside, string operationKey = "glass-build-1")
+        {
+            CaseAuthority.Specifications[outside.SpecificationId] = outside;
+            var step = await Gateway.PrepareLaunchAsync(
+                new GlassRepairEstimateLaunchRequest(
+                    Engineer, CaseId, CaseVersion, LeaseToken, operationKey, Guid.NewGuid())
+                {
+                    SpecificationId = outside.SpecificationId,
+                    Build = true,
+                },
+                CancellationToken.None);
+            return await ContinueAsync(Engineer, step, CancellationToken.None);
+        }
+
         /// <summary>A resume's prepare half and then whatever provider work it owes.</summary>
         public async Task<GlassRepairEstimateSession> ResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken = default) =>
@@ -4032,6 +4062,8 @@ public sealed class GlassRepairEstimateGatewayTests
                     await Gateway.ContinueLaunchAsync(new(actor, step.Session.Id), cancellationToken),
                 GlassRepairEstimateContinuation.Import =>
                     await Gateway.ContinueImportAsync(new(actor, step.Session.Id), cancellationToken),
+                GlassRepairEstimateContinuation.Build =>
+                    await Gateway.ContinueBuildAsync(new(actor, step.Session.Id), cancellationToken),
                 _ => step.Session,
             };
     }
