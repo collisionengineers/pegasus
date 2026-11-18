@@ -16,7 +16,8 @@ public enum CaseReportActAccess
 /// <summary>
 /// What the Case page's Generate and the Automation Actor's report acts share
 /// (ADR-0064, R1042): the reason each artifact's request records, the fee
-/// note a report request goes on to make, and the Automation Actor's gate
+/// note and the Principal's own invoice a report request goes on to make
+/// (R1147), and the Automation Actor's gate
 /// for generating or sending a report. Each caller opens the generation's
 /// custody batch itself (<see cref="IGenerateCaseReport.BeginBatch"/> is an
 /// ambient scope that must be opened in the caller's own flow) and presents
@@ -34,6 +35,7 @@ public sealed class CaseReportActs(IGetAssessmentAccess getAssessmentAccess)
         CaseReportArtifactKind.AssessmentReport => "Generate the immutable case report",
         CaseReportArtifactKind.FeeNote => "Generate the immutable fee note",
         CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
+        CaseReportArtifactKind.PrincipalInvoice => "Generate the immutable ULA Invoice",
         _ => "Generate the immutable images",
     };
 
@@ -72,18 +74,52 @@ public sealed class CaseReportActs(IGetAssessmentAccess getAssessmentAccess)
     {
         ArgumentNullException.ThrowIfNull(report);
         ArgumentNullException.ThrowIfNull(result);
-        return GenerateCaseReport.FeeNoteTargetOf(report.Kind, result.Generation) is { } feeNoteTarget
+        return CompanionAfter(
+            report,
+            CaseReportArtifactKind.FeeNote,
+            GenerateCaseReport.FeeNoteTargetOf(report.Kind, result.Generation),
+            feeNoteOperationKey);
+    }
+
+    /// <summary>
+    /// The Principal's own invoice (the ULA Invoice) a report request goes on
+    /// to make after its fee note, under the same lease and version, from the
+    /// generation <see cref="GenerateCaseReport.PrincipalInvoiceTargetOf"/>
+    /// pairs it with; null when it pairs none (R1147). <paramref name="result"/>
+    /// is the latest generation result: the fee note's when one was made, so
+    /// the invoice reads the generation as the fee note left it.
+    /// </summary>
+    public static GenerateCaseReportRequest? PrincipalInvoiceRequestAfter(
+        GenerateCaseReportRequest report,
+        CaseReportGenerationResult result,
+        string principalInvoiceOperationKey)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(result);
+        return CompanionAfter(
+            report,
+            CaseReportArtifactKind.PrincipalInvoice,
+            GenerateCaseReport.PrincipalInvoiceTargetOf(report.Kind, result.Generation),
+            principalInvoiceOperationKey);
+    }
+
+    /// <summary>A companion's request under the report's own lease, version and work, when it has a target.</summary>
+    private static GenerateCaseReportRequest? CompanionAfter(
+        GenerateCaseReportRequest report,
+        CaseReportArtifactKind kind,
+        Guid? target,
+        string operationKey) =>
+        target is { } generationId
             ? RequestFor(
                 report.Actor,
                 report.CaseId,
                 report.ExpectedCaseVersion,
                 report.LeaseToken,
-                feeNoteOperationKey,
-                CaseReportArtifactKind.FeeNote,
-                feeNoteTarget,
+                operationKey,
+                kind,
+                generationId,
                 report.Work)
             : null;
-    }
 
     /// <summary>
     /// The Automation Actor's report gate, as the Case page's: an assessment

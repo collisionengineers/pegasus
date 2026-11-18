@@ -1612,6 +1612,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(43)
                         .HasColumnType("nvarchar(43)");
 
+                    b.Property<string>("AuditWorkflow")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("original_engineer_report");
+
                     b.Property<Guid>("ConcurrencyToken")
                         .IsConcurrencyToken()
                         .HasColumnType("uniqueidentifier");
@@ -1714,6 +1721,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("Cases", null, t =>
                         {
                             t.HasCheckConstraint("CK_Cases_AuditReference", "[AuditReference] IS NULL OR ([Type] = N'inspection_and_audit' AND [AuditReference] = N'a.' + [Reference])");
+
+                            t.HasCheckConstraint("CK_Cases_AuditWorkflow", "[AuditWorkflow] IN ('original_engineer_report', 'garage_authorisation_and_invoice')");
 
                             t.HasCheckConstraint("CK_Cases_InitialState", "([Type] = N'triage' AND [InitialState] IS NULL) OR ([Type] <> N'triage' AND [InitialState] IS NOT NULL)");
 
@@ -3013,6 +3022,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("EditRequesterKind")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset?>("GarageAuthorisedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<bool>("HasOpenQuery")
                         .ValueGeneratedOnAdd()
@@ -6504,6 +6516,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<string>("AuditWorkflow")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("original_engineer_report");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -6557,6 +6576,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<string>("InvoicePaymentTerms")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("InvoiceVatNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -6565,6 +6592,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("PredecessorId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PrincipalInvoice")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("none");
 
                     b.Property<string>("ReferenceScheme")
                         .IsRequired()
@@ -6611,11 +6645,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Principals", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Principals_AuditWorkflow", "[AuditWorkflow] IN ('original_engineer_report', 'garage_authorisation_and_invoice')");
+
                             t.HasCheckConstraint("CK_Principals_Code", "[Code] <> ''");
 
                             t.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
 
                             t.HasCheckConstraint("CK_Principals_InspectionMode", "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
+
+                            t.HasCheckConstraint("CK_Principals_PrincipalInvoice", "[PrincipalInvoice] IN ('none', 'ula_invoice')");
 
                             t.HasCheckConstraint("CK_Principals_ReferenceScheme", "[ReferenceScheme] IN ('principal_sequence', 'registration')");
 

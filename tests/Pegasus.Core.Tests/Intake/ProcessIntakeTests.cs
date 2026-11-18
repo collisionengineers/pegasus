@@ -136,7 +136,7 @@ public sealed class ProcessIntakeTests
         {
             SourceIdentity = new(IntakeSourceChannel.ManualUpload, "33333333333333333333333333333333"),
             DeclaredCaseId = declaredCaseId,
-            DeclaredDocumentType = DocumentSemanticRole.Estimate
+            DeclaredDocumentType = DocumentSemanticRole.ExternalEstimate
         };
 
         var receipt = await sut.ExecuteRetainedAsync(source, "retained/selected.pdf");
@@ -147,7 +147,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(declaredCaseId, draft.DeclaredCaseId);
         // The type chosen at upload reaches the processed receipt with the
         // declaration (R564), for the filer to read.
-        Assert.Equal(DocumentSemanticRole.Estimate, draft.DeclaredDocumentType);
+        Assert.Equal(DocumentSemanticRole.ExternalEstimate, draft.DeclaredDocumentType);
         Assert.Contains(draft.Evidence, evidence =>
             evidence.Signal == IntakeEvidenceSignals.DeclaredDestination
             && evidence.Finding == IntakeEvidenceFinding.Information);
@@ -290,7 +290,7 @@ public sealed class ProcessIntakeTests
     public async Task ADeclaredDocumentTypeIsRefusedOnTheDirectPath()
     {
         var sut = CreateSut(new StubReader(Readable()), new RecordingStore());
-        var source = CreateSource() with { DeclaredDocumentType = DocumentSemanticRole.Estimate };
+        var source = CreateSource() with { DeclaredDocumentType = DocumentSemanticRole.ExternalEstimate };
 
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(source));
     }

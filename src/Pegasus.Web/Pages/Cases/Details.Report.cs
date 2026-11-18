@@ -259,7 +259,10 @@ public sealed partial class DetailsModel
     public OriginalReportFigures? OriginalReport { get; private set; }
 
     /// <summary>Whether the aside draws the Original report card: the Audit view once the Audit exists.</summary>
-    public bool DrawsOriginalReport => !IsInspectionView && Works is { HasAudit: true };
+    public bool DrawsOriginalReport => !IsInspectionView
+        && Works is { HasAudit: true }
+        // A Garage authorisation and invoice Audit has no original report (R1138).
+        && CurrentSummary?.AuditWorkflow != AuditWorkflowKind.GarageAuthorisationAndInvoice;
 
     private void ApplyReportDeliverySubject()
     {
@@ -479,6 +482,8 @@ public sealed partial class DetailsModel
 
     public string GenerateFeeNoteOperationKey { get; private set; } = NewOperationKey();
 
+    public string GeneratePrincipalInvoiceOperationKey { get; private set; } = NewOperationKey();
+
     public string GenerateRepairSpecOperationKey { get; private set; } = NewOperationKey();
 
     public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
@@ -574,19 +579,22 @@ public sealed partial class DetailsModel
     /// The report always ends with its fee note, and the same button makes
     /// the separate fee note from the same frozen snapshot once the report is
     /// confirmed (operator, 7 October 2026). A report still being filed to
-    /// Box makes its fee note on the next Generate report.
+    /// Box makes its fee note on the next Generate report. After the fee note
+    /// it makes the Principal's own invoice for a Principal whose setting asks
+    /// for one, the same way (R1147).
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string feeNoteOperationKey,
+        string? principalInvoiceOperationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.AssessmentReport,
-            targetGenerationId: null, cancellationToken, feeNoteOperationKey);
+            targetGenerationId: null, cancellationToken, feeNoteOperationKey, principalInvoiceOperationKey);
 
     /// <summary>
     /// The two companion documents a delivery may attach (v28 P22). Each is a
@@ -634,13 +642,14 @@ public sealed partial class DetailsModel
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
         CancellationToken cancellationToken,
-        string? feeNoteOperationKey = null)
+        string? feeNoteOperationKey = null,
+        string? principalInvoiceOperationKey = null)
     {
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
                 id, operationKey, expectedCaseVersion, kind,
-                targetGenerationId, feeNoteOperationKey, cancellationToken);
+                targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
@@ -653,7 +662,7 @@ public sealed partial class DetailsModel
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, targetGenerationId, feeNoteOperationKey, cancellationToken);
+            kind, targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken);
     }
 
     /// <summary>
@@ -670,6 +679,7 @@ public sealed partial class DetailsModel
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
         string? feeNoteOperationKey,
+        string? principalInvoiceOperationKey,
         CancellationToken cancellationToken)
     {
         var guard = await GuardSectionCommandAsync(
@@ -703,14 +713,15 @@ public sealed partial class DetailsModel
 
         return await OneCommandEdit.RunClaimedAsync(lease, actor, () => GenerateAsync(
             actor, id, operationKey, lease.Token, expectedCaseVersion,
-            kind, targetGenerationId, feeNoteOperationKey, cancellationToken));
+            kind, targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken));
     }
 
     /// <summary>
     /// The generation itself, once guarded. The report goes on to make its
     /// separate fee note from the generation it confirmed (operator, 7 October
     /// 2026); a report not yet confirmed leaves the fee note to the next
-    /// Generate report, which replays the report's operation key.
+    /// Generate report, which replays the report's operation key. The
+    /// Principal's own invoice follows the fee note in the same way (R1147).
     /// </summary>
     private async Task<IActionResult> GenerateAsync(
         ActionActor actor,
@@ -721,10 +732,11 @@ public sealed partial class DetailsModel
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
         string? feeNoteOperationKey,
+        string? principalInvoiceOperationKey,
         CancellationToken cancellationToken)
     {
-        // One custody batch around the report and its fee note: the Case
-        // folder is proved once for both (FRD-05, #1952). Opened here, in the
+        // One custody batch around the report and its companions: the Case
+        // folder is proved once for them all (FRD-05, #1952). Opened here, in the
         // flow that awaits both generations, so it reaches each filing.
         var generator = HttpContext.RequestServices.GetRequiredService<IGenerateCaseReport>();
         await using var batch = generator.BeginBatch();
@@ -735,15 +747,28 @@ public sealed partial class DetailsModel
         {
             return outcome;
         }
+        var latest = result!;
         if (!string.IsNullOrWhiteSpace(feeNoteOperationKey)
-            && CaseReportActs.FeeNoteRequestAfter(request, result!, feeNoteOperationKey) is { } feeNoteRequest)
+            && CaseReportActs.FeeNoteRequestAfter(request, latest, feeNoteOperationKey) is { } feeNoteRequest)
         {
             // The report stands whatever the fee note's outcome; a fee note
             // that is not generated says so beside the report's confirmation.
-            var (_, feeNoteOutcome) = await GenerateOneAsync(generator, feeNoteRequest, cancellationToken);
+            var (feeNoteResult, feeNoteOutcome) = await GenerateOneAsync(generator, feeNoteRequest, cancellationToken);
             if (feeNoteOutcome is ForbidResult or NotFoundResult)
             {
                 return feeNoteOutcome;
+            }
+            latest = feeNoteResult ?? latest;
+        }
+        // The Principal's own invoice follows the fee note from the latest
+        // generation, and stands or fails on its own as the fee note does (R1147).
+        if (!string.IsNullOrWhiteSpace(principalInvoiceOperationKey)
+            && CaseReportActs.PrincipalInvoiceRequestAfter(request, latest, principalInvoiceOperationKey) is { } invoiceRequest)
+        {
+            var (_, invoiceOutcome) = await GenerateOneAsync(generator, invoiceRequest, cancellationToken);
+            if (invoiceOutcome is ForbidResult or NotFoundResult)
+            {
+                return invoiceOutcome;
             }
         }
         return RedirectToReport(id);
@@ -815,8 +840,9 @@ public sealed partial class DetailsModel
                 {
                     TempData[OpenReportKey] = stored.Id.ToString("D");
                 }
-                // The fee note follows its report, whose confirmation stands.
-                if (kind != CaseReportArtifactKind.FeeNote)
+                // The fee note and the Principal's own invoice follow their
+                // report, whose confirmation stands.
+                if (kind is not (CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice))
                 {
                     TempData["CaseStatus"] = kind switch
                     {
@@ -858,6 +884,8 @@ public sealed partial class DetailsModel
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteNotGenerated,
         CaseReportArtifactKind.RepairSpecification =>
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecNotGenerated,
+        CaseReportArtifactKind.PrincipalInvoice =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.PrincipalInvoiceNotGenerated,
         _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesNotGenerated,
     };
 
@@ -917,6 +945,7 @@ public sealed partial class DetailsModel
         string[]? holdsDone,
         string? subject,
         bool deleteCaseCorrespondence,
+        Guid[]? offeredFile,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -971,7 +1000,9 @@ public sealed partial class DetailsModel
                     Subject: subject,
                     AttachmentNames: PostedAttachmentNames("fileName"),
                     // The dialog's Delete case correspondence tick (R902 to R905).
-                    TidiesCaseCorrespondence: deleteCaseCorrespondence),
+                    TidiesCaseCorrespondence: deleteCaseCorrespondence,
+                    // The offered Case files staff ticked (R1151).
+                    OfferedFileIds: offeredFile ?? []),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

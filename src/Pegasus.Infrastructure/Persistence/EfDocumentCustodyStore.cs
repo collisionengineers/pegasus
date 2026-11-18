@@ -719,7 +719,10 @@ internal sealed class EfDocumentCustodyStore(
                 "The document occurrence is unavailable.");
         }
         OriginalReportPolicy.RequireEligible(
-            CaseTypeCodes.Parse(workflow.Case.Type), LifecycleStateOf(workflow), occurrence.SemanticRole);
+            CaseTypeCodes.Parse(workflow.Case.Type),
+            PrincipalAuditWorkflowPolicy.Parse(workflow.Case.AuditWorkflow),
+            LifecycleStateOf(workflow),
+            occurrence.SemanticRole);
 
         var existing = await CurrentAuditReports(context, command.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -975,7 +978,10 @@ internal sealed class EfDocumentCustodyStore(
         if (command.NewRole == DocumentSemanticRole.AuditReport)
         {
             OriginalReportPolicy.RequireEligible(
-                CaseTypeCodes.Parse(workflow.Case.Type), LifecycleStateOf(workflow), occurrence.SemanticRole);
+                CaseTypeCodes.Parse(workflow.Case.Type),
+                PrincipalAuditWorkflowPolicy.Parse(workflow.Case.AuditWorkflow),
+                LifecycleStateOf(workflow),
+                occurrence.SemanticRole);
             if (await CurrentAuditReports(context, command.CaseId).AnyAsync(cancellationToken))
             {
                 throw new InvalidOperationException(
@@ -1202,6 +1208,7 @@ internal sealed class EfDocumentCustodyStore(
         CancellationToken cancellationToken) =>
         OriginalReportPolicy.AwaitsRecognition(
             CaseTypeCodes.Parse(workflow.Case.Type),
+            PrincipalAuditWorkflowPolicy.Parse(workflow.Case.AuditWorkflow),
             LifecycleStateOf(workflow),
             workflow.ArchivedAtUtc is not null,
             workflow.Case.StandaloneAuditEvidenceId,

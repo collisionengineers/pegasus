@@ -122,7 +122,12 @@ public sealed class EfManualCaseCreationStore(
         var evaluation = CaseCompletenessPolicy.Evaluate(
             completeness,
             configuration,
-            CaseCompletenessPolicy.VehicleGate(null, request.Data.VehicleRegistration, request.Data.VehicleMileage));
+            CaseCompletenessPolicy.VehicleGate(
+                null,
+                request.Data.VehicleRegistration,
+                request.Data.VehicleMileage,
+                // A new Garage authorisation and invoice Audit has no External estimate yet (R1141).
+                CaseGarage.ForNewCase(request.CaseType, principal.AuditWorkflow)));
         var initialState = evaluation.SatisfiesPolicy
             ? CaseInitialState.Review
             : CaseInitialState.NotReady;
@@ -137,6 +142,9 @@ public sealed class EfManualCaseCreationStore(
             Sequence = allocated.Sequence,
             Reference = allocated.Reference,
             Type = CaseTypeCodes.ToCode(request.CaseType),
+            // A standalone Audit takes its Principal's Audit workflow now and keeps it (R1138).
+            AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(PrincipalAuditWorkflowPolicy.ForNewCase(
+                request.CaseType, PrincipalAuditWorkflowPolicy.Parse(principal.AuditWorkflow))),
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             InstructionComplete = completeness.InstructionComplete,

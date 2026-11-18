@@ -13,6 +13,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Persistence.Migrations;
 
 namespace Pegasus.IntegrationTests;
 
@@ -1373,7 +1374,7 @@ public sealed class DocumentCustodyDurabilityTests
                 caseId,
                 occurrenceId,
                 await VersionIdAsync(database, occurrenceId),
-                DocumentSemanticRole.Estimate,
+                DocumentSemanticRole.ExternalEstimate,
                 actor,
                 "The Glass's calculation sheet was filed as Other.",
                 $"document-type:{Guid.NewGuid():N}",
@@ -1386,7 +1387,7 @@ public sealed class DocumentCustodyDurabilityTests
             await Assert.ThrowsAsync<CaseOperationConflictException>(() => setType.ExecuteAsync(
                 command with { NewRole = DocumentSemanticRole.ValuationEvidence }, CancellationToken.None));
 
-            Assert.Equal(DocumentSemanticRole.Estimate, (await OccurrenceAsync(database, occurrenceId)).SemanticRole);
+            Assert.Equal(DocumentSemanticRole.ExternalEstimate, (await OccurrenceAsync(database, occurrenceId)).SemanticRole);
             await using var verification = await database.CreateContextAsync();
             var workflow = await verification.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
             Assert.Equal(lease.Version + 1, workflow.Version);
@@ -1398,7 +1399,7 @@ public sealed class DocumentCustodyDurabilityTests
             Assert.Equal(actor.SubjectId.ToString(), note.Actor);
             var change = await verification.ActionHistory.SingleAsync(item => item.EventKind == "case_document_type_set");
             Assert.Contains("\"SemanticRole\":\"Other\"", change.BeforeJson, StringComparison.Ordinal);
-            Assert.Contains("\"SemanticRole\":\"Estimate\"", change.AfterJson, StringComparison.Ordinal);
+            Assert.Contains("\"SemanticRole\":\"ExternalEstimate\"", change.AfterJson, StringComparison.Ordinal);
         }
         finally
         {
@@ -1457,9 +1458,9 @@ public sealed class DocumentCustodyDurabilityTests
 
             foreach (var refused in new[]
             {
-                await CommandAsync(otherCaseDocument, DocumentSemanticRole.Estimate),
-                await CommandAsync(superseded, DocumentSemanticRole.Estimate),
-                await CommandAsync(removed, DocumentSemanticRole.Estimate),
+                await CommandAsync(otherCaseDocument, DocumentSemanticRole.ExternalEstimate),
+                await CommandAsync(superseded, DocumentSemanticRole.ExternalEstimate),
+                await CommandAsync(removed, DocumentSemanticRole.ExternalEstimate),
                 await CommandAsync(document, DocumentSemanticRole.Image),
                 await CommandAsync(document, DocumentSemanticRole.Instruction),
                 await CommandAsync(document, DocumentSemanticRole.AuditReport)
@@ -1477,7 +1478,7 @@ public sealed class DocumentCustodyDurabilityTests
             }
             await Assert.ThrowsAsync<CaseTerminalMutationException>(async () =>
                 await store.SetDocumentTypeAsync(
-                    await CommandAsync(document, DocumentSemanticRole.Estimate), reading: null, CancellationToken.None));
+                    await CommandAsync(document, DocumentSemanticRole.ExternalEstimate), reading: null, CancellationToken.None));
 
             await using var verification = await database.CreateContextAsync();
             Assert.Equal(
@@ -1568,7 +1569,10 @@ public sealed class DocumentCustodyDurabilityTests
                     .Select(item => item.SemanticRole)
                     .ToArrayAsync();
                 Assert.True(OriginalReportPolicy.IsMissing(
-                    CaseType.Audit, null, roles.Contains(DocumentSemanticRole.AuditReport)));
+                    CaseType.Audit,
+                    AuditWorkflowKind.OriginalEngineerReport,
+                    null,
+                    roles.Contains(DocumentSemanticRole.AuditReport)));
                 Assert.Equal(
                     "Laird Assessors",
                     await verification.CaseAssessmentFields
@@ -1608,7 +1612,7 @@ public sealed class DocumentCustodyDurabilityTests
             {
                 "image to other" => (await SeedCurrentImageAsync(database, caseId), DocumentSemanticRole.Other),
                 "other to image" => (await SeedCurrentImageAsync(database, caseId), DocumentSemanticRole.Image),
-                _ => (await SeedCurrentDocumentAsync(database, caseId, 9, "estimate.pdf"), DocumentSemanticRole.Estimate)
+                _ => (await SeedCurrentDocumentAsync(database, caseId, 9, "estimate.pdf"), DocumentSemanticRole.ExternalEstimate)
             };
             if (change == "other to image")
             {
@@ -1694,7 +1698,7 @@ public sealed class DocumentCustodyDurabilityTests
             var retypedAdd = await addDocument.ExecuteAsync(retyped, CancellationToken.None);
             var typeLease = await ClaimLeaseAsync(database, scope.ServiceProvider, caseId, actor);
             await scope.ServiceProvider.GetRequiredService<ISetDocumentType>().ExecuteAsync(
-                new(caseId, retypedAdd.Occurrence.Id, retypedAdd.Version.Id, DocumentSemanticRole.Estimate, actor,
+                new(caseId, retypedAdd.Occurrence.Id, retypedAdd.Version.Id, DocumentSemanticRole.ExternalEstimate, actor,
                     "An Audatex estimate.", $"document-type-replay:{Guid.NewGuid():N}", typeLease.Version, typeLease.Token),
                 CancellationToken.None);
 
@@ -1709,7 +1713,7 @@ public sealed class DocumentCustodyDurabilityTests
 
             foreach (var (command, added, current) in new[]
             {
-                (retyped, retypedAdd, DocumentSemanticRole.Estimate),
+                (retyped, retypedAdd, DocumentSemanticRole.ExternalEstimate),
                 (marked, markedAdd, DocumentSemanticRole.AuditReport)
             })
             {
@@ -1774,6 +1778,52 @@ public sealed class DocumentCustodyDurabilityTests
             .Select(reason => reason.Requirement)
             .Where(requirement => requirement is CaseReportReadiness.OverviewImageRequirement)
     ];
+
+    /// <summary>
+    /// Estimate is split into CE estimate and External estimate (operator, 17
+    /// November 2026; R1139), and the migration retypes what a database
+    /// already holds: the files a Glass's session retained read CE estimate,
+    /// every other Estimate reads External estimate, an upload's declared type
+    /// follows, and no other type moves. A second run changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task TheEstimateTypeSplitRetypesWhatIsAlreadyFiled()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        var glassExport = await SeedCurrentDocumentAsync(database, caseId, 0, "glass-export.xml");
+        var imported = await SeedCurrentDocumentAsync(database, caseId, 1, "estimate.pdf");
+        var instruction = await SeedCurrentDocumentAsync(database, caseId, 2, "instruction.pdf");
+        var glassIdentity = $"glass-estimate:{Guid.NewGuid():D}:xml";
+        await using (var context = await database.CreateContextAsync())
+        {
+            // The enum no longer has the old name, so the rows are put back to
+            // it in SQL, as a database migrated before this change holds them.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE [dbo].[DocumentOccurrences] SET [SemanticRole] = N'Estimate', [SourceOccurrenceIdentity] = {glassIdentity} WHERE [Id] = {glassExport}");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE [dbo].[DocumentOccurrences] SET [SemanticRole] = N'Estimate' WHERE [Id] = {imported}");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE [dbo].[IntakeReceipts] SET [DeclaredDocumentType] = N'Estimate' WHERE [Id] IN (SELECT [OriginIntakeReceiptId] FROM [dbo].[Cases] WHERE [Id] = {caseId})");
+
+            await context.Database.ExecuteSqlRawAsync(EstimateDocumentTypes.RetypeSql);
+            await context.Database.ExecuteSqlRawAsync(EstimateDocumentTypes.RetypeSql);
+        }
+
+        Assert.Equal(DocumentSemanticRole.CeEstimate, (await OccurrenceAsync(database, glassExport)).SemanticRole);
+        Assert.Equal(DocumentSemanticRole.ExternalEstimate, (await OccurrenceAsync(database, imported)).SemanticRole);
+        Assert.Equal(DocumentSemanticRole.Instruction, (await OccurrenceAsync(database, instruction)).SemanticRole);
+        await using var read = await database.CreateContextAsync();
+        var receiptId = await read.Set<CaseEntity>().AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.OriginIntakeReceiptId)
+            .SingleAsync();
+        var declared = await read.Set<IntakeReceiptEntity>().AsNoTracking()
+            .Where(receipt => receipt.Id == receiptId)
+            .Select(receipt => receipt.DeclaredDocumentType)
+            .SingleAsync();
+        Assert.Equal(nameof(DocumentSemanticRole.ExternalEstimate), declared);
+    }
 
     private static async Task<DocumentOccurrenceEntity> OccurrenceAsync(LocalDbTestDatabase database, Guid occurrenceId)
     {

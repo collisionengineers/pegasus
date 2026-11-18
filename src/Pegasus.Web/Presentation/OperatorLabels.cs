@@ -691,7 +691,9 @@ public static partial class OperatorLabels
         DocumentSemanticRole.Correspondence => "Correspondence",
         DocumentSemanticRole.EngineerReport => "Engineer report",
         DocumentSemanticRole.AuditReport => "Audit report",
-        DocumentSemanticRole.Estimate => "Estimate",
+        DocumentSemanticRole.CeEstimate => "CE estimate",
+        DocumentSemanticRole.ExternalEstimate => "External estimate",
+        DocumentSemanticRole.RepairInvoice => "Repair invoice",
         DocumentSemanticRole.ValuationEvidence => "Valuation Evidence",
         DocumentSemanticRole.Other => "Other",
         _ => Humanise(role.ToString())

@@ -1411,6 +1411,133 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         }
     }
 
+    /// <summary>The issuer the Principal's own invoice prints in these tests: the draft's.</summary>
+    private static readonly string[] InvoiceIssuer =
+        ["United Legal Assistance Limited", "130c Lord Street", "Southport PR9 0AE"];
+
+    /// <summary>The fixture's claimant, whose address is not recorded: the name alone (R1149).</summary>
+    private static readonly string[] InvoiceAddressee = ["Alex Example"];
+
+    /// <summary>
+    /// The Principal's own invoice's facts are read with the Principal, only
+    /// for a Principal whose setting asks for the ULA Invoice (R1147 to
+    /// R1149, R1162): its name and address lines with the postcode after the
+    /// last, the claimant's name alone when no address is recorded, the
+    /// Case's make and model in capitals, and its VAT number and terms.
+    /// </summary>
+    [Fact]
+    public async Task TheSourceReaderReadsThePrincipalsInvoiceFactsFromThePrincipal()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+
+        Assert.Null((await harness.ReadSourceAsync())!.Projection.PrincipalInvoice);
+
+        var name = await harness.SetPrincipalAddressAsync("130c Lord Street\nSouthport", "PR9 0AE");
+        await harness.SetPrincipalInvoiceAsync(PrincipalInvoicePolicy.UlaInvoiceCode, "GB 987 6543 21", "30 days");
+
+        var invoice = Assert.IsType<UlaInvoiceSnapshot>((await harness.ReadSourceAsync())!.Projection.PrincipalInvoice);
+        string[] issuer = [name, "130c Lord Street", "Southport PR9 0AE"];
+        Assert.Equal(issuer, invoice.Issuer);
+        Assert.Equal(InvoiceAddressee, invoice.Addressee);
+        Assert.Equal("FORD FOCUS", invoice.SubjectVehicle);
+        Assert.Equal("GB 987 6543 21", invoice.VatNumber);
+        Assert.Equal("30 days", invoice.PaymentTerms);
+
+        await harness.SetPrincipalInvoiceAsync(PrincipalInvoicePolicy.NoneCode, "GB 987 6543 21", "30 days");
+
+        Assert.Null((await harness.ReadSourceAsync())!.Projection.PrincipalInvoice);
+    }
+
+    /// <summary>
+    /// A generation for a Principal with the ULA Invoice freezes the
+    /// invoice's facts with its report, and a later change to the Principal
+    /// does not alter them. A Principal without it freezes none at all, so
+    /// its snapshot is the bytes it was before the invoice existed (R1147).
+    /// </summary>
+    [Fact]
+    public async Task AGenerationFreezesItsPrincipalsInvoiceFactsOnlyForAPrincipalThatHasOne()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        var none = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Null(none.Generation!.Snapshot.Report.PrincipalInvoice);
+        Assert.False(await StoresAnInvoiceAsync(none.Generation.Id));
+
+        await harness.SetPrincipalInvoiceAsync(
+            PrincipalInvoicePolicy.UlaInvoiceCode,
+            "GB 987 6543 21",
+            "30 days",
+            new UlaInvoiceSnapshot(InvoiceIssuer, InvoiceAddressee, "FORD FOCUS", "GB 987 6543 21", "30 days"));
+        await harness.Store.MarkStaleAsync(harness.CaseId, "test-material-change", CancellationToken.None);
+        var own = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(operationKey: harness.Key("report-invoice")), CancellationToken.None);
+
+        var frozen = Assert.IsType<UlaInvoiceSnapshot>(own.Generation!.Snapshot.Report.PrincipalInvoice);
+        Assert.Equal(InvoiceIssuer, frozen.Issuer);
+        Assert.Equal(InvoiceAddressee, frozen.Addressee);
+        Assert.Equal("FORD FOCUS", frozen.SubjectVehicle);
+        Assert.Equal("GB 987 6543 21", frozen.VatNumber);
+        Assert.Equal("30 days", frozen.PaymentTerms);
+        Assert.True(await StoresAnInvoiceAsync(own.Generation.Id));
+
+        await harness.SetPrincipalInvoiceAsync(PrincipalInvoicePolicy.NoneCode, null, null);
+        var reloaded = await harness.Store.GetAsync(
+            harness.StaffActor, harness.CaseId, own.Generation.Id, CancellationToken.None);
+        Assert.Equal("GB 987 6543 21", reloaded!.Snapshot.Report.PrincipalInvoice!.VatNumber);
+
+        async Task<bool> StoresAnInvoiceAsync(Guid generationId)
+        {
+            await using var context = await harness.Factory.CreateDbContextAsync();
+            var json = await context.Set<CaseReportGenerationEntity>()
+                .Where(item => item.Id == generationId)
+                .Select(item => item.SnapshotJson)
+                .SingleAsync();
+            return JsonNode.Parse(json)!["report"]!.AsObject().ContainsKey("principalInvoice");
+        }
+    }
+
+    /// <summary>
+    /// The Principal's own invoice is made after its report, from the same
+    /// confirmed generation, by the integrated renderer, and filed as
+    /// <c>ULA_Invoice_{claim reference}.pdf</c> (R1147, R1148). Once it is
+    /// confirmed the generation pairs no other.
+    /// </summary>
+    [Fact]
+    public async Task ThePrincipalsInvoiceIsMadeAfterItsReportAndFiledUnderTheClaimReference()
+    {
+        await using var harness = await Harness.CreateAsync(database);
+        await harness.SetPrincipalInvoiceAsync(
+            PrincipalInvoicePolicy.UlaInvoiceCode,
+            null,
+            null,
+            new UlaInvoiceSnapshot(InvoiceIssuer, InvoiceAddressee, "FORD FOCUS"));
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, report.Outcome);
+        var target = Assert.NotNull(
+            GenerateCaseReport.PrincipalInvoiceTargetOf(CaseReportArtifactKind.AssessmentReport, report.Generation));
+        Assert.Equal(report.Generation!.Id, target);
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        Pegasus.Infrastructure.DependencyInjection.AddPegasusReportRendering(services);
+        await using var provider = services.BuildServiceProvider();
+        var invoice = await harness.Generate(
+                new RecordingCustody(harness), provider.GetRequiredService<IAssessmentReportRenderer>())
+            .ExecuteAsync(
+                harness.Request(CaseReportArtifactKind.PrincipalInvoice, harness.Key("principal-invoice"), target),
+                CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, invoice.Outcome);
+        var filed = Assert.Single(
+            invoice.Generation!.Artifacts, artifact => artifact.Kind == CaseReportArtifactKind.PrincipalInvoice);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, filed.Status);
+        // The fixture's claim reference is P-100, made safe as the report's own names are.
+        Assert.Equal("ULA_Invoice_P_100.pdf", filed.FileName);
+        Assert.Null(
+            GenerateCaseReport.PrincipalInvoiceTargetOf(CaseReportArtifactKind.AssessmentReport, invoice.Generation));
+    }
+
     /// <summary>
     /// The report is filed under the name frozen with it (R740): the
     /// Principal's Inspection name on a first send when it sets one, else the
@@ -2663,6 +2790,48 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             snapshotSource.VatNumber = vatNumber;
         }
 
+        /// <summary>
+        /// Sets whether Generate report also makes the Principal's own invoice
+        /// and the two values it prints (R1148, R1162). Every later freeze
+        /// through the fake source carries <paramref name="frozen"/>, as the
+        /// real source builds it for a Principal that has the invoice.
+        /// </summary>
+        public async Task SetPrincipalInvoiceAsync(
+            string code, string? vatNumber, string? paymentTerms, UlaInvoiceSnapshot? frozen = null)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var principalId = await context.Cases
+                .Where(item => item.Id == CaseId)
+                .Select(item => item.PrincipalId)
+                .SingleAsync();
+            await context.Set<PrincipalEntity>()
+                .Where(item => item.Id == principalId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.PrincipalInvoice, code)
+                    .SetProperty(item => item.InvoiceVatNumber, vatNumber)
+                    .SetProperty(item => item.InvoicePaymentTerms, paymentTerms));
+            snapshotSource.PrincipalInvoice = frozen;
+        }
+
+        /// <summary>
+        /// Stores the Principal organisation's address and postcode, which the
+        /// Principal's own invoice prints under its name; returns the name.
+        /// </summary>
+        public async Task<string> SetPrincipalAddressAsync(string? address, string? postcode)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var organization = await context.Cases
+                .Where(item => item.Id == CaseId)
+                .Select(item => new { item.Principal.OrganizationId, item.Principal.Organization.Name })
+                .SingleAsync();
+            await context.Set<OrganizationEntity>()
+                .Where(item => item.Id == organization.OrganizationId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.Address, address)
+                    .SetProperty(item => item.Postcode, postcode));
+            return organization.Name;
+        }
+
         public async Task SetReportImagesRuleAsync(bool reportImages)
         {
             await using var context = await Factory.CreateDbContextAsync();
@@ -3168,6 +3337,9 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
         public bool IncludeVehicleImages { get; set; } = true;
         public string? VatNumber { get; set; }
 
+        /// <summary>The Principal's own invoice's facts, as the real source builds them for a Principal that has one.</summary>
+        public UlaInvoiceSnapshot? PrincipalInvoice { get; set; }
+
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
@@ -3177,7 +3349,13 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
             return Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
                     ? new(
-                        projection with { Assessment = current, IncludeVehicleImages = IncludeVehicleImages, VatNumber = VatNumber },
+                        projection with
+                        {
+                            Assessment = current,
+                            IncludeVehicleImages = IncludeVehicleImages,
+                            VatNumber = VatNumber,
+                            PrincipalInvoice = PrincipalInvoice,
+                        },
                         Readiness(current), reference, 1) { WorkId = workId }
                     : null);
         }

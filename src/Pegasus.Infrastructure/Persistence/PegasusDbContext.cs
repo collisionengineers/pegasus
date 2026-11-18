@@ -525,6 +525,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                     "[InspectionMode] IN ('physical_address', 'image_based_assessment')");
                 table.HasCheckConstraint("CK_Principals_DefaultFee", "[DefaultFee] > 0");
                 table.HasCheckConstraint(
+                    "CK_Principals_AuditWorkflow",
+                    "[AuditWorkflow] IN ('original_engineer_report', 'garage_authorisation_and_invoice')");
+                table.HasCheckConstraint(
+                    "CK_Principals_PrincipalInvoice",
+                    "[PrincipalInvoice] IN ('none', 'ula_invoice')");
+                table.HasCheckConstraint(
                     "CK_Principals_ReferenceScheme",
                     "[ReferenceScheme] IN ('principal_sequence', 'registration')");
             });
@@ -554,6 +560,16 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.AuditReportNameFirst).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
             entity.Property(item => item.AuditReportNameResend).HasMaxLength(Pegasus.Core.Reports.PrincipalReportNames.MaximumFileNameLength);
             entity.Property(item => item.FeeNoteVatNumber).HasMaxLength(Pegasus.Core.Reports.AssessmentReportContract.MaximumVatNumberLength);
+            entity.Property(item => item.AuditWorkflow)
+                .HasMaxLength(40)
+                .IsRequired()
+                .HasDefaultValue(Pegasus.Core.Cases.PrincipalAuditWorkflowPolicy.OriginalEngineerReportCode);
+            entity.Property(item => item.PrincipalInvoice)
+                .HasMaxLength(40)
+                .IsRequired()
+                .HasDefaultValue(Pegasus.Core.Cases.PrincipalInvoicePolicy.NoneCode);
+            entity.Property(item => item.InvoiceVatNumber).HasMaxLength(Pegasus.Core.Cases.PrincipalInvoicePolicy.MaximumVatNumberLength);
+            entity.Property(item => item.InvoicePaymentTerms).HasMaxLength(Pegasus.Core.Cases.PrincipalInvoicePolicy.MaximumPaymentTermsLength);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -607,6 +623,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 table.HasCheckConstraint(
                     "CK_Cases_InitialState",
                     "([Type] = N'triage' AND [InitialState] IS NULL) OR ([Type] <> N'triage' AND [InitialState] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_Cases_AuditWorkflow",
+                    "[AuditWorkflow] IN ('original_engineer_report', 'garage_authorisation_and_invoice')");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Reference).HasMaxLength(40).IsRequired();
@@ -615,6 +634,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.InitialState).HasMaxLength(40);
             entity.Property(item => item.CustodyState).HasMaxLength(40).IsRequired();
             entity.Property(item => item.StandaloneAuditAssessment).HasMaxLength(40);
+            entity.Property(item => item.AuditWorkflow)
+                .HasMaxLength(40)
+                .IsRequired()
+                .HasDefaultValue(Pegasus.Core.Cases.PrincipalAuditWorkflowPolicy.OriginalEngineerReportCode);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.Property(item => item.CustodyRootRemoteId).HasMaxLength(200);
@@ -1239,6 +1262,13 @@ internal sealed class PrincipalEntity
     public string? AuditReportNameResend { get; set; }
     // The VAT number its fee notes print (R1006); null is the standard number.
     public string? FeeNoteVatNumber { get; set; }
+    // What its standalone Audits work from (R1138); a new Audit copies it. See PrincipalAuditWorkflowPolicy.
+    public string AuditWorkflow { get; set; } = Pegasus.Core.Cases.PrincipalAuditWorkflowPolicy.OriginalEngineerReportCode;
+    // The invoice Generate report also makes in its own name (R1147), and the
+    // VAT number and payment terms it prints (R1148). See PrincipalInvoicePolicy.
+    public string PrincipalInvoice { get; set; } = Pegasus.Core.Cases.PrincipalInvoicePolicy.NoneCode;
+    public string? InvoiceVatNumber { get; set; }
+    public string? InvoicePaymentTerms { get; set; }
     public long Version { get; set; }
     public List<ContactPrincipalLinkEntity> ContactLinks { get; set; } = [];
     public List<CaseEntity> Cases { get; set; } = [];
@@ -1273,6 +1303,10 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public Guid? OriginIntakeReceiptId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
+    // What a standalone Audit works from, copied from its Principal when the
+    // Case was created and never changed after (R1138); every other Case type
+    // holds the original engineer's report. See PrincipalAuditWorkflowPolicy.
+    public string AuditWorkflow { get; set; } = Pegasus.Core.Cases.PrincipalAuditWorkflowPolicy.OriginalEngineerReportCode;
     public DateOnly? AcceptedInspectionDeadline { get; set; }
     public bool InstructionComplete { get; set; }
     public bool ImagesComplete { get; set; }

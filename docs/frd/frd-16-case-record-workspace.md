@@ -134,7 +134,10 @@ outstanding; the link is what clears it (9 October 2026)
 Original report missing links to Files, where Mark as original report is;
 **Vehicle registration incomplete** and **Vehicle mileage incomplete** link
 to Vehicle, where the Registration and Mileage boxes are
-([R1081](../rulings.md), [R759](../rulings.md)); the other Case requirements
+([R1081](../rulings.md), [R759](../rulings.md)); **External estimate
+incomplete** and **Repair invoice incomplete**, on a Garage authorisation &
+invoice Audit, link to Files, where the file is filed
+([R1141](../rulings.md), [R1144](../rulings.md)); the other Case requirements
 link to Case details. The card is headed
 **Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
@@ -171,6 +174,13 @@ operator, 19 October 2026,
 [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md));
 where the menu does not offer it, the step is named without a control
 (issue 1025).
+On a Garage authorisation & invoice Audit that is With Engineer with an
+Engineer, the Next action is **Authorise garage** with the one button **Mark
+done**, ahead of every other report blocker, until the garage is authorised
+or the Outcome waives it; it posts at once, with no dialog and no reason, and
+while a colleague is editing the step is named without the button (operator,
+17 November 2026; [R1142](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Once the report is stored and until it is sent, the
@@ -431,6 +441,10 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Return to Review**, in With Engineer or Report sent, and **Return to
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
+- **Undo garage authorisation**, on a Garage authorisation & invoice Audit
+  whose garage is authorised, in any open state but On hold. It records a
+  reason (operator, 17 November 2026; [R1142](../rulings.md);
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 - **Return to work**, on a closed Case other than Created in error, before
   Archive (operator, 16 October 2026; v41 K10, 19 October 2026,
   [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
@@ -520,7 +534,10 @@ which the Decisions section no longer repeats.
 
 ### Original report
 
-On an Audit Case only: who wrote the original report (the assessors Core's
+On an Audit Case of an original engineer's report only (a Garage
+authorisation & invoice Audit has no original report, and so no such section
+or aside card; operator, 17 November 2026, [R1138](../rulings.md)): who wrote
+the original report (the assessors Core's
 third-party report profiles know are offered, any other is typed), its date,
 its roadworthiness and its repairable status. They are Case data, edited in
 the page-wide session (v28 P51, ruled 20 September 2026). The engineers
@@ -1266,7 +1283,8 @@ the To and Cc boxes with the Case's known addresses offered on every one
 (v28 P21), Subject prefilled with the derived subject for staff to change
 (R667), the covering message in an editable box pre-filled from the Case
 report delivery template, and **Files**, one row per document the send can
-carry, each with its include tick (v28 P22; Report and Fee note ticked), its
+carry, each with its include tick (v28 P22; Report and Fee note ticked, and
+the ULA Invoice after the Fee note, ticked; [R1151](../rulings.md)), its
 name, its kind and size ("Report · 1.2 MB", "Fee note · under 0.1 MB", and
 "Inspection · Report · 1.2 MB" for the other work's rows), and Rename, named
 "Rename {file name}" for the name the row currently shows, so a rename or
@@ -1295,7 +1313,11 @@ The dialog also shows what the Principal's report sending rules decided
 - the Files rows, with required companions always ticked and
   marked "(required for this Principal)", the other work's report and its
   documents as rows, off, once the Audit exists, and the filed estimates the
-  rules attach as rows, on, under their filed names with no Rename (R671). A
+  rules attach as rows, on, under their filed names with no Rename (R671),
+  then each External estimate and Repair invoice the Principal's Offer ticks
+  list as a row, off, under its filed name and its document type with no
+  Rename, one the filed estimates already carry left out
+  ([R1151](../rulings.md), [R1158](../rulings.md)). A
   required companion that is not generated says so and withholds Send report,
   and its Generate is in the More menu. Any warning appears as a hint;
 - a read-only "After sending" list of what staff still owe, and

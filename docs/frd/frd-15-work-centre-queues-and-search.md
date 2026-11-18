@@ -288,7 +288,10 @@ Its Missing column names what holds each Case, in the Case page's words
 Case's storage failed; otherwise **Original report missing** on an Audit
 without its report; otherwise the requirements the configuration names as
 missing, Instructions, Vehicle registration (R1081), Vehicle mileage (R759)
-and Images, two of them joined
+and Images, and on a Garage authorisation & invoice Audit External estimate
+(R1141) or, once its garage is authorised, Repair invoice (R1144;
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)), two
+of them joined
 as "Instructions and images" is. "Review pending" is left for a Case that
 lacks none of these, one staff reopened to Not ready. The quick detail's
 Current work and the Case's Next action name the same first requirement, a

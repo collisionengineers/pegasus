@@ -22,6 +22,8 @@ public sealed class WorkflowModel(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
+    AuthoriseGarage authoriseGarage,
+    UndoGarageAuthorisation undoGarageAuthorisation,
     ICreateLinkedReplacement createLinkedReplacement,
     ICaseWorkflowQueries workflows,
     CaseEditLeases leases,
@@ -129,6 +131,53 @@ public sealed class WorkflowModel(
                     Pegasus.Web.Presentation.AssignEngineerChoice.Parse(engineerId)),
                 cancellationToken),
             Pegasus.Web.Presentation.OperatorLabels.WorkCentre.Assigned);
+
+    /// <summary>
+    /// Authorise garage's Mark done (operator, 17 November 2026; R1142): one
+    /// post with no reason, since Core writes the history reason (R1161). It
+    /// shows no notice: the Case's own stage and Next action say what happened.
+    /// </summary>
+    public Task<IActionResult> OnPostAuthoriseGarageAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "authorise_garage",
+            async (actor, lease) =>
+            {
+                await authoriseGarage.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, string.Empty, lease),
+                    cancellationToken);
+                return null;
+            },
+            _ => CaseCommandRefused);
+
+    /// <summary>Undo garage authorisation, with its reason (R1142).</summary>
+    public Task<IActionResult> OnPostUndoGarageAuthorisationAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandUnderLeaseAsync(
+            id,
+            expectedVersion,
+            editLeaseToken,
+            "undo_garage_authorisation",
+            async (actor, lease) =>
+            {
+                await undoGarageAuthorisation.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, reason, lease),
+                    cancellationToken);
+                return null;
+            },
+            _ => CaseCommandRefused);
 
     public Task<IActionResult> OnPostCreateLinkedReplacementAsync(
         Guid id,

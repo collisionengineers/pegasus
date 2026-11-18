@@ -288,6 +288,25 @@ public static partial class OperatorLabels
         // The VAT number the Principal's fee notes print (operator, 12 November 2026; R1006 to R1008).
         public const string FeeNoteVatNumber = "Fee note VAT number";
         public const string FeeNoteVatNumberHint = "Empty: the standard number.";
+        // What the Principal's standalone Audits work from (operator, 17 November 2026; R1138).
+        public const string AuditWorkflow = "Audit workflow";
+        public static string AuditWorkflowChoice(AuditWorkflowKind workflow) => workflow switch
+        {
+            AuditWorkflowKind.OriginalEngineerReport => "Original engineer report",
+            AuditWorkflowKind.GarageAuthorisationAndInvoice => "Garage authorisation & invoice",
+            _ => throw new ArgumentOutOfRangeException(nameof(workflow))
+        };
+        // The invoice Generate report also makes in the Principal's own name
+        // (R1147, R1162), and the two values it prints (R1148).
+        public const string PrincipalOwnInvoice = "Principal's own invoice";
+        public static string PrincipalInvoiceChoice(PrincipalInvoiceKind invoice) => invoice switch
+        {
+            PrincipalInvoiceKind.None => "None",
+            PrincipalInvoiceKind.UlaInvoice => "ULA Invoice",
+            _ => throw new ArgumentOutOfRangeException(nameof(invoice))
+        };
+        public const string InvoiceVatNumber = "Invoice VAT number";
+        public const string InvoicePaymentTerms = "Invoice payment terms";
         // What the Principal's reports are called, filed and sent (operator, 6 November 2026; R740).
         public const string InspectionReportName = "Inspection report name";
         public const string AuditReportName = "Audit report name";
@@ -322,6 +341,9 @@ public static partial class OperatorLabels
         public const string ReportImages = "Report carries vehicle images";
         public const string VehicleImagesDocument = "Vehicle images document required";
         public const string FigureBreakdown = "Figure breakdown required";
+        // The Offer ticks (operator, 17 November 2026; R1151).
+        public const string OfferExternalEstimates = "Offer external estimates (unticked)";
+        public const string OfferRepairInvoices = "Offer repair invoices (unticked)";
         public const string GarageFigures = "Garage figures";
         public const string Hold = "Hold";
         public const string HoldHint = "Send stays off until staff tick this as done.";

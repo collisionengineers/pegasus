@@ -694,4 +694,66 @@ public sealed class PrincipalReportSendingSeedTests
                 .Where(item => item.Principal.ReferenceScheme == "registration")
                 .Select(item => item.Principal.Code));
     }
+
+    /// <summary>
+    /// United Legal Assistance (operator, 17 November 2026; R1145, R1152):
+    /// one active Principal, code ULA, always Image Based Assessment, on the
+    /// Garage authorisation and invoice Audit workflow with the ULA Invoice,
+    /// the standard default fee and report names, the default sending rules
+    /// with both Offer ticks on (R1151), and no Invoice VAT number, payment
+    /// terms or notes. No other Principal
+    /// is on that workflow or has an invoice of its own, and the seed met
+    /// again changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task UnitedLegalAssistanceIsSeededOnTheGarageAuthorisationWorkflow()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+
+        var principal = principals["ULA"].Principal;
+        Assert.Equal(Guid.Parse(AuditWorkflowAndUnitedLegalAssistance.PrincipalId), principal.Id);
+        Assert.True(principal.IsActive);
+        Assert.Equal("principal_sequence", principal.ReferenceScheme);
+        Assert.Equal("image_based_assessment", principal.InspectionMode);
+        Assert.Equal("garage_authorisation_and_invoice", principal.AuditWorkflow);
+        Assert.Equal("ula_invoice", principal.PrincipalInvoice);
+        Assert.Null(principal.InvoiceVatNumber);
+        Assert.Null(principal.InvoicePaymentTerms);
+        Assert.Equal(180.00m, principal.DefaultFee);
+        Assert.Null(principal.InspectionReportNameFirst);
+        Assert.Null(principal.AuditReportNameFirst);
+        Assert.Null(principal.SalvageMatrixJson);
+        var offering = PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
+        };
+        Assert.Equal(offering, principals["ULA"].Rules);
+        // Stored as the serializer writes it, the two Offer ticks after the rest.
+        Assert.Equal(EfOrganizationAdministration.ToReportSendingJson(offering), principal.ReportSendingRulesJson);
+        var organization = organizations[principal.OrganizationId];
+        Assert.Equal("United Legal Assistance Limited", organization.Name);
+        Assert.Equal("principal", organization.Role);
+        Assert.True(organization.Active);
+        Assert.Equal("130c Lord Street\r\nSouthport", organization.Address);
+        Assert.Equal("PR9 0AE", organization.Postcode);
+        Assert.Equal("0330 999 9000", organization.Telephone);
+        Assert.Equal("claims@united-legal.co.uk", organization.Email);
+        Assert.Null(organization.NotesOnEveryCase);
+        Assert.Equal(
+            ["ULA"],
+            principals.Values
+                .Where(item => item.Principal.AuditWorkflow != "original_engineer_report"
+                    || item.Principal.PrincipalInvoice != "none")
+                .Select(item => item.Principal.Code));
+
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        // ExecuteSqlRaw reads braces as placeholders, and the rules are JSON.
+        await context.Database.ExecuteSqlRawAsync(AuditWorkflowAndUnitedLegalAssistance.SeedSql
+            .Replace("{", "{{", StringComparison.Ordinal)
+            .Replace("}", "}}", StringComparison.Ordinal));
+        Assert.Equal(principals.Count, await context.Principals.CountAsync());
+        Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
+    }
 }

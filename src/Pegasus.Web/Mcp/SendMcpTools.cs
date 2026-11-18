@@ -90,15 +90,16 @@ internal sealed class SendMcpTools(
         [Description("The generation version the caller observed; omit to send the generation as it stands now.")] long? expectedGenerationVersion = null,
         [Description("To recipients, plain e-mail addresses; omit both to and cc for the Principal's suggested recipients.")] string[]? to = null,
         [Description("Cc recipients, plain e-mail addresses. An address also in To is sent once, in To.")] string[]? cc = null,
-        [Description("The companion documents to attach beside the report: FeeNote, RepairSpecification and/or ImagePack. Each must be confirmed on the generation. Omit for every confirmed document the generation holds, the fee note included; an empty list sends the report alone, with any companion the Principal requires.")] string[]? attach = null,
+        [Description("The companion documents to attach beside the report: FeeNote, PrincipalInvoice, RepairSpecification and/or ImagePack. Each must be confirmed on the generation. Omit for every confirmed document the generation holds, the fee note included; an empty list sends the report alone, with any companion the Principal requires.")] string[]? attach = null,
         [Description("true to send the other work's current confirmed report in the same e-mail; only on a Case that has its Audit.")] bool? otherReport = null,
         [Description("The other report's companion documents, as attach takes them; omit for every confirmed document its generation holds, or give an empty list for its report alone. Read only with otherReport.")] string[]? otherAttach = null,
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         [Description("The address of the Outgoing approved mailbox to send from; omit for the default: the approved mailbox the instruction e-mail arrived in (for a staff forward held in instructions@, the mailbox that forwarded it), else the Principal's Send from.")] string? fromMailbox = null,
         [Description("The e-mail's subject, as the Case page's Subject field takes it: a subject other than the derived one is at most 500 characters, and a line break becomes a space; omit for the derived subject: Re: and the instruction's subject, else the registration and Report.")] string? subject = null,
-        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. Filed estimates keep their filed names; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
+        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. Filed estimates keep their filed names; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
         [Description("Names for the other report's documents, as attachmentNames takes them. Read only with otherReport.")] Dictionary<string, string>? otherAttachmentNames = null,
         [Description("true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the send form's Delete case correspondence tick does. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
+        [Description("The occurrence identifiers of offered Case files to attach as well: the Case's confirmed External estimates and Repair invoices that the Principal's report sending rules offer. An identifier that is not offered is refused.")] Guid[]? caseDocumentIds = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -171,7 +172,9 @@ internal sealed class SendMcpTools(
                                 second,
                                 Subject: subject,
                                 AttachmentNames: names,
-                                TidiesCaseCorrespondence: deleteCaseCorrespondence),
+                                TidiesCaseCorrespondence: deleteCaseCorrespondence,
+                                // Offered Case files, refused unless offered (R1151).
+                                OfferedFileIds: caseDocumentIds),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -671,7 +674,7 @@ internal sealed class SendMcpTools(
                 .Select(value => value is not null
                     && Enum.GetNames<CaseReportArtifactKind>().Contains(value.Trim(), StringComparer.Ordinal)
                         ? Enum.Parse<CaseReportArtifactKind>(value.Trim())
-                        : throw new McpException("attach takes FeeNote, RepairSpecification and ImagePack."))
+                        : throw new McpException("attach takes FeeNote, PrincipalInvoice, RepairSpecification and ImagePack."))
                 .Distinct()
                 .ToArray();
 
@@ -692,7 +695,7 @@ internal sealed class SendMcpTools(
             var kind = key is not null
                 && Enum.GetNames<CaseReportArtifactKind>().Contains(key.Trim(), StringComparer.Ordinal)
                     ? Enum.Parse<CaseReportArtifactKind>(key.Trim())
-                    : throw new McpException("attachmentNames is keyed by AssessmentReport, FeeNote, RepairSpecification and ImagePack.");
+                    : throw new McpException("attachmentNames is keyed by AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification and ImagePack.");
             if (string.IsNullOrWhiteSpace(name))
             {
                 continue;

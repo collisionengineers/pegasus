@@ -305,7 +305,9 @@ public sealed partial class DetailsModel(
             var missingInstructionItems = data.Completeness.MissingInstructionItems;
             // No registration (R1081) or no mileage (R759) is cleared on the
             // Vehicle section, where the Registration and Mileage boxes are;
-            // Instructions and Images on the overview.
+            // a Garage authorisation and invoice Audit's External estimate
+            // and Repair invoice on Files, where they are filed (R1141,
+            // R1144); Instructions and Images on the overview.
             requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
                 .Select(requirement => new CaseRequirement(
                     Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(requirement),
@@ -313,18 +315,23 @@ public sealed partial class DetailsModel(
                     requirement == "Instructions" && missingInstructionItems.Count > 0
                         ? string.Join(", ", missingInstructionItems)
                         : why,
-                    requirement is Pegasus.Core.Workflow.CaseWorkflowConfiguration.VehicleRegistrationRequirement
-                        or Pegasus.Core.Workflow.CaseWorkflowConfiguration.VehicleMileageRequirement
-                        ? "vehicle"
-                        : "overview")));
+                    requirement switch
+                    {
+                        Pegasus.Core.Workflow.CaseWorkflowConfiguration.VehicleRegistrationRequirement
+                            or Pegasus.Core.Workflow.CaseWorkflowConfiguration.VehicleMileageRequirement => "vehicle",
+                        Pegasus.Core.Workflow.CaseWorkflowConfiguration.ExternalEstimateRequirement
+                            or Pegasus.Core.Workflow.CaseWorkflowConfiguration.RepairInvoiceRequirement => "files",
+                        _ => "overview"
+                    })));
             return requirements;
         }
     }
 
     public bool OriginalReportMissing =>
-        CurrentSummary?.CaseType is { } caseType
+        CurrentSummary is { CaseType: var caseType, AuditWorkflow: var auditWorkflow }
         && OriginalReportPolicy.IsMissing(
             caseType,
+            auditWorkflow,
             Case?.Data.StandaloneAuditEvidenceId ?? FilesSection?.StandaloneAuditEvidenceId,
             CaseFiles.Current(FilesSection?.Documents ?? Case?.Documents ?? [])
                 .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport));
@@ -1578,7 +1585,8 @@ public sealed partial class DetailsModel(
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
-                    current.Summary.CaseType);
+                    current.Summary.CaseType,
+                    current.Summary.AuditWorkflow);
                 // The report's three values are Valuation's own boxes (operator,
                 // 26 September 2026), saved like any field.
                 var valuationFields = assessmentFields.Where(field => EditorLabels.Valuation.ContainsKey(field.Key))

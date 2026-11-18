@@ -657,7 +657,8 @@ public sealed class IndexModel(
             var listed = _notReadyBlockers.GetValueOrDefault(caseId);
             var configurationRead = _workflowConfiguration.GetCurrentAsync(cancellationToken);
             var auditReportRead = listed is null
-                && OriginalReportPolicy.ReadsTheDocuments(summary.CaseType, frame.StandaloneAuditEvidenceId)
+                && OriginalReportPolicy.ReadsTheDocuments(
+                    summary.CaseType, summary.AuditWorkflow, frame.StandaloneAuditEvidenceId)
                 ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
                 : Task.FromResult(false);
             await Task.WhenAll(configurationRead, auditReportRead);
@@ -667,7 +668,7 @@ public sealed class IndexModel(
                 listed?.VehicleGate ?? CaseVehicleGate.Open).MissingRequirements;
             var originalReportMissing = listed?.OriginalReportMissing
                 ?? OriginalReportPolicy.IsMissing(
-                    summary.CaseType, frame.StandaloneAuditEvidenceId, auditReportRead.Result);
+                    summary.CaseType, summary.AuditWorkflow, frame.StandaloneAuditEvidenceId, auditReportRead.Result);
             firstRequirement = frame.CustodyState == CaseCustodyState.Failed
                 ? OperatorLabels.DocumentStorageFailed
                 : originalReportMissing

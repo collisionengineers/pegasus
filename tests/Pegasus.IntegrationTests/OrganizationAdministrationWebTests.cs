@@ -123,8 +123,35 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ExpectedVersion"] = InputValue(reportSettingsHtml, "ExpectedVersion"),
             ["DefaultFee"] = "205.00",
             ["FeeNoteVatNumber"] = "GB 123 4567 89",
+            ["AuditWorkflow"] = nameof(AuditWorkflowKind.GarageAuthorisationAndInvoice),
+            ["PrincipalInvoice"] = nameof(PrincipalInvoiceKind.UlaInvoice),
+            ["InvoiceVatNumber"] = "GB 987 6543 21",
+            ["InvoicePaymentTerms"] = "30 days",
             ["AuditReportNameFirst"] = "{REG}_{CASE REF}_AUDIT"
         };
+        // The Audit workflow and the Principal's own invoice are chosen here,
+        // with the two values the invoice prints (R1138, R1147, R1148, R1162);
+        // a new Principal starts on the original engineer report and no invoice.
+        Assert.Contains(
+            $">{OperatorLabels.PrincipalAdministration.AuditWorkflow}</label><select id=\"principal-audit-workflow\" name=\"AuditWorkflow\">",
+            reportSettingsHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<option value=\"OriginalEngineerReport\" selected=\"selected\">Original engineer report</option>",
+            reportSettingsHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<option value=\"GarageAuthorisationAndInvoice\">Garage authorisation &amp; invoice</option>",
+            reportSettingsHtml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            ">Principal&#x27;s own invoice</label><select id=\"principal-own-invoice\" name=\"PrincipalInvoice\">",
+            reportSettingsHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("<option value=\"None\" selected=\"selected\">None</option>", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"UlaInvoice\">ULA Invoice</option>", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains(">Invoice VAT number</label>", reportSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains(">Invoice payment terms</label>", reportSettingsHtml, StringComparison.Ordinal);
         // The fee note VAT number box greys the standard number it stands for (R1008).
         Assert.Contains(">Fee note VAT number</label>", reportSettingsHtml, StringComparison.Ordinal);
         Assert.Matches(
@@ -162,6 +189,18 @@ public sealed partial class OrganizationAdministrationWebTests
             "name=\"FeeNoteVatNumber\" value=\"GB 123 4567 89\"",
             await EditContactAsync(client, reportSettingsPath, "report-generation"),
             StringComparison.Ordinal);
+        Assert.Equal(
+            "garage_authorisation_and_invoice|ula_invoice|GB 987 6543 21|30 days",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT AuditWorkflow + '|' + PrincipalInvoice + '|' + InvoiceVatNumber + '|' + InvoicePaymentTerms FROM Principals WHERE Id = '{principalId:D}';"));
+        var savedSettingsHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
+        Assert.Contains(
+            "<option value=\"GarageAuthorisationAndInvoice\" selected=\"selected\">",
+            savedSettingsHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("<option value=\"UlaInvoice\" selected=\"selected\">", savedSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"InvoiceVatNumber\" value=\"GB 987 6543 21\"", savedSettingsHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"InvoicePaymentTerms\" value=\"30 days\"", savedSettingsHtml, StringComparison.Ordinal);
 
         // A name with a token the report cannot fill is refused, naming the report, and kept as typed.
         var refusedHtml = await EditContactAsync(client, reportSettingsPath, "report-generation");
@@ -476,6 +515,48 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Contains(
             $"name=\"Rule0AttachAudatex\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
             shown,
+            StringComparison.Ordinal);
+        // The Offer ticks start off, beside the attach ticks (R1151).
+        Assert.Contains("name=\"RsOfferExternalEstimates\"", shown, StringComparison.Ordinal);
+        Assert.DoesNotMatch("name=\"RsOfferExternalEstimates\"[^>]*checked", shown);
+        Assert.DoesNotMatch("name=\"RsOfferRepairInvoices\"[^>]*checked", shown);
+
+        // R1151: the two Offer ticks and a rule's override of one are saved and shown.
+        using var offers = await client.PostAsync(
+            $"{path}?handler=UpdateReportSending",
+            SendingForm(shown,
+            [
+                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
+                new("RsOfferExternalEstimates", "true"), new("RsOfferRepairInvoices", "true"),
+                new("RuleIndex", "0"), new("Rule0Match", "All"),
+                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a"),
+                new("Rule0AttachOfferRepairInvoices", "false"), new("Rule0AttachOfferExternalEstimates", "")
+            ]));
+        Assert.True(
+            offers.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {offers.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(offers)}");
+        string AttachValue(string jsonPath) =>
+            $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerExternalEstimates")));
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerRepairInvoices")));
+        Assert.Equal("false", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("rules[0].then.attach.offerRepairInvoices")));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
+
+        var offered = await EditContactAsync(client, path, "report-sending");
+        Assert.Contains("name=\"RsOfferExternalEstimates\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
+        Assert.Contains("name=\"RsOfferRepairInvoices\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
+        Assert.Contains(
+            WebUtility.HtmlEncode(OperatorLabels.PrincipalAdministration.OfferExternalEstimates),
+            offered,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachOfferRepairInvoices\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">{OperatorLabels.PrincipalAdministration.AttachOverrideOn}</option><option value=\"false\" selected=\"selected\">",
+            offered,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachOfferExternalEstimates\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
+            offered,
             StringComparison.Ordinal);
     }
 

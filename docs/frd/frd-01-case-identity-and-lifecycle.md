@@ -126,6 +126,19 @@ report.
   **Original report missing**; files chosen at creation may include the
   report.
 
+**Audit workflow.** A standalone Audit works from one of two things, which
+it takes from its Principal when it is created and keeps (operator, 17
+November 2026; [R1138](../rulings.md);
+[FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)).
+Original engineer report is everything this section says. Garage
+authorisation & invoice is the Audit of a garage's repair: there is no
+original report, so **Original report missing** never applies, no filed
+document is recognised or marked as one, original report figures cannot be
+recorded, and the Case page has no Original report section or card. An
+Inspection, an Inspection + Audit and a Triage Case always hold Original
+engineer report, whatever their Principal's setting, and the replacement Case
+Correct principal creates takes the corrected Principal's.
+
 If no original report is filed on the Case and no standalone-Audit evidence
 was kept at intake, the Case shows **Original report missing** as an
 outstanding requirement. It clears when a filed document is recorded as the
