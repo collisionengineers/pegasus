@@ -1001,8 +1001,10 @@ public sealed partial class DetailsModel
                     AttachmentNames: PostedAttachmentNames("fileName"),
                     // The dialog's Delete case correspondence tick (R902 to R905).
                     TidiesCaseCorrespondence: deleteCaseCorrespondence,
-                    // The offered Case files staff ticked (R1151).
-                    OfferedFileIds: offeredFile ?? []),
+                    // The offered Case files staff ticked (R1151), and the
+                    // names staff gave the Case's files (R1175, R1176).
+                    OfferedFileIds: offeredFile ?? [],
+                    CaseFileNames: PostedCaseFileNames()),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -1108,6 +1110,30 @@ public sealed partial class DetailsModel
         }
         return names;
     }
+
+    /// <summary>
+    /// The names staff gave the Case's files in the composer, one
+    /// <c>caseFileName-{occurrence}</c> field per filed estimate or offered
+    /// file row (R1175, R1176); a row left on its filed name posts nothing.
+    /// </summary>
+    private Dictionary<Guid, string>? PostedCaseFileNames()
+    {
+        Dictionary<Guid, string>? names = null;
+        foreach (var key in Request.Form.Keys)
+        {
+            if (key.StartsWith(CaseFileNameField, StringComparison.Ordinal)
+                && Guid.TryParseExact(key[CaseFileNameField.Length..], "N", out var occurrenceId)
+                && Request.Form[key].ToString() is { } name
+                && !string.IsNullOrWhiteSpace(name))
+            {
+                (names ??= [])[occurrenceId] = name;
+            }
+        }
+        return names;
+    }
+
+    /// <summary>The prefix of a Case file row's name field in the Send report dialog.</summary>
+    public const string CaseFileNameField = "caseFileName-";
 }
 
 /// <summary>

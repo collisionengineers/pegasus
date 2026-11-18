@@ -37,11 +37,19 @@ public static class CaseFileAddresses
 
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
     public static string Preview(Guid caseId, CaseFile file) =>
-        $"/Cases/{caseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
+        Preview(caseId, file.Occurrence.Id, file.Version.Id);
+
+    /// <summary>The inline preview of one occurrence's version, as <see cref="Preview(Guid, CaseFile)"/>.</summary>
+    public static string Preview(Guid caseId, Guid occurrenceId, Guid versionId) =>
+        $"/Cases/{caseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}&inline=true";
 
     /// <summary>The audited download.</summary>
     public static string Download(Guid caseId, CaseFile file) =>
-        $"/Cases/{caseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
+        Download(caseId, file.Occurrence.Id, file.Version.Id);
+
+    /// <summary>The audited download of one occurrence's version, as <see cref="Download(Guid, CaseFile)"/>.</summary>
+    public static string Download(Guid caseId, Guid occurrenceId, Guid versionId) =>
+        $"/Cases/{caseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
 
     /// <summary>
     /// The tile's derived rendering. It carries the preparation version so a
@@ -59,7 +67,11 @@ public static class CaseFileAddresses
     /// week-cached earlier rendering.
     /// </summary>
     public static string PdfRendition(Guid caseId, CaseFile file) =>
-        Preview(caseId, file) + "&renderer=" + CaseDocumentPreviews.RenditionIdentity;
+        PdfRendition(caseId, file.Occurrence.Id, file.Version.Id);
+
+    /// <summary>The PDF rendering of one occurrence's Word version, as <see cref="PdfRendition(Guid, CaseFile)"/>.</summary>
+    public static string PdfRendition(Guid caseId, Guid occurrenceId, Guid versionId) =>
+        Preview(caseId, occurrenceId, versionId) + "&renderer=" + CaseDocumentPreviews.RenditionIdentity;
 
     /// <summary>The images window for a Case, opened on <paramref name="occurrenceId"/> when given.</summary>
     public static string ImagesWindow(Guid caseId, Guid? occurrenceId = null) =>

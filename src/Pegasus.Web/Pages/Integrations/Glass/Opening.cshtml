@@ -9,7 +9,8 @@
 @* The Glass's window while its provider work runs in the background. The
    script asks the owner-only State handler until nothing runs, then continues
    to Go, which answers with the estimator or hands the outcome back to the
-   Case window (Shared/_GlassReturn). The Continue link is the no-script path. *@
+   Case window (Shared/_GlassReturn). The Continue link is the no-script path.
+   While a build runs the script keeps its progress current (R1171). *@
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +19,14 @@
     <title>@GlassLabels.Launch · Pegasus</title>
 </head>
 <body data-glass-opening-state="@Url.Page("/Integrations/Glass/Opening", "State", new { sessionId })" data-glass-opening-go="@go">
-    <p role="status">@Model.Waiting <a href="@go">@GlassLabels.Continue</a>.</p>
+    @if (Model.Building is { } building)
+    {
+        <p role="status">@Model.Waiting <span data-glass-opening-progress>@building</span> <a href="@go">@GlassLabels.Continue</a>.</p>
+    }
+    else
+    {
+        <p role="status">@Model.Waiting <a href="@go">@GlassLabels.Continue</a>.</p>
+    }
     <script src="~/js/glass-opening.js" asp-append-version="true"></script>
 </body>
 </html>

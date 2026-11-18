@@ -2595,6 +2595,11 @@
         if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
         event.preventDefault();
         if (glassOpening) { return; }
+        // An answer to the import question (R1171) closes its dialog before
+        // the window opens, so focus returning to the page does not pull it
+        // back over Glass's; the form is found again by its action below.
+        var asking = form.closest('[data-dialog]');
+        if (asking && !asking.hidden && typeof asking.pegasusClose === 'function') { asking.pegasusClose(); }
         var windowName = 'pegasus-glass-' + window.location.pathname;
         glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
@@ -2722,9 +2727,10 @@
     }
 
     // The composer's Files rows (v48 items D and E): Rename shows the stem
-    // beside a fixed .pdf; Enter or leaving keeps the name, Escape puts it
-    // back, Reset restores the policy name. A changed name posts as the row's
-    // hidden fileName field; the policy name posts nothing.
+    // beside a fixed .pdf, or a Case file's own extension (data-extension;
+    // R1175, R1176); Enter or leaving keeps the name, Escape puts it back,
+    // Reset restores the policy or filed name. A changed name posts as the
+    // row's hidden name field; the policy name posts nothing.
     function bindReportFiles(root) {
         root.querySelectorAll('[data-report-files] [data-send-file]').forEach(function (row) {
             var rename = row.querySelector('[data-rename-file]');
@@ -2733,13 +2739,13 @@
             var reset = row.querySelector('[data-send-file-reset]');
             var posted = row.querySelector('[data-send-file-name]');
             var label = row.querySelector('[data-send-file-label]');
-            var open = row.querySelector('[data-document-preview]');
+            var open = row.querySelector('.send-file-open');
             if (!rename || !editor || !stem || !posted || !label || row.dataset.fileBound) { return; }
             row.dataset.fileBound = 'true';
             var defaultName = row.getAttribute('data-default-name') || '';
-            var extension = '.pdf';
+            var extension = row.hasAttribute('data-extension') ? row.getAttribute('data-extension') : '.pdf';
             function stemOf(name) {
-                return name.toLowerCase().endsWith(extension) ? name.slice(0, -extension.length) : name;
+                return extension && name.toLowerCase().endsWith(extension.toLowerCase()) ? name.slice(0, -extension.length) : name;
             }
             function current() { return posted.value || defaultName; }
             // Rename's accessible name follows the shown name, as v48 drew it.
