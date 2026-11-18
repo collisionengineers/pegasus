@@ -1404,7 +1404,7 @@ public sealed class GlassRepairEstimateGatewayTests
             },
             harness.Custody.Retained.Select(item => item.SeriesIdentity));
         Assert.Equal(RetainedMediaTypes, harness.Custody.Retained.Select(item => item.MediaType));
-        Assert.All(harness.Custody.Retained, item => Assert.Equal(DocumentSemanticRole.Estimate, item.SemanticRole));
+        Assert.All(harness.Custody.Retained, item => Assert.Equal(DocumentSemanticRole.CeEstimate, item.SemanticRole));
 
         var import = Assert.Single(harness.Import.Requests);
         Assert.Equal(harness.CaseId, import.CaseId);
@@ -1805,7 +1805,7 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateGateway.SeriesIdentity(EreId, "rejected-xml"), kept.SeriesIdentity);
         Assert.EndsWith("-rejected.xml", kept.FileName, StringComparison.Ordinal);
         Assert.Equal("application/xml", kept.MediaType);
-        Assert.Equal(DocumentSemanticRole.Estimate, kept.SemanticRole);
+        Assert.Equal(DocumentSemanticRole.CeEstimate, kept.SemanticRole);
         Assert.Equal(Encoding.UTF8.GetBytes(rejected), kept.Content);
         Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
         var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));

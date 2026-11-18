@@ -503,17 +503,26 @@ There is no way back from a tag to the flag.
 ### Document types
 
 A Case document's type is one of Original source, Instruction, Image,
-Correspondence, Engineer report, Audit report, Estimate, Valuation Evidence
-and Other. Estimate and Valuation Evidence are the operator's words (22
-October 2026; R215): "Estimates (retrieved from Glass's) should be tagged as
-estimates. Valuation from Glass's (and cazana, and market research) all go
-under a "Valuation Evidence" type of document".
+Correspondence, Engineer report, Audit report, CE estimate, External
+estimate, Repair invoice, Valuation Evidence and Other. Estimate and
+Valuation Evidence are the operator's words (22 October 2026; R215):
+"Estimates (retrieved from Glass's) should be tagged as estimates. Valuation
+from Glass's (and cazana, and market research) all go under a "Valuation
+Evidence" type of document". Estimate was split on 17 November 2026
+([R1139](../rulings.md)): CE estimate is an estimate Collision Engineers
+produced, External estimate is a repairer's or another provider's, and Repair
+invoice is the repairer's invoice for the repair.
 
-Estimate is the estimate import's stored file in any format, Audatex
-included, and a Glass's session's XML export, calculation-sheet PDF and
-rejected XML. A file imported from where it already sits in Case Files keeps
-its type, as does an intake file the Worker recognised as an estimate
-(operator, 22 October 2026; R221). Valuation Evidence is a Glass's, Brego or Cazana guide
+CE estimate is a Glass's session's XML export, calculation-sheet PDF and
+rejected XML. External estimate is the estimate import's stored file in any
+format, Audatex included. Repair invoice is never set by Pegasus: staff
+choose it on Upload or Change type, and the Automation Actor names it
+([R1140](../rulings.md)). A file imported from where it already sits in Case
+Files keeps its type, as does an intake file the Worker recognised as an
+estimate (operator, 22 October 2026; R221). Pegasus does not yet type a
+recognised estimate by the company its header names: that rule
+([R1140](../rulings.md)) waits for the sample documents of
+[R1156](../rulings.md). Valuation Evidence is a Glass's, Brego or Cazana guide
 valuation report and the findings a Market research job files: Market
 research is part of Valuation Evidence and is no longer a type of its own
 (operator, 22 October 2026; R220). There are no staff-added custom types, and
@@ -542,10 +551,20 @@ Estimate; a guide valuation report still Other and every Market research
 document became Valuation Evidence. A document staff marked as the original
 report kept Audit report. The re-tag is forward-only.
 
+The migration that split Estimate (17 November 2026;
+[R1139](../rulings.md), [R1153](../rulings.md)) retyped the documents already
+filed: the files a Glass's session retained became CE estimate and every
+other Estimate became External estimate, the declared type of an upload not
+yet filed included. An Audatex estimate Collision Engineers produced before
+the split therefore reads External estimate until staff change it. The
+migration is non-additive and forward-only, and Case history keeps the type
+name each earlier change recorded.
+
 A file a member of staff uploads to a declared Case
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) takes the
 type they chose for it on its row, one choice per file, from Instruction,
-Correspondence, Engineer report, Estimate, Valuation Evidence and Other;
+Correspondence, Engineer report, CE estimate, External estimate, Repair
+invoice, Valuation Evidence and Other;
 Other when none was chosen (operator, 30 October 2026; R564, R565). Image is
 never chosen because a JPEG or PNG is always an Image, and Audit report is
 Mark as original report's after filing. The chosen type is carried with the
