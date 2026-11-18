@@ -37,11 +37,22 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// Only a Case another staff member holds waits for Resume, so nobody's edit
 /// session is overtaken (FRD-25).
 /// </para>
+/// <para>
+/// <b>A build's estimate is reopened in the same window.</b> Once a build's
+/// return has landed as a new Glass's repair spec, the same work reopens that
+/// spec's estimate for the member of staff who ran it, exactly as Glass's on
+/// that spec reopens it, so the Glass's window opens it with no second press
+/// (operator, 18 November 2026; R1171). The reopen's session is held busy for
+/// the whole of it, so the Case page waits on it rather than settling it. A
+/// reopen that cannot go ahead leaves the new spec on the Case, where Glass's
+/// reopens it; its operation key is the build's own, so it is never sent twice.
+/// </para>
 /// </remarks>
 public sealed partial class GlassSessionWork(
     IGlassRepairEstimateGateway glassEstimates,
     IGetCaseHeader caseHeaders,
     CaseEditLeases leases,
+    ProviderWorkQueue glassWork,
     ILogger<GlassSessionWork> logger)
 {
     /// <summary>
@@ -98,8 +109,8 @@ public sealed partial class GlassSessionWork(
 
     /// <summary>
     /// A build, through its own return and import; a held estimate then lands
-    /// as an import's does. After the import the window behaves as after any
-    /// return.
+    /// as an import's does, and the new spec's estimate is then reopened for
+    /// the member of staff in the same window (R1171).
     /// </summary>
     public Task BuildAsync(ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
         LandAsync("GlassBuild", actor, sessionId, glassEstimates.ContinueBuildAsync, cancellationToken);
@@ -123,9 +134,73 @@ public sealed partial class GlassSessionWork(
         }
         if (session.State == GlassRepairEstimateSessionState.AwaitingImport)
         {
-            await LandHeldEstimateAsync(actor, session, cancellationToken);
+            session = await LandHeldEstimateAsync(actor, session, cancellationToken);
+        }
+        if (session is { State: GlassRepairEstimateSessionState.Completed, Build.BuiltSpecificationId: { } built })
+        {
+            await ReopenBuiltAsync(actor, session, built, cancellationToken);
         }
     }
+
+    /// <summary>
+    /// The estimate a build landed as a new Glass's repair spec, reopened for
+    /// the member of staff who ran it with the launch Glass's on that spec
+    /// makes: the reopen of a linked spec, under their own edit session, taken
+    /// as a held estimate's landing takes it (operator, 18 November 2026;
+    /// R1171).
+    /// </summary>
+    /// <remarks>
+    /// The new session's id is held busy from before its claim until its
+    /// provider work has run here, so the Case page's Glass's waits on it
+    /// rather than settling it, and the build's window, still waiting on the
+    /// build, then follows on to it. The operation key is the build's own with
+    /// a suffix: a second run names the launch already made and sends nothing.
+    /// The build already succeeded, so a reopen that cannot go ahead is logged
+    /// and the new spec stays on the Case, where Glass's reopens it.
+    /// </remarks>
+    private async Task ReopenBuiltAsync(
+        ActionActor actor, GlassRepairEstimateSession built, Guid specificationId,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = Guid.NewGuid();
+        using (glassWork.Reserve(sessionId))
+        {
+            try
+            {
+                var (lease, refusal) = await TakeLeaseAsync(actor, built.CaseId, cancellationToken);
+                if (lease is null)
+                {
+                    LogBuiltNotReopened(logger, built.CaseId, built.Id, refusal);
+                    return;
+                }
+
+                var step = await glassEstimates.PrepareLaunchAsync(
+                    new GlassRepairEstimateLaunchRequest(
+                        actor,
+                        built.CaseId,
+                        lease.Version,
+                        lease.Token,
+                        ReopenOperationKey(built),
+                        sessionId)
+                    {
+                        SpecificationId = specificationId,
+                    },
+                    cancellationToken);
+                if (step.Continuation == GlassRepairEstimateContinuation.Launch)
+                {
+                    await glassEstimates.ContinueLaunchAsync(new(actor, step.Session.Id), cancellationToken);
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogBuiltReopenFailed(logger, built.CaseId, built.Id, Reason(exception), exception);
+            }
+        }
+    }
+
+    /// <summary>The operation key of the reopen that follows a build: one per build.</summary>
+    private static string ReopenOperationKey(GlassRepairEstimateSession built) =>
+        $"{built.OperationKey}:reopen";
 
     private static bool IsExpectedRefusal(Exception exception) =>
         exception is GlassRepairEstimateRefusalException
@@ -141,56 +216,70 @@ public sealed partial class GlassSessionWork(
     /// anywhere — reading the Case, taking the lease or the import itself — is
     /// logged and leaves the session as it stands. A lease taken for a Resume
     /// that does not import stays the staff member's own edit session, which
-    /// the Case page picks back up.
+    /// the Case page picks back up. Answers the session as the landing left it.
     /// </summary>
-    private async Task LandHeldEstimateAsync(
+    private async Task<GlassRepairEstimateSession> LandHeldEstimateAsync(
         ActionActor actor, GlassRepairEstimateSession session, CancellationToken cancellationToken)
     {
         try
         {
-            var current = await caseHeaders.ExecuteAsync(new(session.CaseId, actor), cancellationToken);
-            if (current is null
-                || current.Workflow.Archive is not null
-                || !AssessmentPolicy.IsWritableState(current.Workflow.State))
+            var (lease, refusal) = await TakeLeaseAsync(actor, session.CaseId, cancellationToken);
+            if (lease is null)
             {
-                LogHeldEstimateWaits(logger, session.CaseId, session.Id, "the Case is not writable");
-                return;
-            }
-
-            CaseEditLease? lease;
-            if (current.ActiveEditLease is { } held)
-            {
-                if (!CaseEditAuthority.IsHolder(held.HolderKind, held.Holder, actor))
-                {
-                    LogHeldEstimateWaits(logger, session.CaseId, session.Id, "another staff member holds the Case");
-                    return;
-                }
-                lease = await leases.ResumeAsync(new(session.CaseId, actor), cancellationToken);
-                if (lease is null)
-                {
-                    LogHeldEstimateWaits(logger, session.CaseId, session.Id, "the staff member's lease could not be resumed");
-                    return;
-                }
-            }
-            else
-            {
-                lease = await leases.ClaimAsync(
-                    new(session.CaseId, current.Workflow.Version, actor, StaffPageModel.NewOperationKey()),
-                    cancellationToken);
+                LogHeldEstimateWaits(logger, session.CaseId, session.Id, refusal);
+                return session;
             }
 
             var step = await glassEstimates.PrepareResumeAsync(
                 new(actor, session.Id, session.Version, lease.Version, lease.Token),
                 cancellationToken);
-            if (step.Continuation == GlassRepairEstimateContinuation.Import)
-            {
-                await glassEstimates.ContinueImportAsync(new(actor, session.Id), cancellationToken);
-            }
+            return step.Continuation == GlassRepairEstimateContinuation.Import
+                ? await glassEstimates.ContinueImportAsync(new(actor, session.Id), cancellationToken)
+                : step.Session;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogHeldEstimateNotLanded(logger, session.CaseId, session.Id, Reason(exception), exception);
+            return session;
         }
+    }
+
+    /// <summary>
+    /// The staff member's own edit session on the Case, for work that lands
+    /// on it after their request has answered: the live lease they hold,
+    /// resumed as the Case page resumes it, or a fresh lease when nobody holds
+    /// the Case. A Case that is no longer writable, or that another staff
+    /// member holds, answers no lease and the reason.
+    /// </summary>
+    private async Task<(CaseEditLease? Lease, string Refusal)> TakeLeaseAsync(
+        ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+    {
+        var current = await caseHeaders.ExecuteAsync(new(caseId, actor), cancellationToken);
+        if (current is null
+            || current.Workflow.Archive is not null
+            || !AssessmentPolicy.IsWritableState(current.Workflow.State))
+        {
+            return (null, "the Case is not writable");
+        }
+
+        if (current.ActiveEditLease is { } held)
+        {
+            if (!CaseEditAuthority.IsHolder(held.HolderKind, held.Holder, actor))
+            {
+                return (null, "another staff member holds the Case");
+            }
+            var resumed = await leases.ResumeAsync(new(caseId, actor), cancellationToken);
+            if (resumed is null)
+            {
+                return (null, "the staff member's lease could not be resumed");
+            }
+            return (resumed, string.Empty);
+        }
+
+        var claimed = await leases.ClaimAsync(
+            new(caseId, current.Workflow.Version, actor, StaffPageModel.NewOperationKey()),
+            cancellationToken);
+        return (claimed, string.Empty);
     }
 
     private static string Reason(Exception exception) =>
@@ -216,4 +305,17 @@ public sealed partial class GlassSessionWork(
         Level = LogLevel.Warning,
         Message = "Glass's held estimate on case {CaseId} (session {SessionId}) waits for Resume: {Reason}")]
     private static partial void LogHeldEstimateWaits(ILogger logger, Guid caseId, Guid sessionId, string reason);
+
+    [LoggerMessage(
+        EventId = 1217,
+        Level = LogLevel.Warning,
+        Message = "Glass's built estimate on case {CaseId} (build session {SessionId}) was not reopened and stays on the Case for Glass's to reopen: {Reason}")]
+    private static partial void LogBuiltNotReopened(ILogger logger, Guid caseId, Guid sessionId, string reason);
+
+    [LoggerMessage(
+        EventId = 1218,
+        Level = LogLevel.Warning,
+        Message = "Glass's built estimate on case {CaseId} (build session {SessionId}) was not reopened and stays on the Case for Glass's to reopen: {Reason}")]
+    private static partial void LogBuiltReopenFailed(
+        ILogger logger, Guid caseId, Guid sessionId, string reason, Exception exception);
 }
