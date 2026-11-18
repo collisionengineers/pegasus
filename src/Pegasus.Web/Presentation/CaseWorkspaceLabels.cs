@@ -1318,6 +1318,22 @@ public static class CaseWorkspaceLabels
         public const string OpenOn = "Open on";
 
         /// <summary>
+        /// A session the Automation owns, as staff see it (design 07 section 9
+        /// question 3, option a): on its Case the line reads "Glass's session ·
+        /// Open · the Automation, started 10:42"; its Close dialog's one
+        /// sentence; and, on every other Case for staff on the same login,
+        /// the line naming the Case it is open on.
+        /// </summary>
+        // Operator, 18 November 2026: R1180
+        public const string AutomationStarted = "the Automation, started";
+
+        // Operator, 18 November 2026: R1180
+        public const string AutomationClosePrompt = "The Automation is building this Glass's estimate. Closing ends its session without saving, and the Glass's account is free again.";
+
+        // Operator, 18 November 2026: R1180
+        public const string HeldByAutomation = "The Glass's account is in use by the Automation";
+
+        /// <summary>
         /// The outcomes a launch, a return or a resume reports. A recorded
         /// estimate is named as recorded, not as the spec in use: the outcome
         /// stays on the section for as long as the session is the newest one,

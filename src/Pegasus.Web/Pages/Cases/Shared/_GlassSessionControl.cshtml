@@ -7,9 +7,12 @@
 @{
     var caseId = Model.CurrentWorkflow!.CaseId;
     var glassSession = Model.GlassSession;
-    var showGlassLine = glassSession is not null &&
-        (GlassRepairEstimateSessionPolicy.OccupiesAccount(glassSession.State) || glassSession.State == GlassRepairEstimateSessionState.Failed);
-    var tone = glassSession?.State switch
+    // The line shows this staff member's own session, or the Automation's on
+    // this Case (R1180); the host's id and version stay their own session's.
+    var lineSession = Model.GlassLineSession;
+    var showGlassLine = lineSession is not null;
+    var byAutomation = lineSession?.OwnerKind == Pegasus.Core.Identity.ActorKind.Automation;
+    var tone = lineSession?.State switch
     {
         GlassRepairEstimateSessionState.Failed => "status--red",
         GlassRepairEstimateSessionState.Unknown or GlassRepairEstimateSessionState.AwaitingImport => "status--amber",
@@ -18,30 +21,30 @@
 }
 <div data-glass-controls="session" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
      data-glass-state="@glassSession?.State" hidden="@(Model.GlassSessionElsewhere is null && !showGlassLine)">
-    @* The Glass's session line: only while this staff member's session holds
-       the account or has failed, or while the account is held from
-       another Case (v26 § Glass's). *@
+    @* The Glass's session line: only while this staff member's session, or
+       the Automation's on this Case, holds the account or has failed, or
+       while the account is held from another Case (v26 § Glass's). *@
     @if (Model.GlassSessionElsewhere is { } elsewhere)
     {
         <div class="glass-session" data-glass-session="elsewhere" data-glass-elsewhere="@elsewhere.Session.CaseId">
             <span class="status status--blue">@GlassLabels.Launch session · @GlassLabels.StateLabel(elsewhere.Session.State)</span>
-            <span class="muted grow">@EstimateLabels.HeldFromAnotherCase</span>
+            <span class="muted grow">@(elsewhere.Session.OwnerKind == Pegasus.Core.Identity.ActorKind.Automation ? GlassLabels.HeldByAutomation : EstimateLabels.HeldFromAnotherCase)</span>
             <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@elsewhere.Session.CaseId" asp-route-section="estimate">
                 <span>@GlassLabels.OpenOn @elsewhere.CaseReference</span>
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
             </a>
         </div>
     }
-    else if (showGlassLine && glassSession is not null)
+    else if (showGlassLine && lineSession is not null)
     {
-        <div class="glass-session" data-glass-session="@glassSession.State.ToString().ToLowerInvariant()">
-            <span class="status @tone">@GlassLabels.Launch session · @GlassLabels.StateLabel(glassSession.State)</span>
-            <span class="muted grow">@EstimateLabels.Started @OperatorLabels.OfficeClock(glassSession.CreatedAtUtc)</span>
-            @if (glassSession.FailureCode is { Length: > 0 } glassFailure)
+        <div class="glass-session" data-glass-session="@lineSession.State.ToString().ToLowerInvariant()" data-glass-owner="@(byAutomation ? "automation" : "staff")">
+            <span class="status @tone">@GlassLabels.Launch session · @GlassLabels.StateLabel(lineSession.State)</span>
+            <span class="muted grow">@(byAutomation ? GlassLabels.AutomationStarted : EstimateLabels.Started) @OperatorLabels.OfficeClock(lineSession.CreatedAtUtc)</span>
+            @if (lineSession.FailureCode is { Length: > 0 } glassFailure)
             {
                 <span class="glass-fail" data-glass-failure>@glassFailure</span>
             }
-            @if (glassSession.State == GlassRepairEstimateSessionState.AwaitingImport)
+            @if (lineSession.State == GlassRepairEstimateSessionState.AwaitingImport)
             {
                 <span class="gated"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
             }
@@ -70,12 +73,12 @@
                     </div>
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
                           asp-route-id="@caseId" asp-route-section="estimate" data-glass-close-form>
-                        <input type="hidden" name="sessionId" value="@glassSession.Id" />
-                        <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                        <input type="hidden" name="sessionId" value="@lineSession.Id" />
+                        <input type="hidden" name="expectedSessionVersion" value="@lineSession.Version" />
                         <input type="hidden" name="view" value="@Model.ViewRoute" />
                         <input type="hidden" name="externalSessionClosed" value="true" />
                         <div class="dialog-body stack">
-                            <p class="consequence">@GlassLabels.ClosePrompt</p>
+                            <p class="consequence">@(byAutomation ? GlassLabels.AutomationClosePrompt : GlassLabels.ClosePrompt)</p>
                             <div class="field">
                                 <label class="req" for="glass-close-reason">@GlassLabels.CloseReason</label>
                                 <input type="text" id="glass-close-reason" name="reason" maxlength="2000" required data-dialog-initial-focus />
