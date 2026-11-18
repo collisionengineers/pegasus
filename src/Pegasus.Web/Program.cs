@@ -48,6 +48,10 @@ const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string GlassCallbackRateLimitPolicy = "GlassCallback";
 const int GlassCallbackRequestsPerClientPerMinute = 30;
+// The Glass's helper polls each open editor window every 2 to 10 seconds, and
+// an office's Engineers share one public address (R1170).
+const string GlassHelpRateLimitPolicy = "GlassHelp";
+const int GlassHelpRequestsPerClientPerMinute = 600;
 const string InitializeDevelopmentArgument = "--initialize-development";
 const string BootstrapProductionAdministratorArgument = "--bootstrap-production-administrator";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
@@ -404,6 +408,10 @@ builder.Services.AddRazorPages()
             "/Integrations/Glass/Callback",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
+        options.Conventions.AddPageApplicationModelConvention(
+            "/Integrations/Glass/Help",
+            model => model.EndpointMetadata.Add(
+                new EnableRateLimitingAttribute(GlassHelpRateLimitPolicy)));
         // The Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
@@ -470,6 +478,8 @@ builder.Services.AddRateLimiter(options =>
                     ? "principal_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
+                    : rejectedPath.StartsWithSegments(Pegasus.Web.Pages.Integrations.Glass.HelpModel.BasePath)
+                        ? "glass_help_rate_limited"
                     : PhotoCaptureSurface.IsPublicPath(rejectedPath)
                         ? "capture_rate_limited"
                     : "authentication_rate_limited";
@@ -519,6 +529,18 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = GlassCallbackRequestsPerClientPerMinute,
+                QueueLimit = 0,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    // Its own budget, not the callback's: one window's polls would spend that.
+    options.AddPolicy(
+        GlassHelpRateLimitPolicy,
+        context => RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = GlassHelpRequestsPerClientPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -1464,7 +1486,8 @@ static bool IsMachineSurface(PathString path) =>
     || path.StartsWithSegments("/diagnostics")
     || AutomationMcp.IsIngressPath(path)
     || path.StartsWithSegments(PrincipalApi.BasePath)
-    || path.StartsWithSegments("/capture/api");
+    || path.StartsWithSegments("/capture/api")
+    || path.StartsWithSegments(Pegasus.Web.Pages.Integrations.Glass.HelpModel.BasePath);
 
 static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)
 {

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -54,6 +55,15 @@ internal static partial class GlassEditorPages
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromSeconds(1);
 
     private const RegexOptions Patterns = RegexOptions.CultureInvariant;
+
+    /// <summary>The path the editor's main frame ends with.</summary>
+    private const string FramePath = "/ere/aco/acofr.php";
+
+    /// <summary>
+    /// The longest main-frame address read. The editor's own is a few hundred
+    /// characters; nothing longer is a frame address.
+    /// </summary>
+    private const int MaximumFrameAddress = 4096;
 
     /// <summary>
     /// The value after <paramref name="key"/> in a bar-separated list of
@@ -297,6 +307,64 @@ internal static partial class GlassEditorPages
     {
         var found = FrameKey().Match(text);
         return found.Success ? found.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// The editor's main frame (<c>acofr.php</c>) as a staff member's browser
+    /// holds it, handed over by the Pegasus helper: an HTTPS address on the
+    /// configured estimator, its path ending <c>/ere/aco/acofr.php</c>, the
+    /// session key as its first parameter and <c>url0</c> as
+    /// <see cref="GlassEditorAddresses.Escape"/> writes it, whose
+    /// <c>caller</c> is exactly this host's callback for a 64-character
+    /// lower-case hex return token. Null when the address is anything else.
+    /// </summary>
+    public static GlassHelpFrame? HelpFrame(string? address, GlassRepairEstimateOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (address is null
+            || address.Length > MaximumFrameAddress
+            || !Uri.TryCreate(address, UriKind.Absolute, out var frame)
+            || !options.IsEstimator(frame)
+            || !frame.AbsolutePath.EndsWith(FramePath, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        // The key is the query's first parameter, whole.
+        var key = FrameKey().Match(address);
+        var query = address.IndexOf('?', StringComparison.Ordinal);
+        var keyEnd = key.Index + key.Length;
+        if (!key.Success
+            || query != key.Index + "acofr.php".Length
+            || (keyEnd < address.Length && address[keyEnd] is not '&' and not '#'))
+        {
+            return null;
+        }
+
+        var fragment = address.IndexOf('#', StringComparison.Ordinal);
+        var parameters = (fragment < 0 ? address[(query + 1)..] : address[(query + 1)..fragment]).Split('&');
+        var escaped = parameters.FirstOrDefault(part => part.StartsWith("url0=", StringComparison.Ordinal));
+        if (escaped is null)
+        {
+            return null;
+        }
+
+        var url0 = GlassEditorAddresses.Unescape(escaped["url0=".Length..]);
+        var caller = CallerParameter().Match(url0);
+        var callbacks = new Uri(options.CallbackBaseUri, GlassRepairEstimateOptions.CallbackPath).AbsoluteUri;
+        if (!caller.Success || !caller.Groups[1].Value.StartsWith(callbacks, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var token = caller.Groups[1].Value[callbacks.Length..];
+        return GlassHelpFrame.IsToken(token)
+            && string.Equals(options.CallbackFor(token).AbsoluteUri, caller.Groups[1].Value, StringComparison.Ordinal)
+            ? new GlassHelpFrame(
+                token,
+                new GlassEditorSession(
+                    new Uri(frame, "./").AbsoluteUri, url0, key.Groups[1].Value, ReadOnlyDictionary<string, string>.Empty))
+            : null;
     }
 
     /// <summary><c>service.php?savexit=1</c>: whether the answer tells the editor's top bar to close after a save.</summary>
