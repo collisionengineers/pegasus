@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationMcpIngressTests
 {
-    // The approved inventory, 83 tools on the one server (ADR-0087): the
+    // The approved inventory, 85 tools on the one server (ADR-0087): the
     // edit-lease tools once, the shared reads once, sorted as a list is read.
     private static readonly string[] ExpectedTools =
     [
@@ -49,6 +49,8 @@ public sealed class AutomationMcpIngressTests
         "pegasus_estimate_import",
         "pegasus_estimate_list",
         "pegasus_estimate_save",
+        "pegasus_glass_session_act",
+        "pegasus_glass_session_get",
         "pegasus_image_intake_action",
         "pegasus_image_intake_get",
         "pegasus_image_intake_list",
@@ -193,7 +195,7 @@ public sealed class AutomationMcpIngressTests
                     .ToArray());
         }
 
-        // A token holding all seven scopes lists the whole inventory.
+        // A token holding all eight scopes lists the whole inventory.
         var accessToken = await RequestTokenAsync(client, string.Join(' ', AutomationMcp.Scopes));
         var rpcId = 2;
         using var toolsResponse = await PostMcpAsync(client, accessToken, ToolsListPayload(rpcId));

@@ -16,6 +16,8 @@ namespace Pegasus.ArchitectureTests;
 /// </summary>
 public sealed partial class AutomationToolScopeTableTests
 {
+    private static readonly string[] GlassTools = ["pegasus_glass_session_act", "pegasus_glass_session_get"];
+
     [Fact]
     public void EveryRegisteredToolHasOneRowAndEveryRowIsATool()
     {
@@ -86,6 +88,10 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Contains("pegasus_upload_group_action", intakeTools);
         Assert.Contains("pegasus_unidentified_action", intakeTools);
         Assert.Equal(10, Listed(AutomationMcp.AssessmentScope).Length);
+        // The Automation's own Glass's sessions are their own scope, so a
+        // grant can hold casework without acting in Glass's (R1179).
+        Assert.Equal(GlassTools, Listed(AutomationMcp.GlassScope));
+        Assert.DoesNotContain("pegasus_glass_session_act", Listed(AutomationMcp.AssessmentScope));
         Assert.Equal(AutomationToolScopes.Tools.Order(StringComparer.Ordinal).ToArray(), Listed([.. AutomationMcp.Scopes]));
         Assert.Empty(Listed());
     }
@@ -106,6 +112,8 @@ public sealed partial class AutomationToolScopeTableTests
         Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_report_send"));
         Assert.Equal(AutomationMcp.SendScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_send"));
         Assert.Equal(AutomationMcp.CasesScope, AutomationToolScopes.RequiredScope("pegasus_photo_link_action"));
+        Assert.Equal(AutomationMcp.GlassScope, AutomationToolScopes.RequiredScope("pegasus_glass_session_act"));
+        Assert.Equal(AutomationMcp.GlassScope, AutomationToolScopes.RequiredScope("pegasus_glass_session_get"));
         Assert.Throws<InvalidOperationException>(
             () => AutomationToolScopes.RequiredScope("pegasus_no_such_tool"));
     }
