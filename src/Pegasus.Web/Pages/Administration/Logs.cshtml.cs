@@ -503,6 +503,8 @@ public sealed class LogsModel(
             // The Automation's own Glass's session is found by its Case.
             or "pegasus_glass_session_get"
             or "pegasus_glass_session_act"
+            or "pegasus_glass_catalogue_search"
+            or "pegasus_glass_position_act"
             or "pegasus_document_add"
             or "pegasus_document_download"
             or "pegasus_document_download_batch"

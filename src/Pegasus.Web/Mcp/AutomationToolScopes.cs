@@ -129,7 +129,9 @@ internal static class AutomationToolScopes
         (AutomationMcp.GlassScope,
         [
             "pegasus_glass_session_get",
-            "pegasus_glass_session_act"
+            "pegasus_glass_session_act",
+            "pegasus_glass_catalogue_search",
+            "pegasus_glass_position_act"
         ])
     ];
 

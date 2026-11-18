@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomationMcpIngressTests
 {
-    // The approved inventory, 85 tools on the one server (ADR-0087): the
+    // The approved inventory, 87 tools on the one server (ADR-0087): the
     // edit-lease tools once, the shared reads once, sorted as a list is read.
     private static readonly string[] ExpectedTools =
     [
@@ -49,6 +49,8 @@ public sealed class AutomationMcpIngressTests
         "pegasus_estimate_import",
         "pegasus_estimate_list",
         "pegasus_estimate_save",
+        "pegasus_glass_catalogue_search",
+        "pegasus_glass_position_act",
         "pegasus_glass_session_act",
         "pegasus_glass_session_get",
         "pegasus_image_intake_action",
