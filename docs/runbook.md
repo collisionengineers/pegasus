@@ -1701,6 +1701,32 @@ it stopped.
     nothing was saved and an empty estimate was opened; `glass.interrupted`
     there means the build stopped part-way and the session was continued as
     a launch.
+- Automation help in an Engineer's open session (R1170, R1183 to R1185)
+  logs the same editor stages under the Engineer's session id, and "The
+  Glass's helper handed over the editor key for session …" when the
+  window's key arrives. Each act is a `glass_session_help_act` history row
+  on the session and each toggle a `glass_session_help` row. The chip
+  "Automation help on · Glass's window not connected" means this Web host
+  holds no key for the session: the Pegasus helper is missing or out of date
+  (load it as its README says and compare its version), the window is
+  closed, no poll has come for 30 seconds, or the host restarted and the
+  helper's next poll has not handed the key over yet. The Automation's tools
+  refuse, before anything is sent, with:
+  - `glass.help.no_session`: no session on the Case is open to the
+    Automation; `glass.help.off`: the Engineer's session is open with help
+    off; `glass.help.several`: more than one is open, and the call names one
+    by `sessionId`.
+  - `glass.help.not_active`: the session was saved, closed or reopened
+    elsewhere; its key is forgotten. `glass.help.busy`: the session's own
+    work runs, or another help act holds it.
+  - `glass.help.no_window`: no key is held, as the chip says.
+    `glass.help.not_automation_session`: start, finish and close are the
+    Automation's own session's only.
+  An add or a removal that comes back `not_confirmed` carries the editor's
+  code (`glass.editor.answer` when the answer was lost, or when Glass's
+  answered but no new position carries the dialog's code). Read the
+  estimate before acting again; the Automation never removes a position to
+  tidy up.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

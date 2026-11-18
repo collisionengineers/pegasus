@@ -1,6 +1,7 @@
-# Pegasus helper for Glass's editor
+# Pegasus helper for Glass's
 
-A Chrome (and Edge) extension an Engineer installs ([R1170](../../docs/rulings.md),
+A Chrome (and Edge) extension an Engineer installs, named "Pegasus helper for
+Glass's" ([R1170, R1183](../../docs/rulings.md),
 [ADR-0091](../../docs/adr/0091-pegasus-sends-the-glass-editor-its-own-requests.md)).
 In Glass's editor frame (`acofr.php`) it does three things and nothing else:
 
@@ -11,8 +12,11 @@ In Glass's editor frame (`acofr.php`) it does three things and nothing else:
   files or requests.
 - `helper.js`, in the extension's own world, asks the service worker to hand
   the frame's own address to Pegasus once, then to poll on the cadence each
-  answer names. When Pegasus has asked for it, it reloads the editor's
-  selected list (`selected.php`). Nothing asks for that yet.
+  answer names (every 2 seconds while the Engineer has Automation help on,
+  every 10 otherwise). When the Automation has added or removed a position,
+  Pegasus's answer asks for it, and it reloads the editor's selected list
+  (`selected.php`) and reports that on a poll a second later (`seen`), so the
+  Automation hears that the window shows the change.
 - `background.js`, the service worker, answers only this extension's script in
   the editor frame, reads the frame's address from the sender, and posts only
   to a Pegasus origin listed in `host_permissions`:
@@ -65,3 +69,8 @@ copy `background.js` as well, or the folder does not load.
 6. Save & Exit: the next poll answers **409** and the helper stops.
 
 **E3, Edge.** One launch as in E2, step 1 and 2.
+
+**E4, live, Automation help, on the test instance.** The walk is in
+FRD-25's acceptance walk, step 14: the Engineer turns help on from the
+Case page, the Automation adds and removes positions beside them, and the
+Engineer's own Save & Exit brings it all back.

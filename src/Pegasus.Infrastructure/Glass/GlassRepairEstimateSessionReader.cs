@@ -57,6 +57,15 @@ public interface IGlassRepairEstimateSessionReader
         Guid caseId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// The sessions of a Case the Automation's Glass's tools choose from
+    /// (<see cref="GlassSessionHelpPolicy.Find"/>): its newest Automation
+    /// session, and the staff sessions that are <c>Active</c> or have had
+    /// help on. One query on the Case.
+    /// </summary>
+    Task<GlassSessionHelpCandidates> FindHelpableForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The session a one-use correlation names, found by the fingerprint the
     /// launch recorded rather than by the token itself — the token is never
     /// stored. Null when nothing was launched under it.

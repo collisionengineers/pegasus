@@ -16,6 +16,9 @@ public sealed partial class GlassHelperExtensionContractTests
 {
     private const string EditorFrame = "https://repairestimate.autovistagroup.com/ere/aco/acofr.php*";
 
+    /// <summary>The name Chrome shows for the helper (operator, 18 November 2026; R1183).</summary>
+    private const string Name = "Pegasus helper for Glass's";
+
     private static readonly string[] PegasusOrigins =
     [
         "https://pegasus-prod-web-252ow37gij.azurewebsites.net/*",
@@ -44,6 +47,9 @@ public sealed partial class GlassHelperExtensionContractTests
         Assert.Equal(TopLevelKeys, root.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
         Assert.False(root.TryGetProperty("permissions", out _));
         Assert.Equal(3, root.GetProperty("manifest_version").GetInt32());
+        Assert.Equal(Name, root.GetProperty("name").GetString());
+        // Chrome shows at most 132 characters of a description.
+        Assert.InRange(root.GetProperty("description").GetString()?.Length ?? 0, 1, 132);
         Assert.Matches(ManifestVersion(), root.GetProperty("version").GetString());
         Assert.Equal(PegasusOrigins, Strings(root.GetProperty("host_permissions")));
         var background = root.GetProperty("background");
@@ -75,6 +81,22 @@ public sealed partial class GlassHelperExtensionContractTests
         Assert.True(protocol.Success, "background.js must declare its PROTOCOL.");
         Assert.Equal(HelpModel.Protocol, int.Parse(protocol.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
         Assert.Contains("'" + HelpModel.BasePath.TrimStart('/') + "/'", background, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The helper reports, on each poll, the last ask to show the selected
+    /// list again that it has acted on, and Pegasus's poll body reads it, so
+    /// a help act can say whether the Engineer's window shows the change.
+    /// </summary>
+    [Fact]
+    public void ThePollSaysWhatTheWindowHasShown()
+    {
+        var helper = File.ReadAllText(Path.Combine(Folder(), "helper.js"));
+        var background = File.ReadAllText(Path.Combine(Folder(), "background.js"));
+
+        Assert.Contains("kind: 'poll', seen:", helper, StringComparison.Ordinal);
+        Assert.Contains("if (shown) { showSelectedAgain(); }", helper, StringComparison.Ordinal);
+        Assert.Contains("seen: Number.isSafeInteger(message.seen) ? message.seen : 0", background, StringComparison.Ordinal);
     }
 
     private static string Folder() => Path.Combine(RepositoryRoot.Find(), "src", "pegasus-glass-helper");

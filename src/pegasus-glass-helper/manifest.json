@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Glass's Repair Estimate start-up fix",
-  "version": "1.0.0",
-  "description": "Removes the intermittent \"ERROR dialog not found\" when Glass's Repair Estimate starts, by making its framing page's dialog helper exist before the editor frame asks for it.",
+  "name": "Pegasus helper for Glass's",
+  "version": "1.1.0",
+  "description": "Stops the Glass's start-up \"dialog not found\" alert, and links Glass's editor to Pegasus so the Automation's help shows in it.",
   "host_permissions": [
     "https://pegasus-prod-web-252ow37gij.azurewebsites.net/*",
     "https://cemattypc-1.tail432b53.ts.net/*"

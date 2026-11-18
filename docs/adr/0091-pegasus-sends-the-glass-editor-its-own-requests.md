@@ -32,7 +32,11 @@ Engineer's open Glass's session live, through the Pegasus helper extension,
 with no hand-over. Its first part is the extension: it makes the framing
 page's `dialog` exist before Glass's editor frame asks for it, and hands the
 editor frame's own address to `/Integrations/Glass/Help`, which holds the key
-in the Web host's memory only (decisions 5 and 6). Nothing uses the key yet.
+in the Web host's memory only (decisions 5 and 6). The key's one user is the
+Automation's help in that session while the Engineer has turned it on
+(R1182 to R1185;
+[FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#help-in-an-engineers-open-session)):
+read, search, add and remove, never save, exit or close.
 
 Amended 18 November 2026 (R1177 to R1180): the client's second user is the
 Automation's own Glass's sessions

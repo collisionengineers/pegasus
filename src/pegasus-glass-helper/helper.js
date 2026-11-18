@@ -1,9 +1,11 @@
 // The Pegasus helper in Glass's editor frame (acofr.php), in the extension's own
 // world (R1170, ADR-0091). It asks the service worker to hand this frame's
 // address to Pegasus once, then to poll on the cadence each answer names. When
-// Pegasus has asked the window to show its selected list again, it reloads that
-// one frame. It reads nothing of Glass's pages but the paths of the editor's
-// frames; the service worker reads this frame's address.
+// Pegasus has asked the window to show its selected list again (the Automation
+// added or removed a position), it reloads that one frame and says so a second
+// later, so Pegasus can tell the Automation the window shows it. It reads
+// nothing of Glass's pages but the paths of the editor's frames; the service
+// worker reads this frame's address.
 'use strict';
 
 (() => {
@@ -64,8 +66,11 @@
         if (answer) {
             if (answer.key === 'needed' && !(await handOver())) { return; }
             const refresh = Number.isSafeInteger(answer.refresh) ? answer.refresh : 0;
-            if (acted !== null && refresh > acted) { showSelectedAgain(); }
+            const shown = acted !== null && refresh > acted;
+            if (shown) { showSelectedAgain(); }
             acted = refresh;
+            // A reload is reported on the next poll, a second from now.
+            if (shown) { later(1000); return; }
         }
         later(answer && answer.next);
     }

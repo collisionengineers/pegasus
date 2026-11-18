@@ -330,6 +330,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var html = await workspace.CaseHtmlAsync();
         Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
+        // Help is offered only on a session that is Active.
+        Assert.DoesNotContain("handler=GlassHelp", html, StringComparison.Ordinal);
         using var resumed = await workspace.PostGlassAsync("LaunchGlass", FormFor(html, "LaunchGlass"));
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         // The start went unanswered on a vehicle the session recorded, so it
@@ -448,6 +450,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
         Assert.Contains("data-glass-owner=\"automation\"", html, StringComparison.Ordinal);
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
+        // Help is the Engineer's to give in their own session, not in the Automation's (R1170).
+        Assert.DoesNotContain("handler=GlassHelp", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -508,6 +512,78 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         _ = ReadEstimator(next);
         Assert.Equal(2, (await workspace.SessionsAsync()).Count);
+    }
+
+    /// <summary>
+    /// The owner's own open session offers "Let the Automation help"
+    /// (R1183). The post turns help on and moves neither the session's
+    /// version nor the Case's; the chip then says the window is not
+    /// connected until the window's key is held, and that help is on once it
+    /// is; the same control turns it off. A post naming another Engineer's
+    /// session is not found and changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task TheOwnersOpenSessionOffersHelpAndItsChipSaysWhetherTheWindowIsConnected()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        using (var launched = await workspace.LaunchAsync())
+        {
+            _ = ReadEstimator(launched);
+        }
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        var caseVersion = await workspace.CaseVersionAsync();
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpStart, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-glass-help=", html, StringComparison.Ordinal);
+        Assert.Contains("data-glass-help-form", html, StringComparison.Ordinal);
+        var form = FormFor(html, "GlassHelp");
+        Assert.Equal(session.Id.ToString("D"), form["sessionId"]);
+        Assert.Equal("true", form["on"]);
+
+        using (var turnedOn = await workspace.PostAsync("GlassHelp", form))
+        {
+            Assert.Equal(HttpStatusCode.Found, turnedOn.StatusCode);
+        }
+        var on = Assert.Single(await workspace.SessionsAsync());
+        Assert.NotNull(on.HelpOnAtUtc);
+        Assert.Equal(session.Version, on.Version);
+        Assert.Equal(caseVersion, await workspace.CaseVersionAsync());
+        html = await workspace.CaseHtmlAsync();
+        Assert.Contains("data-glass-help=\"not-connected\"", html, StringComparison.Ordinal);
+        Assert.Contains(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpStop, html, StringComparison.Ordinal);
+
+        // The window hands its key over (made up), and the chip says help is on.
+        var options = workspace.Services.GetRequiredService<GlassRepairEstimateOptions>();
+        var keys = workspace.Services.GetRequiredService<GlassHelpKeys>();
+        var frame = keys.Read(GlassHelpFrameTests.FrameAddress(
+            GlassHelpFrameTests.Url0(options.CallbackFor(GlassHelpFrameTests.Token).AbsoluteUri)))
+            ?? throw new InvalidOperationException("The frame was not read.");
+        keys.Hold(session.Id, frame);
+        html = await workspace.CaseHtmlAsync();
+        Assert.Contains("data-glass-help=\"connected\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            ">" + Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpOn + "</span>", html, StringComparison.Ordinal);
+
+        form = FormFor(html, "GlassHelp");
+        Assert.Equal("false", form["on"]);
+        using (var turnedOff = await workspace.PostAsync("GlassHelp", form))
+        {
+            Assert.Equal(HttpStatusCode.Found, turnedOff.StatusCode);
+        }
+        Assert.Null(Assert.Single(await workspace.SessionsAsync()).HelpOnAtUtc);
+        Assert.DoesNotContain("data-glass-help=", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+
+        await workspace.SeedAnotherEngineersSessionAsync();
+        var others = Assert.Single(await workspace.SessionsAsync(), item => item.Id != session.Id);
+        form["sessionId"] = others.Id.ToString("D");
+        form["on"] = "true";
+        using (var foreign = await workspace.PostAsync("GlassHelp", form))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+        }
+        Assert.Null(Assert.Single(await workspace.SessionsAsync(), item => item.Id == others.Id).HelpOnAtUtc);
     }
 
     // --------------------------------------------------------------- the page

@@ -3883,6 +3883,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("EreId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset?>("HelpOnAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("LastError")
                         .HasColumnType("nvarchar(max)");
 

@@ -1334,6 +1334,26 @@ public static class CaseWorkspaceLabels
         public const string HeldByAutomation = "The Glass's account is in use by the Automation";
 
         /// <summary>
+        /// The help control on a staff member's own open session (design 08
+        /// section 10 question 1, Set A): its two buttons, and the chip while
+        /// help is on, with the window connected or not.
+        /// </summary>
+        // Operator, 18 November 2026: R1183
+        public const string HelpStart = "Let the Automation help";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpStop = "Stop Automation help";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpOn = "Automation help on";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpOnNotConnected = "Automation help on · Glass's window not connected";
+
+        /// <summary>A help toggle refused because the session left Active or its work runs. Not ruled.</summary>
+        public const string HelpNotChanged = "Automation help was not changed. The Glass's session is no longer open, or Glass's is busy with it.";
+
+        /// <summary>
         /// The outcomes a launch, a return or a resume reports. A recorded
         /// estimate is named as recorded, not as the spec in use: the outcome
         /// stays on the section for as long as the session is the newest one,

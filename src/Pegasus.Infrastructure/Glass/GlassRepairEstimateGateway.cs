@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -135,27 +133,20 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>How long a just-created vehicle waits before its identity is read once more.</summary>
     private static readonly TimeSpan VehicleReread = TimeSpan.FromMilliseconds(500);
 
-    /// <summary>
-    /// The special list's group a build chooses special operations from:
-    /// "Free positions parts", whose rows are the operator's own list of
-    /// special operations, coded <c>AC</c> and seven digits (captures of 18
-    /// November 2026). The list is asked for with this group alone.
-    /// </summary>
-    private const string SpecialOperationGroup = "SS-FREEPART";
+    /// <summary>The special list's group a build chooses special operations from.</summary>
+    private const string SpecialOperationGroup = GlassEditorPositionWork.SpecialOperationGroup;
 
-    private const string SpecialOperationPrefix = "AC";
+    /// <summary>The group list the part list is asked for with.</summary>
+    private const string PartListGroups = GlassEditorPositionWork.PartListGroups;
 
     /// <summary>
-    /// The group list the part list is asked for with: the editor's own, as a
-    /// browser asked for it on 7 September 2026 and a program asked for it on
-    /// another vehicle on 18 November 2026, both answered with the whole list.
+    /// The editor's lists, a position's add and remove, and every stage's
+    /// log line, shared with the Automation's help in a member of staff's
+    /// session (<see cref="GlassSessionHelp"/>).
     /// </summary>
-    internal const string PartListGroups =
-        "DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006"
-        + "|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022";
+    private GlassEditorPositionWork Positions => positionWork ??= new(logger);
 
-    /// <summary>The part dialog's Part button: the part as served, not painted.</summary>
-    private const string PartButton = "BSS";
+    private GlassEditorPositionWork? positionWork;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -495,7 +486,7 @@ public sealed partial class GlassRepairEstimateGateway(
                         }
                         else
                         {
-                            (request, reason, opened) = await ChoosePartAsync(
+                            (request, reason, opened) = await Positions.ChoosePartAsync(
                                 session, editor, opened, parts, act.KeyKind, act.Key, act.Side, operation, cancellationToken);
                         }
                     }
@@ -647,79 +638,6 @@ public sealed partial class GlassRepairEstimateGateway(
     };
 
     /// <summary>
-    /// The dialog a part's line is added by, chosen by <see cref="GlassEditorRows"/>
-    /// for the line's operation from the part list and each found row's
-    /// equipment map (R1172); or why the line is left off. Reading a map
-    /// changes nothing at Glass's, so a map that cannot be read leaves only
-    /// this line off. The dialog must serve the part code and the side the
-    /// line was found by before anything is posted. A new part is posted as
-    /// served; any other operation is chosen in the dialog, which then sends
-    /// whatever price and hours it serves for it, none included (R1172).
-    /// A build's line and the Automation's add both choose their rows here,
-    /// by what the part is found by: its key and side.
-    /// </summary>
-    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChoosePartAsync(
-        GlassRepairEstimateSession session,
-        GlassEditorClient editor,
-        GlassEditorSession opened,
-        IReadOnlyList<GlassEditorPartRow> parts,
-        GlassEstimateBuildKeyKind keyKind,
-        string? key,
-        string? side,
-        string operation,
-        CancellationToken cancellationToken)
-    {
-        var (heads, unfound) = GlassEditorRows.Find(parts, keyKind, key, side);
-        if (unfound is not null)
-        {
-            return (null, unfound, opened);
-        }
-
-        var decided = new List<GlassEditorRowChoice>();
-        foreach (var head in heads)
-        {
-            if (GlassEditorRows.ListRefusal(parts, head, operation) is { } refused)
-            {
-                decided.Add(GlassEditorRowChoice.Refused(refused));
-                break;
-            }
-
-            try
-            {
-                var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
-                    opened, parts[head].Id, cancellationToken));
-                opened = map.Session;
-                var choice = GlassEditorRows.Decide(parts, head, map.Value, operation);
-                decided.Add(choice);
-                if (choice.Rows is null)
-                {
-                    break;
-                }
-            }
-            catch (Exception failure)
-                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
-            {
-                return (null, CodeOf(failure), opened);
-            }
-        }
-
-        var chosen = GlassEditorRows.Choose(decided);
-        if (chosen is not { Head: { } row, Rows: { } rows })
-        {
-            return (null, chosen.ReasonCode ?? GlassEstimateBuildPolicy.NoRowCode, opened);
-        }
-
-        var request = new GlassEditorAddRequest(
-            row.Paintable ? GlassEditorDialog.PaintablePart : GlassEditorDialog.Part,
-            rows,
-            keyKind == GlassEstimateBuildKeyKind.PartCode && key is { } code ? code : row.Code,
-            Button: row.Paintable ? PartButton : null,
-            Change: operation == GlassEditorRows.Replace ? null : new GlassEditorChange(Operation: operation, ConfirmNoFigures: true),
-            ExpectedSide: side ?? row.Side ?? string.Empty);
-        return (request, null, opened);
-    }
-
-    /// <summary>
     /// The editor's way home, taken as the provider's return to this session:
     /// it must be this session's own callback, with the query exactly as the
     /// editor gave it, as the callback page passes it. The session is opened
@@ -760,33 +678,15 @@ public sealed partial class GlassRepairEstimateGateway(
             : accepted.Session;
     }
 
-    /// <summary>The special operations of the build's group: each row's code and name.</summary>
     private static List<GlassSpecialOperation> SpecialOperationsOf(IReadOnlyList<GlassEditorSpecialGroup> groups) =>
-        groups
-            .Where(group => string.Equals(group.Code, SpecialOperationGroup, StringComparison.Ordinal))
-            .SelectMany(group => group.Rows)
-            .Where(row => row.Count > 2 && row[0].StartsWith(SpecialOperationPrefix, StringComparison.Ordinal))
-            .Select(row => new GlassSpecialOperation(row[0], row[2]))
-            .ToList();
+        GlassEditorPositionWork.SpecialOperationsOf(groups);
 
-    /// <summary>
-    /// The part code a special operation's dialog carries: its row code
-    /// without the prefix and the leading zeros (<c>AC0000073</c> is 73).
-    /// </summary>
-    private static string PartCodeOf(string code) => code[SpecialOperationPrefix.Length..].TrimStart('0');
+    private static string PartCodeOf(string code) => GlassEditorPositionWork.PartCodeOf(code);
 
-    /// <summary>What the dialog served, a zero read as none so it compares with a line that has none.</summary>
     private static GlassEstimateBuildFigures FiguresOf(GlassEditorSummary summary) =>
-        new(Amount(summary.Price), Amount(summary.Hours));
+        GlassEditorPositionWork.FiguresOf(summary);
 
-    private static decimal? Amount(string? served) =>
-        decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value != 0m
-            ? value
-            : null;
-
-    /// <summary>A stage's own code, or the transport's when nothing answered.</summary>
-    private static string CodeOf(Exception failure) =>
-        failure is GlassMvaStageException stage ? stage.FailureCode : GlassFailure.TransportFailed;
+    private static string CodeOf(Exception failure) => GlassEditorPositionWork.CodeOf(failure);
 
     private async Task<GlassRepairEstimateSession> LaunchStagesAsync(
         GlassRepairEstimateSession session, ProviderState provider,
@@ -1474,64 +1374,15 @@ public sealed partial class GlassRepairEstimateGateway(
             return null;
         }
 
-        var term = query.Term.Trim();
         var editor = NewEditorClient(provider.EditorLastRequestAtUtc);
-        var opened = open.Session();
-        var rows = new List<GlassAutomationCatalogueRow>();
-        string? code = null;
-        try
-        {
-            if (query.Kind != GlassAutomationPositionKind.Part && query.Side is null)
-            {
-                var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
-                    opened, SpecialOperationGroup, cancellationToken));
-                opened = specials.Session;
-                rows.AddRange(SpecialOperationsOf(specials.Value)
-                    .Where(row => Matches(term, row.Name, row.Code, null))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Code, GlassAutomationPositionKind.SpecialOperation, row.Name.Trim(),
-                        PartCode: null, PartNumber: null, Side: null, Paintable: false)));
-            }
-            if (query.Kind != GlassAutomationPositionKind.SpecialOperation)
-            {
-                var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
-                    opened, PartListGroups, cancellationToken));
-                opened = parts.Session;
-                rows.AddRange(parts.Value
-                    .Where(row => row.IsHead
-                        && (query.Side is null || string.Equals(SideOf(row), query.Side, StringComparison.Ordinal))
-                        && Matches(term, row.Name, row.Code, row.Number))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Id, GlassAutomationPositionKind.Part, row.Name.Trim(), row.Code,
-                        string.IsNullOrWhiteSpace(row.Number) ? null : row.Number, SideOf(row), row.Paintable)));
-            }
-        }
-        catch (Exception failure)
-            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
-        {
-            // Reading a list changes nothing: no rows, and the code.
-            code = CodeOf(failure);
-            rows.Clear();
-        }
-
+        var (rows, code, opened) = await Positions.SearchAsync(
+            session, editor, open.Session(), query.Term.Trim(), query.Kind, query.Side, cancellationToken);
         provider.Editor = EditorState.Of(opened);
         provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
         session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, session.FailureCode,
             provider, material.CallbackDigest, Kept(material), cancellationToken);
         return new(session, rows, code);
     }
-
-    /// <summary>Whether a row's description, part code or part number holds the term, ignoring case.</summary>
-    private static bool Matches(string term, string? description, string? code, string? number) =>
-        (description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
-        || (code?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)
-        || (number?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false);
-
-    /// <summary>A part row's side as the search answers it: <c>L</c>, <c>R</c>, <c>both</c>, or null for none.</summary>
-    private static string? SideOf(GlassEditorPartRow row) =>
-        row.Has('l') && row.Has('r') ? BothSides : row.Side;
-
-    private const string BothSides = "both";
 
     /// <summary>
     /// A position act's prepare half (design 07 section 3.4): the act is
@@ -1679,188 +1530,21 @@ public sealed partial class GlassRepairEstimateGateway(
             Automation = GlassAutomationPositionPolicy.Settle(
                 position.Session.Automation, before.Positions, act.OperationKey),
         };
-        return act.Action == GlassAutomationActAction.Remove
-            ? await RemovePositionAsync(position, act, before, cancellationToken)
-            : await AddPositionAsync(position, act, before, cancellationToken);
-    }
 
-    private async Task<GlassAutomationPositionStep> AddPositionAsync(
-        PositionWork position, GlassAutomationAct act, GlassEditorEstimate before, CancellationToken cancellationToken)
-    {
-        GlassEditorAddRequest? request = null;
-        string? reason = null;
-        var row = act.Row ?? string.Empty;
-        try
+        // The act is written before its post and once it has an outcome,
+        // with the editor's cookies and pace as they stand.
+        Task Record(GlassAutomationAct recorded, GlassEditorSession opened)
         {
-            if (act.Kind == GlassAutomationPositionKind.SpecialOperation)
-            {
-                var specials = await StageAsync(position.Session, "EditorSpecialList", () => position.Editor.ReadSpecialOperationsAsync(
-                    position.Opened, SpecialOperationGroup, cancellationToken));
-                position.Opened = specials.Session;
-                var special = SpecialOperationsOf(specials.Value)
-                    .Find(item => string.Equals(item.Code, row, StringComparison.Ordinal));
-                if (special is null)
-                {
-                    reason = GlassAutomationPositionPolicy.RowUnknownCode;
-                }
-                else
-                {
-                    request = new GlassEditorAddRequest(
-                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code));
-                }
-            }
-            else
-            {
-                var parts = await StageAsync(position.Session, "EditorPartList", () => position.Editor.ReadPartListAsync(
-                    position.Opened, PartListGroups, cancellationToken));
-                position.Opened = parts.Session;
-                (request, reason) = await ChooseAutomationPartAsync(position, parts.Value, act, cancellationToken);
-            }
-        }
-        catch (Exception failure)
-            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
-        {
-            // Reading a list changes nothing: the act is refused with the code.
-            request = null;
-            reason = CodeOf(failure);
+            position.Opened = opened;
+            return WriteActAsync(position, recorded);
         }
 
-        if (request is not { } adding)
-        {
-            return await RecordActAsync(position, act with
-            {
-                Outcome = GlassAutomationActOutcome.Refused,
-                Code = reason ?? GlassEstimateBuildPolicy.NoRowCode,
-            });
-        }
-
-        // Before the post: the code the new position carries on the estimate
-        // (A73 for AC0000073, C2020001 for part 2020001) and the positions
-        // that carry it now, so a lost answer is settled by the next read.
-        var expected = (adding.Dialog == GlassEditorDialog.SpecialOperation ? "A" : "C") + adding.ExpectedPartCode;
-        act = act with
-        {
-            ExpectedCode = expected,
-            Before = before.Positions
-                .Where(id => string.Equals(GlassAutomationPositionPolicy.CodeOf(id), expected, StringComparison.Ordinal))
-                .ToList(),
-        };
-        await WriteActAsync(position, act);
-        try
-        {
-            var added = await StageAsync(position.Session, "EditorAdd", () => position.Editor.AddAsync(
-                position.Opened, before, adding, cancellationToken));
-            position.Opened = added.Session;
-            act = act with
-            {
-                Outcome = GlassAutomationActOutcome.Added,
-                Code = null,
-                PositionIds = added.Value.Added,
-                Description = added.Value.Summary.Description?.Trim(),
-                Served = FiguresOf(added.Value.Summary),
-                Listed = added.Value.Listed
-                    .Select(listed => new GlassAutomationListedPart(listed.Code, listed.Text, listed.Ticked))
-                    .ToList(),
-            };
-        }
-        catch (GlassMvaStageException refused)
-            when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
-        {
-            // Refused before anything was posted.
-            LogPositionAct(logger, position.Session.Id, position.Session.CaseId, act.Action,
-                GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
-            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
-        }
-        catch (Exception lost)
-            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
-        {
-            // Posted, or perhaps posted: the next read of the estimate settles it.
-            var failure = AsFailure(lost);
-            LogPositionAct(logger, position.Session.Id, position.Session.CaseId, act.Action,
-                GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
-            act = act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode };
-        }
-
-        return await RecordActAsync(position, act);
-    }
-
-    /// <summary>
-    /// The rows an Automation add of a part is placed by: the head row the
-    /// search answered, found in the session's part list, decided by the
-    /// build's own rule (<see cref="ChoosePartAsync"/>) for its code, its
-    /// side and the act's operation. A row that is not a head of the list, a
-    /// row serving both sides, and a side asked for that is not the row's own
-    /// are refused before anything is asked.
-    /// </summary>
-    private async Task<(GlassEditorAddRequest? Request, string? Reason)> ChooseAutomationPartAsync(
-        PositionWork position, IReadOnlyList<GlassEditorPartRow> parts, GlassAutomationAct act,
-        CancellationToken cancellationToken)
-    {
-        var row = parts.FirstOrDefault(item => item.IsHead && string.Equals(item.Id, act.Row, StringComparison.Ordinal));
-        if (row is null)
-        {
-            return (null, GlassAutomationPositionPolicy.RowUnknownCode);
-        }
-        if (row.Has('l') && row.Has('r'))
-        {
-            return (null, GlassAutomationPositionPolicy.BothSidesCode);
-        }
-        if (act.Side is { } side && !string.Equals(side, row.Side, StringComparison.Ordinal))
-        {
-            return (null, GlassEstimateBuildPolicy.NoRowCode);
-        }
-
-        var operation = act.Operation switch
-        {
-            GlassAutomationPartOperation.Repair => GlassEditorRows.Repair,
-            GlassAutomationPartOperation.RemoveAndRefit => GlassEditorRows.RemoveAndRefit,
-            _ => GlassEditorRows.Replace,
-        };
-        var (request, reason, opened) = await ChoosePartAsync(
-            position.Session, position.Editor, position.Opened, parts,
-            GlassEstimateBuildKeyKind.PartCode, row.Code, row.Side, operation, cancellationToken);
-        position.Opened = opened;
-        return (request, reason);
-    }
-
-    private async Task<GlassAutomationPositionStep> RemovePositionAsync(
-        PositionWork position, GlassAutomationAct act, GlassEditorEstimate before, CancellationToken cancellationToken)
-    {
-        var positionId = act.PositionId ?? string.Empty;
-        if (!before.Positions.Contains(positionId, StringComparer.Ordinal))
-        {
-            return await RecordActAsync(position, act with
-            {
-                Outcome = GlassAutomationActOutcome.Refused,
-                Code = GlassAutomationPositionPolicy.RowUnknownCode,
-            });
-        }
-
-        try
-        {
-            var removed = await StageAsync(position.Session, "EditorRemove", () => position.Editor.RemoveAsync(
-                position.Opened, positionId, cancellationToken));
-            position.Opened = removed.Session;
-            act = act with { Outcome = GlassAutomationActOutcome.Removed, Code = null };
-        }
-        catch (GlassMvaStageException refused) when (refused.FailureCode == GlassFailure.EditorDialog)
-        {
-            // The position's dialog was not the one expected: nothing was removed.
-            LogPositionAct(logger, position.Session.Id, position.Session.CaseId, act.Action,
-                GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
-            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
-        }
-        catch (Exception lost)
-            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
-        {
-            // Removed, or perhaps removed: the next read of the estimate settles it.
-            var failure = AsFailure(lost);
-            LogPositionAct(logger, position.Session.Id, position.Session.CaseId, act.Action,
-                GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
-            act = act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode };
-        }
-
-        return await RecordActAsync(position, act);
+        var done = act.Action == GlassAutomationActAction.Remove
+            ? await Positions.RemovePositionAsync(
+                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken)
+            : await Positions.AddPositionAsync(
+                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken);
+        return new(position.Session, done.Act, Owed: false);
     }
 
     /// <summary>
@@ -3012,36 +2696,11 @@ public sealed partial class GlassRepairEstimateGateway(
             cancellationToken);
     }
 
-    private async Task StageAsync(GlassRepairEstimateSession session, string stage, Func<Task> action)
-    {
-        await StageAsync(session, stage, async () => { await action(); return true; });
-    }
+    private Task StageAsync(GlassRepairEstimateSession session, string stage, Func<Task> action) =>
+        Positions.StageAsync(session, stage, action);
 
-    private async Task<T> StageAsync<T>(GlassRepairEstimateSession session, string stage, Func<Task<T>> action)
-    {
-        var started = Stopwatch.GetTimestamp();
-        var outcome = "Succeeded";
-        try { return await action(); }
-        catch (Exception failure)
-        {
-            outcome = failure is GlassMvaStageException providerFailure
-                ? providerFailure.FailureCode : failure is OperationCanceledException ? "Cancelled" : "Failed";
-            throw;
-        }
-        finally
-        {
-            if (logger.IsEnabled(LogLevel.Information))
-            {
-                var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                LogStage(logger, session.Id, session.CaseId, session.Version, stage, outcome, elapsedMs);
-            }
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Information,
-        Message = "Glass's attempt {SessionId}/{Version} case {CaseId} stage {Stage} outcome {Outcome} in {ElapsedMs} ms")]
-    private static partial void LogStage(ILogger logger, Guid sessionId, Guid caseId, long version,
-        string stage, string outcome, double elapsedMs);
+    private Task<T> StageAsync<T>(GlassRepairEstimateSession session, string stage, Func<Task<T>> action) =>
+        Positions.StageAsync(session, stage, action);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "Glass's session {SessionId}/{Version} case {CaseId} state {State} code {FailureCode}")]
@@ -3073,12 +2732,6 @@ public sealed partial class GlassRepairEstimateGateway(
         ILogger logger, Guid sessionId, Guid caseId, int position, GlassEstimateBuildOutcome outcome,
         string reasonCode, string detail);
 
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "Glass's session {SessionId} for case {CaseId} position act {Action} {Outcome} at {Code} {Detail}")]
-    private static partial void LogPositionAct(
-        ILogger logger, Guid sessionId, Guid caseId, GlassAutomationActAction action, GlassAutomationActOutcome outcome,
-        string code, string detail);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -3166,16 +2819,14 @@ public sealed partial class GlassRepairEstimateGateway(
         artifact?.Status == nameof(CaseArtifactCustodyDisposition.Failed);
 
     private static bool IsTransportFailure(Exception exception, CancellationToken cancellationToken) =>
-        !cancellationToken.IsCancellationRequested
-        && exception is HttpRequestException or TaskCanceledException or TimeoutException;
+        GlassEditorPositionWork.IsTransportFailure(exception, cancellationToken);
 
     /// <summary>
     /// A stage's own refusal as it was thrown; a transport failure after the
     /// provider may have acted becomes the outcome-unknown transport code.
     /// </summary>
     private static GlassMvaStageException AsFailure(Exception exception) =>
-        exception as GlassMvaStageException
-            ?? new(GlassFailure.TransportUnknown, outcomeUnknown: true);
+        GlassEditorPositionWork.AsFailure(exception);
 
     private static GlassRepairEstimateSessionConflictException Conflict(
         GlassRepairEstimateSessionConflict conflict, Guid sessionId, string message) =>
