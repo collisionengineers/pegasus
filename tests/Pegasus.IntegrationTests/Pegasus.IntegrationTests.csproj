@@ -36,6 +36,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Glass's editor pages cut from browser captures, read by the editor client's tests. -->
+    <EmbeddedResource Include="GlassEditorPages\**\*" LogicalName="GlassEditorPages/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Pegasus.Web\Pegasus.Web.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Infrastructure\Pegasus.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Pegasus.Worker\Pegasus.Worker.csproj" />

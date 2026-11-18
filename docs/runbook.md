@@ -1635,6 +1635,40 @@ it stopped.
 - A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
   Glass's does not know the plate; the card says so as information, nothing
   needs reporting, and there is no placeholder for a valuation.
+- A build (**Import and open** on a spec made outside Pegasus, R1171) logs
+  the stages `EditorOpen`, `EditorRead`, `EditorSpecialList`, one `EditorAdd`
+  per line it sends and `EditorSave`, then the return's own stages. A line it
+  leaves off at Glass's or cannot confirm logs "build line … at …" with the
+  code and the dialog builder's own description. The session's build records
+  each line's outcome, and its `StoppedAt` names why nothing was saved:
+  - `glass.editor.host` means an editor address was not on the configured
+    estimator host and nothing was asked; `glass.editor.launch` (the launch
+    page did not open the editor), `glass.editor.blocked` (Glass's own page
+    refusing another editor session) and `glass.editor.key` (no session key)
+    mean the editor did not open. Nothing was sent, the estimate was started
+    again, and the staff member was given an empty estimate.
+  - `glass.editor.dialog` is a dialog page that is not the one the client
+    knows, and `glass.editor.refused` a dialog with a problem or for another
+    part. Neither was posted: the line is left off and listed, and the build
+    goes on.
+  - `glass.editor.answer` is a post whose answer was lost or unexpected, and
+    `glass.editor.request` an editor page that did not answer 200. On a line
+    either is listed as not confirmed, because the post may have been taken:
+    nothing more is added, and the export says what the spec holds. While
+    the special list is read, either leaves every Specialist line off.
+  - `glass.editor.save` (`Unknown`, or `Failed` when Glass's reported no
+    save) and `glass.editor.return` (`Unknown`, or `Failed` when the way home
+    was unreadable or not this host's) mean Save and Exit did not come back.
+    Look at the estimate in the account before pressing Glass's, which
+    reopens it, or closing the session with a reason.
+  - A line's reasons: `glass.build.not_built` (a kind of line this version
+    does not build), `glass.build.no_row` (no special operation has exactly
+    its name), `glass.build.ambiguous_row` (more than one has),
+    `glass.build.stopped` (not sent after a line that was not confirmed).
+    `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
+    nothing was saved and an empty estimate was opened; `glass.interrupted`
+    there means the build stopped part-way and the session was continued as
+    a launch.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.
