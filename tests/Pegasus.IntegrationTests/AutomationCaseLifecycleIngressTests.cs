@@ -741,7 +741,7 @@ public sealed class AutomationCaseLifecycleIngressTests
         }
 
         // The upload moves the Case itself, within the one version an upload
-        // takes, and the sweep finds nothing left to do (R1195).
+        // takes, and the sweep finds nothing left to do (R1196).
         var beforeEstimate = await GetWorkflowVersionAsync(mcpFactory, caseId);
         await AddGarageDocumentAsync(mcpFactory, client, token, caseId, 4, "ExternalEstimate", "garage-estimate.pdf");
         Assert.Equal(CaseLifecycleState.Review, await StateAsync(mcpFactory, caseId));
@@ -871,7 +871,7 @@ public sealed class AutomationCaseLifecycleIngressTests
     /// <summary>
     /// A waiting Case returns to With Engineer in the same save that records
     /// a waiving Outcome, inside an edit session too, and a Repair invoice
-    /// that arrives by any other route is left to the sweep (R1143, R1195).
+    /// that arrives by any other route is left to the sweep (R1143, R1196).
     /// </summary>
     [Fact]
     public async Task AWaivingOutcomeEndsTheWaitInItsOwnSaveAndTheSweepMovesEveryOtherRoute()
@@ -941,7 +941,7 @@ public sealed class AutomationCaseLifecycleIngressTests
     /// Readiness is not applied to a held Case, so Release Hold applies what
     /// was filed while it was held: a garage Audit whose External estimate
     /// arrived on hold enters Review on release, not Not ready with nothing
-    /// missing (R1196).
+    /// missing (R1197).
     /// </summary>
     [Fact]
     public async Task ReleaseHoldMovesACaseWhoseRequirementsWereMetWhileItWasHeld()
@@ -976,7 +976,7 @@ public sealed class AutomationCaseLifecycleIngressTests
             nameof(Pegasus.Core.Tasks.CaseDueWorkState.Stopped),
             (await db.CaseDueWork.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).State);
         // The release is its own line, and the move a line of its own after
-        // it, in the words the sweep uses (R1165, R1196).
+        // it, in the words the sweep uses (R1165, R1197).
         var released = await db.CaseWorkflowEvents.AsNoTracking()
             .SingleAsync(row => row.CaseId == caseId && row.EventType == "case_hold_released");
         var completed = await db.CaseWorkflowEvents.AsNoTracking()

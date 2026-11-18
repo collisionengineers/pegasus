@@ -560,7 +560,7 @@ public sealed class EfCaseWorkspaceStore(
             await context.SaveChangesAsync(cancellationToken);
             // A waiving Outcome returns a Case waiting for its repair invoice
             // in the same save, as a Case change of its own; the answer
-            // carries the moved version (R1143, R1195).
+            // carries the moved version (R1143, R1196).
             if (CaseGarage.RecordsWaivingOutcome(beforeAssessment, afterAssessment)
                 && await EfCaseWorkflowStore.EndGarageWaitAsync(
                     context, workflow, request.Actor, null, now, cancellationToken))

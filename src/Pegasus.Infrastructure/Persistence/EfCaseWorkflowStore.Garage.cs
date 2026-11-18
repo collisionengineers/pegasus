@@ -142,7 +142,7 @@ public sealed partial class EfCaseWorkflowStore : IGarageAuthorisationStore, IGa
     /// The same move when a staged upload's External estimate or Repair
     /// invoice is filed in custody, under the Case's workflow lock and inside
     /// the filing's transaction: the upload moves the Case when its file is
-    /// filed, not on the next sweep (R1195). A Case somebody is editing is
+    /// filed, not on the next sweep (R1196). A Case somebody is editing is
     /// left to the sweep, so the session's version does not move under it.
     /// </summary>
     internal static async Task EndGarageWaitOnFilingAsync(
@@ -168,7 +168,7 @@ public sealed partial class EfCaseWorkflowStore : IGarageAuthorisationStore, IGa
     /// staff acts that file the fact share. The upload, Change type and the
     /// Outcome save move the Case in the same save; the sweep moves it for
     /// every other route a file or an Outcome arrives by (operator,
-    /// 18 November 2026; R1195). Facts are read from the database, so the
+    /// 18 November 2026; R1196). Facts are read from the database, so the
     /// caller saves its own write first, inside the same transaction.
     /// </summary>
     /// <param name="workflow">The tracked workflow, with its Case, under the workflow lock.</param>

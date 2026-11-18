@@ -787,7 +787,7 @@ public sealed partial class EfCaseWorkflowStore(
             // recorded while it was held is applied now: the Case moves on as
             // a Not ready Case would have. The release's own line shows the
             // move; a garage Audit's move is a line of its own, after it, in
-            // the words the sweep uses (operator, 18 November 2026; R1196).
+            // the words the sweep uses (operator, 18 November 2026; R1197).
             if (previousState == CaseLifecycleState.NotReady && !CaseGarage.Applies(workflow.Case))
             {
                 await MoveOnFromNotReadyAsync(context, workflow, now, cancellationToken);
