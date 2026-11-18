@@ -783,6 +783,7 @@ internal sealed class EfStaffMailSendStore(
                 remaining.AddRange(
                     (await EfFiledEstimateAttachmentQueries.ReadAsync(db, caseId.Value, cancellationToken).ConfigureAwait(false))
                         .Select(estimate => (estimate.Attachment.VersionId, estimate.Attachment.Sha256)));
+                var unmatched = new List<(Guid? VersionId, string Sha256)>();
                 foreach (var wanted in frozen)
                 {
                     var index = remaining.FindIndex(value =>
@@ -790,11 +791,32 @@ internal sealed class EfStaffMailSendStore(
                         && string.Equals(value.Sha256, wanted.Sha256, StringComparison.Ordinal));
                     if (index < 0)
                     {
-                        caseId = null;
-                        break;
+                        unmatched.Add(wanted);
+                        continue;
                     }
 
                     remaining.RemoveAt(index);
+                }
+                // And the offered Case files staff ticked (R1151), read only
+                // when the send carries a file the above do not account for.
+                if (unmatched.Count > 0)
+                {
+                    var offered = (await EfFiledEstimateAttachmentQueries.ReadOfferableAsync(db, caseId.Value, cancellationToken).ConfigureAwait(false))
+                        .Select(file => (file.Attachment.VersionId, file.Attachment.Sha256))
+                        .ToList();
+                    foreach (var wanted in unmatched)
+                    {
+                        var index = offered.FindIndex(value =>
+                            value.VersionId == wanted.VersionId
+                            && string.Equals(value.Sha256, wanted.Sha256, StringComparison.Ordinal));
+                        if (index < 0)
+                        {
+                            caseId = null;
+                            break;
+                        }
+
+                        offered.RemoveAt(index);
+                    }
                 }
             }
         }

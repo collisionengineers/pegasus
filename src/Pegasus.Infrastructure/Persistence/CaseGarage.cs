@@ -105,9 +105,16 @@ internal static class CaseGarage
 
     /// <summary>The confirmed, current, kept occurrences of one type, for a query to join.</summary>
     internal static IQueryable<DocumentOccurrenceEntity> Confirmed(PegasusDbContext db, DocumentSemanticRole role) =>
+        Confirmed(db).Where(occurrence => occurrence.SemanticRole == role);
+
+    /// <summary>
+    /// The confirmed, current, kept occurrences of every type that Pegasus did
+    /// not generate: the one definition the typed reads above and the report
+    /// send's offered files (R1151) share.
+    /// </summary>
+    internal static IQueryable<DocumentOccurrenceEntity> Confirmed(PegasusDbContext db) =>
         db.Set<DocumentOccurrenceEntity>().AsNoTracking()
-            .Where(occurrence => occurrence.SemanticRole == role
-                && occurrence.Source != DocumentSource.Generated
+            .Where(occurrence => occurrence.Source != DocumentSource.Generated
                 && db.Set<DocumentVersionEntity>().Any(version =>
                     version.Id == occurrence.VersionId
                     && version.IsCurrent

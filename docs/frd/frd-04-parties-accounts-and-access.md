@@ -230,7 +230,8 @@ The Principal section of a Contact carries:
   A successor code inherits its predecessor's. United
   Legal Assistance Limited, code `ULA`, is the one Principal seeded on the
   Garage authorisation & invoice workflow with the ULA Invoice
-  ([R1145](../rulings.md), [R1152](../rulings.md));
+  ([R1145](../rulings.md), [R1152](../rulings.md)), its report sending rules
+  the defaults with both Offer ticks on ([R1151](../rulings.md));
 - the report names (operator, 6 November 2026; R740), saved with the report
   settings: what an Inspection report and an Audit report are called, each
   for a first send and for a re-send, in text with the tokens `{REG}`,
@@ -267,14 +268,17 @@ The Principal section of a Contact carries:
     instruction's Cc list, and removal wins;
   - Attach: whether the fee note is a separate PDF, whether the Case's filed
     estimate or Audatex document goes too, whether the report carries
-    vehicle images, and whether a vehicle images document or a figure
-    breakdown is required first. Garage figures reminds staff, on a
+    vehicle images, whether a vehicle images document or a figure
+    breakdown is required first, and whether the send form offers the
+    Case's External estimates and Repair invoices, unticked ("Offer
+    external estimates (unticked)" and "Offer repair invoices (unticked)";
+    operator, 17 November 2026; [R1151](../rulings.md)). Garage figures reminds staff, on a
     repairable outcome, to send the figures to the garage after sending;
   - Hold is text staff must tick as done before Send. Reminders become tasks
     when the report is recorded as sent. What the report is called is the
     report names above, not a sending rule (R740);
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
-    hold. A rule may also set the five Attach choices other than report
+    hold. A rule may also set the seven Attach choices other than report
     images for that send, each As the Principal, Attach or Do not attach;
     a later rule wins. A rule's Rate card adds the after-sending task "Check
     the report's estimate against the Connexus Repair Rate Card."; no

@@ -205,6 +205,9 @@ public sealed class StaffMailAttachmentResolver(ICaseDocumentQueries caseDocumen
         return $"{identity}|{attachment.Sha256.ToUpperInvariant()}|{attachment.ContentLength.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    private static StaffMailAttachmentSelectionException Changed() =>
-        new("One or more selected attachments changed or are no longer available. Review the attachments and try again.");
+    /// <summary>The refusal of a selected attachment the Case no longer offers as it was; a report send's offered files use it too (R1151).</summary>
+    public const string SelectionChanged =
+        "One or more selected attachments changed or are no longer available. Review the attachments and try again.";
+
+    private static StaffMailAttachmentSelectionException Changed() => new(SelectionChanged);
 }

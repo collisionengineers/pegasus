@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -40,6 +41,16 @@ public sealed class CaseReportDeliveryTests
 
     private static readonly StaffMailAttachment OtherEstimate = new(
         Guid.NewGuid(), Guid.NewGuid(), new string('2', 64), 500, "estimate.pdf", "application/pdf");
+
+    private static readonly OfferedCaseFile ExternalEstimate = new(
+        Guid.NewGuid(),
+        DocumentSemanticRole.ExternalEstimate,
+        new(Guid.NewGuid(), Guid.NewGuid(), new string('5', 64), 700, "garage-estimate.pdf", "application/pdf"));
+
+    private static readonly OfferedCaseFile RepairInvoice = new(
+        Guid.NewGuid(),
+        DocumentSemanticRole.RepairInvoice,
+        new(Guid.NewGuid(), Guid.NewGuid(), new string('6', 64), 300, "repair-invoice.jpg", "image/jpeg"));
 
     // ---- addressing -----------------------------------------------------------
 
@@ -382,6 +393,39 @@ public sealed class CaseReportDeliveryTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => new ReportSendReadiness(
                 new FixedGenerations(Generation()), new FixedFiledEstimates())
             .RequireReadyAsync(request, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A ticked offered Case file (R1151) is matched against that file as it
+    /// is filed now; the offered files are read only when the send carries a
+    /// file the generation and the filed estimates do not account for.
+    /// </summary>
+    [Fact]
+    public async Task ReadinessAcceptsAnOfferedFileOnlyAsItIsFiledNow()
+    {
+        var generation = Generation();
+        var request = ReadyRequest() with { Artifacts = [ReportAttachment, RepairInvoice.Attachment] };
+
+        CaseReportDeliveryPolicy.RequireReady(request, generation, [], [RepairInvoice.Attachment]);
+        Assert.Throws<InvalidOperationException>(
+            () => CaseReportDeliveryPolicy.RequireReady(request, generation, [], []));
+        Assert.Throws<InvalidOperationException>(
+            () => CaseReportDeliveryPolicy.RequireReady(
+                request, generation, [], [RepairInvoice.Attachment with { Sha256 = new string('4', 64) }]));
+
+        var offered = new FixedFiledEstimates { Offerable = [RepairInvoice] };
+        await new ReportSendReadiness(new FixedGenerations(Generation()), offered)
+            .RequireReadyAsync(request, CancellationToken.None);
+        Assert.Equal(1, offered.OfferableReads);
+        // A file no longer offerable (removed, or no longer confirmed) refuses.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new ReportSendReadiness(
+                new FixedGenerations(Generation()), new FixedFiledEstimates())
+            .RequireReadyAsync(request, CancellationToken.None));
+
+        var reportOnly = new FixedFiledEstimates { Offerable = [RepairInvoice] };
+        await new ReportSendReadiness(new FixedGenerations(Generation()), reportOnly)
+            .RequireReadyAsync(ReadyRequest(), CancellationToken.None);
+        Assert.Equal(0, reportOnly.OfferableReads);
     }
 
     [Fact]
@@ -1209,6 +1253,107 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
+    /// The offered Case files staff ticked (R1151) go after the generation's
+    /// documents and the filed estimates, in the offered order whatever order
+    /// they were ticked in, each under its filed name; an offered file left
+    /// unticked does not go.
+    /// </summary>
+    [Fact]
+    public async Task SendAttachesTheTickedOfferedFilesAfterTheFiledEstimates()
+    {
+        var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
+        var send = new RecordingSend();
+        var unticked = ExternalEstimate with
+        {
+            OccurrenceId = Guid.NewGuid(),
+            Attachment = ExternalEstimate.Attachment with { DocumentId = Guid.NewGuid(), VersionId = Guid.NewGuid(), FileName = "second.pdf" }
+        };
+        var facts = Facts(PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with
+            {
+                Audatex = true,
+                OfferExternalEstimates = true,
+                OfferRepairInvoices = true
+            }
+        }) with
+        {
+            FiledEstimates = [new(AudatexEstimate, "Audatex")],
+            OfferableFiles = [ExternalEstimate, unticked, RepairInvoice]
+        };
+
+        var operation = await Use(new FixedGenerations(generation), send, facts: facts).ExecuteAsync(
+            Request(facts) with { OfferedFileIds = [RepairInvoice.OccurrenceId, ExternalEstimate.OccurrenceId] },
+            CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(
+            [ReportAttachment, FeeAttachment, AudatexEstimate, ExternalEstimate.Attachment, RepairInvoice.Attachment],
+            command.Report.Artifacts);
+        Assert.Equal(
+            [
+                ReportAttachment with { FileName = "DVR-31001 PK12 TMZ Repairable report.pdf" },
+                FeeAttachment,
+                AudatexEstimate,
+                ExternalEstimate.Attachment,
+                RepairInvoice.Attachment
+            ],
+            command.Mail.Attachments);
+        // The names the e-mail carries are recorded with the send (R703).
+        Assert.Equal(
+            ["DVR-31001 PK12 TMZ Repairable report.pdf", FeeAttachment.FileName, AudatexEstimate.FileName,
+                ExternalEstimate.Attachment.FileName, RepairInvoice.Attachment.FileName],
+            operation.AttachmentFileNames);
+    }
+
+    /// <summary>
+    /// An identifier the plan does not offer is refused with the refusal of
+    /// an attachment no longer available, and nothing is sent: another
+    /// Case's or a removed file, a file the Estimate tick already attaches
+    /// (R1158), or a file of a type the Principal's rules do not offer.
+    /// </summary>
+    [Fact]
+    public async Task SendRefusesAnOfferedFileThePlanDoesNotOffer()
+    {
+        var generation = Generation(CaseReportArtifactKind.AssessmentReport);
+        var rules = PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { Estimate = true, OfferExternalEstimates = true }
+        };
+        var facts = Facts(rules) with
+        {
+            FiledEstimates = [new(OtherEstimate, "Glass's")],
+            OfferableFiles =
+            [
+                ExternalEstimate,
+                RepairInvoice,
+                new(Guid.NewGuid(), DocumentSemanticRole.ExternalEstimate, OtherEstimate)
+            ]
+        };
+        var alreadyAttached = facts.OfferableFiles[2].OccurrenceId;
+
+        foreach (var id in new[] { Guid.NewGuid(), Guid.Empty, RepairInvoice.OccurrenceId, alreadyAttached })
+        {
+            var send = new RecordingSend();
+            var refused = await Assert.ThrowsAsync<StaffMailAttachmentSelectionException>(
+                () => Use(new FixedGenerations(generation), send, facts: facts).ExecuteAsync(
+                    Request(facts) with { OfferedFileIds = [ExternalEstimate.OccurrenceId, id] },
+                    CancellationToken.None));
+            Assert.Equal(StaffMailAttachmentResolver.SelectionChanged, refused.Message);
+            Assert.Empty(send.Commands);
+        }
+
+        // With the Principal's tick off, the file once offered is refused too.
+        var offOnly = facts with { Rules = rules with { Attach = rules.Attach with { OfferExternalEstimates = false } } };
+        var offSend = new RecordingSend();
+        await Assert.ThrowsAsync<StaffMailAttachmentSelectionException>(
+            () => Use(new FixedGenerations(generation), offSend, facts: offOnly).ExecuteAsync(
+                Request(offOnly) with { OfferedFileIds = [ExternalEstimate.OccurrenceId] },
+                CancellationToken.None));
+        Assert.Empty(offSend.Commands);
+    }
+
+    /// <summary>
     /// A generation whose report is not confirmed has nothing to attach, and
     /// the transport is never invoked.
     /// </summary>
@@ -1724,8 +1869,20 @@ public sealed class CaseReportDeliveryTests
 
     private sealed class FixedFiledEstimates(params FiledEstimateAttachment[] estimates) : IFiledEstimateAttachmentQueries
     {
+        /// <summary>The Case's External estimates and Repair invoices (R1151).</summary>
+        public IReadOnlyList<OfferedCaseFile> Offerable { get; init; } = [];
+
+        /// <summary>How many times the offerable files were read.</summary>
+        public int OfferableReads { get; private set; }
+
         public Task<IReadOnlyList<FiledEstimateAttachment>> ListAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FiledEstimateAttachment>>(caseId == CaseId ? estimates : []);
+
+        public Task<IReadOnlyList<OfferedCaseFile>> ListOfferableAsync(Guid caseId, CancellationToken cancellationToken)
+        {
+            OfferableReads++;
+            return Task.FromResult<IReadOnlyList<OfferedCaseFile>>(caseId == CaseId ? Offerable : []);
+        }
     }
 
     /// <summary>One generation, read by its identity and handed to a delivery as it stands.</summary>

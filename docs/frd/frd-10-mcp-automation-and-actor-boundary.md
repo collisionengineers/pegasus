@@ -373,7 +373,11 @@ its parameters describe.
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
   It holds the Case's lease for its one send unless a lease token is
   presented. Its `attach` takes `FeeNote`, `PrincipalInvoice` (the ULA
-  Invoice), `RepairSpecification` and `ImagePack`. Its result is the send's
+  Invoice), `RepairSpecification` and `ImagePack`. Its `caseDocumentIds`
+  names, by occurrence, the offered Case files to attach as well: the
+  Case's confirmed External estimates and Repair invoices the Principal's
+  rules offer; one that is not offered is refused as the send form refuses
+  it (operator, 17 November 2026; [R1151](../rulings.md)). Its result is the send's
   state and `attachments`, the file names the e-mail carries, in order
   (R703); a caller reports what was sent
   from `attachments`, not from what it asked for (R704).

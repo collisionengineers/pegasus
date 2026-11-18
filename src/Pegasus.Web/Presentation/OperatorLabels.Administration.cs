@@ -341,6 +341,9 @@ public static partial class OperatorLabels
         public const string ReportImages = "Report carries vehicle images";
         public const string VehicleImagesDocument = "Vehicle images document required";
         public const string FigureBreakdown = "Figure breakdown required";
+        // The Offer ticks (operator, 17 November 2026; R1151).
+        public const string OfferExternalEstimates = "Offer external estimates (unticked)";
+        public const string OfferRepairInvoices = "Offer repair invoices (unticked)";
         public const string GarageFigures = "Garage figures";
         public const string Hold = "Hold";
         public const string HoldHint = "Send stays off until staff tick this as done.";

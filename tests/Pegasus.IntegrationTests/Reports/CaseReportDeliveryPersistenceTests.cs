@@ -635,6 +635,110 @@ public sealed class CaseReportDeliveryPersistenceTests
             () => readiness.RequireReadyAsync(command.Report, CancellationToken.None));
     }
 
+    private static readonly PrincipalReportSendingRules OfferingRules = PrincipalReportSendingRules.Default with
+    {
+        Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
+    };
+
+    /// <summary>
+    /// The files the Offer ticks may offer (R1151) are the Case's External
+    /// estimates and Repair invoices as the garage facts read them: not
+    /// generated, current, not removed and confirmed in custody, in the
+    /// Case's file order. The dispatch facts carry them only while the
+    /// Principal's rules can offer them.
+    /// </summary>
+    [Fact]
+    public async Task OnlyAConfirmedCurrentKeptExternalEstimateOrRepairInvoiceIsOfferable()
+    {
+        await using var harness = await Harness.CreateAsync(OfferingRules);
+        var estimate = await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.Other);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.CeEstimate);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate, removed: true);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice, current: false);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice, custody: DocumentCustodyStatus.Pending);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate, source: DocumentSource.Generated);
+        var invoice = await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice);
+
+        var listed = await new EfFiledEstimateAttachmentQueries(harness.Factory)
+            .ListOfferableAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.Equal([estimate, invoice], listed);
+        Assert.Equal(listed, (await harness.FactsAsync())!.OfferableFiles);
+
+        // Rules that offer nothing do not read them.
+        await harness.SetRulesAsync(PrincipalReportSendingRules.Default);
+        Assert.Empty((await harness.FactsAsync())!.OfferableFiles);
+    }
+
+    /// <summary>
+    /// A ticked offered file (R1151) goes with the report after its
+    /// documents, under its filed name, is recorded with the send, links
+    /// the send to the Case, and is re-read from its document version at the
+    /// send boundary like every other attachment.
+    /// </summary>
+    [Fact]
+    public async Task ATickedOfferedFileGoesWithTheReportAndMustStillMatchItsVersion()
+    {
+        await using var harness = await Harness.CreateAsync(OfferingRules);
+        await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate);
+        var invoice = await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice);
+
+        var command = await harness.SendAsync(harness.Request() with { OfferedFileIds = [invoice.OccurrenceId] });
+
+        Assert.Equal(2, command.Mail.Attachments.Count);
+        Assert.Equal(invoice.Attachment, command.Mail.Attachments[1]);
+        Assert.Contains(invoice.Attachment, command.Report.Artifacts);
+        var row = await harness.PrepareAsync(command);
+        Assert.Contains(invoice.Attachment.FileName, row.AttachmentsJson, StringComparison.Ordinal);
+        var execution = await new EfStaffMailSendStore(harness.Factory)
+            .GetExecutionAsync(harness.Staff.SubjectId, row.Id, CancellationToken.None);
+        Assert.Equal(harness.CaseId, execution!.CaseId);
+
+        var readiness = harness.Readiness();
+        await readiness.RequireReadyAsync(command.Report, CancellationToken.None);
+        await harness.TamperVersionAsync(invoice.Attachment.VersionId!.Value);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => readiness.RequireReadyAsync(command.Report, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A send naming a file the plan does not offer is refused as an
+    /// attachment no longer available and sends nothing (R1151): a file of
+    /// a type the Principal's rules do not offer, a removed file, another
+    /// Case's file, or a file the Estimate tick already attaches (R1158).
+    /// </summary>
+    [Fact]
+    public async Task ASendNamingAFileThatIsNotOfferedIsRefusedAndSendsNothing()
+    {
+        await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { Audatex = true, OfferExternalEstimates = true }
+        });
+        var invoice = await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice);
+        var removed = await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate, removed: true);
+        var attached = await harness.SeedCaseFileAsync(
+            DocumentSemanticRole.ExternalEstimate,
+            recognised: true,
+            provider: Pegasus.Core.Assessment.EstimateFormats.AudatexProvider);
+        var offered = await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate);
+
+        var facts = (await harness.FactsAsync())!;
+        Assert.Equal([invoice, attached, offered], facts.OfferableFiles);
+        Assert.Equal([offered], ReportDispatchPolicy.Plan(facts, StartUtc).OfferedFiles);
+        foreach (var id in new[] { invoice.OccurrenceId, removed.OccurrenceId, attached.OccurrenceId, Guid.NewGuid() })
+        {
+            Assert.Equal(
+                StaffMailAttachmentResolver.SelectionChanged,
+                await harness.SelectionRefusalAsync(harness.Request() with { OfferedFileIds = [offered.OccurrenceId, id] }));
+        }
+
+        // The file itself is sent once the form names only what is offered.
+        var command = await harness.SendAsync(harness.Request() with { OfferedFileIds = [offered.OccurrenceId] });
+        Assert.Equal(attached.Attachment, command.Mail.Attachments[1]);
+        Assert.Equal(offered.Attachment, command.Mail.Attachments[2]);
+    }
+
     private static async Task AssertThrowsAsyncAny<T1, T2>(Func<Task> action)
         where T1 : Exception
         where T2 : Exception
@@ -782,6 +886,17 @@ public sealed class CaseReportDeliveryPersistenceTests
             var drawn = await DrawnAsync(request);
             var send = new RecordingSend();
             var refused = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => UseCase(send).ExecuteAsync(drawn, CancellationToken.None));
+            Assert.Empty(send.Commands);
+            return refused.Message;
+        }
+
+        /// <summary>A send Core refuses as an attachment no longer available (R1151); nothing is sent.</summary>
+        public async Task<string> SelectionRefusalAsync(SendCaseReportRequest request)
+        {
+            var drawn = await DrawnAsync(request);
+            var send = new RecordingSend();
+            var refused = await Assert.ThrowsAsync<StaffMailAttachmentSelectionException>(
                 () => UseCase(send).ExecuteAsync(drawn, CancellationToken.None));
             Assert.Empty(send.Commands);
             return refused.Message;
@@ -1090,6 +1205,20 @@ public sealed class CaseReportDeliveryPersistenceTests
             bool removed = false,
             bool current = true,
             DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
+            DocumentSource source = DocumentSource.Intake) =>
+            (await SeedCaseFileAsync(DocumentSemanticRole.Other, recognised, provider, removed, current, custody, source)).Attachment;
+
+        /// <summary>
+        /// A file of <paramref name="role"/> filed on the Case, as the offered
+        /// files read it (R1151): its occurrence and the attachment it sends as.
+        /// </summary>
+        public async Task<OfferedCaseFile> SeedCaseFileAsync(
+            DocumentSemanticRole role,
+            bool? recognised = null,
+            string? provider = null,
+            bool removed = false,
+            bool current = true,
+            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
             DocumentSource source = DocumentSource.Intake)
         {
             await using var context = await Factory.CreateDbContextAsync();
@@ -1135,14 +1264,15 @@ public sealed class CaseReportDeliveryPersistenceTests
                     DocumentId = documentId,
                     VersionId = versionId,
                     Ordinal = ordinal,
-                    SemanticRole = DocumentSemanticRole.Other,
+                    SemanticRole = role,
                     Source = source,
                     SourceOccurrenceIdentity = $"estimate:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed:{occurrenceId:N}"
                 });
             await context.SaveChangesAsync();
-            return new StaffMailAttachment(documentId, versionId, sha256, 500, fileName, "application/pdf");
+            return new OfferedCaseFile(
+                occurrenceId, role, new StaffMailAttachment(documentId, versionId, sha256, 500, fileName, "application/pdf"));
         }
 
         public async ValueTask DisposeAsync() => await database.DisposeAsync();

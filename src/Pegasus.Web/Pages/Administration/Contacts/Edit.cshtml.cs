@@ -809,7 +809,9 @@ public sealed class EditModel(
                     Choice($"{prefix}AttachEstimate"),
                     Choice($"{prefix}AttachAudatex"),
                     Choice($"{prefix}AttachVehicleImagesDocument"),
-                    Choice($"{prefix}AttachFigureBreakdown")));
+                    Choice($"{prefix}AttachFigureBreakdown"),
+                    Choice($"{prefix}AttachOfferExternalEstimates"),
+                    Choice($"{prefix}AttachOfferRepairInvoices")));
             // A row left entirely blank is the spare row; it is not a rule.
             if (conditions.Count == 0 && actions.IsEmpty) continue;
             var match = Enum.TryParse<ReportSendingRuleMatch>(form[$"{prefix}Match"].ToString(), out var parsed)
@@ -830,7 +832,9 @@ public sealed class EditModel(
                 Flag("RsAudatex"),
                 Flag("RsReportImages"),
                 Flag("RsVehicleImagesDocument"),
-                Flag("RsFigureBreakdown")),
+                Flag("RsFigureBreakdown"),
+                Flag("RsOfferExternalEstimates"),
+                Flag("RsOfferRepairInvoices")),
             Flag("RsGarageFigures"),
             Text("RsHold"),
             Many("RsReminders"),

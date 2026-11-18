@@ -516,6 +516,48 @@ public sealed partial class OrganizationAdministrationWebTests
             $"name=\"Rule0AttachAudatex\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
             shown,
             StringComparison.Ordinal);
+        // The Offer ticks start off, beside the attach ticks (R1151).
+        Assert.Contains("name=\"RsOfferExternalEstimates\"", shown, StringComparison.Ordinal);
+        Assert.DoesNotMatch("name=\"RsOfferExternalEstimates\"[^>]*checked", shown);
+        Assert.DoesNotMatch("name=\"RsOfferRepairInvoices\"[^>]*checked", shown);
+
+        // R1151: the two Offer ticks and a rule's override of one are saved and shown.
+        using var offers = await client.PostAsync(
+            $"{path}?handler=UpdateReportSending",
+            SendingForm(shown,
+            [
+                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
+                new("RsOfferExternalEstimates", "true"), new("RsOfferRepairInvoices", "true"),
+                new("RuleIndex", "0"), new("Rule0Match", "All"),
+                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a"),
+                new("Rule0AttachOfferRepairInvoices", "false"), new("Rule0AttachOfferExternalEstimates", "")
+            ]));
+        Assert.True(
+            offers.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {offers.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(offers)}");
+        string AttachValue(string jsonPath) =>
+            $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerExternalEstimates")));
+        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerRepairInvoices")));
+        Assert.Equal("false", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("rules[0].then.attach.offerRepairInvoices")));
+        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
+
+        var offered = await EditContactAsync(client, path, "report-sending");
+        Assert.Contains("name=\"RsOfferExternalEstimates\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
+        Assert.Contains("name=\"RsOfferRepairInvoices\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
+        Assert.Contains(
+            WebUtility.HtmlEncode(OperatorLabels.PrincipalAdministration.OfferExternalEstimates),
+            offered,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachOfferRepairInvoices\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">{OperatorLabels.PrincipalAdministration.AttachOverrideOn}</option><option value=\"false\" selected=\"selected\">",
+            offered,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"name=\"Rule0AttachOfferExternalEstimates\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
+            offered,
+            StringComparison.Ordinal);
     }
 
     [Fact]
