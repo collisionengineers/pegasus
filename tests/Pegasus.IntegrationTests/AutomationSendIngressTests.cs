@@ -206,14 +206,18 @@ public sealed class AutomationSendIngressTests
         var request = Assert.Single(sends.Requests);
         Assert.Equal(caseId, request.CaseId);
         Assert.True(request.TidiesCaseCorrespondence);
-        // No offered Case file was named (R1151).
+        // No offered Case file was named (R1151), nor any Case file renamed.
         Assert.Null(request.OfferedFileIds);
+        Assert.Null(request.CaseFileNames);
     }
 
     /// <summary>
     /// caseDocumentIds names the offered Case files to attach, as the Send
     /// report dialog's unticked rows do when ticked (R1151): the send carries
     /// them to the staff command, which refuses one the plan does not offer.
+    /// caseDocumentNames carries the names given the Case's files by
+    /// occurrence, a blank one dropped (R1175, R1176); a key that is not an
+    /// occurrence identifier is refused before anything is sent.
     /// </summary>
     [Fact]
     public async Task ReportSendCarriesTheOfferedCaseFilesNamed()
@@ -248,6 +252,11 @@ public sealed class AutomationSendIngressTests
             to = Handler,
             fromMailbox = mailbox.Address,
             caseDocumentIds = new[] { invoice, estimate },
+            caseDocumentNames = new Dictionary<string, string>
+            {
+                [invoice.ToString("D")] = "Repair invoice.jpg",
+                [estimate.ToString("D")] = " "
+            },
         }));
         var result = await ReadStructuredContentAsync(sent);
         Assert.Equal(nameof(StaffMailState.Submitted), result.GetProperty("state").GetString());
@@ -255,6 +264,24 @@ public sealed class AutomationSendIngressTests
         var request = Assert.Single(sends.Requests);
         Assert.Equal(caseId, request.CaseId);
         Assert.Equal([invoice, estimate], request.OfferedFileIds);
+        var named = Assert.Single(request.CaseFileNames!);
+        Assert.Equal((invoice, "Repair invoice.jpg"), (named.Key, named.Value));
+
+        using var refused = await PostMcpAsync(client, token, ToolCallPayload(18, "pegasus_report_send", new
+        {
+            caseId,
+            expectedVersion = version,
+            operationKey = "mcp:report-send-offered-file-names",
+            coveringMessage = "Please find our report attached.",
+            to = Handler,
+            fromMailbox = mailbox.Address,
+            caseDocumentNames = new Dictionary<string, string> { ["invoice"] = "Repair invoice.jpg" },
+        }));
+        Assert.Contains(
+            "caseDocumentNames is keyed by the occurrence identifiers",
+            await ReadErrorTextAsync(refused),
+            StringComparison.Ordinal);
+        Assert.Single(sends.Requests);
     }
 
     [Fact]

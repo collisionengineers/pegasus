@@ -185,6 +185,12 @@ public sealed class StaffReportSend(
         && report.GenerationId == contextId
         && report.ExpectedGenerationVersion == contextVersion;
 
+    /// <summary>
+    /// The mail carries the frozen attachments in order, each under its own
+    /// name or a delivery name: a generated document's ends in <c>.pdf</c>,
+    /// and a Case file staff renamed keeps its own extension (R1175), each
+    /// with a stem and within custody's bound.
+    /// </summary>
     private static bool AttachmentsMatch(
         IReadOnlyList<StaffMailAttachment> frozen,
         IReadOnlyList<StaffMailAttachment> prepared)
@@ -193,11 +199,14 @@ public sealed class StaffReportSend(
             && frozen.Zip(prepared).All(pair =>
                 pair.First with { FileName = pair.Second.FileName } == pair.Second
                 && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || (pair.Second.FileName is { Length: > 4 and <= CaseReportDeliveryNaming.MaximumFileNameLength } deliveryFileName
-                        && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
-                        && !string.IsNullOrWhiteSpace(
-                            deliveryFileName[..^".pdf".Length]))));
+                    || DeliveryName(pair.Second.FileName, CaseReportDeliveryNaming.Extension)
+                    || DeliveryName(pair.Second.FileName, Path.GetExtension(pair.First.FileName))));
     }
+
+    private static bool DeliveryName(string name, string extension) =>
+        name.Length <= CaseReportDeliveryNaming.MaximumFileNameLength
+        && name.EndsWith(extension, StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(name[..^extension.Length]);
 }
 
 /// <summary>
