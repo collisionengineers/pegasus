@@ -40,12 +40,21 @@ public interface IGlassRepairEstimateSessionReader
     /// <summary>
     /// <see cref="GetForCaseAsync"/>'s session, for the Case page, with the
     /// build whose list the staff member sees there
-    /// (<see cref="GlassRepairEstimateSessionPolicy.ListedBuild"/>, R1173):
-    /// one query, reading their two newest sessions on the Case. Null when
-    /// they have none.
+    /// (<see cref="GlassRepairEstimateSessionPolicy.ListedBuild"/>, R1173),
+    /// and the Case's newest session the Automation owns: one query, reading
+    /// their two newest sessions on the Case and that one. Null when there is
+    /// none of them.
     /// </summary>
     Task<GlassRepairEstimateCaseSession?> GetForCaseWithBuildAsync(
         Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Case's newest session the Automation owns, or null when it has
+    /// none: what the Automation's own tools act on, and what staff may close
+    /// from the Case.
+    /// </summary>
+    Task<GlassRepairEstimateSession?> GetAutomationForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken);
 
     /// <summary>
     /// The session a one-use correlation names, found by the fingerprint the
@@ -56,13 +65,14 @@ public interface IGlassRepairEstimateSessionReader
         string correlation, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The staff member's session that holds an external account now, on
-    /// whichever Case it was launched from, or null when none does. The
-    /// Estimate section reads it so a Case that cannot launch says where the
-    /// account is rather than refusing after the fact.
+    /// The session that holds a Glass's login now, on whichever Case and
+    /// whoever's it is, or null when none does: the store's own read
+    /// (<see cref="IGlassRepairEstimateSessionStore.FindLiveForAccountAsync"/>).
+    /// The Estimate section reads it so a Case that cannot launch says where
+    /// the login is held rather than refusing after the fact.
     /// </summary>
-    Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
-        Guid pegasusUserId, CancellationToken cancellationToken);
+    Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+        string normalizedExternalAccountKey, CancellationToken cancellationToken);
 
     /// <summary>
     /// The session with this id when it belongs to the staff member, or null.
@@ -100,9 +110,10 @@ public sealed record GlassRepairEstimateSessionProgress(
     GlassRepairEstimateSessionState State, GlassEstimateBuild? Build);
 
 /// <summary>
-/// The staff member's newest Glass's session on a Case, and the build whose
-/// list they see there, which may be the session's own or, while that session
-/// is a build's reopen, the build's (R1173).
+/// The staff member's newest Glass's session on a Case, if any, and the build
+/// whose list they see there, which may be the session's own or, while that
+/// session is a build's reopen, the build's (R1173); and the Case's newest
+/// session the Automation owns, if any.
 /// </summary>
 public sealed record GlassRepairEstimateCaseSession(
-    GlassRepairEstimateSession Session, GlassEstimateBuild? Build);
+    GlassRepairEstimateSession? Session, GlassEstimateBuild? Build, GlassRepairEstimateSession? Automation = null);

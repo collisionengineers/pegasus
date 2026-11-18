@@ -191,6 +191,23 @@ if (liveGuideValuation)
         }
     }
 }
+// The Automation's own Glass's login (R1177) is required wherever Glass's is
+// composed, so a host without it stops at start naming the key rather than
+// at the Automation's first start.
+if (liveGlass)
+{
+    foreach (var key in new[]
+    {
+        "Glass:AutomationAccount:Username",
+        "Glass:AutomationAccount:Password"
+    })
+    {
+        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
+        {
+            throw new InvalidOperationException($"{key} is required for Features:LiveGlass.");
+        }
+    }
+}
 if (!developmentOfflineProfile && !productionProfile)
 {
     throw new InvalidOperationException(
@@ -228,6 +245,9 @@ if (productionProfile)
         // Glass's valuation account (ADR-0060), read on each Get valuation.
         "Glass:ValuationAccount:Username",
         "Glass:ValuationAccount:Password",
+        // The Automation's own Glass's login (R1177), read on each of its acts.
+        "Glass:AutomationAccount:Username",
+        "Glass:AutomationAccount:Password",
         // Cazana's Companion account (ADR-0079), read on each Get valuation.
         "Cazana:CompanionAccount:Email",
         "Cazana:CompanionAccount:Password",
@@ -884,7 +904,8 @@ builder.Services.AddPegasusReportRendering();
 if (productionProfile || liveGlass)
 {
     builder.Services.AddGlassRepairEstimates(
-        GlassRepairEstimateOptions.Create(key => builder.Configuration[key]));
+        GlassRepairEstimateOptions.Create(key => builder.Configuration[key]),
+        _ => Pegasus.Infrastructure.Glass.GlassAutomationAccount.Create(key => builder.Configuration[key]));
 }
 else
 {

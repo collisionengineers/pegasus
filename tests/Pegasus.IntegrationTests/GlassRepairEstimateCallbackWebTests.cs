@@ -50,6 +50,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
     internal const string CallbackRoute = "/Integrations/Glass/Callback/";
     internal const string OpeningRoute = "/Integrations/Glass/Opening/";
     private const string FixtureAccount = "glass-fixture-account";
+
+    /// <summary>The Automation's own Glass's login on this host (R1177): a made-up username.</summary>
+    internal const string AutomationAccount = "glass-automation-fixture";
     private const string FixtureSecret = "glass-fixture-value-not-a-secret";
 
     /// <summary>A Glass's account key shaped like the one Stream A's store mints.</summary>
@@ -366,6 +369,112 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("Open on", html, StringComparison.Ordinal);
         Assert.Contains($"/Cases/{otherCaseId:D}?section=estimate", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A session the Automation owns shows on its Case with the existing
+    /// line and the Automation's words, and any member of staff who can open
+    /// the assessment closes it with a reason (R1180). On another login, the
+    /// staff member's own launch stays offered.
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationsSessionShowsOnItsCaseAndStaffCloseItWithAReason()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        var sessionId = await workspace.SeedAutomationSessionAsync(
+            workspace.CaseId, GlassAccountKey.Of(AutomationAccount));
+        await workspace.ClaimLeaseAsync();
+
+        var html = await workspace.CaseHtmlAsync();
+
+        Assert.Contains("data-glass-owner=\"automation\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.AutomationStarted),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.AutomationClosePrompt),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
+        var close = FormFor(html, "CloseGlass");
+        Assert.Equal(sessionId.ToString("D"), close["sessionId"]);
+
+        close["reason"] = "The Automation stopped part-way.";
+        using (var closed = await workspace.PostAsync("CloseGlass", close))
+        {
+            Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
+        }
+
+        var session = Assert.Single(await workspace.SessionsAsync(), item => item.Id == sessionId);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, session.State);
+        Assert.Equal(ActorKind.Automation, session.OwnerKind);
+        Assert.DoesNotContain("handler=CloseGlass", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// While the Automation holds the staff member's own login, every other
+    /// Case they open names the Case it is open on and offers no launch, and
+    /// its own Case offers its line and no launch (R1180).
+    /// </summary>
+    [Fact]
+    public async Task TheAutomationHoldingTheStaffLoginIsNamedAndNoLaunchIsOffered()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        var otherCaseId = await workspace.SeedOtherCaseAsync("GLAS31003");
+        await workspace.SeedAutomationSessionAsync(otherCaseId, GlassAccountKey.Of(FixtureAccount));
+        await workspace.ClaimLeaseAsync();
+
+        var html = await workspace.CaseHtmlAsync();
+
+        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
+        Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HeldByAutomation),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{otherCaseId:D}?section=estimate", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheAutomationHoldingTheStaffLoginOnThisCaseShowsItsLineAndNoLaunch()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.SeedAutomationSessionAsync(workspace.CaseId, GlassAccountKey.Of(FixtureAccount));
+        await workspace.ClaimLeaseAsync();
+
+        var html = await workspace.CaseHtmlAsync();
+
+        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
+        Assert.Contains("data-glass-owner=\"automation\"", html, StringComparison.Ordinal);
+        Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Case page with Glass's composed reads the session table at most
+    /// twice whatever the Automation holds (design 07 section 2): the Case's
+    /// sessions, the viewer's and the Automation's, in one statement, and who
+    /// holds the login. A ceiling, not a total.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageReadsTheSessionsAtMostTwiceWithAnAutomationSessionHeldElsewhere()
+    {
+        var counter = new SqlStatementCounter();
+        await using var workspace = await Workspace.CreateAsync(counter: counter);
+        var otherCaseId = await workspace.SeedOtherCaseAsync("GLAS31003");
+        await workspace.SeedAutomationSessionAsync(otherCaseId, GlassAccountKey.Of(FixtureAccount));
+        await workspace.SeedAutomationSessionAsync(
+            workspace.CaseId, GlassAccountKey.Of(AutomationAccount), GlassRepairEstimateSessionState.Cancelled);
+        _ = await workspace.CaseHtmlAsync();
+
+        counter.Reset();
+        var html = await workspace.CaseHtmlAsync();
+
+        Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
+        var sessionReads = counter.CountMentioning("[GlassRepairEstimateSessions]");
+        Assert.True(sessionReads <= 2, $"The page read the session table {sessionReads} times.");
+        var credentialReads = counter.CountMentioning("[UserExternalCredentials]");
+        Assert.True(credentialReads <= 1, $"The page read the credentials {credentialReads} times.");
     }
 
     /// <summary>
@@ -1219,6 +1328,38 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Task<Uri?> GetEstimatorUrlAsync(
             ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
             inner.GetEstimatorUrlAsync(actor, material, cancellationToken);
+
+        public Task<GlassRepairEstimateStep> PrepareAutomationLaunchAsync(
+            GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationLaunchAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> ContinueAutomationStartAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationStartAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateStep> PrepareAutomationFinishAsync(
+            GlassAutomationFinishRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationFinishAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> ContinueAutomationFinishAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationFinishAsync(request, cancellationToken);
+
+        public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
+            ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+            inner.ReadAutomationEstimateAsync(actor, sessionId, cancellationToken);
+
+        public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
+            GlassAutomationCatalogueQuery query, CancellationToken cancellationToken) =>
+            inner.SearchAutomationCatalogueAsync(query, cancellationToken);
+
+        public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
+            GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationPositionAsync(request, cancellationToken);
+
+        public Task<GlassAutomationPositionStep> ContinueAutomationPositionAsync(
+            GlassAutomationPositionContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationPositionAsync(request, cancellationToken);
     }
 
     /// <summary>
@@ -1261,13 +1402,14 @@ public sealed class GlassRepairEstimateCallbackWebTests
             bool liveGlass = true,
             int editorPauseMilliseconds = 0,
             TimeProvider? clock = null,
-            Microsoft.Extensions.Logging.ILoggerProvider? logs = null)
+            Microsoft.Extensions.Logging.ILoggerProvider? logs = null,
+            SqlStatementCounter? counter = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
             // The suite's fixed instant unless the test brings a clock of its own.
             var baseFactory = new IntakeWebApplicationFactory(
-                "Development", true, clock, useIntegrationTestAuthentication: true);
+                "Development", true, clock, useIntegrationTestAuthentication: true, commandInterceptor: counter);
             var factory = baseFactory.WithWebHostBuilder(builder =>
             {
                 // The offline host composes Glass's only when asked to, and it
@@ -1285,6 +1427,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ["Glass:ExportTimeoutSeconds"] = "5",
                     ["Glass:EditorPauseMilliseconds"] =
                         editorPauseMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    // The Automation's own login (R1177); made-up values.
+                    ["Glass:AutomationAccount:Username"] = AutomationAccount,
+                    ["Glass:AutomationAccount:Password"] = "automation-synthetic-password",
                 })
                 {
                     builder.UseSetting(key, value);
@@ -1696,7 +1841,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         otherCaseId,
                         DevelopmentOfflineIdentity.AdministratorId,
                         CredentialGeneration: 1,
-                        OtherAccountKey,
+                        // The login the session holds is this Engineer's own,
+                        // keyed by the one rule (GlassAccountKey).
+                        GlassAccountKey.Of(FixtureAccount),
                         GlassRepairEstimateSessionState.Active,
                         Version: 0,
                         OperationKey: Guid.NewGuid().ToString("N"),
@@ -1709,6 +1856,45 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 CancellationToken.None);
             return otherCaseId;
         }
+
+        /// <summary>
+        /// A session the Automation owns on a Case (R1177): it names no member
+        /// of staff, and holds the login whose key it carries. Written through
+        /// the real store, so the row is the one the Automation's start writes.
+        /// </summary>
+        public async Task<Guid> SeedAutomationSessionAsync(
+            Guid caseId,
+            string accountKey,
+            GlassRepairEstimateSessionState state = GlassRepairEstimateSessionState.Active)
+        {
+            var sessionId = Guid.NewGuid();
+            await using var scope = factory.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>().CreateAsync(
+                new GlassRepairEstimateSessionMaterial(
+                    new GlassRepairEstimateSession(
+                        sessionId,
+                        caseId,
+                        Guid.Empty,
+                        CredentialGeneration: 0,
+                        accountKey,
+                        state,
+                        Version: 0,
+                        OperationKey: "mcp:" + Guid.NewGuid().ToString("N"),
+                        FixedUtcNow,
+                        ProviderVehicleId: null,
+                        ProviderEstimateId: null,
+                        FailureCode: null)
+                    {
+                        OwnerKind = ActorKind.Automation,
+                    },
+                    protectedProviderState: "protected:fixture:not-a-secret",
+                    GlassRepairEstimateGateway.CallbackDigestOf(NewCorrelation())),
+                CancellationToken.None);
+            return sessionId;
+        }
+
+        /// <summary>Another Case on this host, for a session held elsewhere.</summary>
+        public Task<Guid> SeedOtherCaseAsync(string reference) => SeedCaseAsync(factory.Services, reference);
 
         public async Task<string> SeedAnotherEngineersSessionAsync()
         {

@@ -109,6 +109,18 @@ internal sealed class GlassEditorClient(
     private DateTimeOffset? last;
 
     /// <summary>
+    /// When this client last sent a request, or null before its first. A
+    /// client that continues an editor another client opened is given that
+    /// client's, so its first request still waits out the pause (design 07
+    /// section 6), and its own is read back afterwards to be kept.
+    /// </summary>
+    public DateTimeOffset? LastRequestAtUtc
+    {
+        get => last;
+        init => last = value;
+    }
+
+    /// <summary>
     /// Opens the editor from the launch address Pegasus's own estimate start
     /// produced: the launch page, then <c>aco.php</c>, then <c>aco2.php</c>,
     /// which carries the session key. The launch page must name this host's

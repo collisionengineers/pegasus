@@ -141,23 +141,54 @@ public sealed class EfGlassRepairEstimateSessionStore(
         Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The same order as GetForCaseAsync, two rows: the newest session and
-        // the one made directly before it.
-        var entities = await context.Set<GlassRepairEstimateSessionEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId)
+        var sessions = context.Set<GlassRepairEstimateSessionEntity>().AsNoTracking();
+        // One statement: the same order as GetForCaseAsync, two rows (the
+        // newest session and the one made directly before it), and the
+        // Case's newest Automation session beside them (design 07 section 2).
+        var own = sessions
+            .Where(item => item.CaseId == caseId && item.UserId == pegasusUserId
+                && item.OwnerKind == GlassSessionOwner.Staff)
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.Id)
-            .Take(2)
-            .ToListAsync(cancellationToken);
+            .Take(2);
+        var automation = sessions
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(1);
+        var entities = await own.Concat(automation).ToListAsync(cancellationToken);
         if (entities.Count == 0)
         {
             return null;
         }
 
-        var newest = ToSession(entities[0]);
-        var previous = entities.Count > 1 ? ToSession(entities[1]) : null;
-        return new(newest, GlassRepairEstimateSessionPolicy.ListedBuild(newest, previous));
+        // A union keeps no order, so the rows are put in it here.
+        var staff = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Staff)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(ToSession)
+            .ToList();
+        var newest = staff.Count > 0 ? staff[0] : null;
+        var previous = staff.Count > 1 ? staff[1] : null;
+        var automationSession = entities
+            .Where(item => item.OwnerKind == GlassSessionOwner.Automation)
+            .Select(ToSession)
+            .FirstOrDefault();
+        return new(newest, GlassRepairEstimateSessionPolicy.ListedBuild(newest, previous), automationSession);
+    }
+
+    public async Task<GlassRepairEstimateSession?> GetAutomationForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : ToSession(entity);
     }
 
     /// <summary>
@@ -214,6 +245,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             Id = session.Id,
             CaseId = session.CaseId,
             UserId = session.PegasusUserId,
+            OwnerKind = OwnerOf(session.OwnerKind),
             CredentialGeneration = session.CredentialGeneration,
             NormalizedAccountKey = accountKey,
             ActiveAccountKey = OccupiesAccount(session.State) ? accountKey : null,
@@ -227,6 +259,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             ProtectedSession = material.ProtectedProviderState,
             ResultArtifactsJson = material.ResultArtifactsJson,
             BuildJson = WriteBuild(session.Build),
+            AutomationJson = WriteAutomation(session.Automation),
             LastError = session.FailureCode,
             Version = session.Version,
         };
@@ -304,6 +337,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         // ones GetAsync handed it.
         entity.ResultArtifactsJson = material.ResultArtifactsJson;
         entity.BuildJson = WriteBuild(session.Build);
+        entity.AutomationJson = WriteAutomation(session.Automation);
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
         AddHistory(context, entity, previousState, session.State, now);
@@ -343,8 +377,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
 
     /// <summary>
     /// A replayed operation key must name the same launch: the same Case, the
-    /// same Pegasus user, the same credential generation and the same
-    /// account key. Anything else under that key is a collision, and
+    /// same owner (the same Pegasus user, or the Automation), the same
+    /// credential generation and the same account key. Anything else under that key is a collision, and
     /// returning the recorded session would hand one launch's provider material
     /// to another — a rotated credential or a different account is a different
     /// launch even when the Case and user match. The protected provider state
@@ -358,6 +392,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         string operationKey) =>
         replay.CaseId == session.CaseId
         && replay.UserId == session.PegasusUserId
+        && string.Equals(replay.OwnerKind, OwnerOf(session.OwnerKind), StringComparison.Ordinal)
         && replay.CredentialGeneration == session.CredentialGeneration
         && string.Equals(replay.NormalizedAccountKey, accountKey, StringComparison.Ordinal)
             ? ToMaterial(replay)
@@ -367,8 +402,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 $"Operation key '{operationKey}' already names another Glass's session.");
 
     /// <summary>
-    /// A save names the session it read. Case, user, credential generation and
-    /// operation key are the launch's identity and never change. The external
+    /// A save names the session it read. Case, user, owner, credential
+    /// generation and operation key are the launch's identity and never change. The external
     /// account is fixed at creation and read from the row, so a save neither
     /// restates nor can move it.
     /// </summary>
@@ -377,11 +412,12 @@ public sealed class EfGlassRepairEstimateSessionStore(
     {
         if (entity.CaseId != session.CaseId
             || entity.UserId != session.PegasusUserId
+            || !string.Equals(entity.OwnerKind, OwnerOf(session.OwnerKind), StringComparison.Ordinal)
             || entity.CredentialGeneration != session.CredentialGeneration
             || !string.Equals(entity.OperationKey, session.OperationKey, StringComparison.Ordinal))
         {
             throw new ArgumentException(
-                "The write names a different Case, user, credential generation or operation "
+                "The write names a different Case, user, owner, credential generation or operation "
                 + "than the Glass's session it is saving.",
                 nameof(session));
         }
@@ -408,22 +444,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.ActiveAccountKey == normalizedExternalAccountKey, cancellationToken);
-        return entity is null ? null : ToSession(entity);
-    }
-
-    /// <summary>
-    /// The staff member's session that holds an account now, wherever it was
-    /// launched, so every Case they open can say where it is.
-    /// </summary>
-    public async Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
-        Guid pegasusUserId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
-            .AsNoTracking()
-            .Where(item => item.UserId == pegasusUserId && item.ActiveAccountKey != null)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
         return entity is null ? null : ToSession(entity);
     }
 
@@ -490,7 +510,25 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.CallbackConsumedAtUtc)
         {
             Build = ReadBuild(entity.BuildJson),
+            OwnerKind = string.Equals(entity.OwnerKind, GlassSessionOwner.Automation, StringComparison.Ordinal)
+                ? ActorKind.Automation
+                : ActorKind.Staff,
+            Automation = ReadAutomation(entity.AutomationJson),
         };
+
+    /// <summary>The stored owner: Staff or Automation, and no other actor runs a session.</summary>
+    private static string OwnerOf(ActorKind owner) => owner switch
+    {
+        ActorKind.Staff => GlassSessionOwner.Staff,
+        ActorKind.Automation => GlassSessionOwner.Automation,
+        _ => throw new ArgumentOutOfRangeException(nameof(owner), "Only staff or the Automation run a Glass's session."),
+    };
+
+    private static string? WriteAutomation(GlassAutomationWork? work) =>
+        work is null ? null : JsonSerializer.Serialize(work, BuildJson);
+
+    private static GlassAutomationWork? ReadAutomation(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<GlassAutomationWork>(json, BuildJson);
 
     private static string? WriteBuild(GlassEstimateBuild? build) =>
         build is null ? null : JsonSerializer.Serialize(build, BuildJson);

@@ -60,11 +60,12 @@ public static class RepairSpecificationPolicy
     public const int PolicyVersion = 4;
 
     /// <summary>
-    /// The two repair-specification acts that stay staff's alone (operator,
-    /// 7 October 2026): putting an estimate in use (Use repair spec) and a
-    /// Glass's session, which runs under the member of staff's own Glass's
-    /// account. Every other estimate change is casework the Automation actor
-    /// performs as staff do.
+    /// The repair-specification act that stays staff's alone (operator,
+    /// 7 October 2026): putting an estimate in use (Use repair spec). Every
+    /// other estimate change is casework the Automation actor performs as
+    /// staff do. A Glass's session is
+    /// <see cref="GlassRepairEstimateSessionPolicy.RequireSessionActor"/>'s:
+    /// the Automation runs sessions of its own (operator, 18 November 2026).
     /// </summary>
     public static void RequireStaffAuthor(ActionActor actor)
     {
@@ -72,7 +73,7 @@ public static class RepairSpecificationPolicy
         if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Only authenticated staff can put a repair specification in use or run a Glass's session.");
+                "Only authenticated staff can put a repair specification in use.");
         }
     }
 

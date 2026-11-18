@@ -978,6 +978,178 @@ public sealed class GlassRepairEstimatePersistenceTests
         Assert.Null((await harness.Store.GetOwnProgressAsync(created.Session.Id, harness.UserId, CancellationToken.None))?.Build);
     }
 
+    /// <summary>
+    /// A session the Automation owns names no member of staff: its row holds
+    /// the empty user id, which the session table's dropped key to the staff
+    /// accounts now admits (migration GlassSessionOwner), and its owner and
+    /// its work are written and read back whole. A staff session reads as
+    /// Staff with no work.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationSessionNamesNoMemberOfStaffAndItsWorkRoundTrips()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var automation = harness.Material(
+            AutomationAccountKey, GlassRepairEstimateSessionState.Prepared, "mcp:start-1",
+            userId: Guid.Empty, credentialGeneration: 0);
+        var (created, isNew) = await harness.Store.CreateAsync(
+            new(
+                automation.Session with
+                {
+                    OwnerKind = ActorKind.Automation,
+                    Automation = new GlassAutomationWork { FinishOperationKey = "mcp:finish-1" },
+                },
+                automation.ProtectedProviderState,
+                automation.CallbackDigest),
+            CancellationToken.None);
+        Assert.True(isNew);
+
+        var read = await harness.NewStore().GetAsync(created.Session.Id, CancellationToken.None);
+        Assert.NotNull(read);
+        Assert.Equal(ActorKind.Automation, read.Session.OwnerKind);
+        Assert.Equal(Guid.Empty, read.Session.PegasusUserId);
+        Assert.Equal("mcp:finish-1", read.Session.Automation?.FinishOperationKey);
+        Assert.Null(read.Session.Automation?.DraftSpecificationId);
+
+        var draft = Guid.NewGuid();
+        await harness.Store.SaveAsync(
+            new(
+                read.Session with
+                {
+                    State = GlassRepairEstimateSessionState.Active,
+                    Automation = read.Session.Automation! with
+                    {
+                        DraftSpecificationId = draft,
+                        Acts =
+                        [
+                            new GlassAutomationAct(
+                                "mcp:add-1", GlassAutomationActAction.Add, GlassAutomationActOutcome.Added,
+                                new DateTimeOffset(2026, 11, 18, 12, 0, 0, TimeSpan.Zero))
+                            {
+                                Kind = GlassAutomationPositionKind.Part,
+                                Row = "771",
+                                Operation = GlassAutomationPartOperation.Repair,
+                                ExpectedCode = "C2020001",
+                                PositionIds = ["C350987.35.C2020001.4467"],
+                                Served = new GlassEstimateBuildFigures(null, 0.40m),
+                                Listed = [new GlassAutomationListedPart("1017810.ER.", "Clip", Ticked: true)],
+                            },
+                        ],
+                    },
+                },
+                read.ProtectedProviderState,
+                read.CallbackDigest,
+                read.ResultArtifactsJson),
+            read.Session.Version,
+            CancellationToken.None);
+        var saved = await harness.Store.GetAutomationForCaseAsync(harness.CaseId, CancellationToken.None);
+        Assert.Equal(draft, saved?.Automation?.DraftSpecificationId);
+        // Each position act is read back whole, its enums by name.
+        var act = Assert.Single(saved!.Automation!.Acts);
+        Assert.Equal("mcp:add-1", act.OperationKey);
+        Assert.Equal(GlassAutomationActOutcome.Added, act.Outcome);
+        Assert.Equal(GlassAutomationPartOperation.Repair, act.Operation);
+        Assert.Equal("C350987.35.C2020001.4467", Assert.Single(act.PositionIds));
+        Assert.Equal(0.40m, act.Served?.Hours);
+        Assert.True(Assert.Single(act.Listed).Ticked);
+        Assert.Empty(act.Before);
+        Assert.Equal(ActorKind.Automation, saved?.OwnerKind);
+
+        // A staff session reads as Staff, with no work; its reads never see
+        // the Automation's session, and the Case page's one read sees both.
+        var (staff, _) = await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
+            CancellationToken.None);
+        Assert.Equal(ActorKind.Staff, staff.Session.OwnerKind);
+        Assert.Null(staff.Session.Automation);
+        Assert.Equal(staff.Session.Id, (await harness.Store.GetForCaseAsync(
+            harness.CaseId, harness.UserId, CancellationToken.None))?.Id);
+        var page = await harness.Store.GetForCaseWithBuildAsync(harness.CaseId, harness.UserId, CancellationToken.None);
+        Assert.Equal(staff.Session.Id, page?.Session?.Id);
+        Assert.Equal(created.Session.Id, page?.Automation?.Id);
+        var otherViewer = await harness.Store.GetForCaseWithBuildAsync(
+            harness.CaseId, harness.OtherUserId, CancellationToken.None);
+        Assert.Null(otherViewer?.Session);
+        Assert.Equal(created.Session.Id, otherViewer?.Automation?.Id);
+        Assert.Null(await harness.Store.GetAutomationForCaseAsync(harness.OtherCaseId, CancellationToken.None));
+        Assert.Null(await harness.Store.GetForCaseWithBuildAsync(
+            harness.OtherCaseId, harness.UserId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The login's one live slot is the login's, whoever holds it: a staff
+    /// session and an Automation session on the same login are one live
+    /// session, refused by the database either way round.
+    /// </summary>
+    [Fact]
+    public async Task AStaffSessionAndAnAutomationSessionOnOneLoginAreOneLiveSession()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Store.CreateAsync(
+            harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Active, "launch-1"),
+            CancellationToken.None);
+
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
+            harness.Store.CreateAsync(AutomationMaterial(harness, EngineerAccountKey, "mcp:start-1"), CancellationToken.None));
+        Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, refused.Conflict);
+
+        var (automation, _) = await harness.Store.CreateAsync(
+            AutomationMaterial(harness, OtherAccountKey, "mcp:start-2"), CancellationToken.None);
+        var blocked = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
+            harness.Store.CreateAsync(
+                harness.Material(OtherAccountKey, GlassRepairEstimateSessionState.Prepared, "launch-2",
+                    userId: harness.OtherUserId),
+                CancellationToken.None));
+        Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, blocked.Conflict);
+        Assert.Equal(automation.Session.Id, (await harness.Store.FindLiveForAccountAsync(
+            OtherAccountKey, CancellationToken.None))?.Id);
+    }
+
+    /// <summary>
+    /// A replayed operation key must name the same launch, owner included: a
+    /// staff launch under the Automation's key is a collision, not a replay,
+    /// and a save cannot move a session to another owner.
+    /// </summary>
+    [Fact]
+    public async Task AReplayAndASaveCompareTheOwner()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var (automation, _) = await harness.Store.CreateAsync(
+            AutomationMaterial(harness, AutomationAccountKey, "mcp:start-1"), CancellationToken.None);
+
+        var (replayed, created) = await harness.Store.CreateAsync(
+            AutomationMaterial(harness, AutomationAccountKey, "mcp:start-1"), CancellationToken.None);
+        Assert.False(created);
+        Assert.Equal(automation.Session.Id, replayed.Session.Id);
+
+        var collision = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
+            harness.Store.CreateAsync(
+                harness.Material(AutomationAccountKey, GlassRepairEstimateSessionState.Prepared, "mcp:start-1",
+                    userId: Guid.Empty, credentialGeneration: 0),
+                CancellationToken.None));
+        Assert.Equal(GlassRepairEstimateSessionConflict.OperationKey, collision.Conflict);
+
+        var moved = Transition(automation, GlassRepairEstimateSessionState.Active);
+        await Assert.ThrowsAsync<ArgumentException>(() => harness.Store.SaveAsync(
+            new(moved.Session with { OwnerKind = ActorKind.Staff }, moved.ProtectedProviderState, moved.CallbackDigest),
+            automation.Session.Version,
+            CancellationToken.None));
+    }
+
+    private const string AutomationAccountKey =
+        "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809";
+
+    private static GlassRepairEstimateSessionMaterial AutomationMaterial(
+        Harness harness, string accountKey, string operationKey)
+    {
+        var material = harness.Material(
+            accountKey, GlassRepairEstimateSessionState.Prepared, operationKey, userId: Guid.Empty, credentialGeneration: 0);
+        return new(
+            material.Session with { OwnerKind = ActorKind.Automation },
+            material.ProtectedProviderState,
+            material.CallbackDigest);
+    }
+
     private static void AssertSameBuild(GlassEstimateBuild expected, GlassEstimateBuild? actual)
     {
         Assert.NotNull(actual);

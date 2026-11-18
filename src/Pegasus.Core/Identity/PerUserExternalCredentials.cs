@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Pegasus.Core.Identity;
 
 public enum ExternalCredentialProvider { GlassRepairEstimate }
@@ -5,6 +8,24 @@ public enum ExternalCredentialProvider { GlassRepairEstimate }
 public sealed record PerUserExternalCredentialReference(
     Guid PegasusUserId, ExternalCredentialProvider Provider, long CredentialGeneration,
     string NormalizedExternalAccountKey, bool Enabled, long Version);
+
+/// <summary>
+/// The one rule a Glass's login becomes an account key by: SHA-256 of the
+/// provider's name and the upper-cased username, so a login is one key
+/// whoever holds it. A staff member's stored login and the login the
+/// deployment holds for the Automation both take theirs from here, so the same
+/// login is one live session's slot whichever of them holds it (design 07
+/// section 1). The username itself is never recorded on a session.
+/// </summary>
+public static class GlassAccountKey
+{
+    public static string Of(string username)
+    {
+        ArgumentNullException.ThrowIfNull(username);
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            "glass_repair_estimate\n" + username.ToUpperInvariant())));
+    }
+}
 
 /// <summary>Server-only secret material. Never serialize to a browser, MCP, audit or log.</summary>
 public sealed class PerUserExternalCredentialMaterial(
@@ -26,10 +47,10 @@ public interface IPerUserExternalCredentialReader
         ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Whether the actor holds an enabled credential for the provider, without
-    /// reading the secret material.
+    /// The actor's enabled credential for the provider, with its account key,
+    /// without reading the secret material; null when they hold none. One read.
     /// </summary>
-    Task<bool> IsEnabledAsync(
+    Task<PerUserExternalCredentialReference?> GetEnabledReferenceAsync(
         ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken);
 }
 
