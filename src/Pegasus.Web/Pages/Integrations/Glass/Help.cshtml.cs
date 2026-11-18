@@ -237,7 +237,7 @@ public sealed partial class HelpModel(
     private static JsonResult Ended() =>
         new(new { error = "ended" }) { StatusCode = StatusCodes.Status409Conflict };
 
-    private IActionResult UnknownProtocol(int protocol, string? helperVersion)
+    private JsonResult UnknownProtocol(int protocol, string? helperVersion)
     {
         LogUnknownProtocol(
             logger,

@@ -137,7 +137,7 @@ public sealed partial class GlassRepairEstimateGateway(
     private const string SpecialOperationGroup = GlassEditorPositionWork.SpecialOperationGroup;
 
     /// <summary>The group list the part list is asked for with.</summary>
-    private const string PartListGroups = GlassEditorPositionWork.PartListGroups;
+    internal const string PartListGroups = GlassEditorPositionWork.PartListGroups;
 
     /// <summary>
     /// The editor's lists, a position's add and remove, and every stage's
