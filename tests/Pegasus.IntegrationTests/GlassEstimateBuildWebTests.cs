@@ -134,6 +134,59 @@ public sealed class GlassEstimateBuildWebTests
         Assert.Equal(
             RepairSpecificationSourceRoute.Glasses,
             Assert.Single(estimates, estimate => estimate.SpecificationId == builtId).Source.Route);
+
+        // The reopen is part of the build: the list stays on the new spec (R1173).
+        var onBuilt = await workspace.Client.GetStringAsync(
+            $"/Cases/{workspace.CaseId:D}?section=estimate&estimate={builtId:D}");
+        Assert.Contains("data-glass-build-list", onBuilt, StringComparison.Ordinal);
+        Assert.Contains("data-glass-build-act=\"Added\"", onBuilt, StringComparison.Ordinal);
+        Assert.Contains("data-glass-build-act=\"LeftOff\"", onBuilt, StringComparison.Ordinal);
+        Assert.Contains("£176.96", WebUtility.HtmlDecode(onBuilt), StringComparison.Ordinal);
+        Assert.DoesNotContain("glass-build-dialog", onBuilt, StringComparison.Ordinal);
+        var onOutside = await workspace.Client.GetStringAsync(
+            $"/Cases/{workspace.CaseId:D}?section=estimate&estimate={outside:D}");
+        Assert.DoesNotContain("data-glass-build-list", onOutside, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The list stays through the build's own reopen, and through closing
+    /// that reopen, which is not a press of Glass's; the member of staff's
+    /// next press makes a third session and the list goes (R1173).
+    /// </summary>
+    [Fact]
+    public async Task TheListStaysThroughTheReopenAndGoesAtTheNextPressOfGlasss()
+    {
+        await using var workspace = await Workspace.CreateAsync(clock: new TickingClock());
+        await workspace.SeedOutsideSpecAsync();
+        await workspace.ClaimLeaseAsync();
+        using var posted = await workspace.Client.PostAsync(
+            $"/Cases/{workspace.CaseId:D}?section=estimate&build=true&handler=LaunchGlass",
+            new FormUrlEncodedContent(await workspace.LaunchFormAsync()));
+        using var built = await workspace.FollowAsync(AssertWaitsOnTheGlassWindow(posted));
+        using var opened = await workspace.FollowAsync(AssertWaitsOnTheGlassWindow(built));
+        _ = ReadEstimator(opened);
+        var builtId = Assert.IsType<Guid>(
+            Assert.IsType<GlassEstimateBuild>((await workspace.SessionsAsync())[0].Build).BuiltSpecificationId);
+        var onBuilt = $"/Cases/{workspace.CaseId:D}?section=estimate&estimate={builtId:D}";
+        var html = await workspace.Client.GetStringAsync(onBuilt);
+        Assert.Contains("data-glass-build-list", html, StringComparison.Ordinal);
+
+        var close = FormFor(html, "CloseGlass");
+        close["reason"] = "Closed in Glass's without saving.";
+        close["externalSessionClosed"] = "true";
+        using (var closed = await workspace.PostAsync("CloseGlass", close))
+        {
+            Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
+        }
+        html = await workspace.Client.GetStringAsync(onBuilt);
+        Assert.Contains("data-glass-build-list", html, StringComparison.Ordinal);
+
+        using var pressed = await workspace.PostGlassAsync("LaunchGlass", FormFor(html, "LaunchGlass"));
+
+        _ = ReadEstimator(pressed);
+        Assert.Equal(3, (await workspace.SessionsAsync()).Count);
+        Assert.DoesNotContain(
+            "data-glass-build-list", await workspace.Client.GetStringAsync(onBuilt), StringComparison.Ordinal);
     }
 
     /// <summary>
