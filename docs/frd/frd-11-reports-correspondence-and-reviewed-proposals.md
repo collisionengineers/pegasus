@@ -420,19 +420,22 @@ report filed before 6 November 2026 keeps its name (operator, 6 November
 2026; R740). Companion documents keep the names
 custody gave them. That is each document's policy name, and the composer's
 Files rows start on it; staff may rename any of the generation's documents
-for the send, the report included, the stem alone, since every delivered
+for the send, the report included, the stem alone, since every generated
 document ends in `.pdf`, and Reset restores the policy name. A rename holds
 for that send only: the next send starts on the policy name again. The
-Case's filed estimates attach under the names they were filed with and are
-not renamed (operator, 4 November 2026, R665, R671, R672), and so do the
-offered Case files staff tick ([R1151](../rulings.md)). A name staff give
+Case's filed estimates and the offered Case files staff tick
+([R1151](../rulings.md)) attach under the names they were filed with
+unless staff rename them for the send the same way, the stem alone, each
+keeping its own extension (`.pdf`, `.jpg`, `.docx` and so on), Reset going
+back to the filed name (operator, 18 November 2026;
+[R1175](../rulings.md), [R1176](../rulings.md), amending R671). A name staff give
 follows custody's rule: a character no file name can hold becomes `_`, and
-the whole name, `.pdf` included, is at most 120 characters; a longer one is
+the whole name, its extension included, is at most 120 characters; a longer one is
 refused with "A file name cannot exceed 120 characters." No two attachments
 of one send share a name, case ignored: a later document whose name an
 earlier attachment already carries gains " (2)", " (3)" and so on before
-`.pdf`, its stem shortened to keep within 120 characters, and since a filed
-estimate or an offered Case file keeps its filed name, a document carrying it is the one numbered
+its extension, its stem shortened to keep within 120 characters, and since a filed
+estimate or an offered Case file staff did not rename keeps its filed name, a document carrying it is the one numbered
 (operator, 10 November 2026; [R895](../rulings.md), [R896](../rulings.md)). The delivery
 carries one covering message, which starts as
 the Case report delivery template

@@ -1354,6 +1354,75 @@ public sealed class CaseReportDeliveryTests
     }
 
     /// <summary>
+    /// R1175, R1176 (operator, 18 November 2026): staff may name each Case
+    /// file the send attaches, a filed estimate and a ticked offered file
+    /// alike, by its occurrence. The name keeps the file's own extension and
+    /// the readiness still matches the file as filed; a renamed file whose
+    /// name an earlier attachment carries is numbered (R896); a name for a
+    /// file the send does not attach is not used; and a name without the
+    /// file's own extension refuses the send.
+    /// </summary>
+    [Fact]
+    public async Task SendNamesTheCaseFilesStaffRenamedUnderTheirOwnExtensions()
+    {
+        var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
+        var estimateOccurrence = Guid.NewGuid();
+        var facts = Facts(PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with
+            {
+                Audatex = true,
+                OfferExternalEstimates = true,
+                OfferRepairInvoices = true
+            }
+        }) with
+        {
+            FiledEstimates = [new(AudatexEstimate, "Audatex", estimateOccurrence)],
+            OfferableFiles = [ExternalEstimate, RepairInvoice]
+        };
+        var send = new RecordingSend();
+
+        var operation = await Use(new FixedGenerations(generation), send, facts: facts).ExecuteAsync(
+            Request(facts) with
+            {
+                OfferedFileIds = [RepairInvoice.OccurrenceId],
+                CaseFileNames = new Dictionary<Guid, string>
+                {
+                    [estimateOccurrence] = FeeAttachment.FileName,
+                    [RepairInvoice.OccurrenceId] = " Repair invoice?.jpg ",
+                    [ExternalEstimate.OccurrenceId] = "Not attached.pdf"
+                }
+            },
+            CancellationToken.None);
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(
+            [ReportAttachment, FeeAttachment, AudatexEstimate, RepairInvoice.Attachment],
+            command.Report.Artifacts);
+        string[] names =
+        [
+            "DVR-31001 PK12 TMZ Repairable report.pdf",
+            FeeAttachment.FileName,
+            "fee-note (2).pdf",
+            "Repair invoice_.jpg"
+        ];
+        Assert.Equal(names, command.Mail.Attachments.Select(attachment => attachment.FileName).ToArray());
+        Assert.Equal(AudatexEstimate with { FileName = "fee-note (2).pdf" }, command.Mail.Attachments[2]);
+        Assert.Equal(names, operation.AttachmentFileNames);
+
+        var refusedSend = new RecordingSend();
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => Use(new FixedGenerations(generation), refusedSend, facts: facts).ExecuteAsync(
+                Request(facts) with
+                {
+                    OfferedFileIds = [RepairInvoice.OccurrenceId],
+                    CaseFileNames = new Dictionary<Guid, string> { [RepairInvoice.OccurrenceId] = "Repair invoice.pdf" }
+                },
+                CancellationToken.None));
+        Assert.Empty(refusedSend.Commands);
+    }
+
+    /// <summary>
     /// A generation whose report is not confirmed has nothing to attach, and
     /// the transport is never invoked.
     /// </summary>

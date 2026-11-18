@@ -30,6 +30,7 @@ public interface IReportSendReadiness
 /// <param name="AttachmentNames">The names staff gave this generation's documents for the send (v48 item E), by kind; a kind not named keeps its policy name.</param>
 /// <param name="TidiesCaseCorrespondence">The dialog's Delete case correspondence tick (R902 to R905, ADR-0071); no part of the dispatch fingerprint or record.</param>
 /// <param name="OfferedFileIds">The occurrences of the plan's offered Case files staff ticked (R1151); one the plan does not offer is refused.</param>
+/// <param name="CaseFileNames">The names staff gave the Case's files for the send, filed estimates and ticked offered files alike, by occurrence (R1175, R1176); a file not named, or named blank, keeps its filed name, and a name for a file the send does not attach is not used.</param>
 public sealed record SendCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
@@ -45,7 +46,8 @@ public sealed record SendCaseReportRequest(
     string? Subject = null,
     IReadOnlyDictionary<CaseReportArtifactKind, string>? AttachmentNames = null,
     bool TidiesCaseCorrespondence = false,
-    IReadOnlyList<Guid>? OfferedFileIds = null);
+    IReadOnlyList<Guid>? OfferedFileIds = null,
+    IReadOnlyDictionary<Guid, string>? CaseFileNames = null);
 
 /// <summary>
 /// The other work's report one send also carries: its generation at the
@@ -266,7 +268,7 @@ public static class CaseReportDeliveryNaming
                 ? '_'
                 : character).ToArray());
 
-    /// <summary>The extension every delivered document keeps.</summary>
+    /// <summary>The extension every generated document keeps.</summary>
     public const string Extension = ".pdf";
 
     /// <summary>
@@ -282,27 +284,43 @@ public static class CaseReportDeliveryNaming
 
     /// <summary>
     /// A name staff gave a document for one send (operator, 4 November 2026,
-    /// v48 item E): trimmed, ending in <see cref="Extension"/> with something
-    /// before it, each character no file name can hold made <c>_</c> as
-    /// custody makes it, and at most <see cref="MaximumFileNameLength"/>
-    /// characters (operator, 10 November 2026; R895). A name without the
-    /// extension is refused; one too long is refused with
-    /// <see cref="FileNameTooLong"/>, which staff are shown.
+    /// v48 item E): trimmed, ending in <paramref name="extension"/> (a
+    /// generated document's <see cref="Extension"/>, a Case file's own,
+    /// R1175) with something before it, each character no file name can hold
+    /// made <c>_</c> as custody makes it, and at most
+    /// <see cref="MaximumFileNameLength"/> characters (operator, 10 November
+    /// 2026; R895). A name without the extension is refused; one too long is
+    /// refused with <see cref="FileNameTooLong"/>, which staff are shown.
     /// </summary>
-    public static string StaffName(string name)
+    public static string StaffName(string name, string extension = Extension)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(extension);
         var trimmed = name.Trim();
-        if (!trimmed.EndsWith(Extension, StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(trimmed[..^Extension.Length]))
+        if (!trimmed.EndsWith(extension, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(trimmed[..^extension.Length]))
         {
-            throw new ArgumentException($"A delivered document's name ends in {Extension}.", nameof(name));
+            throw new ArgumentException($"A delivered document's name ends in {extension}.", nameof(name));
         }
         if (trimmed.Length > MaximumFileNameLength)
         {
             throw new InvalidOperationException(FileNameTooLong);
         }
         return FileSafe(trimmed);
+    }
+
+    /// <summary>
+    /// A Case file the send attaches (a filed estimate or an offered file)
+    /// under the name staff gave it for this send, which keeps the file's own
+    /// extension (operator, 18 November 2026; R1175, R1176); without one, under
+    /// its filed name.
+    /// </summary>
+    public static StaffMailAttachment CaseFileNamed(StaffMailAttachment file, string? staffName)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        return string.IsNullOrWhiteSpace(staffName)
+            ? file
+            : file with { FileName = StaffName(staffName, Path.GetExtension(file.FileName)) };
     }
 
     /// <summary>
@@ -338,9 +356,7 @@ public static class CaseReportDeliveryNaming
                 continue;
             }
             var name = attachment.FileName;
-            var extension = name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)
-                ? name[^Extension.Length..]
-                : string.Empty;
+            var extension = Path.GetExtension(name);
             var stem = name[..^extension.Length];
             string numbered;
             var number = 2;
@@ -360,7 +376,8 @@ public static class CaseReportDeliveryNaming
     /// first, in <paramref name="kinds"/> order, the report leading under the
     /// name above unless staff named it, each companion under the name staff
     /// gave it, else the name custody gave it; any attachment past the
-    /// documents (a filed estimate) keeps its filed name. Without
+    /// documents is left as it is (a Case file is named by
+    /// <see cref="CaseFileNamed"/>). Without
     /// <paramref name="kinds"/> the list is the report and its companions.
     /// </summary>
     public static IReadOnlyList<StaffMailAttachment> Named(
@@ -647,13 +664,12 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// The offered Case files staff ticked, as attachments in the plan's
-    /// order (R1151). An identifier the plan does not offer now (a page
-    /// drawn before the file was removed or the Principal's tick turned off,
-    /// or another Case's file) refuses the send as an attachment no longer
-    /// available.
+    /// The offered Case files staff ticked, in the plan's order (R1151). An
+    /// identifier the plan does not offer now (a page drawn before the file
+    /// was removed or the Principal's tick turned off, or another Case's
+    /// file) refuses the send as an attachment no longer available.
     /// </summary>
-    public static IReadOnlyList<StaffMailAttachment> OfferedChoice(
+    public static IReadOnlyList<OfferedCaseFile> OfferedChoice(
         ReportDispatchPlan plan,
         IReadOnlyList<Guid>? ticked)
     {
@@ -668,9 +684,7 @@ public static class CaseReportDeliveryPolicy
         }
         return
         [
-            .. plan.OfferedFiles
-                .Where(file => ids.Contains(file.OccurrenceId))
-                .Select(file => file.Attachment)
+            .. plan.OfferedFiles.Where(file => ids.Contains(file.OccurrenceId))
         ];
     }
 
@@ -987,23 +1001,32 @@ public sealed class SendCaseReport(
         // The generation's documents first, the report leading; then the
         // Case's filed estimates the Principal's rules attach, and the offered
         // Case files staff ticked, in the offered order (R1151). Staff may
-        // name each document for the send (v48 item E); a filed estimate or
-        // an offered file keeps the name it was filed under.
+        // name each document for the send (v48 item E), and each Case file,
+        // its own extension kept (R1175, R1176); one not named keeps the name
+        // it was filed under.
         var attachChoice = CaseReportDeliveryPolicy.AttachChoice(plan, request.Attach, confirmed);
         var offered = CaseReportDeliveryPolicy.OfferedChoice(plan, request.OfferedFileIds);
-        StaffMailAttachment[] attachments =
+        (Guid OccurrenceId, StaffMailAttachment File)[] caseFiles =
         [
-            .. CaseReportDeliveryPolicy.Attachments(generation.Id, generation.Artifacts, attachChoice),
-            .. plan.FiledEstimates,
-            .. offered
+            .. plan.FiledEstimates.Select(estimate => (estimate.OccurrenceId, estimate.Attachment)),
+            .. offered.Select(file => (file.OccurrenceId, file.Attachment))
         ];
+        var documents = CaseReportDeliveryPolicy.Attachments(generation.Id, generation.Artifacts, attachChoice);
+        StaffMailAttachment[] attachments = [.. documents, .. caseFiles.Select(file => file.File)];
         var attachedKinds = CaseReportDeliveryPolicy.AttachedKinds(generation.Id, generation.Artifacts, attachChoice);
-        IReadOnlyList<StaffMailAttachment> named = CaseReportDeliveryNaming.Named(
-            attachments,
-            CaseReportDeliveryNaming.ReportName(
-                generation.Snapshot, history.SentCount, facts.ReportNames, facts.CaseType, generation.WorkKind),
-            attachedKinds,
-            request.AttachmentNames);
+        var caseFileNames = caseFiles
+            .Select(file => request.CaseFileNames?.GetValueOrDefault(file.OccurrenceId))
+            .ToArray();
+        IReadOnlyList<StaffMailAttachment> named =
+        [
+            .. CaseReportDeliveryNaming.Named(
+                documents,
+                CaseReportDeliveryNaming.ReportName(
+                    generation.Snapshot, history.SentCount, facts.ReportNames, facts.CaseType, generation.WorkKind),
+                attachedKinds,
+                request.AttachmentNames),
+            .. caseFiles.Select((file, index) => CaseReportDeliveryNaming.CaseFileNamed(file.File, caseFileNames[index]))
+        ];
 
         // The other work's report the same email carries: deliverable on its
         // own work under the same lease, and named by its own work's sends
@@ -1051,13 +1074,15 @@ public sealed class SendCaseReport(
         }
 
         // No two attachments share a name (R896): a later document is
-        // numbered, and a filed estimate or an offered file, between the two
-        // reports' documents, keeps the name it was filed under (R671): the
-        // send boundary takes a changed name only on a .pdf.
-        var firstEstimate = attachedKinds.Count;
-        var afterEstimates = firstEstimate + plan.FiledEstimates.Count + offered.Count;
+        // numbered, and a Case file staff did not rename, between the two
+        // reports' documents, keeps the name it was filed under (R671); one
+        // staff renamed is numbered as a renamed document is (R1176).
+        var firstCaseFile = documents.Count;
         named = CaseReportDeliveryNaming.Distinct(
-            named, index => index >= firstEstimate && index < afterEstimates);
+            named,
+            index => index >= firstCaseFile
+                && index < firstCaseFile + caseFiles.Length
+                && string.IsNullOrWhiteSpace(caseFileNames[index - firstCaseFile]));
 
         // A reply to the instruction email, or a new message when there is
         // none, from the mailbox staff chose or else the default (R655).

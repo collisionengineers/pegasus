@@ -45,6 +45,7 @@ internal sealed class EfFiledEstimateAttachmentQueries(
                 orderby occurrence.Ordinal, version.CreatedAtUtc
                 select new
                 {
+                    OccurrenceId = occurrence.Id,
                     version.DocumentId,
                     VersionId = version.Id,
                     version.Sha256,
@@ -61,7 +62,8 @@ internal sealed class EfFiledEstimateAttachmentQueries(
                 .Select(row => new FiledEstimateAttachment(
                     new StaffMailAttachment(
                         row.DocumentId, row.VersionId, row.Sha256, row.ContentLength, row.FileName, row.MediaType),
-                    row.RecognisedEstimateProvider))
+                    row.RecognisedEstimateProvider,
+                    row.OccurrenceId))
                 .Where(estimate => IsSendable(estimate.Attachment))
                 .DistinctBy(estimate => estimate.Attachment.VersionId)
         ];

@@ -532,6 +532,30 @@ public sealed class StaffMailSendTests
                 new(mail with { Attachments = [deliveryAttachment, companion with { FileName = ".pdf" }] },
                     report with { Artifacts = [custodyAttachment, companion] }),
                 CancellationToken.None));
+
+        // A Case file staff renamed travels under its own extension
+        // (R1175); one that drops it is refused.
+        var photo = filedCompanion with { FileName = "invoice.jpg", MediaType = "image/jpeg" };
+        var photoReport = report with { Artifacts = [custodyAttachment, photo] };
+        var photoTransport = new Transport();
+        var photoSend = new StaffMailSend(
+            new Store(),
+            new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
+            new Reader(bytes, custodyAttachment, photo),
+            photoTransport,
+            TimeProvider.System,
+            new ExecutionLock(), NoJobs, NoConfirm);
+        var withPhoto = await new StaffReportSend(readiness, photoSend).SendAsync(
+            new(mail with { OperationKey = "op-photo", Attachments = [deliveryAttachment, photo with { FileName = "Repair invoice.jpg" }] },
+                photoReport),
+            CancellationToken.None);
+        Assert.Equal(StaffMailState.Submitted, withPhoto.State);
+        Assert.Equal([deliveryAttachment.FileName, "Repair invoice.jpg"], photoTransport.AttachedNames);
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(
+                new(mail with { OperationKey = "op-photo-gif", Attachments = [deliveryAttachment, photo with { FileName = "Repair invoice.gif" }] },
+                    photoReport),
+                CancellationToken.None));
     }
 
     /// <summary>
