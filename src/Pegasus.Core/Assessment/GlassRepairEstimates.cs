@@ -266,13 +266,76 @@ public static class GlassRepairEstimateSessionPolicy
     public static bool CanClose(GlassRepairEstimateSessionState state) =>
         OccupiesAccount(state) && state != GlassRepairEstimateSessionState.Importing;
 
+    /// <summary>
+    /// The failure code of a finish refused because the Automation's estimate
+    /// holds no position: nothing is saved, and the session stays open so it
+    /// can be built on or closed (design 07 section 3.2).
+    /// </summary>
+    public const string AutomationEmptyFailureCode = "glass.automation.empty";
+
+    /// <summary>
+    /// Who may run a Glass's session at all: a member of staff, under their
+    /// own Glass's login, or the Automation actor, under the login the
+    /// deployment holds for it (operator, 18 November 2026; R1177). Never the
+    /// system worker or a Principal. Whose session it is is
+    /// <see cref="RequireActor"/>'s.
+    /// </summary>
+    public static void RequireSessionActor(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind is not (ActorKind.Staff or ActorKind.Automation))
+        {
+            throw new InvalidOperationException("Only staff or the Automation can run a Glass's session.");
+        }
+    }
+
+    /// <summary>
+    /// Whether the actor is the session's owner: the member of staff who
+    /// launched a staff session, or, for a session the Automation owns, any
+    /// Automation actor whatever its grant, because the grant is renewed
+    /// every fortnight and the session outlives it.
+    /// </summary>
+    public static bool IsOwner(ActionActor actor, GlassRepairEstimateSession session)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(session);
+        return session.OwnerKind == ActorKind.Automation
+            ? actor.Kind == ActorKind.Automation
+            : actor.Kind == ActorKind.Staff
+                && Guid.TryParse(actor.SubjectId, out var staffId)
+                && staffId == session.PegasusUserId;
+    }
+
+    /// <summary>The session's owner, or the refusal every act on another's session gets.</summary>
+    public static void RequireActor(ActionActor actor, GlassRepairEstimateSession session)
+    {
+        if (!IsOwner(actor, session))
+        {
+            throw new GlassRepairEstimateSessionConflictException(
+                GlassRepairEstimateSessionConflict.Callback,
+                session.Id,
+                session.OwnerKind == ActorKind.Automation
+                    ? "This Glass's session belongs to the Automation."
+                    : "This Glass's session belongs to another staff member.");
+        }
+    }
+
+    /// <summary>
+    /// Who may close a session: its owner, or, for a session the Automation
+    /// owns, any member of staff, because no person holds it and it has no
+    /// lifetime (operator, 18 November 2026; R1180). The Case page asks first
+    /// that they can open the Case's assessment. One predicate, so the rule
+    /// can be narrowed in one place.
+    /// </summary>
+    public static bool MayClose(ActionActor actor, GlassRepairEstimateSession session) =>
+        IsOwner(actor, session)
+        || (actor.Kind == ActorKind.Staff && session.OwnerKind == ActorKind.Automation);
+
     public static void ValidateClosure(
         GlassRepairEstimateCloseRequest request, GlassRepairEstimateSession session)
     {
         ArgumentNullException.ThrowIfNull(request.Actor);
-        if (request.Actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
-            || staffId != session.PegasusUserId)
+        if (!MayClose(request.Actor, session))
         {
             throw new GlassRepairEstimateRefusalException("This Glass's session belongs to another staff member.");
         }
@@ -337,6 +400,20 @@ public sealed record GlassRepairEstimateSession(
     /// outcome as it is reached, and the Glass's repair spec it landed as.
     /// </summary>
     public GlassEstimateBuild? Build { get; init; }
+
+    /// <summary>
+    /// Who runs the session: a member of staff (<see cref="PegasusUserId"/>),
+    /// or the Automation actor, whose session names no member of staff
+    /// (<see cref="Guid.Empty"/>) and signs in with the login the deployment
+    /// holds for it (operator, 18 November 2026; R1177).
+    /// </summary>
+    public ActorKind OwnerKind { get; init; } = ActorKind.Staff;
+
+    /// <summary>
+    /// What an Automation session has done that the Automation and the Case
+    /// page read without the protected state; null for a staff session.
+    /// </summary>
+    public GlassAutomationWork? Automation { get; init; }
 }
 /// <summary>
 /// A launch. <paramref name="SessionId"/> is the id a new session takes, chosen
@@ -381,7 +458,13 @@ public enum GlassRepairEstimateContinuation
     Import,
 
     /// <summary>A launch that rebuilds the spec on the screen in Glass's, then brings it back.</summary>
-    Build
+    Build,
+
+    /// <summary>The Automation's start: the launch, or its reopen, then the editor opened and kept.</summary>
+    AutomationStart,
+
+    /// <summary>The Automation's finish: Save and Exit in the editor, then the return and the import.</summary>
+    AutomationFinish
 }
 
 /// <summary>
@@ -390,6 +473,16 @@ public enum GlassRepairEstimateContinuation
 /// </summary>
 public sealed record GlassRepairEstimateStep(
     GlassRepairEstimateSession Session, GlassRepairEstimateContinuation Continuation);
+
+/// <summary>
+/// The Automation's finish of its own session: the session version it read,
+/// and the Case version and edit lease the Case's one-command lease proved,
+/// which replace the protected import authority (FRD-25). The operation key
+/// is the finish's own: the same key answers the session as it stands.
+/// </summary>
+public sealed record GlassAutomationFinishRequest(
+    ActionActor Actor, Guid SessionId, long ExpectedVersion,
+    long ExpectedCaseVersion, string LeaseToken, string OperationKey);
 
 /// <summary>
 /// The provider work a step left owed, run for the staff member who asked for
@@ -456,7 +549,59 @@ public interface IGlassRepairEstimateGateway
     /// </summary>
     Task<Uri?> GetEstimatorUrlAsync(
         ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Automation's start, prepare half (design 07 section 3.2): the Case
+    /// authority, the unchanged vehicle, the Automation's login and the
+    /// account's one live slot are proved, and a new session is recorded
+    /// before anything reaches Glass's. It never reopens a spec already on
+    /// the Case. The Automation's own live session on the same Case is
+    /// continued instead; a replay of the operation key owes nothing.
+    /// </summary>
+    Task<GlassRepairEstimateStep> PrepareAutomationLaunchAsync(
+        GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Automation's start, provider work: the launch stages, or the
+    /// reopen of an estimate already started, then the editor opened and kept
+    /// in the protected state so it stays open between the Automation's calls.
+    /// </summary>
+    Task<GlassRepairEstimateSession> ContinueAutomationStartAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Automation's finish, prepare half: an open session with its
+    /// editor is claimed for its save under the proved Case authority; a held
+    /// estimate is claimed for its import.
+    /// </summary>
+    Task<GlassRepairEstimateStep> PrepareAutomationFinishAsync(
+        GlassAutomationFinishRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Automation's finish, provider work: the estimate read, nothing
+    /// saved when it holds no position, otherwise Save and Exit and the
+    /// return imported as a Draft.
+    /// </summary>
+    Task<GlassRepairEstimateSession> ContinueAutomationFinishAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The positions the Automation's open estimate holds, asked of Glass's
+    /// with one request; null when its editor is not open. The editor's
+    /// cookies and pace are kept, so the session's version moves.
+    /// </summary>
+    Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
+        ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// What an Automation session's open estimate holds, as the editor's
+/// <c>selected.php</c> lists it: each position's id and the codes on the
+/// estimate; the page carries no more. Both are null when Glass's did not
+/// answer, and the session, as the read left it, carries the code.
+/// </summary>
+public sealed record GlassAutomationEstimate(
+    GlassRepairEstimateSession Session, IReadOnlyList<string>? PositionIds, IReadOnlyList<string>? Codes);
 
 /// <summary>
 /// Whether this host composes Glass's at all. A host without the provider's

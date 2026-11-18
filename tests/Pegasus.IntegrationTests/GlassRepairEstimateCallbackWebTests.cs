@@ -50,6 +50,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
     internal const string CallbackRoute = "/Integrations/Glass/Callback/";
     internal const string OpeningRoute = "/Integrations/Glass/Opening/";
     private const string FixtureAccount = "glass-fixture-account";
+
+    /// <summary>The Automation's own Glass's login on this host (R1177): a made-up username.</summary>
+    internal const string AutomationAccount = "glass-automation-fixture";
     private const string FixtureSecret = "glass-fixture-value-not-a-secret";
 
     /// <summary>A Glass's account key shaped like the one Stream A's store mints.</summary>
@@ -1219,6 +1222,26 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Task<Uri?> GetEstimatorUrlAsync(
             ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
             inner.GetEstimatorUrlAsync(actor, material, cancellationToken);
+
+        public Task<GlassRepairEstimateStep> PrepareAutomationLaunchAsync(
+            GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationLaunchAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> ContinueAutomationStartAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationStartAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateStep> PrepareAutomationFinishAsync(
+            GlassAutomationFinishRequest request, CancellationToken cancellationToken) =>
+            inner.PrepareAutomationFinishAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession> ContinueAutomationFinishAsync(
+            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
+            inner.ContinueAutomationFinishAsync(request, cancellationToken);
+
+        public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
+            ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+            inner.ReadAutomationEstimateAsync(actor, sessionId, cancellationToken);
     }
 
     /// <summary>
@@ -1281,6 +1304,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ["Glass:ExportTimeoutSeconds"] = "5",
                     ["Glass:EditorPauseMilliseconds"] =
                         editorPauseMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    // The Automation's own login (R1177); made-up values.
+                    ["Glass:AutomationAccount:Username"] = AutomationAccount,
+                    ["Glass:AutomationAccount:Password"] = "automation-synthetic-password",
                 })
                 {
                     builder.UseSetting(key, value);
