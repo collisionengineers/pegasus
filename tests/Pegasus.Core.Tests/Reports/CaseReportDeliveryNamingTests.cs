@@ -257,6 +257,38 @@ public sealed class CaseReportDeliveryNamingTests
         Assert.EndsWith("n (2).pdf", bounded[1].FileName, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Operator, 18 November 2026 (R1175, R1176): a Case file staff rename
+    /// for a send keeps its own extension, under custody's rule (R895); a
+    /// blank name leaves its filed name; a file filed with no extension is
+    /// renamed whole; and a numbered one keeps its extension (R896).
+    /// </summary>
+    [Fact]
+    public void ACaseFileRenamedKeepsItsOwnExtension()
+    {
+        var photo = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(), new string('d', 64), 40, "IMG_0001.jpg", "image/jpeg");
+
+        Assert.Equal(photo, CaseReportDeliveryNaming.CaseFileNamed(photo, null));
+        Assert.Equal(photo, CaseReportDeliveryNaming.CaseFileNamed(photo, "  "));
+        Assert.Equal(
+            photo with { FileName = "Garage estimate_.jpg" },
+            CaseReportDeliveryNaming.CaseFileNamed(photo, " Garage estimate?.jpg "));
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryNaming.CaseFileNamed(photo, "Garage estimate.pdf"));
+        Assert.Throws<ArgumentException>(() => CaseReportDeliveryNaming.CaseFileNamed(photo, " .jpg"));
+        var longest = new string('n', CaseReportDeliveryNaming.MaximumFileNameLength - 4) + ".jpg";
+        Assert.Equal(longest, CaseReportDeliveryNaming.CaseFileNamed(photo, longest).FileName);
+        Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryNaming.CaseFileNamed(photo, "n" + longest));
+        Assert.Equal(
+            "Garage estimate",
+            CaseReportDeliveryNaming.CaseFileNamed(photo with { FileName = "estimate" }, "Garage estimate").FileName);
+
+        var numbered = CaseReportDeliveryNaming.Distinct(
+            [photo with { FileName = "Estimate.jpg" }, photo with { VersionId = Guid.NewGuid(), FileName = "estimate.JPG" }],
+            _ => false);
+        Assert.Equal(["Estimate.jpg", "estimate (2).JPG"], numbered.Select(attachment => attachment.FileName).ToArray());
+    }
+
     [Fact]
     public void TheAddressBookOffersTheCasesOwnAddressesAndThePrincipals()
     {
