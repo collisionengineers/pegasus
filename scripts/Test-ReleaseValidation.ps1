@@ -100,6 +100,10 @@ function New-ValidPreProvisionEnvironment {
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-valuation-username/version-one'
         GLASS_VALUATION_PASSWORD_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-valuation-password/version-one'
+        GLASS_AUTOMATION_USERNAME_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-automation-username/version-one'
+        GLASS_AUTOMATION_PASSWORD_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/glass-automation-password/version-one'
         CAZANA_COMPANION_EMAIL_SECRET_URI =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/cazana-companion-email/version-one'
         CAZANA_COMPANION_PASSWORD_SECRET_URI =
@@ -832,7 +836,8 @@ try {
 
     foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GITHUB_PROBLEM_REPORT_REPOSITORY', 'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI', 'CAZANA_COMPANION_EMAIL_SECRET_URI',
+        'GLASS_VALUATION_PASSWORD_SECRET_URI', 'GLASS_AUTOMATION_USERNAME_SECRET_URI',
+        'GLASS_AUTOMATION_PASSWORD_SECRET_URI', 'CAZANA_COMPANION_EMAIL_SECRET_URI',
         'CAZANA_COMPANION_PASSWORD_SECRET_URI', 'BREGO_VALUATION_EMAIL_SECRET_URI',
         'BREGO_VALUATION_PASSWORD_SECRET_URI', 'EXPERIAN_BASE_URI', 'EXPERIAN_TOKEN_URI',
         'EXPERIAN_CLIENT_ID_SECRET_URI', 'EXPERIAN_CLIENT_SECRET_SECRET_URI',
@@ -852,6 +857,7 @@ try {
 
     foreach ($key in 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GLASS_VALUATION_USERNAME_SECRET_URI', 'GLASS_VALUATION_PASSWORD_SECRET_URI',
+        'GLASS_AUTOMATION_USERNAME_SECRET_URI', 'GLASS_AUTOMATION_PASSWORD_SECRET_URI',
         'CAZANA_COMPANION_EMAIL_SECRET_URI', 'CAZANA_COMPANION_PASSWORD_SECRET_URI',
         'BREGO_VALUATION_EMAIL_SECRET_URI', 'BREGO_VALUATION_PASSWORD_SECRET_URI',
         'EXPERIAN_CLIENT_ID_SECRET_URI', 'EXPERIAN_CLIENT_SECRET_SECRET_URI',
