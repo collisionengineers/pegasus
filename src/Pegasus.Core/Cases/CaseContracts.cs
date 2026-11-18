@@ -29,7 +29,14 @@ public sealed record Principal(
     // What its reports are called (6 November 2026, R740); none means the standard names.
     PrincipalReportNames? ReportNames = null,
     // The VAT number its fee notes print (12 November 2026, R1006); null means the standard number.
-    string? FeeNoteVatNumber = null)
+    string? FeeNoteVatNumber = null,
+    // What its standalone Audits work from (17 November 2026, R1138); a new Audit takes it at creation.
+    AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+    // The invoice Generate report also makes in its own name (R1147), and the
+    // VAT number and payment terms that invoice prints (R1148); null leaves the row out.
+    PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
+    string? InvoiceVatNumber = null,
+    string? InvoicePaymentTerms = null)
 {
     /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8). Every
@@ -147,7 +154,47 @@ public readonly record struct CaseVehicleGate(bool RegistrationRecorded, bool Mi
     /// </summary>
     public static CaseVehicleGate Open => new(true, true);
 
-    public bool IsOpen => RegistrationRecorded && MileageRecorded;
+    /// <summary>
+    /// A Garage authorisation and invoice Audit also needs the garage's
+    /// estimate, a confirmed External estimate, on its way into Review
+    /// (operator, 17 November 2026; R1141). True on every other Case, and once
+    /// the Case has passed the gate.
+    /// </summary>
+    public bool ExternalEstimateFiled { get; init; } = true;
+
+    /// <summary>
+    /// Such an Audit waits in Not ready, after the garage is authorised, for
+    /// the repairer's invoice, a confirmed Repair invoice (R1144). True on
+    /// every other Case and in every other state.
+    /// </summary>
+    public bool RepairInvoiceFiled { get; init; } = true;
+
+    public bool IsOpen => RegistrationRecorded && MileageRecorded && ExternalEstimateFiled && RepairInvoiceFiled;
+}
+
+/// <summary>
+/// What a Garage authorisation and invoice Audit holds towards its two waits
+/// (R1141, R1143, R1144): whether the Case is one, whether its garage is
+/// authorised, whether its recorded Outcome waives the authorisation and the
+/// invoice (total loss or cash in lieu), and whether a confirmed External
+/// estimate and a confirmed Repair invoice are filed on it.
+/// </summary>
+public readonly record struct CaseGarageFacts(
+    bool Applies,
+    bool Authorised,
+    bool Waived,
+    bool ExternalEstimateFiled,
+    bool RepairInvoiceFiled)
+{
+    /// <summary>The facts of a Case that is not a Garage authorisation and invoice Audit.</summary>
+    public static CaseGarageFacts None => default;
+
+    /// <summary>
+    /// The Case is Not ready because its garage is authorised and its repair
+    /// invoice has not arrived, not because it has yet to reach Review.
+    /// </summary>
+    public bool AwaitsRepairInvoice(CaseLifecycleState? state) =>
+        state == CaseLifecycleState.NotReady && Applies && Authorised;
 }
 
 public sealed record CaseIdentity(
@@ -292,7 +339,11 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     decimal DefaultFee,
     long ExpectedContactVersion,
     PrincipalReportNames? ReportNames = null,
-    string? FeeNoteVatNumber = null);
+    string? FeeNoteVatNumber = null,
+    AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
+    PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
+    string? InvoiceVatNumber = null,
+    string? InvoicePaymentTerms = null);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

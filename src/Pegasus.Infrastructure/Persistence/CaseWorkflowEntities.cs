@@ -12,6 +12,10 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     // When State last changed, so Review and Held ageing count from the transition.
     public DateTimeOffset? StateEnteredAtUtc { get; set; }
     public Guid? AssignedEngineerId { get; set; }
+    // When the Engineer marked the garage authorised on a Garage authorisation
+    // and invoice Audit (R1142); null until then and after Undo. Who did it is
+    // the workflow event's actor.
+    public DateTimeOffset? GarageAuthorisedAtUtc { get; set; }
     public Guid? SignOffEngineerId { get; set; }
     public Guid? ReportApprovalId { get; set; }
     public CaseReportApprovalEntity? ReportApproval { get; set; }

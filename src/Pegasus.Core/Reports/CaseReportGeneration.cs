@@ -52,6 +52,15 @@ public enum CaseReportArtifactKind
     FeeNote,
     RepairSpecification,
     ImagePack,
+
+    /// <summary>
+    /// The Principal's own invoice to its client for the repair cost the
+    /// report assessed, in the Principal's name (the ULA Invoice): a companion
+    /// of the confirmed report rendered from the same frozen snapshot, as the
+    /// fee note is, and only for a Repairable or Contract repair outcome
+    /// (R1147, R1162). Last, because other code orders by this enum's value.
+    /// </summary>
+    PrincipalInvoice,
 }
 
 /// <summary>
@@ -669,7 +678,10 @@ public sealed record CaseReportReadinessInput(
     RepairSpecificationVersion? CurrentEstimate,
     AppliedValuation? AppliedValuation,
     IReadOnlyList<CaseAssetPreparation> Preparations,
-    IReadOnlyDictionary<Guid, DocumentVersion> ConfirmedImageSources);
+    IReadOnlyDictionary<Guid, DocumentVersion> ConfirmedImageSources,
+    // What a Garage authorisation and invoice Audit's report waits for
+    // (R1151); none on any other Case.
+    CaseGarageFacts Garage = default);
 
 public sealed record CaseReportReadinessResult(
     IReadOnlyList<AssessmentReadinessItem> Reasons,
@@ -701,6 +713,8 @@ public static class CaseReportReadiness
     public const string ImageSourceRequirement = "Report image sources";
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
+    public const string GarageAuthorisationRequirement = "Authorise garage";
+    public const string RepairInvoiceRequirement = "Repair invoice";
 
     // Staff cannot clear these two on the Case: the name and signature are
     // the account's (operator, 26 September 2026).
@@ -737,6 +751,26 @@ public static class CaseReportReadiness
         EngineerRequirement, "Case record",
         CaseLifecycleRules.AssignedEngineerRequired,
         "Assign Engineer");
+
+    /// <summary>
+    /// A Garage authorisation and invoice Audit whose garage is not yet
+    /// authorised (operator, 17 November 2026; R1142, R1151). No Case section
+    /// clears it: the Next action's Mark done does, so it links none. Its
+    /// words and the Repair invoice blocker's are the operator's (R1164).
+    /// </summary>
+    public static readonly AssessmentReadinessItem GarageAuthorisationMissing = new(
+        GarageAuthorisationRequirement, "Case record",
+        "The garage has not been authorised.",
+        "Mark done");
+
+    /// <summary>
+    /// Such an Audit with no confirmed Repair invoice among its files (R1151).
+    /// Files clears it.
+    /// </summary>
+    public static readonly AssessmentReadinessItem RepairInvoiceMissing = new(
+        RepairInvoiceRequirement, "Case files",
+        "No Repair invoice is filed on the Case.",
+        "File the repairer's invoice on Files with the type Repair invoice.");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
@@ -789,6 +823,14 @@ public static class CaseReportReadiness
         }
 
         Require(input.AssignedEngineerId is not null, AssignedEngineerMissing);
+        // A Garage authorisation and invoice Audit's report waits for the
+        // garage's authorisation and the repairer's invoice, unless its
+        // Outcome is a total loss or cash in lieu (R1143, R1151).
+        if (input.Garage is { Applies: true, Waived: false })
+        {
+            Require(input.Garage.Authorised, GarageAuthorisationMissing);
+            Require(input.Garage.RepairInvoiceFiled, RepairInvoiceMissing);
+        }
         var signatory = CaseSignOffEngineerResolver.Resolve(
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,
@@ -963,6 +1005,33 @@ public sealed class GenerateCaseReport(
             Kind: CaseReportArtifactKind.FeeNote,
             Status: CaseReportArtifactStatus.Confirmed,
         })
+            ? generation.Id
+            : null;
+
+    /// <summary>
+    /// The generation the Principal's own invoice (the ULA Invoice) is made
+    /// for once a report request has run, as <see cref="FeeNoteTargetOf"/>
+    /// pairs the fee note: the report's own, when the generation is Confirmed
+    /// with a Confirmed report artifact, its frozen report has an invoice to
+    /// make (<see cref="UlaInvoiceCalculation.IsDue"/>: a Total loss and a
+    /// Cash in lieu have none, R1143), and it has no Confirmed invoice yet;
+    /// null otherwise, and for any other kind (R1147).
+    /// </summary>
+    public static Guid? PrincipalInvoiceTargetOf(
+        CaseReportArtifactKind requested, CaseReportGenerationRecord? generation) =>
+        requested == CaseReportArtifactKind.AssessmentReport
+        && generation is { State: CaseReportGenerationState.Confirmed }
+        && generation.Artifacts.Any(artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.AssessmentReport,
+            Status: CaseReportArtifactStatus.Confirmed,
+        })
+        && !generation.Artifacts.Any(artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.PrincipalInvoice,
+            Status: CaseReportArtifactStatus.Confirmed,
+        })
+        && UlaInvoiceCalculation.IsDue(generation.Snapshot.Report)
             ? generation.Id
             : null;
 

@@ -211,6 +211,27 @@ The Principal section of a Contact carries:
   number, 262 0937 10, which every Principal starts with. A successor code
   inherits its predecessor's
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches));
+- the Audit workflow (operator, 17 November 2026; [R1138](../rulings.md)),
+  saved with the report settings: Original engineer report, which every
+  Principal starts with, or Garage authorisation & invoice. A standalone Audit
+  takes its Principal's workflow when it is created and keeps it, so changing
+  the setting changes no Case that already exists. A successor code inherits
+  its predecessor's
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
+- the Principal's own invoice (operator, 17 November 2026;
+  [R1147](../rulings.md), [R1148](../rulings.md), [R1162](../rulings.md)),
+  saved with the report settings: None, which every Principal starts with, or
+  ULA Invoice, the invoice Generate report also makes in the Principal's own
+  name. With it go an Invoice VAT number of 20 characters at most and Invoice
+  payment terms of 100 at most, each printed as typed and left off the
+  invoice when empty. Generate report reads the setting and the two values
+  when it freezes the report, and makes the ULA Invoice from them
+  ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)).
+  A successor code inherits its predecessor's. United
+  Legal Assistance Limited, code `ULA`, is the one Principal seeded on the
+  Garage authorisation & invoice workflow with the ULA Invoice
+  ([R1145](../rulings.md), [R1152](../rulings.md)), its report sending rules
+  the defaults with both Offer ticks on ([R1151](../rulings.md));
 - the report names (operator, 6 November 2026; R740), saved with the report
   settings: what an Inspection report and an Audit report are called, each
   for a first send and for a re-send, in text with the tokens `{REG}`,
@@ -247,14 +268,17 @@ The Principal section of a Contact carries:
     instruction's Cc list, and removal wins;
   - Attach: whether the fee note is a separate PDF, whether the Case's filed
     estimate or Audatex document goes too, whether the report carries
-    vehicle images, and whether a vehicle images document or a figure
-    breakdown is required first. Garage figures reminds staff, on a
+    vehicle images, whether a vehicle images document or a figure
+    breakdown is required first, and whether the send form offers the
+    Case's External estimates and Repair invoices, unticked ("Offer
+    external estimates (unticked)" and "Offer repair invoices (unticked)";
+    operator, 17 November 2026; [R1151](../rulings.md)). Garage figures reminds staff, on a
     repairable outcome, to send the figures to the garage after sending;
   - Hold is text staff must tick as done before Send. Reminders become tasks
     when the report is recorded as sent. What the report is called is the
     report names above, not a sending rule (R740);
   - Rules add Cc or remove Cc, remind, hold or stop when their conditions
-    hold. A rule may also set the five Attach choices other than report
+    hold. A rule may also set the seven Attach choices other than report
     images for that send, each As the Principal, Attach or Do not attach;
     a later rule wins. A rule's Rate card adds the after-sending task "Check
     the report's estimate against the Connexus Repair Rate Card."; no

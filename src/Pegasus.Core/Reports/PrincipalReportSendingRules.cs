@@ -83,12 +83,15 @@ public sealed record ReportSendingAttachOverride(
     bool? Estimate = null,
     bool? Audatex = null,
     bool? VehicleImagesDocument = null,
-    bool? FigureBreakdown = null)
+    bool? FigureBreakdown = null,
+    bool? OfferExternalEstimates = null,
+    bool? OfferRepairInvoices = null)
 {
     [JsonIgnore]
     public bool IsEmpty =>
         FeeNoteSeparate is null && Estimate is null && Audatex is null
-        && VehicleImagesDocument is null && FigureBreakdown is null;
+        && VehicleImagesDocument is null && FigureBreakdown is null
+        && OfferExternalEstimates is null && OfferRepairInvoices is null;
 
     /// <summary><paramref name="attach"/> with the flags this override names replaced.</summary>
     public ReportSendingAttachments Over(ReportSendingAttachments attach) => attach with
@@ -97,7 +100,9 @@ public sealed record ReportSendingAttachOverride(
         Estimate = Estimate ?? attach.Estimate,
         Audatex = Audatex ?? attach.Audatex,
         VehicleImagesDocument = VehicleImagesDocument ?? attach.VehicleImagesDocument,
-        FigureBreakdown = FigureBreakdown ?? attach.FigureBreakdown
+        FigureBreakdown = FigureBreakdown ?? attach.FigureBreakdown,
+        OfferExternalEstimates = OfferExternalEstimates ?? attach.OfferExternalEstimates,
+        OfferRepairInvoices = OfferRepairInvoices ?? attach.OfferRepairInvoices
     };
 }
 
@@ -115,7 +120,11 @@ public sealed record ReportSendingRule(
 /// attaches the Case's recognised filed estimates in the Audatex format and
 /// <see cref="Estimate"/> the recognised ones in any other format.
 /// <see cref="ReportImages"/> false means this Principal's report is generated
-/// without vehicle images.
+/// without vehicle images. <see cref="OfferExternalEstimates"/> and
+/// <see cref="OfferRepairInvoices"/> list the Case's confirmed External
+/// estimates and Repair invoices in the Send report dialog, unticked
+/// (operator, 17 November 2026; R1151); like a rule's Rate card they are
+/// stored only when on, so rules saved before them read the same.
 /// </summary>
 public sealed record ReportSendingAttachments(
     bool FeeNoteSeparate = true,
@@ -123,7 +132,9 @@ public sealed record ReportSendingAttachments(
     bool Audatex = false,
     bool ReportImages = true,
     bool VehicleImagesDocument = false,
-    bool FigureBreakdown = false)
+    bool FigureBreakdown = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OfferExternalEstimates = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OfferRepairInvoices = false)
 {
     public static ReportSendingAttachments Default { get; } = new();
 }

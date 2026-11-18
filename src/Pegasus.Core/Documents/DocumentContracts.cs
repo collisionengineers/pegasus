@@ -97,11 +97,23 @@ public enum DocumentSemanticRole
     AuditReport,
 
     /// <summary>
-    /// A repair estimate: the estimate import's stored file, in any format, and
-    /// a Glass's session's XML export, calculation sheet and rejected export
-    /// (operator, 22 October 2026).
+    /// An estimate Collision Engineers produced: a Glass's session's XML
+    /// export, calculation sheet and rejected export (operator, 22 October
+    /// 2026), or one staff type so (operator, 17 November 2026; R1139).
     /// </summary>
-    Estimate,
+    CeEstimate,
+
+    /// <summary>
+    /// A repairer's or another provider's estimate: the estimate import's
+    /// stored file, in any format, or one staff type so (R1139).
+    /// </summary>
+    ExternalEstimate,
+
+    /// <summary>
+    /// The repairer's invoice for the repair, typed by staff or the
+    /// Automation Actor (R1139, R1140).
+    /// </summary>
+    RepairInvoice,
 
     /// <summary>
     /// A guide valuation report, or market research findings produced outside

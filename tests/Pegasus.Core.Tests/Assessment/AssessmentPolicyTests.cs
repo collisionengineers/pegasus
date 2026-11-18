@@ -15,10 +15,19 @@ public sealed class AssessmentPolicyTests
     {
         var paths = new[] { AssessmentVocabulary.OriginalReportAssessor };
         Assert.Throws<InvalidOperationException>(() =>
-            AssessmentPolicy.RequireOriginalReportScope(paths, CaseType.Inspection));
-        AssessmentPolicy.RequireOriginalReportScope(paths, CaseType.Audit);
+            AssessmentPolicy.RequireOriginalReportScope(
+                paths, CaseType.Inspection, AuditWorkflowKind.OriginalEngineerReport));
+        AssessmentPolicy.RequireOriginalReportScope(paths, CaseType.Audit, AuditWorkflowKind.OriginalEngineerReport);
+        var outcomeOnly = new[] { AssessmentVocabulary.Outcome };
         AssessmentPolicy.RequireOriginalReportScope(
-            new[] { AssessmentVocabulary.Outcome }, CaseType.Inspection);
+            outcomeOnly, CaseType.Inspection, AuditWorkflowKind.OriginalEngineerReport);
+        // A Garage authorisation and invoice Audit has no original report (R1138).
+        var refused = Assert.Throws<InvalidOperationException>(() =>
+            AssessmentPolicy.RequireOriginalReportScope(
+                paths, CaseType.Audit, AuditWorkflowKind.GarageAuthorisationAndInvoice));
+        Assert.Equal(PrincipalAuditWorkflowPolicy.NoOriginalReport, refused.Message);
+        AssessmentPolicy.RequireOriginalReportScope(
+            outcomeOnly, CaseType.Audit, AuditWorkflowKind.GarageAuthorisationAndInvoice);
     }
 
     private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");

@@ -266,6 +266,12 @@ source and Repairer, which the report sending rules read, and what still
 holds the Case from being ready: its unmet requirements, the instruction
 items still missing, a failed document storage and a missing original
 report, as the Not ready queue and the Case's Next action name them (R929).
+It also returns the Case's Audit workflow and, on a Garage authorisation &
+invoice Audit, when the garage was marked authorised; `pegasus_case_action`
+takes `authorise_garage`, with no reason, and `undo_garage_authorisation`,
+with one, under the rules the Case page follows (operator, 17 November 2026;
+[R1142](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 `pegasus_assessment_get` returns Case facts under `caseOwned`. The Case's
 Received date, which is its instruction date, is read-only:
 `caseOwned.receivedDate` and the Case summary's `receivedAtUtc` carry it, and
@@ -296,14 +302,21 @@ A Case is never deleted.
 report generations with their artifacts, filing state and SHA-256, the
 recorded report approval, the linked report-Sent evidence and the retained
 Sent evidence available to link. `pegasus_report_action` generates the report,
-which goes on to make its separate fee note, and the Repair Spec and images
-documents of a confirmed generation; records report approval of one stored
+which goes on to make its separate fee note and then, for a Principal whose
+setting asks for it, the ULA Invoice (operator, 17 November 2026;
+[R1147](../rulings.md);
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
+and the Repair Spec and images documents of a confirmed generation; records
+report approval of one stored
 artifact; and links or unlinks report-Sent evidence, each through the staff
 command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 Report approval is by staff or the Automation actor (operator, 7 October
 2026). A report that is not ready answers with its readiness reasons and
 records nothing. An approval, archive or evidence link the Actor records is
-attributed to it and reads back as the Automation actor.
+attributed to it and reads back as the Automation actor. A generate_report
+result gives the fee note's outcome as `feeNoteOutcome` and the ULA Invoice's
+as `principalInvoiceOutcome`, each null when none was made; there is no act
+that makes the ULA Invoice on its own.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
 it in the report or takes it out, marks the Audit's original report, changes
@@ -359,8 +372,14 @@ its parameters describe.
   no hold and overrides no Stop of the Principal's report sending rules
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)).
   It holds the Case's lease for its one send unless a lease token is
-  presented. Its result is the send's state and `attachments`, the file
-  names the e-mail carries, in order (R703); a caller reports what was sent
+  presented. Its `attach` takes `FeeNote`, `PrincipalInvoice` (the ULA
+  Invoice), `RepairSpecification` and `ImagePack`. Its `caseDocumentIds`
+  names, by occurrence, the offered Case files to attach as well: the
+  Case's confirmed External estimates and Repair invoices the Principal's
+  rules offer; one that is not offered is refused as the send form refuses
+  it (operator, 17 November 2026; [R1151](../rulings.md)). Its result is the send's
+  state and `attachments`, the file names the e-mail carries, in order
+  (R703); a caller reports what was sent
   from `attachments`, not from what it asked for (R704).
 - `pegasus_mail_send` is the staff mail send with a `mode`: `chaser` is the
   Case's **Send chaser**, recorded as the Case's chaser; `reply`,
@@ -682,7 +701,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
-| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase | one-command lease |
+| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase, authorise_garage, undo_garage_authorisation | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open (logged by its channel), mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |

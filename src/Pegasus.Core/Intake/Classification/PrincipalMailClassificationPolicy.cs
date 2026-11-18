@@ -35,11 +35,15 @@ namespace Pegasus.Core.Intake;
 /// report" as their instruction tell, beside the DFD and FW template tells;
 /// their earlier letters ask to inspect the vehicle and pass the generic
 /// request (operator, 9 November 2026, R829).
+///
+/// Version 7 takes a selected United Legal Assistance letter as a standalone
+/// Audit by its signature alone, with no original report to evaluate
+/// (operator, 17 November 2026; R1138, R1155).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 6;
+    public const int Version = 7;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -277,8 +281,15 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
         var texts = instructionContent
             .Select(fragment => StaffForwardBodyCleaner.SplitForwardedHeader(fragment.Text).Body)
             .ToArray();
-        var audit = PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
-            && texts.Any(text => text.Contains("NEW INSTRUCTION (Connexus Audit Report)", StringComparison.OrdinalIgnoreCase));
+        // Every ULA instruction is a standalone Audit: the selected content is
+        // the letter the ULA signature matched, and it carries no wording tell
+        // (operator, 17 November 2026; R1138, R1155). A ULA message no letter
+        // was selected from proves no work.
+        var standaloneUlaAudit = PrincipalCode == UlaInstructionExtractionPolicy.SupportedPrincipalCode
+            && texts.Length > 0;
+        var audit = standaloneUlaAudit
+            || (PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
+                && texts.Any(text => text.Contains("NEW INSTRUCTION (Connexus Audit Report)", StringComparison.OrdinalIgnoreCase)));
         var creditRepair = PrincipalCode == PchInstructionExtractionPolicy.SupportedPrincipalCode
             && texts.Any(text => text.Contains("CREDIT REPAIR", StringComparison.OrdinalIgnoreCase)
                 && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
@@ -302,7 +313,9 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             && (readResult.RootEmail?.ReplyIdentities is not { Count: 0 } || (!audit && !inspection));
         MailClassificationPredicateResult[] predicates =
         [
-            new("instruction.explicit-audit", audit, "The selected PCH instruction explicitly requests a Connexus Audit Report."),
+            new("instruction.explicit-audit", audit, standaloneUlaAudit
+                ? "The selected ULA instruction is a standalone Audit."
+                : "The selected PCH instruction explicitly requests a Connexus Audit Report."),
             new("instruction.explicit-inspection", inspection, "The selected instruction contains an evidenced inspection request."),
             new("subject.reply-context", isReplyContext, "The subject identifies correspondence in a reply thread.")
         ];
@@ -321,7 +334,9 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
             MailCategory.NewInstruction,
             predicates, "The selected instruction explicitly identifies the requested work.", Key, Version,
             audit ? CaseType.Audit : CaseType.Inspection,
-            audit ? EvaluateStandaloneAuditReport(readResult, instructionContent) : null);
+            // A ULA Audit has no original engineer's report to evaluate: its
+            // work waits for the garage's estimate instead (R1138).
+            audit && !standaloneUlaAudit ? EvaluateStandaloneAuditReport(readResult, instructionContent) : null);
     }
 
     private sealed record ClassificationCandidate(

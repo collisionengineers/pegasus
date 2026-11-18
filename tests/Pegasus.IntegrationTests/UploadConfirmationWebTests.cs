@@ -233,7 +233,7 @@ public sealed class UploadConfirmationWebTests
             "application/pdf",
             bytes,
             declaredCaseId: caseId,
-            documentType: Pegasus.Core.Documents.DocumentSemanticRole.Estimate);
+            documentType: Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var receiptId = IntakeWebDriver.ReceiptId(processed);
@@ -243,10 +243,10 @@ public sealed class UploadConfirmationWebTests
                 .GetAsync(receiptId, CancellationToken.None);
             Assert.NotNull(receipt);
             Assert.Equal(caseId, receipt!.DeclaredCaseId);
-            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.Estimate, receipt.DeclaredDocumentType);
+            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate, receipt.DeclaredDocumentType);
         }
         var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
-        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Estimate));
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate));
         Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image));
 
         // The same upload again, with another type: the first decision stands.
@@ -265,7 +265,7 @@ public sealed class UploadConfirmationWebTests
         {
             var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
                 .GetAsync(receiptId, CancellationToken.None);
-            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.Estimate, receipt!.DeclaredDocumentType);
+            Assert.Equal(Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate, receipt!.DeclaredDocumentType);
         }
     }
 

@@ -13,7 +13,7 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-public sealed class EfCaseWorkflowStore(
+public sealed partial class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore
 {
@@ -2516,6 +2516,8 @@ public sealed class EfCaseWorkflowStore(
         Archive = MapArchive(entity),
         SignOffEngineerId = entity.SignOffEngineerId,
         CaseType = CaseTypeCodes.Parse(entity.Case.Type),
+        AuditWorkflow = PrincipalAuditWorkflowPolicy.Parse(entity.Case.AuditWorkflow),
+        GarageAuthorisedAtUtc = entity.GarageAuthorisedAtUtc,
         HeldAtUtc = entity.HeldAtUtc,
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc,
@@ -2568,7 +2570,8 @@ public sealed class EfCaseWorkflowStore(
             entity.ArchivedAtUtc,
             entity.ArchivedBySubjectId,
             entity.ArchiveReason,
-            entity.Version);
+            entity.Version,
+            entity.GarageAuthorisedAtUtc);
 
     internal static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
         CaseReportSentEvidenceEntity entity)
@@ -2681,7 +2684,11 @@ public sealed class EfCaseWorkflowStore(
         DateTimeOffset? ArchivedAtUtc,
         string? ArchivedBySubjectId,
         string? ArchiveReason,
-        long Version);
+        long Version,
+        // Left out of every Case's history that never authorised a garage (R1142).
+        [property: System.Text.Json.Serialization.JsonIgnore(
+            Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        DateTimeOffset? GarageAuthorisedAtUtc = null);
 
     private static string RolesJson(ActionActor actor) => RolesJson(actor.Roles);
 

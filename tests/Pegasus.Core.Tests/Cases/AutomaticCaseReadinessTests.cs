@@ -142,7 +142,7 @@ public sealed class AutomaticCaseReadinessTests
     {
         // A Case already past Not ready has passed the gate (R759, R1081,
         // as R631): neither fact sends it back.
-        var gate = CaseCompletenessPolicy.VehicleGate(state, registration, mileage);
+        var gate = CaseCompletenessPolicy.VehicleGate(state, registration, mileage, CaseGarageFacts.None);
         Assert.Equal(new CaseVehicleGate(registrationRecorded, mileageRecorded), gate);
         Assert.Equal(registrationRecorded && mileageRecorded, gate.IsOpen);
     }

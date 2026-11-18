@@ -12,8 +12,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Reads the report dispatch facts of a Case: the Principal, its report
 /// sending rules and its report names, the retained instruction e-mail and the mailbox holding it,
 /// the Case's Claim Source, Repairer, type and outcome, the work whose report
-/// is being sent, the filed estimates, and whether the vehicle is a previous
-/// job.
+/// is being sent, the filed estimates, the files the Principal's Offer ticks
+/// may offer (R1151), and whether the vehicle is a previous job.
 /// </summary>
 public sealed class EfReportRecipientSuggestionQueries(
     IDbContextFactory<PegasusDbContext> contextFactory) : IReportRecipientSuggestionQueries
@@ -153,6 +153,16 @@ public sealed class EfReportRecipientSuggestionQueries(
             && CaseRegistration.Normalize(registration) is { } vehicle
             && await PreviousJobAsync(context, caseId, row.PrincipalId, vehicle, cancellationToken);
 
+        // The Case's External estimates and Repair invoices are read only
+        // when the Principal's Offer ticks, or a rule's override, can offer
+        // them (R1151).
+        var offers = rules.Attach.OfferExternalEstimates
+            || rules.Attach.OfferRepairInvoices
+            || rules.Rules.Any(rule => rule.Then.Attach is { OfferExternalEstimates: true } or { OfferRepairInvoices: true });
+        IReadOnlyList<OfferedCaseFile> offerable = offers
+            ? await EfFiledEstimateAttachmentQueries.ReadOfferableAsync(context, caseId, cancellationToken)
+            : [];
+
         // The names of the contacts the Case chose, for the rule labels.
         var contactIds = new[] { claimSourceId, repairerId }
             .OfType<Guid>()
@@ -186,6 +196,7 @@ public sealed class EfReportRecipientSuggestionQueries(
             ReportWork = workKind,
             InstructionText = instructionText,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),
+            OfferableFiles = offerable,
             PreviousJob = previousJob
         };
     }

@@ -45,7 +45,11 @@ public sealed class OrganizationAdministrationPersistenceTests
             205.00m,
             contactVersion,
             new PrincipalReportNames(null, null, " {REG}_{CASE REF}_AUDIT ", null),
-            " GB 123 4567 89 ");
+            " GB 123 4567 89 ",
+            AuditWorkflowKind.GarageAuthorisationAndInvoice,
+            PrincipalInvoiceKind.UlaInvoice,
+            " GB 987 6543 21 ",
+            " 30 days ");
 
         var updated = await update.ExecuteAsync(
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
@@ -61,6 +65,16 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal("GB 123 4567 89", updated.FeeNoteVatNumber);
         Assert.Equal("GB 123 4567 89", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT FeeNoteVatNumber FROM Principals WHERE Id = '{principal.Id:D}';"));
+        // The Audit workflow and the Principal's own invoice are saved with
+        // them, by their codes, the two invoice values trimmed (R1138, R1147, R1148).
+        Assert.Equal(AuditWorkflowKind.GarageAuthorisationAndInvoice, updated.AuditWorkflow);
+        Assert.Equal(PrincipalInvoiceKind.UlaInvoice, updated.PrincipalInvoice);
+        Assert.Equal("GB 987 6543 21", updated.InvoiceVatNumber);
+        Assert.Equal("30 days", updated.InvoicePaymentTerms);
+        Assert.Equal(
+            "garage_authorisation_and_invoice|ula_invoice|GB 987 6543 21|30 days",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT AuditWorkflow + '|' + PrincipalInvoice + '|' + InvoiceVatNumber + '|' + InvoicePaymentTerms FROM Principals WHERE Id = '{principal.Id:D}';"));
         Assert.Equal(
             principal.ContactVersion + 1,
             await (await factory.DatabaseAsync).ScalarAsync<long>(
@@ -244,7 +258,10 @@ public sealed class OrganizationAdministrationPersistenceTests
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(item => item.DefaultFee, 210.00m)
                 .SetProperty(item => item.InspectionReportNameFirst, "{REG} Initial")
-                .SetProperty(item => item.FeeNoteVatNumber, "GB 123 4567 89"));
+                .SetProperty(item => item.FeeNoteVatNumber, "GB 123 4567 89")
+                .SetProperty(item => item.AuditWorkflow, PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode)
+                .SetProperty(item => item.PrincipalInvoice, PrincipalInvoicePolicy.UlaInvoiceCode)
+                .SetProperty(item => item.InvoicePaymentTerms, "30 days"));
         var initialContactVersion = await seedContext.Organizations.AsNoTracking()
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
@@ -325,6 +342,10 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal("{REG} Initial", persistedSuccessor.ReportNames.InspectionFirst);
         // And prints the fee note VAT number its predecessor did (R1006).
         Assert.Equal("GB 123 4567 89", persistedSuccessor.FeeNoteVatNumber);
+        // And keeps its Audit workflow and its own invoice (R1138, R1147).
+        Assert.Equal(AuditWorkflowKind.GarageAuthorisationAndInvoice, persistedSuccessor.AuditWorkflow);
+        Assert.Equal(PrincipalInvoiceKind.UlaInvoice, persistedSuccessor.PrincipalInvoice);
+        Assert.Equal("30 days", persistedSuccessor.InvoicePaymentTerms);
         var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
         Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
         Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));
@@ -522,8 +543,9 @@ public sealed class OrganizationAdministrationPersistenceTests
     /// stays a distinct principal role rather than merging with a document
     /// issuer or any other principal. The Report Sending SOP seed adds the
     /// other 17 SOP Principals, the contact SOP seed the 20 job-sheet
-    /// Principals, the SOP v8 sync FRZ and the one-off migration the standing
-    /// Private customer record PRIVATE (R574), so a fresh database holds 54.
+    /// Principals, the SOP v8 sync FRZ, the one-off migration the standing
+    /// Private customer record PRIVATE (R574) and the ULA seed United Legal
+    /// Assistance (R1145), so a fresh database holds 55.
     /// </summary>
     [Fact]
     public async Task FreshDatabaseSeedsTheFifteenFrozenPrincipalsOnce()
@@ -558,7 +580,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(54, seeded.Count);
+        Assert.Equal(55, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();

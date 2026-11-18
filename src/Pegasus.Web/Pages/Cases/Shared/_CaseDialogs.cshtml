@@ -185,6 +185,17 @@
             ["DialogHiddenFields"] = LeaseFields()
         })" />
     }
+    @if (workflow.GarageAuthorisedAtUtc is not null && state is not CaseLifecycleState.Held)
+    {
+        @* Undo garage authorisation takes a reason (operator, 17 November 2026; R1142). *@
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-undo-garage-authorisation-dialog",
+            ["DialogTitle"] = Frame.UndoGarageAuthorisation,
+            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "UndoGarageAuthorisation", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = LeaseFields()
+        })" />
+    }
     @if (workflow.ReportSentEvidence is { } unlinked && state is not CaseLifecycleState.Held)
     {
         var unlinkFields = LeaseFields();
