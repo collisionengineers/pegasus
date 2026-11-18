@@ -1,6 +1,7 @@
 ﻿using Pegasus.Core.Vehicle;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Custody;
@@ -549,8 +550,15 @@ public sealed partial class StagedArtifactReconciliationFunction(
     PrepareDocumentThumbnails prepareDocumentThumbnails,
     RecogniseFiledEstimates recogniseFiledEstimates,
     RetryDeferredOriginalReportRecognition retryDeferredOriginalReportRecognition,
+    ReconcileGarageWaits reconcileGarageWaits,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
+    /// <summary>
+    /// How many Garage authorisation and invoice Audits one run reads at a
+    /// time. The sweep runs every minute and each Case is one short transaction.
+    /// </summary>
+    private const int GarageWaitsPerRun = 25;
+
     /// <summary>
     /// How many plain thumbnails one run makes. The sweep runs every minute,
     /// so this is the rate that keeps up with filing; the budget below ends a
@@ -955,6 +963,17 @@ public sealed partial class StagedArtifactReconciliationFunction(
         {
             LogEstimateRecognitionFailed(logger, exception);
         }
+
+        // A Garage authorisation and invoice Audit moves on once a file or an
+        // Outcome has ended its wait: into Review when its External estimate
+        // is confirmed, back to With Engineer when its Repair invoice is or
+        // its Outcome needs none (R1141, R1143, R1144). One owner for every
+        // route the file arrives by.
+        await RunStepAsync(
+            "garage wait reconciliation",
+            () => reconcileGarageWaits.ExecuteAsync(GarageWaitsPerRun, cancellationToken),
+            failures,
+            cancellationToken);
 
         if (failures.Count == 1)
         {

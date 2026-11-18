@@ -266,6 +266,12 @@ source and Repairer, which the report sending rules read, and what still
 holds the Case from being ready: its unmet requirements, the instruction
 items still missing, a failed document storage and a missing original
 report, as the Not ready queue and the Case's Next action name them (R929).
+It also returns the Case's Audit workflow and, on a Garage authorisation &
+invoice Audit, when the garage was marked authorised; `pegasus_case_action`
+takes `authorise_garage`, with no reason, and `undo_garage_authorisation`,
+with one, under the rules the Case page follows (operator, 17 November 2026;
+[R1142](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 `pegasus_assessment_get` returns Case facts under `caseOwned`. The Case's
 Received date, which is its instruction date, is read-only:
 `caseOwned.receivedDate` and the Case summary's `receivedAtUtc` carry it, and
@@ -682,7 +688,7 @@ its one command when none is given.
 | `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
-| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase | one-command lease |
+| `automation.cases` | `pegasus_case_action` | One Case lifecycle act with an `action`: hold, release_hold, return_to_review, assign_engineer, return_to_engineer, close, reopen, archive, create_linked_replacement, create_audit, vehicle_lookup, vehicle_history_check, manual_chase, authorise_garage, undo_garage_authorisation | one-command lease |
 | `automation.cases` | `pegasus_case_query` | One query act with an `action`: open (logged by its channel), mark_done, reopen, assign. No edit lease, expected version or reason. Reopen is refused on a closed or archived Case | key only |
 | `automation.cases` | `pegasus_directory_search` | The active directory Repairers or Claim sources a Case links to, each with its linked Principal codes; a named Principal's linked contacts first | none |
 | `automation.cases` | `pegasus_vocabulary_get` | The vocabularies the write tools accept: assessment field paths, codes, labels and writability; estimate line types and evidence labels; VAT statuses and categories; valuation sources; image tags; enabled staff by username; Sign-off Engineers by printed name; the unroadworthy wordings bank | none |

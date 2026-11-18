@@ -155,6 +155,20 @@ public sealed record CaseWorkflowConfiguration(
     /// </summary>
     public const string VehicleRegistrationRequirement = "Vehicle registration";
 
+    /// <summary>
+    /// The Case requirement a Garage authorisation and invoice Audit names on
+    /// its way into Review until a confirmed External estimate is filed
+    /// (operator, 17 November 2026; R1141).
+    /// </summary>
+    public const string ExternalEstimateRequirement = "External estimate";
+
+    /// <summary>
+    /// The Case requirement such an Audit names while it is Not ready after
+    /// its garage is authorised, until a confirmed Repair invoice is filed
+    /// (R1144).
+    /// </summary>
+    public const string RepairInvoiceRequirement = "Repair invoice";
+
     /// <param name="facts">The Case's stored instruction and image facts.</param>
     /// <param name="vehicleGate">
     /// The Case's vehicle gate (<see cref="CaseCompletenessPolicy.VehicleGate"/>).
@@ -178,6 +192,9 @@ public sealed record CaseWorkflowConfiguration(
             if (!vehicleGate.MileageRecorded) missing.Add(VehicleMileageRequirement);
         }
         if (RequireImages && !facts.ImagesComplete) missing.Add("Images");
+        // Neither is configuration: they belong to the Case's Audit workflow (R1141, R1144).
+        if (!vehicleGate.ExternalEstimateFiled) missing.Add(ExternalEstimateRequirement);
+        if (!vehicleGate.RepairInvoiceFiled) missing.Add(RepairInvoiceRequirement);
         return missing;
     }
 }
@@ -253,6 +270,13 @@ public sealed record CaseWorkflowRecord(
     /// Case type.
     /// </summary>
     public AuditWorkflowKind AuditWorkflow { get; init; }
+
+    /// <summary>
+    /// When the Engineer marked the garage authorised on a Garage
+    /// authorisation and invoice Audit (R1142); null until then, and again
+    /// after Undo garage authorisation.
+    /// </summary>
+    public DateTimeOffset? GarageAuthorisedAtUtc { get; init; }
 
     /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
     public DateTimeOffset? HeldAtUtc { get; init; }
@@ -424,6 +448,46 @@ public sealed record ReturnCaseToReviewRequest(
     string Reason,
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+/// <summary>
+/// Mark the garage authorised on a Garage authorisation and invoice Audit
+/// (operator, 17 November 2026; R1142). It takes no reason from the caller:
+/// the history reason is Core's (R1161), so a caller's Reason is replaced.
+/// </summary>
+public sealed record AuthoriseGarageRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+/// <summary>Take the garage's authorisation back, with a reason (R1142).</summary>
+public sealed record UndoGarageAuthorisationRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
+/// <summary>
+/// The store of the garage authorisation milestone. Each act re-reads the
+/// Case under its lock and asks <see cref="Pegasus.Core.Lifecycle.GarageAuthorisationPolicy"/>
+/// before it changes anything.
+/// </summary>
+public interface IGarageAuthorisationStore
+{
+    Task<CaseWorkflowRecord> AuthoriseGarageAsync(
+        AuthoriseGarageRequest request,
+        CancellationToken cancellationToken);
+
+    Task<CaseWorkflowRecord> UndoGarageAuthorisationAsync(
+        UndoGarageAuthorisationRequest request,
+        CancellationToken cancellationToken);
+}
 
 /// <summary>
 /// Hand a Review or With Engineer Case to an Engineer, or to Unassigned when

@@ -182,6 +182,9 @@ offered while a colleague holds it. Typical entries include:
   Mark done, Reopen and Assign live on the query's own row, not in this menu
   (operator, 27 October 2026);
 - Return to Review / Return to Engineer;
+- Undo garage authorisation, on a Garage authorisation & invoice Audit whose garage is
+  authorised and that is open and not held: the reason dialog (`_ReasonDialog`), as Return to
+  Review (operator, 17 November 2026; R1142);
 - Archive, greyed in a `.menu-gated` span whose `title` reads "Complete or cancel every open
   task first." while the Case has an open task (operator, 6 October 2026);
 - Send chaser, on any open Case where staff mail is composed in (operator, 5 October 2026): a
@@ -358,7 +361,7 @@ Next action is one step (operator, 8 October 2026): the first outstanding Case r
 the state's step, else the report's first blocker, drawn in full with one full-width control. Do not
 list anything else in it, except that while the Case is Unassigned Take sits beside Assign Engineer
 (#1213, v41 K9, operator, 19 October 2026), and that once Report sent is recorded the Case's open
-tasks are the step or follow it, in the blocker style, each opening the Tasks dialog (operator, 6 and 13 October 2026). When no step remains, as on a closed or archived Case, the Next action is not drawn (operator, 19 October 2026). Everything outstanding is the **Report not ready** card below, folded
+tasks are the step or follow it, in the blocker style, each opening the Tasks dialog (operator, 6 and 13 October 2026). On a Garage authorisation & invoice Audit the **Authorise garage** blocker is the step ahead of the other report blockers, drawn in the blocker style with one full-width **Mark done** button that posts at once (`data-authorise-garage`; no dialog, no reason; operator, 17 November 2026; R1142); it links no section, and while a colleague holds the lease it is its words alone. When no step remains, as on a closed or archived Case, the Next action is not drawn (operator, 19 October 2026). Everything outstanding is the **Report not ready** card below, folded
 until opened and remembered per browser (`data-collapse-folded`): the Case requirements (in any state), then every
 report blocker under its section's name, the requirement as its link to the section that owns the
 fact rather than repeating it. A stale generation's warning notice sits at the top of Next action;

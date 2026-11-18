@@ -796,6 +796,15 @@ Each fact is recorded in one section of the Case record
 | Agreed fee; valuation commentary when its switch is on | Report |
 | An image in the report tagged Overview, and every image in the report matching its confirmed source | Files |
 
+A Garage authorisation & invoice Audit's report also waits for two things it
+does not print (operator, 17 November 2026; [R1151](../rulings.md)):
+**Authorise garage**, which no section clears, since the Next action's Mark
+done does, and **Repair invoice**, cleared on Files by a confirmed file of
+that type. Neither is asked when the Outcome is Total loss or Cash in lieu
+([R1143](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)). They
+hold Generate, not the preview.
+
 A new Case starts with its Principal's default fee as its agreed fee
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
 so the agreed fee is a blocker only once staff clear it. The fee is written

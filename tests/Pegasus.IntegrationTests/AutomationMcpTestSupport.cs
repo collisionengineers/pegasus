@@ -220,9 +220,16 @@ internal static class AutomationMcpTestSupport
         return uploadId;
     }
 
+    /// <param name="caseType">The type the Case is accepted as; an Inspection unless a test names another.</param>
+    /// <param name="principalAuditWorkflowCode">
+    /// The Audit workflow the Principal is given before the Case is accepted,
+    /// which a standalone Audit takes (R1138); the Principal's own when null.
+    /// </param>
     public static async Task<Guid> SeedAcceptedCaseAsync(
         WebApplicationFactory<Program> factory,
-        CaseCompleteness? completeness = null)
+        CaseCompleteness? completeness = null,
+        CaseType caseType = CaseType.Inspection,
+        string? principalAuditWorkflowCode = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -230,10 +237,19 @@ internal static class AutomationMcpTestSupport
         // proved by the intake corpus tests, not this allocation setup.
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
             services,
-            CaseType.Inspection,
+            caseType,
             QdosPrincipal.Code);
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         await SeedPrincipalAsync(services);
+        if (principalAuditWorkflowCode is not null)
+        {
+            await using var context = await services
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Principals SET AuditWorkflow = {principalAuditWorkflowCode} WHERE Code = {QdosPrincipal.Code}");
+        }
+
         var outcome = await services.GetRequiredService<IAcceptIntake>()
             .ExecuteAsync(
                 new(
@@ -241,7 +257,7 @@ internal static class AutomationMcpTestSupport
                     0,
                     ActionActor.SystemWorker("mcp-ingress-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
-                    CaseType.Inspection,
+                    caseType,
                     QdosPrincipal.Code,
                     completeness ?? new(true, true)),
                 CancellationToken.None);

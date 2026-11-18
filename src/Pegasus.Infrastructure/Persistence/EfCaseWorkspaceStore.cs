@@ -362,10 +362,12 @@ public sealed class EfCaseWorkspaceStore(
         // never from anything the caller claimed, and never forced to false as
         // a side effect of editing an unrelated fact.
         var afterCompleteness = Completeness(snapshot);
+        var garage = await CaseGarage.ReadAsync(
+            context, workflow.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
         var evaluation = CaseCompletenessPolicy.Evaluate(
             afterCompleteness,
             configuration,
-            CaseInstructionCompleteness.VehicleGate(snapshot, state));
+            CaseInstructionCompleteness.VehicleGate(snapshot, state, garage));
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -585,7 +587,10 @@ public sealed class EfCaseWorkspaceStore(
         // is this save's own, not a later read's. Every write above goes
         // through the tracker; a bulk write to one of these rows would have to
         // refresh the tracked entity too.
-        return Project(snapshot, workflow, assessmentFields, estimateEdit?.Entity, configuration, wasReplay: false)
+        // Read again: the save may have recorded the Outcome the garage facts turn on (R1143).
+        var savedGarage = await CaseGarage.ReadAsync(
+            context, workflow.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
+        return Project(snapshot, workflow, assessmentFields, estimateEdit?.Entity, configuration, savedGarage, wasReplay: false)
             with { SessionLease = sessionLease };
     }
 
@@ -621,7 +626,9 @@ public sealed class EfCaseWorkspaceStore(
         var fields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
-        return Project(snapshot, workflow, fields, estimate, configuration, wasReplay);
+        var garage = await CaseGarage.ReadAsync(
+            context, workflow.Case, workflow.GarageAuthorisedAtUtc, cancellationToken);
+        return Project(snapshot, workflow, fields, estimate, configuration, garage, wasReplay);
     }
 
     /// <summary>
@@ -636,6 +643,7 @@ public sealed class EfCaseWorkspaceStore(
         IReadOnlyCollection<CaseAssessmentFieldEntity> fields,
         CaseRepairSpecificationEntity? estimate,
         CaseWorkflowConfiguration configuration,
+        CaseGarageFacts garage,
         bool wasReplay)
     {
         var orderedFields = fields.OrderBy(item => item.FieldPath, StringComparer.Ordinal).ToArray();
@@ -643,7 +651,7 @@ public sealed class EfCaseWorkspaceStore(
             ? []
             : estimate.Lines.OrderBy(line => line.Position).ToArray();
         return new(
-            EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow), configuration),
+            EfCaseDataStore.ApplyConfiguration(EfCaseDataStore.Map(snapshot, workflow), configuration, garage),
             EfCaseAssessmentStore.Map(
                 workflow,
                 orderedFields,

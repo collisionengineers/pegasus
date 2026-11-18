@@ -1,11 +1,13 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -48,6 +50,11 @@ public sealed class EfCaseQueryStore(
         // (CaseInstructionCompleteness.VehicleGate); the report is the
         // current one CurrentAuditReports names. A value staff emptied is not
         // recorded, whatever fact stands behind it (R1077).
+        // A Garage authorisation and invoice Audit's own facts ride the same
+        // statement (R1141, R1144): its authorisation, a waiving Outcome and
+        // its confirmed External estimate and Repair invoice.
+        var estimates = CaseGarage.Confirmed(context, DocumentSemanticRole.ExternalEstimate);
+        var invoices = CaseGarage.Confirmed(context, DocumentSemanticRole.RepairInvoice);
         var rows = await context.Set<CaseEntity>()
             .AsNoTracking()
             .Where(item => ids.Contains(item.Id))
@@ -58,6 +65,14 @@ public sealed class EfCaseQueryStore(
                 item.AuditWorkflow,
                 item.CustodyState,
                 item.StandaloneAuditEvidenceId,
+                GarageAuthorised = context.CaseWorkflows.Any(workflow =>
+                    workflow.CaseId == item.Id && workflow.GarageAuthorisedAtUtc != null),
+                OutcomeWaived = context.CaseAssessmentFields.Any(field =>
+                    field.WorkId == item.Id
+                    && field.FieldPath == AssessmentVocabulary.Outcome
+                    && (field.Value == "total_loss" || field.Value == "cash_in_lieu")),
+                ExternalEstimateFiled = estimates.Any(estimate => estimate.CaseId == item.Id),
+                RepairInvoiceFiled = invoices.Any(invoice => invoice.CaseId == item.Id),
                 RegistrationRecorded = context.CaseDataFields.Any(field =>
                         field.WorkId == item.Id
                         && field.FieldName == CaseDataFieldNames.VehicleRegistration
@@ -87,14 +102,29 @@ public sealed class EfCaseQueryStore(
             .ToArrayAsync(cancellationToken);
         return rows.ToDictionary(
             item => item.Id,
-            item => new NotReadyCaseBlockers(
-                ParseCustodyState(item.CustodyState) == CaseCustodyState.Failed,
-                new CaseVehicleGate(item.RegistrationRecorded, item.MileageRecorded),
-                OriginalReportPolicy.IsMissing(
-                    CaseTypeCodes.Parse(item.Type),
-                    PrincipalAuditWorkflowPolicy.Parse(item.AuditWorkflow),
-                    item.StandaloneAuditEvidenceId,
-                    item.HasCurrentAuditReport)));
+            item =>
+            {
+                var caseType = CaseTypeCodes.Parse(item.Type);
+                var auditWorkflow = PrincipalAuditWorkflowPolicy.Parse(item.AuditWorkflow);
+                return new NotReadyCaseBlockers(
+                    ParseCustodyState(item.CustodyState) == CaseCustodyState.Failed,
+                    // Every Case asked about here is Not ready.
+                    CaseCompletenessPolicy.VehicleGate(
+                        CaseLifecycleState.NotReady,
+                        item.RegistrationRecorded,
+                        item.MileageRecorded,
+                        new CaseGarageFacts(
+                            GarageAuthorisationPolicy.Applies(caseType, auditWorkflow),
+                            item.GarageAuthorised,
+                            item.OutcomeWaived,
+                            item.ExternalEstimateFiled,
+                            item.RepairInvoiceFiled)),
+                    OriginalReportPolicy.IsMissing(
+                        caseType,
+                        auditWorkflow,
+                        item.StandaloneAuditEvidenceId,
+                        item.HasCurrentAuditReport));
+            });
     }
 
     /// <inheritdoc />
@@ -1778,6 +1808,7 @@ public sealed class EfCaseQueryStore(
             SignOffEngineerId = entity.SignOffEngineerId,
             CaseType = CaseTypeCodes.Parse(entity.Case.Type),
             AuditWorkflow = PrincipalAuditWorkflowPolicy.Parse(entity.Case.AuditWorkflow),
+            GarageAuthorisedAtUtc = entity.GarageAuthorisedAtUtc,
             HasOpenQuery = entity.HasOpenQuery
         };
         if (entity.ArchivedAtUtc is null)

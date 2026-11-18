@@ -22,7 +22,8 @@ public sealed record CaseNextActionStep(
     AssessmentReadinessItem? Blocker = null,
     bool OpensCreateAudit = false,
     bool OpensAssignEngineer = false,
-    bool ListsOpenTasks = false);
+    bool ListsOpenTasks = false,
+    bool MarksGarageAuthorised = false);
 
 /// <summary>
 /// The one Next action of a Case: the Case page's aside states it and the
@@ -86,7 +87,17 @@ public static class CaseNextAction
         {
             return new(CaseWorkspaceLabels.Frame.AnswerQuery, "queries");
         }
-        return ReportStep(reportBlockers, blockerSection, currentReport)
+        return ReportStep(
+                reportBlockers,
+                blockerSection,
+                currentReport,
+                // Core offers Authorise garage only With Engineer, with an
+                // Engineer (R1142); the blocker itself says the rest.
+                offersGarageAuthorisation: workflow is
+                {
+                    State: CaseLifecycleState.ReportPreparation,
+                    AssignedEngineerId: not null
+                })
             ?? (workflow.ReportSentEvidence is not null || reportSent
                 ? AfterTheSend(hasOpenTasks)
                 : AuditStep(workflow, caseType, works) ?? DeliveryStep);
@@ -110,7 +121,7 @@ public static class CaseNextAction
     {
         ArgumentNullException.ThrowIfNull(reportBlockers);
         ArgumentNullException.ThrowIfNull(blockerSection);
-        return ReportStep(reportBlockers, blockerSection, report)
+        return ReportStep(reportBlockers, blockerSection, report, offersGarageAuthorisation: false)
             ?? (sentEvidence is not null || reportSent ? null : DeliveryStep);
     }
 
@@ -163,7 +174,8 @@ public static class CaseNextAction
     private static CaseNextActionStep? ReportStep(
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
         Func<AssessmentReadinessItem, string?> blockerSection,
-        CaseReportGenerationRecord? report)
+        CaseReportGenerationRecord? report,
+        bool offersGarageAuthorisation)
     {
         if (reportBlockers.Count > 0)
         {
@@ -172,6 +184,19 @@ public static class CaseNextAction
             // rest: FRD-13 allows no summary. The Case page's aside draws it
             // in full and lists every blocker in its Report not ready card
             // (operator, 8 October 2026).
+            // On a Garage authorisation and invoice Audit the Engineer
+            // authorises the garage before anything else, so that blocker is
+            // the step wherever it stands in the list, and the aside draws
+            // its Mark done (operator, 17 November 2026; R1142).
+            if (offersGarageAuthorisation
+                && reportBlockers.Contains(CaseReportReadiness.GarageAuthorisationMissing))
+            {
+                return new(
+                    CaseReportReadiness.GarageAuthorisationRequirement,
+                    "report",
+                    CaseReportReadiness.GarageAuthorisationMissing,
+                    MarksGarageAuthorised: true);
+            }
             var first = reportBlockers[0];
             return new(first.Requirement, blockerSection(first) ?? "report", first);
         }

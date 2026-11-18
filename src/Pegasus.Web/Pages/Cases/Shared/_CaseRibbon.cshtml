@@ -7,6 +7,7 @@
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using Pegasus.Core.Cases
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Reports
 @using Pegasus.Core.Workflow
@@ -40,6 +41,19 @@
     var canReturnToReview = mayActOnCaseData
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.ReportSent;
     var canReturnToEngineer = mayAct && state == CaseLifecycleState.ReportSent;
+    // Undo garage authorisation, on a Garage authorisation and invoice Audit
+    // whose garage is authorised (operator, 17 November 2026; R1142): Core's
+    // own offer rule, which reads only whether the Case is one and is authorised.
+    var canUndoGarageAuthorisation = mayActOnCaseData
+        && GarageAuthorisationPolicy.CanUndo(
+            state,
+            workflow.Archive is not null,
+            new CaseGarageFacts(
+                GarageAuthorisationPolicy.Applies(workflow.CaseType, workflow.AuditWorkflow),
+                workflow.GarageAuthorisedAtUtc is not null,
+                false,
+                false,
+                false));
     var canArchive = mayAct && isClosed && workflow.Archive is null;
     // Archive stays listed but greyed with this reason while the Case has an
     // open task (operator, 6 October 2026).
@@ -324,6 +338,13 @@
                     <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
                         <span>@Frame.ReturnToReview</span>
+                    </button>
+                }
+                @if (canUndoGarageAuthorisation)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-undo-garage-authorisation-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-chevron-left")" /></svg>
+                        <span>@Frame.UndoGarageAuthorisation</span>
                     </button>
                 }
                 @if (canReturnToEngineer)

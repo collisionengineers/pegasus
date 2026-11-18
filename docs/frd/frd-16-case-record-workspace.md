@@ -134,7 +134,10 @@ outstanding; the link is what clears it (9 October 2026)
 Original report missing links to Files, where Mark as original report is;
 **Vehicle registration incomplete** and **Vehicle mileage incomplete** link
 to Vehicle, where the Registration and Mileage boxes are
-([R1081](../rulings.md), [R759](../rulings.md)); the other Case requirements
+([R1081](../rulings.md), [R759](../rulings.md)); **External estimate
+incomplete** and **Repair invoice incomplete**, on a Garage authorisation &
+invoice Audit, link to Files, where the file is filed
+([R1141](../rulings.md), [R1144](../rulings.md)); the other Case requirements
 link to Case details. The card is headed
 **Outstanding requirements** when no blocker remains.
 Where a tab inside that section clears it, the link opens that tab too
@@ -171,6 +174,13 @@ operator, 19 October 2026,
 [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md));
 where the menu does not offer it, the step is named without a control
 (issue 1025).
+On a Garage authorisation & invoice Audit that is With Engineer with an
+Engineer, the Next action is **Authorise garage** with the one button **Mark
+done**, ahead of every other report blocker, until the garage is authorised
+or the Outcome waives it; it posts at once, with no dialog and no reason, and
+while a colleague is editing the step is named without the button (operator,
+17 November 2026; [R1142](../rulings.md);
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Once the report is stored and until it is sent, the
@@ -431,6 +441,10 @@ Return to Engineer needs no session. The rules behind each action are in
 - **Return to Review**, in With Engineer or Report sent, and **Return to
   Engineer**, in Report sent, when engineering changes are needed. Both
   record a reason.
+- **Undo garage authorisation**, on a Garage authorisation & invoice Audit
+  whose garage is authorised, in any open state but On hold. It records a
+  reason (operator, 17 November 2026; [R1142](../rulings.md);
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md#garage-authorisation)).
 - **Return to work**, on a closed Case other than Created in error, before
   Archive (operator, 16 October 2026; v41 K10, 19 October 2026,
   [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
