@@ -16,8 +16,16 @@ tags: [glass, repair-spec, session, editor]
 Accepted on 18 November 2026 (R1167). This record owns how Pegasus adds to,
 saves and closes a Glass's estimate with no person at the editor.
 [FRD-25](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)
-owns what staff see, and no clause of it changes here: this change adds the
-client and nothing uses it yet.
+owns what staff see.
+
+Amended 18 November 2026 (R1168 to R1173): the client's first user is the
+rebuild of a repair spec made outside Pegasus, **Import and open** on the
+Case. The gateway runs it as one piece of background work with its own time
+cap ([ADR-0058](0058-glass-provider-work-in-the-web-host.md)): it starts the
+estimate, opens the editor from the address the start produced, adds the
+spec's lines, saves and exits, and hands the editor's way home to the
+existing return path only once it is proved to be the session's own
+callback.
 
 ## Context
 
@@ -79,9 +87,11 @@ open.
   the test pages are cut again and the builder follows. It does not guess.
 - Glass's has not agreed to automated use of its editor. The operator
   accepted that on 18 November 2026 (R1167).
-- The client does not choose rows. Which row of the part list a position
-  uses depends on the vehicle's equipment, and that choice belongs to the
-  change that first builds an estimate.
+- The client does not choose rows; the build does. Its first version
+  chooses only special operations: the one row of the special list's "Free
+  positions parts" group whose name is exactly the line's (R1169). Which row
+  of the part list a part uses depends on the vehicle's equipment, and that
+  choice belongs to the change that first builds parts.
 - Each estimate Pegasus builds makes a stock vehicle and an estimate in the
   Glass's account, as any first press of Glass's does.
 
