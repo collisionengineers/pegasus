@@ -1035,6 +1035,8 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 | `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
+| `GLASS_AUTOMATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-automation-username`, the Glass's login the Automation's own Glass's sessions sign in with (R1177). Becomes the Web App setting `Glass__AutomationAccount__Username`. No default. |
+| `GLASS_AUTOMATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-automation-password`, that login's password. Becomes `Glass__AutomationAccount__Password`. No default. |
 | `CAZANA_COMPANION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-email`, the Cazana Companion account e-mail ([ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md)). No default. |
 | `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
 | `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
@@ -1071,7 +1073,7 @@ Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the six `Experian:*` keys among its Production
+`Glass:ValuationAccount:*` keys, the two `Glass:AutomationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the six `Experian:*` keys among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
@@ -1082,10 +1084,19 @@ secret's scope, and Bicep hands the Web App Key Vault references to them. The
 Cazana Companion account, the Brego valuation account and the Experian account are held the same way:
 `cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
 `brego-valuation-password`, `experian-client-id`, `experian-client-secret`,
-`experian-username` and `experian-password`, with the Web identity granted secret-read access at each secret's scope. Each
+`experian-username` and `experian-password`, with the Web identity granted secret-read access at each secret's scope. So is
+the Glass's login the Automation's own Glass's sessions sign in with:
+`glass-automation-username` and `glass-automation-password`, set on the Web
+App only, and also required on a host with `Features:LiveGlass` (R1177). Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
-and are held protected per staff account, never in deployment configuration.
+and are held protected per staff account, never in deployment configuration;
+Pegasus never reads one for the Automation.
+
+The release that first carries `automation.glass` adds a scope an existing
+connector's grant does not hold: an Administrator re-consents the claude.ai
+connector once, ticking Glass's, before the Automation can use the Glass's
+tools ([ADR-0087](adr/0087-one-automation-mcp-server-with-per-scope-consent.md)).
 
 ## Monitoring and diagnosis
 
@@ -1603,7 +1614,16 @@ it stopped.
   in again, so correct the credential before the next launch or Get valuation;
   repeated failed sign-ins on a shared account risk a lockout. It is shown as
   the raw code. `glass.login.landing` is a signed-in redirect whose landing
-  page was not the stock list.
+  page was not the stock list. When every Automation `start` fails at
+  `glass.login.rejected`, the password held in `glass-automation-password`
+  is stale: the secret is a copy and does not follow a change made at
+  Glass's. Store the current password as a new version of that secret and
+  point `GLASS_AUTOMATION_PASSWORD_SECRET_URI` at it, which takes a
+  provision; both are external writes that need the operator's
+  authorization.
+- `glass.automation.empty` on an Automation session means a `finish` found
+  no position on the estimate: nothing was saved and the session is still
+  open, to be built on or closed.
 - `glass.start.ere_id` with `Unknown` means the provider answered the
   reopening start (`ere_id` 0) with an estimate that is not one of the
   session's own, or not the one the repair spec recorded; the warning gives

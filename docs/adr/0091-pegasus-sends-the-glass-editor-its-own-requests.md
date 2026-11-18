@@ -27,6 +27,16 @@ spec's lines, saves and exits, and hands the editor's way home to the
 existing return path only once it is proved to be the session's own
 callback.
 
+Amended 18 November 2026 (R1177 to R1180): the client's second user is the
+Automation's own Glass's sessions
+([FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
+Each of the Automation's acts is its own piece of background work keyed on
+the session, so the session's acts run one at a time. The editor stays open
+between the Automation's calls: its session and the time of its last request
+are kept in the session's protected state, so the pause between requests
+holds across calls. Decision 5 is unchanged: nothing is read from a staff
+member's window.
+
 ## Context
 
 Pegasus starts a Glass's estimate from its server by driving the portal as a
