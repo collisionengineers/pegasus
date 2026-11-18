@@ -98,7 +98,15 @@ open.
   offline against the editor's own list code, run with the row's side as a
   browser sets it, on the captured list of 7 September 2026: it agreed on
   every row it calls certain. The dialog must then serve the line's part
-  code and side before anything is posted.
+  code and side before anything is posted. A repair or remove-and-refit
+  line (R1172) takes the pair Replace would, because the editor asks for a
+  part's dialog by one pair whatever the operation. The head must also offer
+  the operation, its map's remove-and-refit group must need no equipment, and
+  the block must have at most one time row of the operation. That rule was
+  judged the same way and agreed on the editor's own choice of the
+  operation's time rows. The client then changes the dialog's operation as
+  its own script does, and answers OK to the dialog's question before a part
+  with no figures only when the build asks it to.
 - Each estimate Pegasus builds makes a stock vehicle and an estimate in the
   Glass's account, as any first press of Glass's does.
 

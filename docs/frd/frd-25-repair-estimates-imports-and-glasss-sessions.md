@@ -344,6 +344,24 @@ drawing, the first is used. It is left off and listed:
 - as a refused dialog, when the dialog Glass's serves is for another part or
   another side. Nothing is posted for it.
 
+A Glass's export's repair and remove-and-refit lines are sent too, with
+whatever hours Glass's serves for them (18 November 2026; R1172). Each is
+found by its part code and side as a new part is, and left off for the same
+reasons. Its row must also offer the line's operation. Glass's must have at
+most one time row of that operation for the part; more than one is listed as
+having more than one row. Its dialog is the one Glass's serves for the part,
+with the operation changed to R (Repair) or UI (Uninstall and install) as a
+person changes it, and is pressed **Part**, or **OK** for a part that cannot
+be painted. Nothing is typed (R1168). Glass's often serves no price and no
+hours, as it does for Repair in every dialog captured. The dialog then asks
+whether to go on without a price or a time, the question is answered OK, and
+the line lands with no figures. A dialog that would ask for a reason
+(more hours than Glass's own), reload itself or open another dialog for the
+operation is a refused dialog. A repair or remove-and-refit line from any
+other route has no Glass's part code and is left off as not built in this
+version. So is a Glass's PDF's partial repair (PR), which is not the Repair
+the build sends.
+
 A Glass's calculation PDF prints a labour guide (`S0503XRX`, `NN`), not the
 part code, so its parts find no row. A paint line is left off and listed as
 not built in this version even beside its part: a Glass's export's paint row
