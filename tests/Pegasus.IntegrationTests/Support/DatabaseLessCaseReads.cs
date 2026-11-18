@@ -142,7 +142,10 @@ internal sealed class DatabaseLessCaseReads :
     /// Bodyshop AX's report sending rule names (migration
     /// SendingRulesReadCaseFacts, R1025) and the iRevolution Repair Network
     /// PCH's names, linked to PCH (migration ContactsFollowQuickReference,
-    /// R1033). A seeded contact has the same shape whatever its type.
+    /// R1033), and the Parkhouse Bodyshop Parkhouse Assist's letter names,
+    /// linked to PHOUSE with the address the letter prints (migration
+    /// ParkhousePrincipalAndRepairer, R1194). A seeded contact has the same
+    /// shape whatever its type.
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> Repairers =
     [
@@ -151,6 +154,13 @@ internal sealed class DatabaseLessCaseReads :
         {
             Role = ContactRole.Repairer,
             LinkedPrincipalCodes = ["PCH"]
+        },
+        SeededClaimSource("00000000-0000-4000-8000-00000000f01a", "Parkhouse Bodyshop") with
+        {
+            Role = ContactRole.Repairer,
+            Address = "Unit 7, Park House Bridge Estate, 7 Langley Rd, Manchester, Pendlebury, Salford",
+            Postcode = "M6 6JQ",
+            LinkedPrincipalCodes = ["PHOUSE"]
         }
     ];
 

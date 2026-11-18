@@ -39,11 +39,15 @@ namespace Pegasus.Core.Intake;
 /// Version 7 takes a selected United Legal Assistance letter as a standalone
 /// Audit by its signature alone, with no original report to evaluate
 /// (operator, 17 November 2026; R1138, R1155).
+///
+/// Version 8 adds Parkhouse Assist's tell, its letter's sentence that the
+/// engineers "will be doing a DESKTOP INSPECTION" (operator, 18 November
+/// 2026, R1192).
 /// </summary>
 public sealed partial class PrincipalMailClassificationPolicy(string principalCode) : IMailClassificationPolicy
 {
     public const string Key = "principal_mail_classification";
-    public const int Version = 7;
+    public const int Version = 8;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -295,13 +299,17 @@ public sealed partial class PrincipalMailClassificationPolicy(string principalCo
                 && text.Contains("Inspection Request", StringComparison.OrdinalIgnoreCase));
         // DFD's tell is the title of its attached instruction form, "Engineer
         // instruction request" (operator, 9 November 2026, R825); FW's is its
-        // template's "New INSTRUCTIONS:" heading.
+        // template's "New INSTRUCTIONS:" heading; Parkhouse Assist's is its
+        // letter's sentence about the desktop inspection (operator, 18
+        // November 2026, R1192).
         var inspection = creditRepair || (!audit && texts.Any(text =>
             ExplicitInspectionRequestRegex().IsMatch(text)
             || (PrincipalCode == "DFD" && text.Contains("Engineer instruction request", StringComparison.OrdinalIgnoreCase))
             || (PrincipalCode == "FW" && text.Contains("New INSTRUCTIONS:", StringComparison.OrdinalIgnoreCase))
             || (PrincipalCode == BcInstructionExtractionPolicy.SupportedPrincipalCode
-                && text.Contains("prepare a desktop report", StringComparison.OrdinalIgnoreCase))));
+                && text.Contains("prepare a desktop report", StringComparison.OrdinalIgnoreCase))
+            || (PrincipalCode == PhouseInstructionExtractionPolicy.SupportedPrincipalCode
+                && text.Contains("will be doing a DESKTOP INSPECTION", StringComparison.OrdinalIgnoreCase))));
         // In-Reply-To and References establish reply context and a RE: subject
         // is only the fallback (FRD-08). A RE: subject on a message that carries
         // neither header does not stop an instruction that proves its work:
