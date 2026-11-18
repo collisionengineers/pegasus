@@ -257,7 +257,9 @@ public sealed class UploadConfirmationWebTests
             client,
             "garage-estimate.pdf",
             "application/pdf",
-            IntakeTestEvidence.CreatePhotographPdf(1),
+            // No photographs: a photograph's filing completes the images and
+            // moves the Case by that route, not this one.
+            IntakeTestEvidence.CreatePdf("Garage estimate for AB12 GAR"),
             declaredCaseId: caseId,
             documentType: Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
