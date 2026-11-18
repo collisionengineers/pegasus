@@ -96,10 +96,11 @@ internal sealed class SendMcpTools(
         [Description("Edit lease token from pegasus_edit_begin for multi-step work, presented on every write until pegasus_edit_end; omit it and the tool holds the lease for this one send.")] string? editLeaseToken = null,
         [Description("The address of the Outgoing approved mailbox to send from; omit for the default: the approved mailbox the instruction e-mail arrived in (for a staff forward held in instructions@, the mailbox that forwarded it), else the Principal's Send from.")] string? fromMailbox = null,
         [Description("The e-mail's subject, as the Case page's Subject field takes it: a subject other than the derived one is at most 500 characters, and a line break becomes a space; omit for the derived subject: Re: and the instruction's subject, else the registration and Report.")] string? subject = null,
-        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. Filed estimates keep their filed names; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
+        [Description("Names for this report's documents in the send, keyed by kind (AssessmentReport, FeeNote, PrincipalInvoice, RepairSpecification, ImagePack), each ending in .pdf and at most 120 characters with it; a character no file name can hold becomes _. A kind not named, or named blank, attaches under its delivery name. The Case's files are named by caseDocumentNames; a document given a name another attachment of the send already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? attachmentNames = null,
         [Description("Names for the other report's documents, as attachmentNames takes them. Read only with otherReport.")] Dictionary<string, string>? otherAttachmentNames = null,
         [Description("true to move the Case's received e-mails to Deleted Items once the Sent item is observed, as the send form's Delete case correspondence tick does. The move is recoverable and leaves Pegasus's copies, links and history as they are.")] bool deleteCaseCorrespondence = false,
         [Description("The occurrence identifiers of offered Case files to attach as well: the Case's confirmed External estimates and Repair invoices that the Principal's report sending rules offer. An identifier that is not offered is refused.")] Guid[]? caseDocumentIds = null,
+        [Description("Names for the Case's files the send attaches, the filed estimates the Principal's rules attach and the offered files in caseDocumentIds, keyed by occurrence identifier. Each keeps the file's own extension (.pdf, .jpg, .docx and so on) and is at most 120 characters with it; a character no file name can hold becomes _. A file not named, or named blank, attaches under its filed name, and a name for a file the send does not attach is not used. A renamed file given a name another attachment already carries is numbered, as Name (2).pdf.")] Dictionary<string, string>? caseDocumentNames = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -113,6 +114,7 @@ internal sealed class SendMcpTools(
                 var selector = ReportMcpTools.ParseWork(work);
                 var kinds = ParseAttach(attach);
                 var names = ParseAttachmentNames(attachmentNames);
+                var fileNames = ParseCaseDocumentNames(caseDocumentNames);
                 ReportRecipientReview? review = to is null && cc is null
                     ? null
                     : new(
@@ -173,8 +175,10 @@ internal sealed class SendMcpTools(
                                 Subject: subject,
                                 AttachmentNames: names,
                                 TidiesCaseCorrespondence: deleteCaseCorrespondence,
-                                // Offered Case files, refused unless offered (R1151).
-                                OfferedFileIds: caseDocumentIds),
+                                // Offered Case files, refused unless offered (R1151),
+                                // and the names given the Case's files (R1175, R1176).
+                                OfferedFileIds: caseDocumentIds,
+                                CaseFileNames: fileNames),
                             cancellationToken),
                         cancellationToken);
                 }
@@ -703,6 +707,31 @@ internal sealed class SendMcpTools(
             if (!parsed.TryAdd(kind, name))
             {
                 throw new McpException($"attachmentNames names {kind} more than once.");
+            }
+        }
+        return parsed.Count == 0 ? null : parsed;
+    }
+
+    private static Dictionary<Guid, string>? ParseCaseDocumentNames(Dictionary<string, string>? names)
+    {
+        if (names is null)
+        {
+            return null;
+        }
+        var parsed = new Dictionary<Guid, string>();
+        foreach (var (key, name) in names)
+        {
+            if (!Guid.TryParse(key?.Trim(), out var occurrenceId) || occurrenceId == Guid.Empty)
+            {
+                throw new McpException("caseDocumentNames is keyed by the occurrence identifiers of the Case's files.");
+            }
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+            if (!parsed.TryAdd(occurrenceId, name))
+            {
+                throw new McpException($"caseDocumentNames names {occurrenceId:D} more than once.");
             }
         }
         return parsed.Count == 0 ? null : parsed;
