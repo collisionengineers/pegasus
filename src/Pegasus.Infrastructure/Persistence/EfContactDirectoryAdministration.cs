@@ -70,7 +70,7 @@ public sealed class EfContactDirectoryAdministration(
         {
             contacts = query.Role == ContactRole.Principal
                 ? contacts.Where(item => item.Name.StartsWith(prefix)
-                    || item.Principals.Any(principal => principal.Code.StartsWith(prefix)))
+                    || context.Principals.Any(principal => principal.OrganizationId == item.Id && principal.Code.StartsWith(prefix)))
                 : contacts.Where(item => item.Name.StartsWith(prefix));
         }
         // Each panel of the list is ordered by name (operator, 13 October 2026). One row more
