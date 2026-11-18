@@ -1677,7 +1677,7 @@ public sealed partial class DetailsModel
         }
         // The session posted is this staff member's own newest on the Case.
         var own = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
-        if (own?.Id != sessionId)
+        if (own is null || own.Id != sessionId)
         {
             return NotFound();
         }
