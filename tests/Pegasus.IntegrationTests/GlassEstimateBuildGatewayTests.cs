@@ -387,7 +387,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, acts[2].ReasonCode);
         Assert.Equal(GlassEstimateBuildOutcome.LeftOff, acts[3].Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, acts[3].ReasonCode);
-        Assert.Equal(2, session.Build.Total);
+        // Three lines are tried: the repair, the refit, and the refit the row
+        // rule then leaves off for equipment. The partial repair is never tried.
+        Assert.Equal(3, session.Build.Total);
 
         // The list once, the door's map and dialog once for each of its two
         // lines, and the two dialog posts byte for byte as the dialog's own
