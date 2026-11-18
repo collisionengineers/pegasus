@@ -1,6 +1,9 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
@@ -41,8 +44,18 @@ public sealed class AutomationGlassIngressTests
         {
             await AssertScopeDeniedAsync(act, AutomationMcp.GlassScope);
         }
+        using (var search = await PostMcpAsync(client, casework, ToolCallPayload(
+            3, "pegasus_glass_catalogue_search", new { caseId, term = "door" })))
+        {
+            await AssertScopeDeniedAsync(search, AutomationMcp.GlassScope);
+        }
+        using (var position = await PostMcpAsync(client, casework, ToolCallPayload(
+            4, "pegasus_glass_position_act", new { caseId, action = "remove", operationKey = "mcp:remove-denied", expectedSessionVersion = 0, positionId = "C1.2.C3.4" })))
+        {
+            await AssertScopeDeniedAsync(position, AutomationMcp.GlassScope);
+        }
 
-        Assert.Equal(2, await CountScopeDenialsAsync(factory));
+        Assert.Equal(4, await CountScopeDenialsAsync(factory));
     }
 
     /// <summary>
@@ -216,6 +229,164 @@ public sealed class AutomationGlassIngressTests
     }
 
     /// <summary>
+    /// The catalogue search reads the open estimate's lists and pages its
+    /// rows by a cursor bound to the session and the term; the position act
+    /// adds the row it returned, posted as Glass's dialog serves it, and
+    /// answers the act with Glass's own figures and the session's new
+    /// version. Each call is a history line. The scripted editor stands in
+    /// for Glass's on the host's own named client.
+    /// </summary>
+    [Fact]
+    public async Task SearchPagesTheRowsAndPositionActAddsOne()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        string? next;
+        using (var first = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "door shell", kind = "part", limit = 1,
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(first);
+            var row = Assert.Single(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal("771", row.GetProperty("row").GetString());
+            Assert.Equal("L", row.GetProperty("side").GetString());
+            Assert.True(row.GetProperty("paintable").GetBoolean());
+            next = structured.GetProperty("nextCursor").GetString();
+            Assert.False(string.IsNullOrEmpty(next));
+        }
+        using (var second = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "door shell", kind = "part", limit = 1, cursor = next,
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(second);
+            Assert.Equal("790", Assert.Single(structured.GetProperty("items").EnumerateArray()).GetProperty("row").GetString());
+            Assert.True(IsAbsent(structured, "nextCursor"));
+        }
+
+        long version;
+        using (var special = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "appraisal", kind = "special_operation",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(special);
+            var row = Assert.Single(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal("AC0000073", row.GetProperty("row").GetString());
+            Assert.Equal("special_operation", row.GetProperty("kind").GetString());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+            Assert.Equal(3, version);
+        }
+
+        using (var added = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:add-1", expectedSessionVersion = version,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(added);
+            var act = structured.GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
+            Assert.Equal(176.96m, act.GetProperty("price").GetDecimal());
+            Assert.Contains("A350880.1.A73.A73", act.GetProperty("positionIds").EnumerateArray().Select(id => id.GetString()));
+            Assert.Equal(version + 3, structured.GetProperty("session").GetProperty("version").GetInt64());
+            Assert.Equal("mcp:add-1", structured.GetProperty("operationKey").GetString());
+        }
+        Assert.Equal(1, glass.Count("POST /ere/aco/compproc.php"));
+
+        using (var read = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_glass_session_get", new { caseId })))
+        {
+            var structured = await ReadStructuredContentAsync(read);
+            var act = Assert.Single(structured.GetProperty("acts").EnumerateArray());
+            Assert.Equal("mcp:add-1", act.GetProperty("operationKey").GetString());
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
+        }
+
+        Assert.Equal(3, await CountHistoryAsync(factory, "pegasus_glass_catalogue_search"));
+        Assert.Equal(1, await CountHistoryAsync(factory, "pegasus_glass_position_act"));
+    }
+
+    /// <summary>
+    /// The two tools' own refusals, before anything is asked of Glass's: a
+    /// blank term, a kind or an action they do not have, a part without its
+    /// operation, a Case with no Automation session; then, on an open
+    /// session, a foreign cursor and a stale session version.
+    /// </summary>
+    [Fact]
+    public async Task SearchAndPositionActRefuseWhatTheyMust()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+
+        using (var blank = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_catalogue_search", new { caseId, term = " " })))
+        {
+            Assert.Contains(AutomationToolText.GlassSearchTermRefused, await RefusalAsync(blank), StringComparison.Ordinal);
+        }
+        using (var kind = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_catalogue_search", new { caseId, term = "door", kind = "wheel" })))
+        {
+            Assert.Contains(AutomationToolText.GlassSearchKindRefused, await RefusalAsync(kind), StringComparison.Ordinal);
+        }
+        using (var none = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_catalogue_search", new { caseId, term = "door" })))
+        {
+            Assert.Contains(AutomationToolText.GlassNoSession, await RefusalAsync(none), StringComparison.Ordinal);
+        }
+        using (var move = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_position_act", new
+        {
+            caseId, action = "move", operationKey = "mcp:move-1", expectedSessionVersion = 0,
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassPositionActionRefused, await RefusalAsync(move), StringComparison.Ordinal);
+        }
+        using (var unoperated = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:add-1", expectedSessionVersion = 0, kind = "part", row = "771",
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassAddOperationMissing, await RefusalAsync(unoperated), StringComparison.Ordinal);
+        }
+        using (var sessionless = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:add-2", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassNoSession, await RefusalAsync(sessionless), StringComparison.Ordinal);
+        }
+
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+        using (var foreign = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_glass_catalogue_search", new
+        {
+            caseId, term = "door", cursor = "not-a-cursor",
+        })))
+        {
+            Assert.Contains("The cursor is invalid", await RefusalAsync(foreign), StringComparison.Ordinal);
+        }
+        using (var stale = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:add-3", expectedSessionVersion = 7,
+            kind = "special_operation", row = "AC0000073",
+        })))
+        {
+            Assert.Contains("is at version 0 and not 7", await RefusalAsync(stale), StringComparison.Ordinal);
+        }
+
+        Assert.Empty(glass.Requests);
+    }
+
+    /// <summary>
     /// The host composes Glass's (DevelopmentOffline with Features:LiveGlass)
     /// with reserved test origins and the Automation's made-up login. Host
     /// settings are the one channel Program reads this early.
@@ -233,10 +404,48 @@ public sealed class AutomationGlassIngressTests
         });
 
     /// <summary>
-    /// The Automation's open session on the Case, as its start records it,
-    /// on its own login: written through the real store.
+    /// The scripted editor on the host's own named Glass's client, so the
+    /// gateway's requests reach it and nothing else.
     /// </summary>
-    private static async Task<Guid> SeedAutomationSessionAsync(WebApplicationFactory<Program> factory, Guid caseId)
+    private static WebApplicationFactory<Program> WithEditor(WebApplicationFactory<Program> factory, ScriptedGlass glass) =>
+        factory.WithWebHostBuilder(builder =>
+        {
+            // The editor's own pace is a browser's; here it waits for nothing.
+            builder.UseSetting("Glass:EditorPauseMilliseconds", "0");
+            builder.ConfigureTestServices(services => services.Configure<HttpClientFactoryOptions>(
+                GlassRepairEstimateOptions.HttpClientName,
+                options => options.HttpMessageHandlerBuilderActions.Add(
+                    handlerBuilder => handlerBuilder.PrimaryHandler = glass)));
+        });
+
+    /// <summary>
+    /// The protected state of an Automation session whose editor is open on
+    /// the scripted estimator, in the shape the gateway keeps it, protected
+    /// by the host's own key ring. Every value is made up.
+    /// </summary>
+    private static string OpenEditorState(IServiceProvider services) =>
+        services.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector(GlassRepairEstimateGateway.ProtectionPurpose)
+            .Protect(JsonSerializer.Serialize(new
+            {
+                registration = "AB12CDE",
+                mileageMiles = 33000,
+                editor = new
+                {
+                    baseAddress = GlassProviderFixture.EstimatorBase.AbsoluteUri + "ere/aco/",
+                    url0 = "made-up-url0",
+                    key = "made-up-session-key",
+                    cookies = new Dictionary<string, string>(),
+                },
+            }));
+
+    /// <summary>
+    /// The Automation's open session on the Case, as its start records it,
+    /// on its own login: written through the real store. With its editor,
+    /// its protected state holds an open editor on the scripted estimator.
+    /// </summary>
+    private static async Task<Guid> SeedAutomationSessionAsync(
+        WebApplicationFactory<Program> factory, Guid caseId, bool withEditor = false)
     {
         var sessionId = Guid.NewGuid();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -258,7 +467,9 @@ public sealed class AutomationGlassIngressTests
                 {
                     OwnerKind = ActorKind.Automation,
                 },
-                protectedProviderState: "protected:fixture:not-a-secret",
+                protectedProviderState: withEditor
+                    ? OpenEditorState(scope.ServiceProvider)
+                    : "protected:fixture:not-a-secret",
                 GlassRepairEstimateGateway.CallbackDigestOf(GlassRepairEstimateCallbackWebTests.NewCorrelation())),
             CancellationToken.None);
         return sessionId;

@@ -1017,7 +1017,25 @@ public sealed class GlassRepairEstimatePersistenceTests
                 read.Session with
                 {
                     State = GlassRepairEstimateSessionState.Active,
-                    Automation = read.Session.Automation! with { DraftSpecificationId = draft },
+                    Automation = read.Session.Automation! with
+                    {
+                        DraftSpecificationId = draft,
+                        Acts =
+                        [
+                            new GlassAutomationAct(
+                                "mcp:add-1", GlassAutomationActAction.Add, GlassAutomationActOutcome.Added,
+                                new DateTimeOffset(2026, 11, 18, 12, 0, 0, TimeSpan.Zero))
+                            {
+                                Kind = GlassAutomationPositionKind.Part,
+                                Row = "771",
+                                Operation = GlassAutomationPartOperation.Repair,
+                                ExpectedCode = "C2020001",
+                                PositionIds = ["C350987.35.C2020001.4467"],
+                                Served = new GlassEstimateBuildFigures(null, 0.40m),
+                                Listed = [new GlassAutomationListedPart("1017810.ER.", "Clip", Ticked: true)],
+                            },
+                        ],
+                    },
                 },
                 read.ProtectedProviderState,
                 read.CallbackDigest,
@@ -1026,6 +1044,15 @@ public sealed class GlassRepairEstimatePersistenceTests
             CancellationToken.None);
         var saved = await harness.Store.GetAutomationForCaseAsync(harness.CaseId, CancellationToken.None);
         Assert.Equal(draft, saved?.Automation?.DraftSpecificationId);
+        // Each position act is read back whole, its enums by name.
+        var act = Assert.Single(saved!.Automation!.Acts);
+        Assert.Equal("mcp:add-1", act.OperationKey);
+        Assert.Equal(GlassAutomationActOutcome.Added, act.Outcome);
+        Assert.Equal(GlassAutomationPartOperation.Repair, act.Operation);
+        Assert.Equal("C350987.35.C2020001.4467", Assert.Single(act.PositionIds));
+        Assert.Equal(0.40m, act.Served?.Hours);
+        Assert.True(Assert.Single(act.Listed).Ticked);
+        Assert.Empty(act.Before);
         Assert.Equal(ActorKind.Automation, saved?.OwnerKind);
 
         // A staff session reads as Staff, with no work; its reads never see
