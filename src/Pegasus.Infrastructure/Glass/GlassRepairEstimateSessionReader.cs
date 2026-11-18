@@ -70,9 +70,21 @@ public interface IGlassRepairEstimateSessionReader
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The state of <see cref="GetOwnAsync"/>'s session alone, for the window's
-    /// poll; null under the same rule.
+    /// The state of <see cref="GetOwnAsync"/>'s session and its build, for the
+    /// window's poll; null under the same rule. Nothing protected is read.
     /// </summary>
-    Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(
+    Task<GlassRepairEstimateSessionProgress?> GetOwnProgressAsync(
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether pressing Glass's on this repair spec first asks to import it
+    /// (operator, 18 November 2026; R1171): the spec has lines and belongs to
+    /// no Glass's estimate. Asked only where the press would start a new
+    /// estimate, so it is the one read the question costs.
+    /// </summary>
+    Task<bool> OffersBuildAsync(Guid specificationId, CancellationToken cancellationToken);
 }
+
+/// <summary>What the Glass's window's poll reads of its session: the state and the build, if any.</summary>
+public sealed record GlassRepairEstimateSessionProgress(
+    GlassRepairEstimateSessionState State, GlassEstimateBuild? Build);

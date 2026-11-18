@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -133,6 +134,16 @@ public sealed partial class GlassRepairEstimateGateway(
     /// <summary>How long a just-created vehicle waits before its identity is read once more.</summary>
     private static readonly TimeSpan VehicleReread = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>
+    /// The special list's group a build chooses special operations from:
+    /// "Free positions parts", whose rows are the operator's own list of
+    /// special operations, coded <c>AC</c> and seven digits (captures of 18
+    /// November 2026). The list is asked for with this group alone.
+    /// </summary>
+    private const string SpecialOperationGroup = "SS-FREEPART";
+
+    private const string SpecialOperationPrefix = "AC";
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -177,6 +188,17 @@ public sealed partial class GlassRepairEstimateGateway(
                 link, facts.Registration, facts.MileageMiles);
             await store.SupersedeAsync(request.CaseId, link.VehicleId, request.Actor, cancellationToken);
         }
+
+        // Import and open (operator, 18 November 2026; R1171): a spec with
+        // lines that belongs to no Glass's estimate is planned for a build.
+        // A spec that belongs to one reopens it, and a spec with no lines
+        // starts a new estimate, whatever was chosen. The outside estimate's
+        // vehicle is not checked against the Case: Glass's starts on the
+        // Case's vehicle as any launch does.
+        var build = request.Build && link is null && request.SpecificationId is { } source
+            && await caseAuthority.FindBuildSourceAsync(facts.WorkId, source, cancellationToken) is { } outside
+                ? GlassEstimateBuildPolicy.Plan(outside)
+                : null;
 
         // The account holds one live session. Asking first makes the ordinary
         // refusal a read that names the session in the way; the store's index
@@ -227,7 +249,10 @@ public sealed partial class GlassRepairEstimateGateway(
             now,
             ProviderVehicleId: link?.VehicleId,
             ProviderEstimateId: link?.EstimateId,
-            FailureCode: null);
+            FailureCode: null)
+        {
+            Build = build,
+        };
 
         var creation = await store.CreateAsync(
             new(prepared, Protect(provider), digest, null), cancellationToken);
@@ -237,9 +262,11 @@ public sealed partial class GlassRepairEstimateGateway(
         // estimate for one operator action.
         return new(
             creation.Material.Session,
-            creation.Created
-                ? GlassRepairEstimateContinuation.Launch
-                : GlassRepairEstimateContinuation.None);
+            !creation.Created
+                ? GlassRepairEstimateContinuation.None
+                : creation.Material.Session.Build is { Running: true }
+                    ? GlassRepairEstimateContinuation.Build
+                    : GlassRepairEstimateContinuation.Launch);
     }
 
     /// <summary>
@@ -269,6 +296,15 @@ public sealed partial class GlassRepairEstimateGateway(
             return session;
         }
 
+        // A build the host stopped before it saved is not taken up again:
+        // continuing it is a launch's continuation, so no post is ever sent
+        // twice, and the window and the Case say no build ran. The first
+        // write below records it.
+        if (session.Build is { Running: true } unfinished)
+        {
+            session = session with { Build = unfinished with { StoppedAt = GlassFailure.Interrupted } };
+        }
+
         var provider = Unprotect(material.ProtectedProviderState);
         var credential = await RequireLaunchCredentialAsync(request.Actor, session, cancellationToken);
         if (IsUncertain(session, provider))
@@ -282,9 +318,335 @@ public sealed partial class GlassRepairEstimateGateway(
             : await ReopenAsync(session, provider, credential, material.CallbackDigest, results, cancellationToken);
     }
 
+    /// <summary>
+    /// A build's provider work, in one piece (operator, 18 November 2026;
+    /// R1171 to R1173): the launch stages, the session's build in Glass's
+    /// editor with <see cref="GlassEditorClient"/>, Save and Exit, and then
+    /// the build's own return through the accepted-return path and the
+    /// import, so the result lands as a new Glass's repair spec. A session no
+    /// build is owed to continues as a launch.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every act's outcome is written as it is reached, so the Glass's window
+    /// can say how far the build has gone and a host that stops leaves the
+    /// record of what was sent. The session stays Launching throughout, so a
+    /// build stopped part-way settles as interrupted work and is never taken
+    /// up again: a post is never sent twice.
+    /// </para>
+    /// <para>
+    /// Nothing is typed (R1168): a special operation is posted as its dialog
+    /// serves it, and only when exactly one row of the special list has
+    /// exactly the line's name (R1169). A dialog the editor refuses before
+    /// anything is posted leaves that line off and the build goes on; a post
+    /// whose answer is lost stops the adding, and the build saves what it has.
+    /// When the editor cannot be opened, or nothing was placed, nothing is
+    /// saved: the estimate is started again under the same callback, and the
+    /// member of staff gets the empty estimate a launch gives.
+    /// </para>
+    /// </remarks>
+    public async Task<GlassRepairEstimateSession> ContinueBuildAsync(
+        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        var material = await store.GetAsync(request.SessionId, cancellationToken)
+            ?? throw new KeyNotFoundException($"There is no Glass's session {request.SessionId}.");
+        var session = material.Session;
+        RequireOwner(request.Actor, session);
+        var provider = Unprotect(material.ProtectedProviderState);
+        if (session.Build is not { Running: true } build
+            || session.State != GlassRepairEstimateSessionState.Prepared
+            || provider.EreId is not null
+            || provider.PegasusCallback is null)
+        {
+            return await ContinueLaunchAsync(request, cancellationToken);
+        }
+
+        var credential = await RequireLaunchCredentialAsync(request.Actor, session, cancellationToken);
+        session = await LaunchStagesAsync(
+            session, provider, credential, material.CallbackDigest, cancellationToken, build: true);
+        return session.State == GlassRepairEstimateSessionState.Launching
+            ? await BuildAsync(request.Actor, session, provider, credential, material.CallbackDigest, build, cancellationToken)
+            : session;
+    }
+
+    /// <summary>
+    /// The build itself, from an estimate the launch stages have just started
+    /// and left Launching: open the editor, add the build's acts, save and
+    /// exit, and hand the editor's own way home to the return path.
+    /// </summary>
+    private async Task<GlassRepairEstimateSession> BuildAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        ProviderState provider,
+        PerUserExternalCredentialMaterial credential,
+        string digest,
+        GlassEstimateBuild build,
+        CancellationToken cancellationToken)
+    {
+        var editor = NewEditorClient();
+        string? stoppedAt = null;
+        var returned = string.Empty;
+        try
+        {
+            var (read, unopened) = await OpenEditorAsync(session, editor, provider, cancellationToken);
+            if (read is null)
+            {
+                stoppedAt = unopened ?? GlassFailure.EditorLaunch;
+            }
+            else
+            {
+                var opened = read.Session;
+                var estimate = read.Value;
+                List<GlassSpecialOperation>? specials = null;
+                string? unread = null;
+                if (build.Acts.Any(act => act.Sends && act.Kind == GlassEstimateBuildKind.SpecialOperation))
+                {
+                    try
+                    {
+                        var list = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
+                            opened, SpecialOperationGroup, cancellationToken));
+                        opened = list.Session;
+                        specials = SpecialOperationsOf(list.Value);
+                    }
+                    catch (Exception failure)
+                        when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+                    {
+                        // Reading the list changes nothing: each special
+                        // operation is left off with the reason.
+                        unread = CodeOf(failure);
+                    }
+                }
+
+                for (var index = 0; index < build.Acts.Count; index++)
+                {
+                    var act = build.Acts[index];
+                    if (act.Outcome != GlassEstimateBuildOutcome.Pending)
+                    {
+                        continue;
+                    }
+
+                    var stopped = false;
+                    GlassSpecialOperation? row = null;
+                    string? reason;
+                    if (act.Kind != GlassEstimateBuildKind.SpecialOperation)
+                    {
+                        reason = GlassEstimateBuildPolicy.NotBuiltCode;
+                    }
+                    else if (specials is null)
+                    {
+                        reason = unread ?? GlassEstimateBuildPolicy.NoRowCode;
+                    }
+                    else
+                    {
+                        (row, reason) = GlassEstimateBuildPolicy.ChooseSpecialOperation(specials, act.Key);
+                    }
+
+                    if (row is null)
+                    {
+                        act = act with
+                        {
+                            Outcome = GlassEstimateBuildOutcome.LeftOff,
+                            ReasonCode = reason ?? GlassEstimateBuildPolicy.NoRowCode,
+                        };
+                    }
+                    else
+                    {
+                        var request = new GlassEditorAddRequest(
+                            GlassEditorDialog.SpecialOperation, row.Code, PartCodeOf(row.Code));
+                        try
+                        {
+                            var added = await StageAsync(session, "EditorAdd", () => editor.AddAsync(
+                                opened, estimate, request, cancellationToken));
+                            opened = added.Session;
+                            estimate = added.Value.Estimate;
+                            act = act with
+                            {
+                                Outcome = GlassEstimateBuildOutcome.Added,
+                                ReasonCode = null,
+                                Served = FiguresOf(added.Value.Summary),
+                            };
+                        }
+                        catch (GlassMvaStageException refused)
+                            when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
+                        {
+                            // Refused before anything was posted.
+                            LogBuildAct(logger, session.Id, session.CaseId, act.SourcePositions[0],
+                                GlassEstimateBuildOutcome.LeftOff, refused.FailureCode, refused.Detail ?? string.Empty);
+                            act = act with
+                            {
+                                Outcome = GlassEstimateBuildOutcome.LeftOff,
+                                ReasonCode = refused.FailureCode,
+                            };
+                        }
+                        catch (Exception lost)
+                            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+                        {
+                            // Posted, or perhaps posted: what the estimate
+                            // holds is now Glass's to say, and nothing more
+                            // is added.
+                            var failure = AsFailure(lost);
+                            LogBuildAct(logger, session.Id, session.CaseId, act.SourcePositions[0],
+                                GlassEstimateBuildOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
+                            act = act with
+                            {
+                                Outcome = GlassEstimateBuildOutcome.NotConfirmed,
+                                ReasonCode = failure.FailureCode,
+                            };
+                            stopped = true;
+                        }
+                    }
+
+                    build = GlassEstimateBuildPolicy.Record(build, index, act);
+                    if (stopped)
+                    {
+                        build = GlassEstimateBuildPolicy.LeaveOffPending(build, GlassEstimateBuildPolicy.StoppedCode);
+                    }
+
+                    session = await WriteAsync(session with { Build = build },
+                        GlassRepairEstimateSessionState.Launching, null, provider, digest, null, cancellationToken);
+                    if (stopped)
+                    {
+                        break;
+                    }
+                }
+
+                if (!build.Placed)
+                {
+                    stoppedAt = GlassEstimateBuildPolicy.NothingPlacedCode;
+                }
+                else
+                {
+                    try
+                    {
+                        returned = await StageAsync(session, "EditorSave", () => editor.SaveAndExitAsync(
+                            opened, cancellationToken));
+                    }
+                    catch (Exception failure)
+                        when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+                    {
+                        return await SettleAsync(
+                            session, AsFailure(failure), provider, digest, null, CancellationToken.None);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await WriteAsync(session with { Build = build }, GlassRepairEstimateSessionState.Unknown,
+                GlassFailure.Interrupted, provider, digest, null, CancellationToken.None);
+            throw;
+        }
+
+        if (stoppedAt is not null)
+        {
+            // Nothing was saved at Glass's. The estimate is started again
+            // under this session's own callback, which the build never
+            // handed back, so the member of staff opens it empty.
+            return await ReopenAsync(
+                session with { Build = build with { StoppedAt = stoppedAt } },
+                provider, credential, digest, new Results(), cancellationToken);
+        }
+
+        return await ReturnBuiltAsync(actor, session, provider, digest, returned, cancellationToken);
+    }
+
+    /// <summary>
+    /// The editor opened from the address the launch stages recorded, and the
+    /// estimate as it opened; or why it could not be, when nothing was sent.
+    /// </summary>
+    private async Task<(GlassEditorReply<GlassEditorEstimate>? Read, string? Failure)> OpenEditorAsync(
+        GlassRepairEstimateSession session, GlassEditorClient editor, ProviderState provider,
+        CancellationToken cancellationToken)
+    {
+        var launchAddress = provider.EstimatorUrl
+            ?? throw new InvalidOperationException("A started Glass's estimate must carry its estimator address.");
+        try
+        {
+            var opened = await StageAsync(session, "EditorOpen", () => editor.OpenAsync(launchAddress, cancellationToken));
+            return (await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(opened, cancellationToken)), null);
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return (null, CodeOf(failure));
+        }
+    }
+
+    /// <summary>
+    /// The editor's way home, taken as the provider's return to this session:
+    /// it must be this session's own callback, with the query exactly as the
+    /// editor gave it, as the callback page passes it. The session is opened
+    /// for the return only now, and the return is accepted and imported in the
+    /// same work, with no request to Pegasus.
+    /// </summary>
+    private async Task<GlassRepairEstimateSession> ReturnBuiltAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        ProviderState provider,
+        string digest,
+        string returned,
+        CancellationToken cancellationToken)
+    {
+        var own = provider.PegasusCallback
+            ?? throw new InvalidOperationException("A Glass's build must carry the callback it was launched under.");
+        if (!returned.StartsWith(own + "?", StringComparison.Ordinal))
+        {
+            // Saved at Glass's, but not as this session's: what it holds is
+            // for a person to look at.
+            return await SettleAsync(
+                session,
+                new GlassMvaStageException(GlassFailure.EditorReturn, outcomeUnknown: true, detail: "address=not-this-session"),
+                provider, digest, null, CancellationToken.None);
+        }
+
+        session = await WriteAsync(
+            session, GlassRepairEstimateSessionState.Active, null, provider, digest, null, CancellationToken.None);
+        // The claim is made whatever the time cap does: a session left Active
+        // here would open an editor the build has already closed.
+        var accepted = await AcceptReadAsync(
+            new GlassRepairEstimateCallback(
+                actor, session.Id, session.Version, new Uri(own, UriKind.Absolute).Segments[^1], returned[own.Length..]),
+            await store.GetAsync(session.Id, CancellationToken.None),
+            CancellationToken.None);
+        return accepted.Continuation == GlassRepairEstimateContinuation.Import
+            ? await ContinueImportAsync(new(actor, session.Id), cancellationToken)
+            : accepted.Session;
+    }
+
+    /// <summary>The special operations of the build's group: each row's code and name.</summary>
+    private static List<GlassSpecialOperation> SpecialOperationsOf(IReadOnlyList<GlassEditorSpecialGroup> groups) =>
+        groups
+            .Where(group => string.Equals(group.Code, SpecialOperationGroup, StringComparison.Ordinal))
+            .SelectMany(group => group.Rows)
+            .Where(row => row.Count > 2 && row[0].StartsWith(SpecialOperationPrefix, StringComparison.Ordinal))
+            .Select(row => new GlassSpecialOperation(row[0], row[2]))
+            .ToList();
+
+    /// <summary>
+    /// The part code a special operation's dialog carries: its row code
+    /// without the prefix and the leading zeros (<c>AC0000073</c> is 73).
+    /// </summary>
+    private static string PartCodeOf(string code) => code[SpecialOperationPrefix.Length..].TrimStart('0');
+
+    /// <summary>What the dialog served, a zero read as none so it compares with a line that has none.</summary>
+    private static GlassEstimateBuildFigures FiguresOf(GlassEditorSummary summary) =>
+        new(Amount(summary.Price), Amount(summary.Hours));
+
+    private static decimal? Amount(string? served) =>
+        decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value != 0m
+            ? value
+            : null;
+
+    /// <summary>A stage's own code, or the transport's when nothing answered.</summary>
+    private static string CodeOf(Exception failure) =>
+        failure is GlassMvaStageException stage ? stage.FailureCode : GlassFailure.TransportFailed;
+
     private async Task<GlassRepairEstimateSession> LaunchStagesAsync(
         GlassRepairEstimateSession session, ProviderState provider,
-        PerUserExternalCredentialMaterial credential, string digest, CancellationToken cancellationToken)
+        PerUserExternalCredentialMaterial credential, string digest, CancellationToken cancellationToken,
+        bool build = false)
     {
         // Claim this version before any external work, including a resumed
         // Prepared session. A concurrent Resume cannot also create a vehicle.
@@ -360,8 +722,12 @@ public sealed partial class GlassRepairEstimateGateway(
             var launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(
                 "0", new Uri(provider.PegasusCallback!, UriKind.Absolute), expectedEstimateIds: null, cancellationToken));
             Record(provider, launch);
+            // A build keeps the editor to itself: the session stays Launching,
+            // the state for work that may have acted at Glass's, until its
+            // own return is handed over.
             return await WriteAsync(session with { ProviderEstimateId = launch.EreId },
-                GlassRepairEstimateSessionState.Active, null, provider, digest, null, CancellationToken.None);
+                build ? GlassRepairEstimateSessionState.Launching : GlassRepairEstimateSessionState.Active,
+                null, provider, digest, null, CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1300,6 +1666,13 @@ public sealed partial class GlassRepairEstimateGateway(
                 },
                 cancellationToken));
             results.ImportedEstimateId = imported.EstimateId;
+            // A build's own return lands as a new Glass's repair spec beside
+            // the outside one (operator, 18 November 2026), and the build
+            // names it so its list is shown on that spec (R1173).
+            if (session.Build is { Running: true } built)
+            {
+                session = session with { Build = built with { BuiltSpecificationId = imported.EstimateId } };
+            }
         }
         catch (Exception stale)
             when (stale is CaseVersionConflictException
@@ -1448,6 +1821,12 @@ public sealed partial class GlassRepairEstimateGateway(
             options,
             cookies,
             timeProvider);
+
+    private GlassEditorClient NewEditorClient() =>
+        new(httpClientFactory.CreateClient(GlassRepairEstimateOptions.HttpClientName),
+            options,
+            timeProvider,
+            options.EditorPause);
 
     private async Task<PerUserExternalCredentialMaterial> RequireCredentialAsync(
         ActionActor actor, CancellationToken cancellationToken) =>
@@ -1602,6 +1981,13 @@ public sealed partial class GlassRepairEstimateGateway(
         Message = "Glass's session {SessionId} for case {CaseId} settled {State} at {FailureCode} {Detail}")]
     private static partial void LogSettled(
         ILogger logger, Guid sessionId, Guid caseId, GlassRepairEstimateSessionState state, string failureCode, string detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's session {SessionId} for case {CaseId} build line {Position} {Outcome} at {ReasonCode} {Detail}")]
+    private static partial void LogBuildAct(
+        ILogger logger, Guid sessionId, Guid caseId, int position, GlassEstimateBuildOutcome outcome,
+        string reasonCode, string detail);
 
     [LoggerMessage(
         Level = LogLevel.Information,
