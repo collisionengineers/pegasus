@@ -4,9 +4,9 @@ status: accepted
 date: 2026-11-06
 supersedes: []
 superseded_by: []
-related_capabilities: [EXT-20]
-related_frd: [FRD-06, FRD-16, FRD-10]
-tags: [experian, vehicle-history, key-vault, custody]
+related_capabilities: [EXT-20, EXT-07, EXT-13]
+related_frd: [FRD-06, FRD-16, FRD-10, FRD-24]
+tags: [experian, vehicle-history, cap, valuation, key-vault, custody]
 ---
 
 # ADR-0089: Experian vehicle history check
@@ -20,6 +20,12 @@ total losses, recorded as the Vehicle history text the report prints
 [FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)
 owns what staff see and what the text says. This record owns how Experian is
 called and where its account lives.
+
+Amended 19 November 2026 (R1201 to R1205): the same account and API also
+value CAP for the Case's CAP guide card; see "CAP valuation is the account's
+second act".
+[FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
+owns what staff see.
 
 ## Context
 
@@ -58,7 +64,8 @@ The answer replaces the text (R744). A vehicle Experian does not hold
 (its own 404 body with an `errors` object) writes nothing (R748). No schema
 or data migration is involved: the field already exists.
 
-**Sign in once per token.** The provider holds the bearer token in process
+**Sign in once per token.** `ExperianClient`, the one caller of Experian
+that both acts share, holds the bearer token in process
 until a minute before `expires_in` and renews it once when Experian answers
 `401`. The token request is a JSON body (`username`, `password`,
 `client_id`, `client_secret`) with a `Grant_type: password` header, as
@@ -87,6 +94,24 @@ answer, the network or a missing setting all answer the approved
 `configuration`, with `stage=token|vehicle`. Experian's own not-found answer
 is logged as `experian.history.not_found`.
 
+**CAP valuation is the account's second act** (19 November 2026, R1201).
+`ExperianCapValuationProvider` is the CAP guide source's provider behind
+`FetchGuideValuation`, as Glass's, Cazana and Brego have theirs. It sends a
+Custom Search, `{"vrm":…,"currentmileage":…,"data":{"cap":{"valuation":true}}}`,
+with the Case's accepted mileage in whole miles, and reads
+`vehicle.valuations.cap.valuation`: `retail` is the card's retail and `clean`
+its trade (R1202). The request carries no valuation date, so every answer is
+the current London month and every ask is the current month's ask (R1203).
+The quote carries no report and no VIN (R1205). Experian's own not-found
+answer is the card's "holds no data for its registration" notice; an answer
+without the block or without both figures, a refusal, the network or a
+missing setting is the card's unavailable notice (R1204), logged as
+`experian.cap.not_found`, `rejected`, `forbidden`, `throttled`,
+`provider_failed`, `unreadable`, `transport`, `configuration` or
+`mileage_unit`, with Experian's message ids where it sent any. It needs no
+setting, secret or grant beyond the six above, and no migration: `Cap` has
+been a stored valuation source since the baseline.
+
 ## Consequences
 
 - The Vehicle history area offers Run Experian check where Experian is
@@ -95,7 +120,9 @@ is logged as `experian.history.not_found`.
 - Hosts that do not run the Production profile compose no Experian unless
   `Features:LiveExperian` is set on a DevelopmentOffline host (the hosted
   test instance, against the sandbox). Without it they say "Experian is not
-  connected".
+  connected", and their CAP card says CAP valuation is unavailable.
+- The CAP card offers Get valuation wherever Experian is composed, and the
+  Automation Actor has it as `pegasus_valuation_get` with source `Cap`.
 - The release that first ships this creates the four secrets with
   secret-scoped grants to the Web identity and sets the six azd variables.
   The production base and token addresses come from Experian with the

@@ -14,7 +14,8 @@
     a changed card (the same source and month replaces); Get valuation asks
     the connected provider by script and fills the boxes, or shows the card's
     notice. A source with no connected provider says so on its card before
-    anything is pressed and offers no Get valuation.
+    anything is pressed and offers no Get valuation. CAP's guide month is
+    greyed and always the current month (R1203).
 
     A click anywhere on a card with a retail is the Engineer's decision to use
     it (operator, 8 October 2026): the script chooses it as the basis and
@@ -53,6 +54,8 @@
         Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source, view = Model.ViewRoute })!;
     string Figure(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture) ?? string.Empty;
     string Month(DateOnly? month) => month?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth;
+    // The month a card valued only as it stands today is recorded for (R1203).
+    var currentMonth = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow).ToString("yyyy-MM", CultureInfo.InvariantCulture);
 
     // What a recorded research card was asked with: its month, mileage and date.
     string CardMeta(CaseValuation valuation) =>
@@ -122,7 +125,20 @@
                             @if (editable)
                             {
                                 <label for="@(idPrefix)month">@ValuationLabels.GuideMonth</label>
-                                <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@recorded?.Details.GuideMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture)" data-valuation-entry-month />
+                                @* A source valued only as it stands today (CAP,
+                                   through Experian) has no month to choose
+                                   (operator, 19 November 2026, R1203): the box
+                                   is greyed, says why on hover, and holds the
+                                   recorded card's month until a figure is typed
+                                   or fetched, which makes it the current month. *@
+                                if (ValuationSources.IsValuedTodayOnly(source))
+                                {
+                                    <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@(recorded is null ? currentMonth : recorded.Details.GuideMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture))" readonly title="@ValuationLabels.TodayOnlyMonth(source)" data-valuation-entry-month data-valuation-month-today="@currentMonth" />
+                                }
+                                else
+                                {
+                                    <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@recorded?.Details.GuideMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture)" data-valuation-entry-month />
+                                }
                             }
                             else
                             {

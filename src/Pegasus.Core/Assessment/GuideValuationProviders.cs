@@ -174,7 +174,8 @@ public static class GuideValuationFetchPolicy
 
     /// <summary>
     /// The key a request asks for. A later month is valued today and filled
-    /// as the current month, so it is the current month's ask; the
+    /// as the current month, so it is the current month's ask, and so is every
+    /// ask of a source valued only as it stands today (R1203); the
     /// registration is compared without spacing or case.
     /// </summary>
     public static GuideValuationFetchKey Key(
@@ -192,7 +193,7 @@ public static class GuideValuationFetchPolicy
         return new(
             caseId,
             source,
-            month > current ? current : month,
+            month > current || ValuationSources.IsValuedTodayOnly(source) ? current : month,
             string.Concat(registration.Where(character => !char.IsWhiteSpace(character)))
                 .ToUpperInvariant(),
             mileage,

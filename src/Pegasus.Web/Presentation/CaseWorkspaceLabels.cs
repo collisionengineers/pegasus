@@ -865,6 +865,14 @@ public static class CaseWorkspaceLabels
         /// </summary>
         public static string AlreadyFetched(ValuationSource source) =>
             SourceLabel(source) + " has already been asked for this Case.";
+
+        /// <summary>
+        /// The tooltip on the greyed guide month of a source valued only as
+        /// it stands today (operator, 19 November 2026, R1203): "CAP can only
+        /// do valuations for the current day."
+        /// </summary>
+        public static string TodayOnlyMonth(ValuationSource source) =>
+            SourceLabel(source) + " can only do valuations for the current day.";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.

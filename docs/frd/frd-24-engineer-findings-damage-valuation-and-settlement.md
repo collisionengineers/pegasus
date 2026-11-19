@@ -228,10 +228,11 @@ calculation starts from retail; there is no Basis control beside the figures
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI market research
 is automation-only.
 
-Glass's, Brego and Cazana are the connected guide sources
+Glass's, Brego, Cazana and CAP are the connected guide sources
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
 [ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md),
-[ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
+[ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md),
+[ADR-0089](../adr/0089-experian-vehicle-history-check.md)).
 Staff or the Automation Actor press Get valuation
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md); operator, 8 October
 2026). Its Get valuation signs in with the Glass's valuation account, values the
@@ -307,7 +308,8 @@ whatever else stops a Brego valuation, the card shows its notice.
 Each connected source is asked once per Case and guide month at the Case's
 accepted registration and mileage (operator, 10 November 2026,
 [R900](../rulings.md)), whoever presses Get valuation, so a repeated press
-costs nothing. A later month counts as the current month it is valued in.
+costs nothing. A later month counts as the current month it is valued in, and
+so does every ask of CAP ([R1203](../rulings.md)).
 Only an answer with figures uses the ask: a source that cannot answer or
 cannot value the vehicle may be asked again. A corrected accepted
 registration or mileage allows each source and month one more ask. The
@@ -315,8 +317,26 @@ automatic Glass's request is that month's Glass's ask, and it is settled
 unasked when Glass's has already answered. Get valuation stays on the card;
 a press for a month already answered asks nothing and the card says
 `{Source} has already been asked for this Case.`
-Super CAP and CAP have no connected provider; connecting one needs its
-own accepted decision.
+CAP's Get valuation asks Experian, on the account and API of the vehicle
+history check ([ADR-0089](../adr/0089-experian-vehicle-history-check.md);
+operator, 19 November 2026, [R1201](../rulings.md)). It sends the Case's
+accepted registration and its accepted mileage in whole miles, and fills the
+card with CAP's `retail` as its retail and CAP's `clean` as its trade
+([R1202](../rulings.md)). Experian's request takes no valuation date, so CAP
+is valued only as it stands today (operator, 19 November 2026,
+[R1203](../rulings.md)). The card's Guide month is greyed and is not staff's
+to choose; hovering it says `CAP can only do valuations for the current day.`
+It holds the current month, or a recorded card's own month until a figure is
+typed or fetched. A changed CAP card, typed or fetched, is recorded for the
+current month, and a CAP card with no figures records nothing. Experian
+publishes no report of the valuation, so no document is filed and the VIN is
+not filled ([R1205](../rulings.md)). When Experian holds no vehicle for the
+registration, the card shows an info notice instead,
+`CAP cannot value this vehicle: it holds no data for its registration.`;
+whatever else stops a CAP valuation, an answer without CAP's figures
+included, the card shows its notice ([R1204](../rulings.md)).
+Super CAP has no connected provider; connecting one needs its own accepted
+decision.
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An

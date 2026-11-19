@@ -1096,16 +1096,51 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(accountFactory);
 
-        // Each call is bounded once by ExperianVehicleHistoryProvider.CallTimeout.
-        services.AddHttpClient(
-            ExperianVehicleHistoryProvider.HttpClientName,
-            client => client.Timeout = Timeout.InfiniteTimeSpan);
+        AddExperianClient(services, accountFactory);
         services.AddSingleton<IVehicleHistoryCheckProvider>(provider => new ExperianVehicleHistoryProvider(
-            provider.GetRequiredService<IHttpClientFactory>(),
-            () => accountFactory(provider),
-            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ExperianClient>(),
             provider.GetRequiredService<ILogger<ExperianVehicleHistoryProvider>>()));
         return services;
+    }
+
+    /// <summary>
+    /// Connects CAP as a guide valuation source, valued through Experian on
+    /// the vehicle history check's account (ADR-0089, R1201). A host that does
+    /// not call this has no CAP provider, so the Case's CAP card says it is
+    /// unavailable and offers no Get valuation. The account comes through a
+    /// factory and is read on each valuation, for the history check's reason.
+    /// </summary>
+    public static IServiceCollection AddExperianCapValuation(
+        this IServiceCollection services,
+        Func<IServiceProvider, ExperianAccount> accountFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(accountFactory);
+
+        AddExperianClient(services, accountFactory);
+        services.AddSingleton<IGuideValuationProvider>(provider => new ExperianCapValuationProvider(
+            provider.GetRequiredService<ExperianClient>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<ExperianCapValuationProvider>>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The one Experian client a host has, whichever of its two acts composes
+    /// it first, so the history check and the CAP valuation share one sign-in.
+    /// </summary>
+    private static void AddExperianClient(
+        IServiceCollection services,
+        Func<IServiceProvider, ExperianAccount> accountFactory)
+    {
+        // Each call is bounded once by ExperianClient.CallTimeout.
+        services.AddHttpClient(
+            ExperianClient.HttpClientName,
+            client => client.Timeout = Timeout.InfiniteTimeSpan);
+        services.TryAddSingleton(provider => new ExperianClient(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => accountFactory(provider),
+            provider.GetRequiredService<TimeProvider>()));
     }
 
     /// <summary>
