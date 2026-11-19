@@ -115,7 +115,16 @@ internal static class AutomationToolText
 
     public const string GlassActOutcome = "pending, added, removed, not_confirmed or refused.";
 
-    public const string GlassActCode = "The glass.* code of a refusal, or of a change Glass's did not confirm.";
+    public const string GlassActCode = "The glass.* code of a refusal, or of a change Glass's did not confirm. " + GlassEquipmentCodes;
+
+    // The equipment refusals' codes, one sentence each (R1206; 19 November
+    // 2026). Drafts for the operator to approve on the merge request.
+    public const string GlassEquipmentCodes =
+        "glass.build.equipment: the row asks Glass's equipment question; answer it with inputs.equipment. "
+        + "glass.build.equipment_hidden: the vehicle's equipment hides this part on its drawing, so Glass's does not show it. "
+        + "glass.build.equipment_wheel: a wheel, which Glass's chooses in its own wheel selector; not built. "
+        + "glass.build.equipment_uncertain: the part's rows depend on equipment Glass's does not ask about for it; not built. "
+        + "glass.build.equipment_part_only: the row asks Glass's equipment question, which is answered only to add the part as part.";
 
     public const string GlassActPositionIds = "The positions the add put on the estimate.";
 
@@ -203,7 +212,9 @@ internal static class AutomationToolText
 
     public const string GlassPreviewDialog = "preview: the dialog as a form, when Glass's served it. Nothing was posted.";
 
-    public const string GlassPreviewCode = "preview: the glass.* code when no dialog was read, such as a row that is not certain or an equipment question with no answer.";
+    public const string GlassPreviewCode = "preview: the glass.* code when no dialog was read, such as a row that is not certain or an equipment question with no answer. " + GlassEquipmentCodes;
+
+    public const string GlassPreviewEquipment = "preview, with glass.build.equipment: the part's equipment question, as the search gives it.";
 
     public const string GlassPreviewKind = "part_paintable (a part with a paint section and the Part, Paint and Part and Paint buttons), part, or special_operation.";
 

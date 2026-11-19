@@ -190,6 +190,8 @@ public sealed class GlassEditorRowsTests
         "358|t|||||907||1.57|ER||||||||||",
         "359|t|||||908||1.58|ER||||||||||",
         "360|t|||||909||1.59|ER||||||||||",
+        "400|pbcdw||D3|7|9000400||NUM400|100.00|ERAEI |||||||Wheel L|||",
+        "401|t|||||||1.60|ER||||||||||",
     ];
 
     private static readonly Lazy<GlassEditorPartList> MadeUpEquipment = new(() =>
@@ -554,7 +556,7 @@ public sealed class GlassEditorRowsTests
         Assert.True(Assert.Single(shown.Asked.Options, option => option.Code == "24119").Greyed);
         Assert.True(Assert.Single(shown.Asked.Options, option => option.Code == "24119").Ticked);
         Assert.Equal("320|322", GlassEditorRows.Answer(list, Index(list.Rows, "320"), shown, MadeUpMaps["320"], FogLamp).Rows);
-        Assert.Equal(Equipment, GlassEditorRows.AskedRefusal(list, Index(list.Rows, "330")));
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, GlassEditorRows.AskedRefusal(list, Index(list.Rows, "330")));
         Assert.Null(GlassEditorRows.Question(list, Index(list.Rows, "340")));
         Assert.Null(GlassEditorRows.Question(First.Value, Index("17")));
     }
@@ -608,6 +610,96 @@ public sealed class GlassEditorRowsTests
     }
 
     /// <summary>
+    /// The BMW's roof panel (rows 525 and 2697 of its list of 19 November
+    /// 2026) asks no question and is hidden by the panoramic roof the car
+    /// does not have. For the Automation's live add it is decided as any
+    /// certain head, to the pair the editor's own click asks for; a car with
+    /// the panoramic roof is refused with a code of its own. A rebuild's
+    /// rule is unchanged (R1206).
+    /// </summary>
+    [Fact]
+    public void AHeadItsEquipmentShowsIsDecidedAsAnyOtherForTheAutomation()
+    {
+        var shown = Roof(GlassProviderFixture.NoPanoramicRoof);
+        var hidden = Roof(GlassProviderFixture.PanoramicRoof);
+        var roof = Index(shown.Rows, "525");
+        var again = Index(shown.Rows, "2697");
+
+        Assert.Null(GlassEditorRows.Question(shown, roof));
+        Assert.Null(GlassEditorRows.ListRefusal(shown.Rows, roof, Replace, shown.Vehicle));
+        Assert.Equal("525|526", GlassEditorRows.Decide(shown.Rows, roof, NoVariants(shown.Rows[roof]), Replace, shown.Vehicle).Rows);
+        Assert.Equal("2697|2698", GlassEditorRows.Decide(shown.Rows, again, NoVariants(shown.Rows[again]), Replace, shown.Vehicle).Rows);
+        Assert.Equal(
+            GlassAutomationPositionPolicy.EquipmentHiddenCode,
+            GlassEditorRows.ListRefusal(hidden.Rows, roof, Replace, hidden.Vehicle));
+        Assert.Equal(Equipment, GlassEditorRows.ListRefusal(shown.Rows, roof));
+        Assert.Equal(Equipment, GlassEditorRows.Decide(shown.Rows, roof, NoVariants(shown.Rows[roof])).ReasonCode);
+    }
+
+    /// <summary>
+    /// The cut list's distance sensor (row 65) is shown only with the park
+    /// assistant: hidden as first served, shown once the answers of 08:06
+    /// stored it. A wheel and a map with variants the part list does not
+    /// ask about have codes of their own for the Automation (R1206).
+    /// </summary>
+    [Fact]
+    public void TheAutomationsOtherEquipmentRefusalsHaveCodesOfTheirOwn()
+    {
+        var sensor = Index("65");
+        var made = MadeUpEquipment.Value;
+
+        Assert.Equal(
+            GlassAutomationPositionPolicy.EquipmentHiddenCode,
+            GlassEditorRows.ListRefusal(Parts, sensor, Replace, First.Value.Vehicle));
+        Assert.Equal("65|66", GlassEditorRows.Decide(Parts, sensor, NoVariants(Parts[sensor]), Replace, Later.Value.Vehicle).Rows);
+        Assert.Equal(
+            GlassAutomationPositionPolicy.EquipmentUncertainCode,
+            GlassEditorRows.Decide(Parts, Index("17"), SupportWithAVariant, Replace, First.Value.Vehicle).ReasonCode);
+        Assert.Equal(
+            GlassAutomationPositionPolicy.EquipmentWheelCode,
+            GlassEditorRows.ListRefusal(made.Rows, Index(made.Rows, "400"), Replace, made.Vehicle));
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentWheelCode, GlassEditorRows.AskedRefusal(made, Index(made.Rows, "400")));
+    }
+
+    /// <summary>
+    /// For the Automation the bare <see cref="GlassEstimateBuildPolicy.EquipmentCode"/>
+    /// means only "this row asks a question": no head of the cut list in
+    /// either state, nor of the made-up blocks, is refused with it by the
+    /// list or by a map with no variants, unless its block asks.
+    /// </summary>
+    [Theory]
+    [InlineData("first")]
+    [InlineData("later")]
+    [InlineData("made-up")]
+    public void TheAutomationIsRefusedWithTheBareEquipmentCodeOnlyForAQuestion(string state)
+    {
+        var list = state switch
+        {
+            "first" => First.Value,
+            "later" => Later.Value,
+            _ => MadeUpEquipment.Value,
+        };
+
+        for (var at = 0; at < list.Rows.Count; at++)
+        {
+            if (!list.Rows[at].IsHead)
+            {
+                continue;
+            }
+            if (GlassEditorRows.Question(list, at) is not null)
+            {
+                Assert.NotEqual(Equipment, GlassEditorRows.AskedRefusal(list, at));
+                continue;
+            }
+
+            Assert.NotEqual(Equipment, GlassEditorRows.ListRefusal(list.Rows, at, Replace, list.Vehicle));
+            Assert.NotEqual(
+                Equipment,
+                GlassEditorRows.Decide(list.Rows, at, NoVariants(list.Rows[at]), Replace, list.Vehicle).ReasonCode);
+        }
+    }
+
+    /// <summary>
     /// The rule's whole decision for one line, as the build makes it: the
     /// heads the line is found by, each with the map Glass's serves for a row
     /// with no variants (the shape the program read for row 753 on 18
@@ -648,6 +740,18 @@ public sealed class GlassEditorRowsTests
 
     private static IOrderedEnumerable<string> Sorted(JsonElement element, string name) =>
         element.GetProperty(name).EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal);
+
+    /// <summary>The roof panel's captured block with the panoramic roof's line as given.</summary>
+    private static GlassEditorPartList Roof(string panoramicRoof)
+    {
+        var page = "<script>\n"
+            + string.Join('\n', GlassProviderFixture.RoofRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n"
+            + "partlist.addCrit(\"" + panoramicRoof + "\");\n</script>\n";
+        return new GlassEditorPartList(
+            GlassEditorPages.PartList(page) ?? throw new InvalidOperationException("The roof's list holds no row."),
+            GlassEditorPages.Criteria(page),
+            null);
+    }
 
     private static List<IReadOnlyList<string>> NoVariants(GlassEditorPartRow row) =>
         [new List<string> { "I", row.Code }, new List<string>(), new List<string>(), new List<string>()];

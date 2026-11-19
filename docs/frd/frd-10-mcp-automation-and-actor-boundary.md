@@ -841,9 +841,25 @@ compose Glass's, each tool is refused with "Glass's is not available."
   answer leads to and that row's part number before it is posted as
   served. The act keeps the answer, the row pair and the stored values it
   changed, and says when the answer was stored though the add was then
-  refused. Repair and remove-and-refit on such a part stay refused (R1172),
-  and the server's rebuild of an outside estimate answers no question
-  (R1168, R1169, R1172).
+  refused. Repair and remove-and-refit on such a part stay refused, with
+  `glass.build.equipment_part_only` (R1172), and the server's rebuild of an
+  outside estimate answers no question (R1168, R1169, R1172).
+- A part that asks no question but is shown or hidden on its drawing by
+  equipment is added as any certain part when the vehicle's criteria show
+  it, as Glass's editor shows it and opens its dialog with no question
+  (19 November 2026; R1206). One the vehicle's criteria hide is refused
+  with `glass.build.equipment_hidden`. For the Actor
+  `glass.build.equipment` means only that the row asks Glass's equipment
+  question and no answer was given, and an add or a preview always carries
+  the question with it. Every other equipment refusal has a code of its
+  own: `glass.build.equipment_wheel` for a wheel, which Glass's chooses in
+  its own wheel selector, and `glass.build.equipment_uncertain` for a part
+  whose rows depend on equipment Glass's does not ask about for it. Judged
+  offline against the editor's own click on both captured part lists: of
+  the heads that ask nothing and that the vehicle's equipment shows, 40 of
+  61 on the SEAT's list and 46 of 72 on the BMW's give the editor's own
+  row pair; the others are refused with a reason, and none gives another
+  pair.
 - A session the Automation owns has no lifetime, as any Glass's session.
   Staff see it on its Case, and any member of staff who can open the Case's
   assessment may close it with a reason (R1180;

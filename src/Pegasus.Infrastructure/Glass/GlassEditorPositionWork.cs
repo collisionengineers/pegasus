@@ -140,7 +140,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// whatever price and hours it serves for it, none included (R1172):
     /// its question before sending no figures is answered OK (R1188).
     /// A build's line and the Automation's add both choose their rows here,
-    /// by what the part is found by: its key and side.
+    /// by what the part is found by: its key and side. The Automation's
+    /// passes the vehicle's criteria (<paramref name="vehicle"/>), so a head
+    /// they show on its drawing is decided as any other and each refusal
+    /// has its own code (R1206); a build passes none and keeps its rule.
     /// </summary>
     internal async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChoosePartAsync(
         GlassRepairEstimateSession session,
@@ -151,6 +154,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         string? key,
         string? side,
         string operation,
+        IReadOnlySet<string>? vehicle,
         CancellationToken cancellationToken)
     {
         var (heads, unfound) = GlassEditorRows.Find(parts, keyKind, key, side);
@@ -162,7 +166,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         var decided = new List<GlassEditorRowChoice>();
         foreach (var head in heads)
         {
-            if (GlassEditorRows.ListRefusal(parts, head, operation) is { } refused)
+            if (GlassEditorRows.ListRefusal(parts, head, operation, vehicle) is { } refused)
             {
                 decided.Add(GlassEditorRowChoice.Refused(refused));
                 break;
@@ -173,7 +177,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
                     opened, parts[head].Id, cancellationToken));
                 opened = map.Session;
-                var choice = GlassEditorRows.Decide(parts, head, map.Value, operation);
+                var choice = GlassEditorRows.Decide(parts, head, map.Value, operation, vehicle);
                 decided.Add(choice);
                 if (choice.Rows is null)
                 {
@@ -561,7 +565,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// hidden for the vehicle; otherwise its equipment map is read, and an
     /// add with no answer, or with one the dialog would not take or that
     /// leads to no part, is refused with the question. Repair and
-    /// remove-and-refit on it are refused as before (R1172).
+    /// remove-and-refit on it are refused with
+    /// <see cref="GlassAutomationPositionPolicy.EquipmentPartOnlyCode"/>
+    /// (R1172). <see cref="GlassEstimateBuildPolicy.EquipmentCode"/> comes
+    /// from here only with the question.
     /// </summary>
     private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened, GlassEditorEquipmentChoice? Equipment)> ChooseAutomationPartAsync(
         GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened,
@@ -595,11 +602,17 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             return (null, GlassAutomationPositionPolicy.EquipmentNotAskedCode, opened, null);
         }
-        if (question is null || operation != GlassEditorRows.Replace)
+        if (question is not null && operation != GlassEditorRows.Replace)
         {
+            return (null, GlassAutomationPositionPolicy.EquipmentPartOnlyCode, opened, null);
+        }
+        if (question is null)
+        {
+            // Asked nothing: decided as the editor's click decides it, a head
+            // the vehicle's criteria show on its drawing as any other (R1206).
             var (certain, why, chosen) = await ChoosePartAsync(
                 session, editor, opened, parts.Rows, GlassEstimateBuildKeyKind.PartCode, row.Code, row.Side, operation,
-                cancellationToken);
+                parts.Vehicle, cancellationToken);
             return (certain, why, chosen, null);
         }
         if (GlassEditorRows.AskedRefusal(parts, head) is { } refused)
@@ -813,13 +826,14 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// a remove opens it. Answers the dialog as a form, or the code when no
     /// dialog was read: a row the lists do not hold or that is not certain,
     /// an equipment question with no answer, or a page Glass's did not
-    /// answer. A choice the add would refuse (a part that cannot be painted,
+    /// answer; an equipment question with no answer comes with the question.
+    /// A choice the add would refuse (a part that cannot be painted,
     /// "Both" on a part that can) still shows the dialog, with the refusal as
     /// <see cref="GlassDialogSend.Code"/>. Requests: a part, the part list,
     /// its equipment map and the dialog; a special operation, the special
     /// list and the dialog; a position, its dialog.
     /// </summary>
-    internal async Task<(GlassDialogPreview? Dialog, string? Code, GlassEditorSession Opened)> PreviewAsync(
+    internal async Task<(GlassDialogPreview? Dialog, string? Code, GlassEditorSession Opened, GlassEquipmentQuestion? Equipment)> PreviewAsync(
         GlassRepairEstimateSession session,
         GlassEditorClient editor,
         GlassEditorSession opened,
@@ -835,12 +849,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     ?? throw new ArgumentException("A preview of a position names it.", nameof(draft));
                 var shown = await StageAsync(session, "EditorPreview", () => editor.PreviewPositionAsync(
                     opened, positionId, cancellationToken));
-                return (shown.Value, null, shown.Session);
+                return (shown.Value, null, shown.Session, null);
             }
 
             GlassEditorAddRequest? request = null;
             string? reason = null;
             string? refusedBy = null;
+            GlassEditorEquipmentChoice? equipment = null;
             var row = draft.Row ?? string.Empty;
             if (draft.Kind == GlassAutomationPositionKind.SpecialOperation)
             {
@@ -859,7 +874,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                (request, reason, opened, _) = await ChooseAutomationPartAsync(
+                (request, reason, opened, equipment) = await ChooseAutomationPartAsync(
                     session, editor, opened, parts.Value, draft, cancellationToken);
                 if (request is not null)
                 {
@@ -869,7 +884,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
             if (request is null)
             {
-                return (null, reason ?? GlassEstimateBuildPolicy.NoRowCode, opened);
+                return (null, reason ?? GlassEstimateBuildPolicy.NoRowCode, opened, equipment?.Question);
             }
 
             var previewed = await StageAsync(session, "EditorPreview", () => editor.PreviewAsync(
@@ -877,13 +892,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             var dialog = refusedBy is not null && previewed.Value.Sends is { } sends
                 ? previewed.Value with { Sends = sends with { Code = refusedBy } }
                 : previewed.Value;
-            return (dialog, null, previewed.Session);
+            return (dialog, null, previewed.Session, null);
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
             // Reading a list, a map or a dialog changes nothing: no dialog, and the code.
-            return (null, CodeOf(failure), opened);
+            return (null, CodeOf(failure), opened, null);
         }
     }
 
