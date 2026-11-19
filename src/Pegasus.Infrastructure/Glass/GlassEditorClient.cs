@@ -583,8 +583,10 @@ internal sealed class GlassEditorClient(
         {
             return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record names other rows.");
         }
+        // A side chosen in the dialog reads that side's part number; the part is the one served (R1206).
+        var servedNumber = request.EitherSideCode ? build.Summary.ServedPartNumber ?? build.Summary.PartNumber : build.Summary.PartNumber;
         if (request.ExpectedPartNumber is { } number
-            && !string.Equals((build.Summary.PartNumber ?? string.Empty).Trim(), number.Trim(), StringComparison.Ordinal))
+            && !string.Equals((servedNumber ?? string.Empty).Trim(), number.Trim(), StringComparison.Ordinal))
         {
             return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries another part number.");
         }

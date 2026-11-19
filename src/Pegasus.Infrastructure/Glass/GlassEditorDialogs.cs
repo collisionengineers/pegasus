@@ -114,6 +114,9 @@ internal sealed record GlassEditorSummary
 
     public string? PartNumber { get; init; }
 
+    /// <summary>The part number the dialog served for its own side, before a person chose another side (R1206).</summary>
+    public string? ServedPartNumber { get; init; }
+
     public string? Trade { get; init; }
 
     public string? Area { get; init; }
@@ -332,6 +335,7 @@ internal static partial class GlassEditorDialogs
         // SetPlaceBoxes: a right-hand place reads the second of each pair of lines.
         var place = served["Place"] ?? " ";
         var placeIndex = PlaceBoxes(form, place);
+        var servedPlaceIndex = placeIndex;
         var places = GlassEditorPages.SplitArray(html, "PosPlaces");
         if (places is null || !places.Contains(place))
         {
@@ -630,13 +634,19 @@ internal static partial class GlassEditorDialogs
         // with Part and Paint, the captured reason window answering.
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, button is "BSS" or "BSL", problems, ref coded);
         TypedTexts(form, data, change, problems);
+        // The paint price and hours served, as SetLackartValues sets them at load: from the area's
+        // list for the served state and level, for a reopened position's list holds its own
+        // figures where its record holds Glass's (#848 served 4.10 hours, its record 3.60). From
+        // the record where the list has none; a changed operation serves its own level's.
+        var servedPaint = changed ? null : PaintOfLevel(html, areaIndex, servedPaintType, servedPaintLevel, state, []);
+        var servedPaintPrice = servedPaint?.Price ?? paintPrice;
+        var servedPaintTime = servedPaint?.Time ?? paintTime;
+
         // The paint section as a person leaves it (R1206), in the order area, paint type,
         // procedure, method, level, Surcharge, coloured clear, scratch-resistant clear, typed
         // price, hours and reason. Judged offline on 19 November 2026: 14 posts of the bonnet,
         // the left front door shell and the front bumper, metal and plastic, each the dialog's
         // own script's, among them the walk's #766 and #867.
-        var servedPaintPrice = paintPrice;
-        var servedPaintTime = paintTime;
         if (paintIn is not null)
         {
             var plan = PaintPlan(html, form, data, paintIn, servedTicks, problems);
@@ -724,6 +734,7 @@ internal static partial class GlassEditorDialogs
                 OverlapHours = data.Get("Ctime"),
                 ServedOverlapHours = form.Field("Ctime")?.Value,
                 PartNumber = partNumber,
+                ServedPartNumber = (At(record, 13 + servedPlaceIndex) ?? string.Empty).Split('|')[0],
                 Trade = data.Get("Craft"),
                 Area = data.Get("Bereich"),
                 PaintType = data.Get("Lackart"),
@@ -1747,6 +1758,7 @@ internal static partial class GlassEditorDialogs
         // SetPlaceBoxes
         var place = form.Field("Place")?.Value ?? " ";
         var placeIndex = PlaceBoxes(form, place);
+        var servedPlaceIndex = placeIndex;
         var places = GlassEditorPages.SplitArray(html, "PosPlaces");
         if (places is null || !(places.Contains(place) || place.Trim().Length == 0))
         {
@@ -2003,6 +2015,7 @@ internal static partial class GlassEditorDialogs
                 OverlapHours = data.Get("Ctime"),
                 ServedOverlapHours = servedOverlap,
                 PartNumber = Side("Etnr"),
+                ServedPartNumber = At(GlassEditorPages.StringArray(html, "Etnr"), servedPlaceIndex),
                 Trade = data.Get("Craft"),
                 Side = data.Get("Place") ?? place,
                 SidesOffered = places is null ? null : string.Join('|', places),
