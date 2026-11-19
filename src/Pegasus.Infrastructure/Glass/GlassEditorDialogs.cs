@@ -914,8 +914,7 @@ internal static partial class GlassEditorDialogs
             .ToList();
     }
 
-    private static T? ItemAt<T>(IReadOnlyList<T>? list, int index)
-        where T : class =>
+    private static string[]? ItemAt(List<string[]>? list, int index) =>
         list is not null && index >= 0 && index < list.Count ? list[index] : null;
 
     /// <summary>
