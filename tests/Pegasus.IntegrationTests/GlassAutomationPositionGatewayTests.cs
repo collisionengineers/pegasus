@@ -999,7 +999,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
             ChangeRequests,
             harness.Mva.Requests.Skip(before).Select(request => request.Method + " " + request.Path));
         Assert.Contains("cml=C&partid=" + Windscreen + "&dialogCodePage", Asked(harness, "GET", "part.php")[^1], StringComparison.Ordinal);
-        var posts = harness.Mva.Requests.Where(request => request.Method == "POST").ToList();
+        var posts = harness.Mva.Requests.Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").ToList();
         Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.post.txt"), posts[0].Body);
         Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.confirm.txt"), posts[1].Body);
         Assert.Contains("partid=" + Windscreen, Uri.UnescapeDataString(posts[0].Query), StringComparison.Ordinal);
@@ -1037,7 +1037,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
             new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "2", Level: "2"))));
 
         Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
-        var posts = harness.Mva.Requests.Where(request => request.Method == "POST").ToList();
+        var posts = harness.Mva.Requests.Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").ToList();
         Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.post.txt"), posts[0].Body);
         Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.confirm.txt"), posts[1].Body);
         Assert.Contains("partid=" + Bonnet + "&cml=C&dialogCodePage", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);

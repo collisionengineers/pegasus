@@ -483,9 +483,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             EquipmentChanged = equipment?.Changes ?? [],
             EquipmentStored = equipment?.Store is not null,
         };
-        await record(act, opened);
         if (equipment?.Store is { } store)
         {
+            // Written before the answer is stored, so a refusal afterwards still says it was sent.
+            await record(act, opened);
             try
             {
                 var stored = await StageAsync(session, "EditorEquipmentAnswer", () => editor.StoreEquipmentAsync(
@@ -505,7 +506,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             }
         }
 
-        // Just before the post: the figures the dialog served and those it is about to send (R1206).
+        // Just before the post, in the one write the post needs: the code above, and the figures
+        // the dialog served and those it is about to send (R1206).
         async Task PostingAsync(GlassEditorSummary summary)
         {
             act = act with { DialogServed = ServedOf(summary), Sent = SentOf(summary) };
