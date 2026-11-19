@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.IntegrationTests;
@@ -16,6 +17,8 @@ public sealed class GlassEditorPagesTests
     private static readonly byte[] HighBytes = [0x80, 0x41, 0xA3, 0x81, 0x9F];
 
     private static readonly int[] Equipment821Shape = [2, 8, 0, 0];
+
+    private static readonly string[] CalculationTrades = ["Body", "Mechanical", "Auxiliary work", "Paint"];
 
     private static readonly int[] Equipment193Shape = [2, 4, 9, 9];
 
@@ -55,20 +58,181 @@ public sealed class GlassEditorPagesTests
     public void APageWithoutTheListIsNotAnEstimate() =>
         Assert.False(GlassEditorPages.Selected("<html><body>Please wait</body></html>").Found);
 
+    /// <summary>
+    /// The estimate's page holds Glass's running totals beside the
+    /// positions, each with Glass's own label, in its order (R1206).
+    /// </summary>
     [Fact]
-    public void APositionIsReadAsTheLinesOfItsRecord()
+    public void TheEstimateHoldsGlasssRunningTotalsWithItsOwnLabels()
     {
-        var page = GlassEditorFixture.Page("position");
+        var page = GlassEditorFixture.Page("selected");
 
-        var part = GlassEditorPages.Position(GlassEditorFixture.Text(page.GetProperty("file").GetString()!));
+        var estimate = GlassEditorPages.Selected(GlassEditorFixture.Text(page.GetProperty("file").GetString()!));
 
-        Assert.NotNull(part);
-        Assert.Equal(90, part.Count);
-        Assert.Equal(page.GetProperty("id").GetString() + "|64", part[0]);
-        Assert.Equal("1060000", part[1]);
-        Assert.Equal("ER", part[4]);
-        Assert.Null(GlassEditorPages.Position("<html>not json</html>"));
+        Assert.NotNull(estimate.Totals);
+        Assert.Equal(ExpectedTotals(page), estimate.Totals.Select(total => (total.Label, total.Amount)));
+        Assert.Equal(9594.14m, Assert.Single(estimate.Totals, total => total.Label == "Amount due (£)").Amount);
     }
+
+    /// <summary>An empty estimate lists no position and the amount due alone, as Glass's gives it.</summary>
+    [Fact]
+    public void AnEmptyEstimateListsTheAmountDueAlone()
+    {
+        var page = GlassEditorFixture.Page("selectedEmpty");
+
+        var estimate = GlassEditorPages.Selected(GlassEditorFixture.Text(page.GetProperty("file").GetString()!));
+
+        Assert.True(estimate.Found);
+        Assert.Empty(estimate.Positions);
+        var due = Assert.Single(estimate.Totals!);
+        Assert.Equal("Amount due (£)", due.Label);
+        Assert.Equal(0m, due.Amount);
+    }
+
+    /// <summary>No total is guessed: lists that are missing, differ in length or hold a figure that is not a number read as none.</summary>
+    [Theory]
+    [InlineData("<script>\nvar Partids = [ '' ];\n</script>")]
+    [InlineData("<script>\nvar CalcToolTipTexts = [ 'Parts ', 'Body ' ];\nvar CalcToolTipNums = [ '1.00' ];\n</script>")]
+    [InlineData("<script>\nvar CalcToolTipTexts = [ 'Parts ' ];\nvar CalcToolTipNums = [ 'n/a' ];\n</script>")]
+    public void TotalsThatCannotBeReadAreNone(string html) => Assert.Null(GlassEditorPages.Totals(html));
+
+    /// <summary>
+    /// A part with paint: its operation, and the price, hours and part
+    /// number Glass's holds for that operation, then its paint position's
+    /// price and labour time, as the calculation report shows them for the
+    /// same bonnet (697.10 and 2.60).
+    /// </summary>
+    [Fact]
+    public void APartsFiguresAreReadFromItsRecordWithItsPaint()
+    {
+        var figures = Figures("position");
+
+        Assert.Equal("1060000", figures.PartCode);
+        Assert.Equal("Bonnet", figures.Description);
+        Assert.Equal("ER", figures.Operation);
+        Assert.Equal(412.12m, figures.Price);
+        Assert.Equal(0.80m, figures.Hours);
+        Assert.Null(figures.Side);
+        Assert.Equal("41007290942", figures.PartNumber);
+        Assert.NotNull(figures.Paint);
+        Assert.Equal("L350899.20.Lxx1640.Lxx1640", figures.Paint.PositionId);
+        Assert.Equal("Bonnet", figures.Paint.Description);
+        Assert.Equal(697.10m, figures.Paint.Price);
+        Assert.Equal(2.60m, figures.Paint.LabourTime);
+    }
+
+    [Fact]
+    public void ALeftHandPartIsReadOnItsSideWithNoPaint()
+    {
+        var figures = Figures("positionLeft");
+
+        Assert.Equal("L", figures.Side);
+        Assert.Equal("1012401", figures.PartCode);
+        Assert.Equal("Front Bumper Side Reinforcement", figures.Description);
+        Assert.Equal(38.68m, figures.Price);
+        Assert.Equal(2.20m, figures.Hours);
+        Assert.Equal("51117266193", figures.PartNumber);
+        Assert.Null(figures.Paint);
+    }
+
+    /// <summary>A paint position on its own has no operation, price or hours of its own, only its paint.</summary>
+    [Fact]
+    public void APaintPositionOnItsOwnIsReadAsItsPaint()
+    {
+        var figures = Figures("positionPaint");
+
+        Assert.Null(figures.Operation);
+        Assert.Null(figures.Price);
+        Assert.Null(figures.Hours);
+        Assert.Equal("Tailgate (with Window Frame)", figures.Description);
+        Assert.NotNull(figures.Paint);
+        Assert.Equal(342.40m, figures.Paint.Price);
+        Assert.Equal(1.50m, figures.Paint.LabourTime);
+    }
+
+    /// <summary>
+    /// A special operation, read from the record its own dialog carries
+    /// (no capture holds mcode.php for one): its fixed price for its
+    /// operation, the hours it gives (none), and no part number or side.
+    /// </summary>
+    [Fact]
+    public void ASpecialOperationIsReadWithItsOwnFiguresAndNoPartNumber()
+    {
+        var figures = Figures("positionSpecial");
+
+        Assert.Equal(".Assessment Damage Appraisal Charge", figures.Description);
+        Assert.Equal("ZK", figures.Operation);
+        Assert.Equal(176.96m, figures.Price);
+        Assert.Equal(0m, figures.Hours);
+        Assert.Null(figures.PartNumber);
+        Assert.Null(figures.Side);
+        Assert.Null(figures.Paint);
+    }
+
+    /// <summary>An answer that is not the record of the position asked for is not read.</summary>
+    [Fact]
+    public void AnAnswerForAnotherPositionOrNotARecordIsNotRead()
+    {
+        var text = GlassEditorFixture.Text(GlassEditorFixture.Page("position").GetProperty("file").GetString()!);
+
+        Assert.Null(GlassEditorPages.PositionFigures(text, "C1.2.C3.4"));
+        Assert.Null(GlassEditorPages.PositionFigures("<html>not json</html>", "C1.2.C3.4"));
+        Assert.Null(GlassEditorPages.PositionFigures("{\"mcode\":\"C1.2.C3.4\",\"part\":[\"C1.2.C3.4|64\"]}", "C1.2.C3.4"));
+    }
+
+    /// <summary>
+    /// The calculation report's summary, each trade's line by Glass's own
+    /// headers, then its totals; and every figure agrees with the running
+    /// totals the estimate's page held just before the report was asked for
+    /// (18 November 2026): the trades' labour costs, the material as parts
+    /// and paint material together, the total, the VAT and the amount due.
+    /// </summary>
+    [Fact]
+    public void TheCalculationIsTheSummaryOfGlasssReportAndAgreesWithTheTotals()
+    {
+        var calculation = GlassEditorPages.Calculation(
+            GlassEditorFixture.Text(GlassEditorFixture.Page("report").GetProperty("file").GetString()!));
+        var totals = GlassEditorPages.Selected(GlassEditorFixture.Text(
+            GlassEditorFixture.Page("selectedAtReport").GetProperty("file").GetString()!)).Totals!
+            .ToDictionary(total => total.Label, total => total.Amount, StringComparer.Ordinal);
+
+        Assert.NotNull(calculation);
+        Assert.Equal(CalculationTrades, calculation.Trades.Select(trade => trade.Trade));
+        var body = calculation.Trades[0];
+        Assert.Equal(80.00m, body.LabourRate);
+        Assert.Equal(24.40m, body.LabourTime);
+        Assert.Equal(1952.00m, body.LabourCosts);
+        Assert.Equal(3878.42m, body.MaterialCosts);
+        Assert.All(calculation.Trades, trade => Assert.Equal(totals[trade.Trade], trade.LabourCosts));
+        Assert.Equal(45.90m, calculation.TotalLabourTime);
+        Assert.Equal(3672.00m, calculation.TotalLabourCosts);
+        Assert.Equal(totals["Parts"] + totals["Paint material"], calculation.TotalMaterial);
+        Assert.Equal(totals["Total (£)"], calculation.RepairCostsExclVat);
+        Assert.Equal("VAT (20.00 %)", calculation.VatLabel);
+        Assert.Equal(totals["VAT (20.00 %)"], calculation.Vat);
+        Assert.Equal(totals["Amount due (£)"], calculation.RepairCostsInclVat);
+    }
+
+    [Fact]
+    public void APageWithNoSummaryIsNotACalculation() =>
+        Assert.Null(GlassEditorPages.Calculation("<html><body><table><tr><td>Please wait</td></tr></table></body></html>"));
+
+    private static GlassPositionFigures Figures(string name)
+    {
+        var page = GlassEditorFixture.Page(name);
+        var figures = GlassEditorPages.PositionFigures(
+            GlassEditorFixture.Text(page.GetProperty("file").GetString()!), page.GetProperty("id").GetString()!);
+        Assert.NotNull(figures);
+        Assert.Equal(page.GetProperty("id").GetString(), figures.PositionId);
+        return figures;
+    }
+
+    private static List<(string Label, decimal Amount)> ExpectedTotals(JsonElement page) =>
+        page.GetProperty("totals").EnumerateArray()
+            .Select(total => (
+                total.GetProperty("label").GetString()!,
+                decimal.Parse(total.GetProperty("amount").GetString()!, System.Globalization.CultureInfo.InvariantCulture)))
+            .ToList();
 
     [Fact]
     public void AnEquipmentMapIsReadAsTheNestedListsThePageHolds()
@@ -165,6 +329,9 @@ public sealed class GlassEditorPagesTests
         Assert.Equal(Base + "selected.php?" + Q + "&dummy=1794979937&html5svg=1&win7=1&actFrame3=1", at.Selected());
         Assert.Equal(Base + "mcode.php?" + Q + "&partid=C1.2.C3.4&mcode=", at.Position("C1.2.C3.4"));
         Assert.Equal(
+            Base + GlassEditorFixture.Page("report").GetProperty("address").GetString() + "1794979937123",
+            at.Calculation());
+        Assert.Equal(
             Base + "service.php?" + Q + "&html5svg=1&nationscodepage=iso-8859-1&rowid=821&reqcritmap3=1&dummy=1794979937123",
             at.Equipment("821"));
         Assert.Equal(
@@ -181,6 +348,78 @@ public sealed class GlassEditorPagesTests
             Base + "list_1G.php?" + Q + "&cml=A&html5svg=1&tcode=SS-FREEPART&exclk=AC&ds=DS-AUXWORK-702|SS-FREEPART&win7=1",
             at.SpecialList("DS-AUXWORK-702|SS-FREEPART"));
     }
+
+    /// <summary>
+    /// The vehicle's criteria are the part list's <c>partlist.addCrit</c>
+    /// lines (R1206): each one's code, marks, value, name, radio group and
+    /// flag, and whether another position uses it; and the page's own note
+    /// on an option another position uses. The list served after the
+    /// answers of 7 September 2026 holds the values they stored.
+    /// </summary>
+    [Fact]
+    public void TheVehiclesCriteriaAreReadFromThePartList()
+    {
+        var page = GlassEditorFixture.Text(GlassEditorFixture.Page("partList").GetProperty("file").GetString()!);
+        var later = GlassEditorFixture.Text(GlassEditorFixture.Page("partListAfterAnswers").GetProperty("file").GetString()!);
+
+        var criteria = GlassEditorPages.Criteria(page);
+        var after = GlassEditorPages.Criteria(later);
+
+        Assert.Equal(170, criteria.Count);
+        var park = criteria["24119"];
+        Assert.Equal("Front and Rear Park Assistant System", park.Name);
+        Assert.True(park.Has('g'));
+        Assert.False(park.IsSet);
+        Assert.True(park.IsRadio);
+        Assert.Equal("144", park.Group);
+        Assert.False(park.AffectsOtherParts);
+        Assert.False(criteria["12000"].IsRadio);
+        Assert.True(criteria["740"].Has('f'));
+        Assert.True(criteria["740"].IsSet);
+        Assert.True(after["24119"].IsSet);
+        Assert.True(after["24119"].AffectsOtherParts);
+        Assert.True(after["85161"].IsSet);
+        Assert.False(after["85161"].AffectsOtherParts);
+        Assert.Equal("Criteria affects other parts!", GlassEditorPages.ReferencedNote(page));
+        Assert.Null(GlassEditorPages.ReferencedNote(later));
+        Assert.Empty(GlassEditorPages.Criteria("<html><body>Please wait</body></html>"));
+    }
+
+    /// <summary>
+    /// An equipment answer is stored at the address the editor's list asked
+    /// for it, the answer <c>encodeURIComponent</c>-encoded (glasses7 #519),
+    /// and its answer is the page that tells the list to read the criteria
+    /// again; the save's answer is not.
+    /// </summary>
+    [Fact]
+    public void AnEquipmentAnswerIsStoredAtTheAddressTheEditorAskedForIt()
+    {
+        var page = GlassEditorFixture.Page("globcrit");
+        var at = new GlassEditorAddresses(
+            GlassEditorFixture.Session(),
+            new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)));
+
+        Assert.Equal(page.GetProperty("address").GetString(), at.StoreEquipment(page.GetProperty("answers").GetString()!));
+        Assert.True(GlassEditorPages.EquipmentStored(GlassEditorFixture.Text(page.GetProperty("file").GetString()!)));
+        Assert.False(GlassEditorPages.EquipmentStored(GlassEditorFixture.Text("save.answer.html")));
+    }
+
+    /// <summary>
+    /// A part dialog's record names the row pair it was asked for after
+    /// <c>2G</c> in its first line, as every captured part dialog asked for
+    /// by a pair does; the "both" request names its part row and 0.
+    /// </summary>
+    [Theory]
+    [InlineData("C1010800_701910520101_2G_0_5_|64", "0|5", true)]
+    [InlineData("C1010800_701910520101_2G_0_5_|64", "0|3", false)]
+    [InlineData("C2027021_701300250101_2G_822_829_|64", "822|829", true)]
+    [InlineData("C2020001_701300250101_2G_771_772_|64", "771|772", true)]
+    [InlineData("C1012402_701300250203_2G_1783_0_|64", "1783|1786", false)]
+    [InlineData(null, "0|5", false)]
+    [InlineData("C1017150_702810400101_2G_51_0_|64", "51", true)]
+    [InlineData("C1017150_702810400101_2G_52_0_|64", "51", false)]
+    public void ADialogsRecordNamesTheRowsItWasAskedFor(string? position, string rows, bool named) =>
+        Assert.Equal(named, GlassEditorClient.NamesRows(position, rows));
 
     /// <summary>The part list is asked for with the group list in its address, as the browser asked for it.</summary>
     [Fact]

@@ -16,7 +16,10 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// <para>
 /// <b>Key</b> takes the editor's main-frame address (<c>acofr.php</c>), which
 /// carries the session key and, inside <c>url0</c>, the session's return
-/// address. The return token is read from that address, never sent beside
+/// address, and the cookies of Glass's load balancer the helper read in that
+/// frame (<see cref="GlassHelpFrame.BalancerCookieNames"/>), which name the
+/// Glass's server the window's editor session is on. The return token is read
+/// from that address, never sent beside
 /// it, so a sender cannot pair a key with another session's token. In order,
 /// before anything is kept: a JSON post from a browser extension's origin, or
 /// 403; a signed-in staff member, or 401; a frame on the configured estimator
@@ -47,8 +50,9 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// redirect, and so that the cookie-less Poll reaches it at all.
 /// </para>
 /// <para>
-/// Nothing here logs the key, the token, the frame address or the return
-/// address. A host that does not reach Glass's answers 404 to everything.
+/// Nothing here logs the key, the token, the frame address, the return
+/// address or a cookie; of the load balancer's cookies the log says how many
+/// came. A host that does not reach Glass's answers 404 to everything.
 /// </para>
 /// </remarks>
 [AllowAnonymous]
@@ -62,9 +66,12 @@ public sealed partial class HelpModel(
     /// <summary>
     /// The protocol the helper speaks, the <c>v</c> of each body. The helper's
     /// own <c>PROTOCOL</c> in <c>src/pegasus-glass-helper/background.js</c>
-    /// must equal it (<c>GlassHelperExtensionContractTests</c>).
+    /// must equal it (<c>GlassHelperExtensionContractTests</c>). Protocol 2
+    /// (19 November 2026) is the hand-off that carries the load balancer's
+    /// cookies; a helper that speaks 1 is told to upgrade, because a key
+    /// without them reaches the right Glass's server only by chance.
     /// </summary>
-    public const int Protocol = 1;
+    public const int Protocol = 2;
 
     /// <summary>Where both posts live; the rate limit and the status pages key on it.</summary>
     public const string BasePath = "/Integrations/Glass/Help";
@@ -110,7 +117,7 @@ public sealed partial class HelpModel(
         }
 
         var keys = Keys;
-        if (keys.Read(body.Frame) is not { } frame)
+        if (keys.Read(body.Frame, body.Cookies) is not { } frame)
         {
             return BadRequest();
         }
@@ -132,7 +139,7 @@ public sealed partial class HelpModel(
         }
 
         keys.Hold(session.Id, frame);
-        LogKeyHeld(logger, session.Id);
+        LogKeyHeld(logger, session.Id, frame.BalancerCookies);
         var help = HelpOn(session);
         return new JsonResult(new { help = HelpWord(help), key = "held", next = NextPoll(help) });
     }
@@ -251,8 +258,8 @@ public sealed partial class HelpModel(
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "The Glass's helper handed over the editor key for session {SessionId}.")]
-    private static partial void LogKeyHeld(ILogger logger, Guid sessionId);
+        Message = "The Glass's helper handed over the editor key for session {SessionId} with {BalancerCookies} load balancer cookies.")]
+    private static partial void LogKeyHeld(ILogger logger, Guid sessionId, int balancerCookies);
 
     [LoggerMessage(
         Level = LogLevel.Warning,
@@ -263,8 +270,12 @@ public sealed partial class HelpModel(
     [GeneratedRegex(@"^\d{1,9}(\.\d{1,9}){0,3}$", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex HelperVersion();
 
-    /// <summary>The key hand-off: the protocol, the editor's main-frame address and the helper's version.</summary>
-    private sealed record KeyBody(int V, string? Frame, string? Version);
+    /// <summary>
+    /// The key hand-off: the protocol, the editor's main-frame address, the
+    /// helper's version, and the cookies the helper read in that frame, of
+    /// which only the load balancer's are kept.
+    /// </summary>
+    private sealed record KeyBody(int V, string? Frame, string? Version, Dictionary<string, string>? Cookies);
 
     /// <summary>
     /// A poll: the protocol, the session's return token, the last ask to show

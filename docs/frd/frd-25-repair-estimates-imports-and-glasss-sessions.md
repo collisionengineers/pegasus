@@ -193,6 +193,33 @@ export and the calculation PDF land the same spec:
   environmental-fee value the XML prints as non-zero (operator, 5 October
   2026) is imported and noted on the first line with room, beside Glass's
   net. It changes no line and no total.
+- Every operation lands from one table both routes share (19 November 2026,
+  R1209). An Old for New position (the sheet's `RN`, Renew) is a new part at
+  the price and hours Glass's exports, which are already net of the
+  deduction. Its note is the changed guide price and time and Glass's own
+  reason. Partial renew is a new part. Partial repair (`PR`), Paintless dent
+  repair (`DP`) and both Synthetics repairs (`PS`) are a repair. Dismantle and
+  assemble (`DM`) is a remove and refit. Adjustments (`A`), Sealing (`S`),
+  Control and adjustment (`CA`), Remove air (`RA`), Cavity wax protection
+  (`HO`), Diagnostic (`D`), Underbody coating (`UN`) and Wheel balancing
+  (`WB`) are Other labour. Surcharge (`EC`) is the additional operation above.
+  The XML is matched by the names exports have shown and by the labels
+  Glass's dialog shows, without regard to case. The sheet prints `PN` for
+  both Partial renew and Synthetics repair normal, so a printed `PN` is Other.
+- A free paint row (the XML's `Free_Paint`: special table metal and plastic,
+  user defined paint) is a paint line by its level, as a painted part is
+  (19 November 2026, R1209).
+- A repair kind or printed code Pegasus has not seen is an Other line with
+  its price and hours, noted "Printed operation:" and the kind. It no longer
+  refuses the import. An XML position type not seen yet is read by its
+  prefix: `Paint_` is paint preparation, `Part_` or `Free_` a part row by its
+  repair kind. A position with no repair kind, and a position type with none
+  of those prefixes, still refuse the import, and the log names the type
+  (19 November 2026, R1209).
+- On the calculation sheet, a row the parts appendix does not list keeps no
+  part number, and a user-defined part listed with no number is read. A flag
+  printed run together with its amount (`1,234.00*F`) is read as if printed
+  apart (19 November 2026, R1209).
 
 **Labour rate on a new spec.** A new repair spec — imported, returned from
 Glass's, or started with **New repair spec** — takes the Standard
@@ -343,7 +370,13 @@ drawing, the first is used. It is left off and listed:
 
 - as waiting on an equipment answer, when the row Glass's would give depends
   on the vehicle's equipment (variants of the part, time rows by equipment,
-  or a part shown only with some equipment), or the number is a variant's;
+  or a part shown only with some equipment), or the number is a variant's.
+  The rebuild answers no equipment question, and leaves off a part shown
+  by equipment even where the vehicle's criteria show it; only the
+  Automation's own add, which adds every part a person could, answers the
+  question or adds such a part, in its session or with help on
+  (19 November 2026; R1206;
+  [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions));
 - as having no row, when Glass's part list has none with that code and side,
   or that number, or the row offers no Replace;
 - as having more than one row, when the code or number finds rows that are
@@ -450,10 +483,25 @@ session. Other staff on the Case see nothing of it.
 
 While help is on, the Automation's Glass's tools find the session by its
 Case ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#help-in-an-engineers-open-session)).
-They may read the estimate, search its lists, add the same positions as a
-rebuild, posted as Glass's dialog serves them with nothing typed (R1182),
-and remove any position of the estimate, because the Engineer asked for the
-help and watches the window (R1185). One Automation act runs at a time, and
+They may read the estimate as in the Automation's own session (R1206),
+search its lists, preview a dialog, add positions as in the Automation's
+own session, posted as Glass's dialog serves them with nothing typed
+(R1182), and remove any position of the estimate, because the Engineer
+asked for the help and watches the window (R1185). Since 19 November 2026
+(R1206) an add may also press Paint or Part and Paint, choose another
+operation the dialog offers, tick Both and the optional mandatory parts,
+as the Automation may in its own session; a preview posts nothing and
+records no history row. They may also add a part whose block
+asks Glass's equipment question, with the Automation's answer, which is
+stored at Glass's for the vehicle as the editor stores the Engineer's own
+and may untick an option the vehicle has (19 November 2026; R1206). A part
+with no answer is refused with the question, as in the Automation's own
+session. Every part the Engineer could add with a click the Automation can
+add, decided as that click decides it on the row it names: wheels, parts
+that offer no Replace, parts with variants, any operation on a part that
+asks, and a part found by a variant's part number. A part the car's
+equipment hides, which the Engineer cannot click either, is refused,
+naming what hides it (19 November 2026; R1206). One Automation act runs at a time, and
 each is a history row on the session as the Automation's. After an add or a
 removal the helper reloads Glass's own selected list. The Engineer sees that
 refresh and the chip, and nothing else is drawn: the smallest build, decided
@@ -511,9 +559,12 @@ the provider's. Pegasus changes none of Glass's files or requests. The Pegasus
 helper extension, which an Engineer installs, defines the framing page's
 dialog helper before Glass's own script asks for it, with Glass's own class,
 so the stall does not happen in a browser that has it (operator, 18 November
-2026; R1170). The helper reads only the editor frame's own address, hands it
-to Pegasus, and asks for the selected list again when Pegasus says a position
-was added or removed. The Case page keeps the estimator window in view after the handoff:
+2026; R1170). The helper reads only the editor frame's own address and the
+two cookies of Glass's load balancer in that frame, which name the Glass's
+server the window's session is on (19 November 2026;
+[ADR-0091](../adr/0091-pegasus-sends-the-glass-editor-its-own-requests.md),
+decision 5), hands them to Pegasus, and asks for the selected list again when
+Pegasus says a position was added or removed. The Case page keeps the estimator window in view after the handoff:
 it may read how deep the window's frames nest and whether it is closed,
 nothing more. When the frames have not grown past the provider's skeleton
 within 30 seconds, the page presses **Glass's** again once itself, which is
@@ -676,6 +727,87 @@ staff whose own stored login the Automation's session holds sees, on every
 other Case, "The Glass's account is in use by the Automation" and "Open on
 {reference}" instead of a launch. A session the Automation owns has no
 lifetime either.
+
+**What the Automation gives a position's dialog (19 November 2026; R1206).**
+In its own session and in an Engineer's with help on, the Automation gives
+a dialog what a person gives it without typing
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
+Paint on its own and Part and Paint, in place of R1182's refusal, with the
+paint section as Glass's serves it; any other operation the dialog offers,
+with Glass's question before no figures answered OK for Repair by itself
+(R1188) and for anything else only when the Automation says so (the return
+reads every repair kind Glass's exports, issue 2155); Both, on a part that
+can be painted as well, with the other side's own dialog pressed with the
+same button and operation and otherwise posted as served; and the optional parts to tick on the
+"Mandatory parts:" page. It may preview the dialog first, and nothing is
+posted for a preview. It also types a part number, a labour description and
+a special operation's own description, chooses the labour type and the side
+boxes, ticks outside work and presses the overlap hours' Full, as a person
+would. It also adds a row of every list a person opens under Areas >
+Additional and Areas > Paint, as a person adds it: Additional Labour,
+tyres, bulbs, labour descriptions where the account has them, the user
+defined parts with the free part ***Special*** and its typed description
+and figures, the special tables, user defined paint and the paint areas,
+each through the dialog the editor opens for it (19 November 2026; R1206).
+The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
+
+**Typed hours, price and overlap hours (19 November 2026; R1206).** In the
+dialog of a special operation or of any part, the Automation may type the labour hours, the price and the overlap hours, as a
+person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
+They are its own input, never Pegasus's. Hours above Glass's own need the
+Automation's own reason, which Glass's keeps on the position; without one
+the add is refused before anything is posted, and Pegasus never writes one.
+Overlap hours above the hours are refused, because the return could not
+read that position back.
+
+**Changing a position already on the estimate (19 November 2026; R1206).**
+The Automation may change any position of the estimate through the dialog
+the editor opens for it, in its own session and in an Engineer's with help
+on ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)),
+with what that dialog lets a person change. The position keeps its id. The
+act records what Glass's served and what was sent, and the position's own
+figures afterwards. A paint position's own dialog is changed as a person
+changes it: its paint choices, typed paint price, hours and reason, and its
+side boxes.
+
+**Paint choices (19 November 2026; R1206).** On a part that can be painted,
+pressed with Paint or Part and Paint, and in a change, the Automation may
+make every paint choice a person makes, as a person would
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): the
+area, paint type, procedure, method, level, Surcharge, Coloured clear and
+scratch-resistant clear, and the paint price, hours and reason it types.
+Glass's own script sets the paint price and hours each choice leads to, a
+plastic part's levels as well as a metal one's.
+
+**The quick repair panel (19 November 2026; R1206).** The Automation may
+also add a part as a person does with the panel under the editor's drawing
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): New,
+Remove and Install or Repair with its hours, for one side or both, with the
+paint the panel adds itself and the paint area it offers. It is quicker and
+sets less than the dialog: no price, typed figures, labour type, part
+number or paint choices. On a part already on the estimate it replaces
+the part's positions as the panel does for a person.
+
+**Renew and its old-for-new deductions (19 November 2026; R1206).** When
+the Automation chooses Renew, it answers the old-for-new window as a person
+would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
+a deduction from the original price and hours, each a percentage or an
+amount, and from the paint as a percentage. Glass's window works out the
+price and hours sent and writes its own reason. Deductions that would leave
+a negative price or hours are refused, because the return could not read
+that position back.
+
+**What the Automation reads of an open estimate (19 November 2026; R1206).**
+In its own session, and in an Engineer's with help on, the Automation may
+read back what Glass's shows a user, one request to Glass's each, and nothing
+changes at Glass's
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): the
+estimate's positions with Glass's running totals, each with Glass's own
+label; one position's repair type, price, hours, side, part number and paint
+price and labour time; and the Summary of Glass's calculation, by trade, with
+its labour and material totals, VAT and repair costs. A figure Glass's does
+not give is absent, never zero. A read Glass's does
+not answer gives its code and leaves the session as it was.
 
 ### Inspection location and estimate sources
 

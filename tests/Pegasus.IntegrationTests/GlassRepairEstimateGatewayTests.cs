@@ -1792,7 +1792,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
         var rejected = GlassEstimateXmlParserTests.GlassExport.BuildXml(
-            positions: GlassEstimateXmlParserTests.GlassExport.Position("Part_SparePart", "Overhaul", "Wing", time: "1.00"));
+            positions: GlassEstimateXmlParserTests.GlassExport.Position("Text Line", "Replace", "Wing", time: "1.00"));
         harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.OK, rejected, ContentType: "application/xml"));
 
         var settled = await harness.CompleteAsync(session);
@@ -1810,7 +1810,8 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
         var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));
         Assert.Contains(GlassFailure.ExportUnreadable, settledLine, StringComparison.Ordinal);
-        Assert.Contains("Position 1 carries the unknown repair kind 'Overhaul'", settledLine, StringComparison.Ordinal);
+        // R1209: the type is Glass's own name, kept in the log so the next fix knows what to read.
+        Assert.Contains("Position 1 carries the unknown position type 'Text Line'", settledLine, StringComparison.Ordinal);
         Assert.DoesNotContain(Registration, settledLine, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(EreSession, settledLine, StringComparison.Ordinal);
     }

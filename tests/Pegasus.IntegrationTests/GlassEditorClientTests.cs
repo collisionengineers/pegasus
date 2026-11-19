@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.IntegrationTests;
@@ -106,8 +107,14 @@ public sealed class GlassEditorClientTests
             "https://" + editor.Requests[9].Host + editor.Requests[9].Path + editor.Requests[9].Query);
     }
 
+    /// <summary>
+    /// Typed hours above Glass's own with no reason (R1206): the dialog would
+    /// ask for one, so nothing is posted, with the code that tells the
+    /// Automation to give its reason. Only typed hours meet this; a rebuild
+    /// types none.
+    /// </summary>
     [Fact]
-    public async Task ADialogWithAProblemIsNeverPosted()
+    public async Task TypedHoursThatNeedAReasonAreNeverPostedWithoutOne()
     {
         using var editor = new ScriptedEditor();
         editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
@@ -119,9 +126,60 @@ public sealed class GlassEditorClientTests
             new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Hours: "0.80")),
             default));
 
-        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, refused.FailureCode);
         Assert.False(refused.OutcomeUnknown);
         Assert.Contains("the dialog asks for a reason", refused.Detail, StringComparison.Ordinal);
+        var only = Assert.Single(editor.Requests);
+        Assert.Equal("GET", only.Method);
+    }
+
+    /// <summary>
+    /// The quick repair panel's Both (R1206): one command per side, in order,
+    /// exactly as glasss2missing.har #536 and #537 asked for them, then the
+    /// estimate read again for the positions added.
+    /// </summary>
+    [Fact]
+    public async Task ThePanelsCommandsAreSentInOrderAndTheEstimateReadAgain()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+
+        var added = await client.PanelAddAsync(
+            GlassEditorFixture.Session(), NoPositions(),
+            GlassEditorPanel.Commands([.. PanelValues]), "Front Door Skin", default);
+
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=171|173|AE||III|80||&nofresh3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[0].Query));
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=174|176|AE||III|80||&actFrame3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[1].Query));
+        Assert.Equal("/ere/aco/selected.php", editor.Requests[2].Path);
+        Assert.Equal(GlassEditorFixture.Strings(GlassEditorFixture.Page("selected"), "positions"), added.Value.Added);
+    }
+
+    private static readonly string[] PanelValues = ["171|173|AE||III|80||", "174|176|AE||III|80||"];
+
+    /// <summary>Any other problem the builder finds refuses the dialog with the editor's own code, and nothing is posted.</summary>
+    [Fact]
+    public async Task ADialogWithAProblemIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Operation: "XX")),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.False(refused.OutcomeUnknown);
+        Assert.Contains("The dialog does not offer the operation XX.", refused.Detail, StringComparison.Ordinal);
         var only = Assert.Single(editor.Requests);
         Assert.Equal("GET", only.Method);
     }
@@ -210,6 +268,64 @@ public sealed class GlassEditorClientTests
         Assert.Equal(GlassEditorFixture.Text("reinforcement_right.post.txt"), editor.Requests[2].Body);
     }
 
+    /// <summary>
+    /// An equipment answer is stored at the address the browser asked for
+    /// (R1206), and its answer must be the page that tells the list to read
+    /// the criteria again; any other page may still have stored it.
+    /// </summary>
+    [Fact]
+    public async Task AnEquipmentAnswerIsStoredAtTheAddressTheBrowserAskedFor()
+    {
+        using var editor = new ScriptedEditor();
+        var page = GlassEditorFixture.Page("globcrit");
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, GlassEditorFixture.Text(page.GetProperty("file").GetString()!)));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("save.answer.html")));
+        var client = new GlassEditorClient(
+            new HttpClient(editor, disposeHandler: false), GlassEditorFixture.Options(),
+            new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)), TimeSpan.Zero);
+
+        var stored = await client.StoreEquipmentAsync(
+            GlassEditorFixture.Session(), page.GetProperty("answers").GetString()!, default);
+        var unread = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.StoreEquipmentAsync(
+            GlassEditorFixture.Session(), page.GetProperty("answers").GetString()!, default));
+
+        Assert.True(stored.Value);
+        var first = editor.Requests[0];
+        Assert.Equal(page.GetProperty("address").GetString(), "https://" + first.Host + first.Path + first.Query);
+        Assert.Equal(GlassEditorFixture.Base + "acofr.php", first.Referer?.Split('?')[0]);
+        Assert.Equal(GlassFailure.EditorAnswer, unread.FailureCode);
+        Assert.True(unread.OutcomeUnknown);
+        Assert.DoesNotContain(GlassEditorFixture.Key, unread.Detail ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A part whose rows an equipment answer chose (R1206) is refused before
+    /// its post when the dialog's record names another row pair, or the
+    /// dialog carries another part number; the captured lining dialog is
+    /// for <c>0|5</c> and number 6F0807221DGRU.
+    /// </summary>
+    [Theory]
+    [InlineData("0|3", "6F0807221DGRU", "The dialog's record names other rows.")]
+    [InlineData("0|5", "6F0807221XXX", "The dialog carries another part number.")]
+    public async Task AnAnsweredPartsDialogForAnotherVariantIsNeverPosted(string rows, string number, string detail)
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("bumper_part.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(
+                GlassEditorDialog.PaintablePart, rows, "1010800", Button: "BSS", ExpectedSide: string.Empty,
+                CheckRows: true, ExpectedPartNumber: number),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal(detail, refused.Detail);
+        Assert.Single(editor.Requests);
+    }
+
     /// <summary>The part list is asked for at the address the browser asked for and read row by row.</summary>
     [Fact]
     public async Task ThePartListIsReadFromTheAddressTheBrowserAskedFor()
@@ -221,7 +337,9 @@ public sealed class GlassEditorClientTests
 
         var read = await client.ReadPartListAsync(GlassEditorFixture.Session(), page.GetProperty("groups").GetString()!, default);
 
-        Assert.Equal(page.GetProperty("rows").GetInt32(), read.Value.Count);
+        Assert.Equal(page.GetProperty("rows").GetInt32(), read.Value.Rows.Count);
+        Assert.Equal(170, read.Value.Criteria.Count);
+        Assert.Equal("Criteria affects other parts!", read.Value.ReferencedNote);
         var only = Assert.Single(editor.Requests);
         Assert.Equal(page.GetProperty("address").GetString(), "https://" + only.Host + only.Path + Uri.UnescapeDataString(only.Query));
         Assert.Equal(GlassEditorFixture.Base + "acofr.php", only.Referer?.Split('?')[0]);
@@ -332,6 +450,33 @@ public sealed class GlassEditorClientTests
     }
 
     /// <summary>
+    /// A Glass's server that does not hold the session answers 200 with a
+    /// page that has none of the editor's lists (first live session, 19
+    /// November 2026). The failure names the page asked for and the answer's
+    /// length, which is all the host log needs to tell such an answer from
+    /// the editor's own, and nothing of the answer itself.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerWithNoneOfTheEditorsListsSaysItsPageAndLength()
+    {
+        const string NoSession = "<html><body>no such session</body></html>";
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, NoSession));
+        editor.Enqueue("GET list_1G.php", new(HttpStatusCode.OK, NoSession));
+        var client = Client(editor);
+
+        var read = await Assert.ThrowsAsync<GlassMvaStageException>(() =>
+            client.ReadEstimateAsync(GlassEditorFixture.Session(), default));
+        var listed = await Assert.ThrowsAsync<GlassMvaStageException>(() =>
+            client.ReadSpecialOperationsAsync(GlassEditorFixture.Session(), "DS-AUXWORK-702", default));
+
+        Assert.Equal(GlassFailure.EditorAnswer, read.FailureCode);
+        Assert.Equal("page=selected length=41", read.Detail);
+        Assert.Equal(GlassFailure.EditorAnswer, listed.FailureCode);
+        Assert.Equal("page=special-list length=41", listed.Detail);
+    }
+
+    /// <summary>
     /// The pace holds across clients (design 07 section 6): a client that
     /// continues an editor another client used is given that client's last
     /// request time, so its first request still waits out the pause, and it
@@ -358,6 +503,29 @@ public sealed class GlassEditorClientTests
             "The first request must wait out the pause the previous client left.");
         Assert.Equal(Now, client.LastRequestAtUtc);
         Assert.Null(Client(editor).LastRequestAtUtc);
+    }
+
+    /// <summary>
+    /// The calculation is asked for as the editor's top bar asks for it, one
+    /// request; a position id that is not as Glass's lists them is refused
+    /// before anything is sent, so nothing can be added to the address.
+    /// </summary>
+    [Fact]
+    public async Task TheCalculationIsAskedForAsTheEditorAsksAndAnOddPositionIdIsNeverSent()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET report.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("report.html")));
+        var client = Client(editor);
+
+        var read = await client.ReadCalculationAsync(GlassEditorFixture.Session(), default);
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.ReadPositionAsync(GlassEditorFixture.Session(), "C1.2&cml=C", default));
+
+        var asked = Assert.Single(editor.Requests);
+        Assert.Equal("/ere/aco/report.php", asked.Path);
+        Assert.Equal("?ksid=" + GlassEditorFixture.Key + "&cml=C&calcid=0&dummy=1794979937000", asked.Query);
+        Assert.Equal(GlassEditorFixture.Page("opening").GetProperty("addresses").GetProperty("frame").GetString(), asked.Referer);
+        Assert.Equal(13209.89m, read.Value.RepairCostsInclVat);
     }
 
     private static GlassEditorEstimate NoPositions() => new(true, Array.Empty<string>(), Array.Empty<string>());
