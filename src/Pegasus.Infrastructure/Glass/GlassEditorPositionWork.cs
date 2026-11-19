@@ -986,7 +986,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// Null, posting the dialog as served, when the first side chose none.
     /// </summary>
     private static GlassEditorChange? OtherSideChange(GlassEditorChange? first) =>
-        first is { Operation: null, ConfirmNoFigures: false } or null
+        first is null || (first.Operation is null && !first.ConfirmNoFigures)
             ? null
             : new GlassEditorChange(Operation: first.Operation, ConfirmNoFigures: first.ConfirmNoFigures);
 

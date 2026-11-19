@@ -1046,10 +1046,13 @@ internal static partial class GlassEditorDialogs
             return;
         }
 
-        string? Text(GlassEditorControl? list, string? value) =>
-            list?.Options.FirstOrDefault(option => option.Value == (value ?? list.Value)) is { } option
+        static string? Text(GlassEditorControl list, string? value)
+        {
+            var wanted = value ?? list.Value;
+            return list.Options.FirstOrDefault(option => option.Value == wanted) is { } option
                 ? GlassEditorForm.Collapse(option.Text).Trim()
                 : null;
+        }
         string Real(string original, string deduction, string kind)
         {
             var value = kind == "%"
