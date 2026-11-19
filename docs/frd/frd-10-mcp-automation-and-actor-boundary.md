@@ -803,6 +803,10 @@ compose Glass's, each tool is refused with "Glass's is not available."
   send, each question on the way, and the code the add would be refused
   with. Glass's own labels and texts pass through unchanged. Which
   mandatory parts Glass's lists after a post cannot be known before it.
+- **19 November 2026; R1208.** The Automation changes no setting of the
+  estimate as a whole or of the Glass's account: not Preferences, not the
+  paint settings, not the Overlap-time deductions. What it gives are the
+  inputs of adding or changing one position.
 - A part whose block in Glass's part list asks Glass's equipment question
   is added as Part with the Actor's answer (19 November 2026; R1206, in
   place of R1182's "parts whose row needs no equipment answer").
