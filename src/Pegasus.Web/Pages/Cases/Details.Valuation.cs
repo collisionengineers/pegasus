@@ -703,7 +703,8 @@ public sealed partial class DetailsModel
     /// A card with every box empty records nothing, and so does a card still
     /// showing the source's recorded figures, so an untouched card never
     /// writes a row. Each card is stamped with the moment of the save, as a
-    /// hand-recorded guide card always was.
+    /// hand-recorded guide card always was. A source valued only as it stands
+    /// today (CAP) is recorded for the current month (R1203).
     /// </summary>
     private static List<ValuationDetails> GuideEntriesToRecord(
         GuideEntryForm[] forms,
@@ -713,7 +714,10 @@ public sealed partial class DetailsModel
         var entries = new List<ValuationDetails>(forms.Length);
         foreach (var form in forms)
         {
-            if (new[] { form.RetailValue, form.TradeValue, form.GuideMonth }.All(string.IsNullOrWhiteSpace))
+            // The month of a source valued only as it stands today is never
+            // staff's entry (R1203), so on its card a month alone is no card.
+            var monthEntered = ValuationSources.IsValuedTodayOnly(form.Source) ? null : form.GuideMonth;
+            if (new[] { form.RetailValue, form.TradeValue, monthEntered }.All(string.IsNullOrWhiteSpace))
             {
                 continue;
             }
@@ -735,7 +739,12 @@ public sealed partial class DetailsModel
                 continue;
             }
 
-            entries.Add(details);
+            // A changed card of such a source is the current month's (R1203).
+            entries.Add(details with
+            {
+                GuideMonth = ValuationPolicy.GuideMonthToRecord(
+                    form.Source, details.GuideMonth, DateOnly.FromDateTime(recordedAt)),
+            });
         }
         return entries;
     }

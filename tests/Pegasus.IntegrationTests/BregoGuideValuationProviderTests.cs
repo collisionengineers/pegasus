@@ -30,7 +30,8 @@ public sealed class BregoGuideValuationProviderTests
     internal const string ClientId = "2fi40vh0cav05pikjkh04nd9e5";
     internal const string UserIdForSrp = "e6e222b4-a071-7002-cd41-d8b4a27b9eef";
     internal const string AccessToken = "synthetic-cognito-access-token";
-    internal const string IdToken = "synthetic-cognito-id-token";
+    internal static readonly string IdToken = SyntheticIdToken(
+        $$"""{"organizationId":"{{OrganizationId}}","slug":"{{Slug}}","email":"{{Email}}"}""");
     internal const string RefreshToken = "synthetic-cognito-refresh-token";
     internal const string BregoSessionCookie = "synthetic-brego-session-cookie";
     internal const string DerivativeId = "d8d2bc32-6912-403e-9a43-59d6d0779c11";
@@ -60,17 +61,22 @@ public sealed class BregoGuideValuationProviderTests
         return ((BregoClient.K * verifier) + gb) % BregoClient.N;
     }
 
+    // As Brego answers from November 2026: the tenant is no longer named here.
     internal static readonly string AuthorizerJson = $$$"""
         [
           {
-            "organizationId": "{{{OrganizationId}}}",
-            "name": "Collision Engineers",
-            "slug": "{{{Slug}}}",
             "authorizer": "{{{PoolId}}}",
-            "authorizerId": "{{{ClientId}}}"
+            "authorizerId": "{{{ClientId}}}",
+            "allowPasskeyLogin": true
           }
         ]
         """;
+
+    /// <summary>An unsigned token in a JWT's three-part shape, carrying the given claims.</summary>
+    internal static string SyntheticIdToken(string claimsJson) =>
+        "synthetic-header."
+        + Convert.ToBase64String(Encoding.UTF8.GetBytes(claimsJson)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+        + ".synthetic-signature";
 
     internal static readonly string InitiateAuthJson = $$$"""
         {
@@ -146,6 +152,10 @@ public sealed class BregoGuideValuationProviderTests
 
         Assert.Contains(AccessToken, harness.Requests[3].Headers["X-Brego-Bootstrap-Access-Token"]);
         Assert.Contains(AccessToken, harness.Requests[4].Headers["X-Brego-Bootstrap-Access-Token"]);
+
+        using var sessionDoc = JsonDocument.Parse(harness.Requests[4].Body!);
+        Assert.Equal(Slug, sessionDoc.RootElement.GetProperty("client").GetString());
+        Assert.Equal(IdToken, sessionDoc.RootElement.GetProperty("idToken").GetString());
 
         foreach (var platformCall in harness.Requests.Skip(5))
         {
@@ -359,6 +369,26 @@ public sealed class BregoGuideValuationProviderTests
             : null);
 
         await AssertUnavailableAsync(harness, logged);
+    }
+
+    [Theory]
+    [InlineData("not a token", "synthetic-cognito-id-token")]
+    [InlineData("no slug", """{"organizationId":"876db4e2-68f3-49a2-a824-cc2e44076a57"}""")]
+    [InlineData("no organisation", """{"slug":"collision-engineers"}""")]
+    [InlineData("slug is not a host label", """{"organizationId":"876db4e2-68f3-49a2-a824-cc2e44076a57","slug":"evil.example/"}""")]
+    public async Task AnIdTokenThatDoesNotNameTheTenantIsUnavailableBeforeAnySessionCall(string row, string claims)
+    {
+        Assert.NotEmpty(row);
+        var idToken = claims.StartsWith('{') ? SyntheticIdToken(claims) : claims;
+        var harness = Harness.Create(request =>
+            request.RequestUri!.Host.StartsWith("cognito-idp.", StringComparison.Ordinal)
+            && request.Headers.TryGetValues("X-Amz-Target", out var targets)
+            && targets.Contains("AWSCognitoIdentityProviderService.RespondToAuthChallenge")
+                ? Json(HttpStatusCode.OK, RespondToAuthChallengeJson.Replace(IdToken, idToken, StringComparison.Ordinal))
+                : null);
+
+        await AssertUnavailableAsync(harness, "brego.valuation.unreadable stage=cognito_verify tenant=absent");
+        Assert.Equal(3, harness.Requests.Count);
     }
 
     [Fact]

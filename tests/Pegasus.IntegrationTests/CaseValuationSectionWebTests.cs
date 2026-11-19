@@ -1034,6 +1034,165 @@ public sealed class CaseValuationSectionWebTests
     }
 
     /// <summary>
+    /// CAP is valued only as it stands today (operator, 19 November 2026,
+    /// R1203): its guide month is greyed, says why on hover and holds the
+    /// current month. Every other source's month stays staff's to choose.
+    /// </summary>
+    [Fact]
+    public async Task TheCapCardsGuideMonthIsGreyedWithItsReasonAndHoldsTheCurrentMonth()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+        var currentMonth = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow)
+            .ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+
+        var cap = InputTag(EntryCard(html, "cap"), "guideEntries[3].GuideMonth", "data-valuation-entry-month");
+        Assert.Contains(" readonly", cap, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{currentMonth}\"", cap, StringComparison.Ordinal);
+        Assert.Contains($"data-valuation-month-today=\"{currentMonth}\"", cap, StringComparison.Ordinal);
+        Assert.Contains(
+            "title=\"CAP can only do valuations for the current day.\"",
+            WebUtility.HtmlDecode(cap),
+            StringComparison.Ordinal);
+        var brego = InputTag(EntryCard(html, "brego"), "guideEntries[1].GuideMonth", "data-valuation-entry-month");
+        Assert.DoesNotContain("readonly", brego, StringComparison.Ordinal);
+        Assert.DoesNotContain("title=", brego, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-month-today", brego, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A CAP card the Engineer left alone records nothing (R1203): a recorded
+    /// card still showing its own month and figures, and an empty card whose
+    /// greyed box holds only the current month, which is not staff's entry.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AnUntouchedCapCardRecordsNothing(bool recorded)
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        if (recorded)
+        {
+            valuation.AddGuide(ValuationSource.Cap, 9_000m, 7_500m);
+        }
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var shownMonth = recorded
+            ? "2031-05"
+            : Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow).ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        // A recorded card holds its own month until a figure changes.
+        Assert.Contains(
+            $"value=\"{shownMonth}\"",
+            InputTag(EntryCard(html, "cap"), "guideEntries[3].GuideMonth", "data-valuation-entry-month"),
+            StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Recorded the Brego figure",
+                ("guideEntries[0].Source", nameof(ValuationSource.Cap)),
+                ("guideEntries[0].GuideMonth", shownMonth),
+                ("guideEntries[0].RetailValue", recorded ? "9000.00" : ""),
+                ("guideEntries[0].TradeValue", recorded ? "7500.00" : ""),
+                ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
+                ("guideEntries[1].GuideMonth", "2031-05"),
+                ("guideEntries[1].RetailValue", "13250.00"),
+                ("guideEntries[1].TradeValue", "11000.00")));
+
+        AssertPrg(response, store.CaseId);
+        var card = Assert.Single(Assert.Single(store.Saves).Valuation!.GuideEntries!);
+        Assert.Equal(ValuationSource.Brego, card.Source);
+    }
+
+    /// <summary>
+    /// A changed CAP card is recorded for the current month whatever month
+    /// its greyed box sent (R1203).
+    /// </summary>
+    [Fact]
+    public async Task AChangedCapCardIsRecordedForTheCurrentMonth()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        valuation.AddGuide(ValuationSource.Cap, 9_000m, 7_500m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Typed a CAP figure",
+                ("guideEntries[0].Source", nameof(ValuationSource.Cap)),
+                ("guideEntries[0].GuideMonth", "2031-05"),
+                ("guideEntries[0].RetailValue", "9100.00"),
+                ("guideEntries[0].TradeValue", "7500.00")));
+
+        AssertPrg(response, store.CaseId);
+        var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
+        var card = Assert.Single(Assert.Single(store.Saves).Valuation!.GuideEntries!);
+        Assert.Equal(ValuationSource.Cap, card.Source);
+        Assert.Equal(9_100m, card.RetailValue);
+        Assert.Equal(7_500m, card.TradeValue);
+        Assert.Equal(new DateOnly(today.Year, today.Month, 1), card.GuideMonth);
+    }
+
+    /// <summary>
+    /// CAP connected (R1201): its card is offered Get valuation, and because
+    /// CAP is valued only as it stands today every ask is the current month's
+    /// (R1203), so a press for another month asks nothing more (R900).
+    /// </summary>
+    [Fact]
+    public async Task CapIsAskedOnceWhateverMonthItsCardSends()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var provider = new FakeGuideValuationProvider(ValuationSource.Cap, 9_000m, 7_500m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(provider);
+        });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var cap = EntryCard(html, "cap");
+        Assert.Contains("data-valuation-get", cap, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-not-connected", cap, StringComparison.Ordinal);
+
+        using (var first = await PostGetValuationAsync(workspace, ValuationSource.Cap, "2026-08", asJson: true))
+        {
+            using var answer = JsonDocument.Parse(await first.Content.ReadAsStringAsync());
+            Assert.Equal("ok", answer.RootElement.GetProperty("status").GetString());
+            Assert.Equal("9000.00", answer.RootElement.GetProperty("retail").GetString());
+            Assert.Equal("7500.00", answer.RootElement.GetProperty("trade").GetString());
+        }
+
+        using (var otherMonth = await PostGetValuationAsync(workspace, ValuationSource.Cap, "2026-07", asJson: true))
+        {
+            using var answer = JsonDocument.Parse(await otherMonth.Content.ReadAsStringAsync());
+            Assert.Equal("refused", answer.RootElement.GetProperty("status").GetString());
+            Assert.Equal(
+                "CAP has already been asked for this Case.",
+                answer.RootElement.GetProperty("message").GetString());
+        }
+
+        Assert.Single(provider.Requests);
+        Assert.Empty(store.Saves);
+    }
+
+    /// <summary>
     /// A guide source with no connected provider answers the card's script
     /// with "unavailable", so the card shows its own notice; without script
     /// the answer is the approved sentence on the Valuation section. Nothing

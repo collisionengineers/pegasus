@@ -233,6 +233,27 @@ public sealed class FetchGuideValuationTests
     }
 
     /// <summary>
+    /// CAP is valued only as it stands today, so every ask of it is the
+    /// current month's whatever month was sent (R1203): another month is not
+    /// a second ask.
+    /// </summary>
+    [Fact]
+    public async Task ASourceValuedOnlyTodayIsAskedOnceWhateverMonthIsSent()
+    {
+        var provider = new CountingProvider(source: ValuationSource.Cap);
+        var request = Request(ValuationSource.Cap);
+        var fetch = Fetch(
+            [provider], new RecordingCaseData(Valued(request.CaseId, "KY12CAB", 69000)),
+            new RecordingSchedule(), new RecordingVins());
+
+        await fetch.ExecuteAsync(request, default);
+        await Assert.ThrowsAsync<GuideValuationAlreadyFetchedException>(() =>
+            fetch.ExecuteAsync(request with { GuideMonth = new DateOnly(2026, 8, 1) }, default));
+
+        Assert.Equal(1, provider.Calls);
+    }
+
+    /// <summary>
     /// Only an answer with figures uses the ask: a provider that cannot answer
     /// or cannot value the vehicle leaves it for the next press (R900).
     /// </summary>

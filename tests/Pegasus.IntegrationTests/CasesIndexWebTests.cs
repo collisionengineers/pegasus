@@ -1031,6 +1031,37 @@ public sealed class CasesIndexWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// R1198: the Current work of a Not ready Garage authorisation and invoice
+    /// Audit listed outside the Not ready queue, on Queries, names its
+    /// missing External estimate as FRD-16 says, not the bare stage.
+    /// </summary>
+    [Fact]
+    public async Task TheQuickDetailNamesAGarageAuditsEstimateOnTheQueriesQueue()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await SeedImagesIncompleteCaseAsync(
+            factory, client, "QD21 GAR", "QUICK-DETAIL-10", CaseLifecycleState.NotReady, audit: true);
+        await using (var context = await (await factory.DatabaseAsync).CreateContextAsync())
+        {
+            var workflow = await context.CaseWorkflows
+                .Include(item => item.Case)
+                .SingleAsync(item => item.CaseId == caseId);
+            workflow.Case.ImagesComplete = true;
+            workflow.Case.AuditWorkflow = PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode;
+            workflow.HasOpenQuery = true;
+            await context.SaveChangesAsync();
+        }
+        var step = Pegasus.Web.Presentation.OperatorLabels.RequirementIncomplete(
+            CaseWorkflowConfiguration.ExternalEstimateRequirement);
+
+        Assert.Matches(
+            CurrentWork(step),
+            await IntakeWebDriver.GetHtmlAsync(client, $"/Cases?tab=query&selected={caseId:D}"));
+    }
+
     [Fact]
     public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
     {

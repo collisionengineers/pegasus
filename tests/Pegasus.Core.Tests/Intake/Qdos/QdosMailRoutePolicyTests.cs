@@ -21,6 +21,8 @@ public sealed class PrincipalMailRoutePolicyTests
     [InlineData("OAK", "instructions@oakwoodscotland.co.uk")]
     [InlineData("OAK", "instructions@oakwoodsolicitors.co.uk")]
     [InlineData("PCH", "instructions@pch-ltd.com")]
+    [InlineData("PHOUSE", "office@parkhouseassist.com")]
+    [InlineData("PHOUSE", "office@parkhousebodyshop.com")]
     [InlineData("QCL", "instructions@qc-law.co.uk")]
     [InlineData("QDOS", "instructions@qdosassist.co.uk")]
     [InlineData("RJS", "instructions@robertjameslaw.co.uk")]

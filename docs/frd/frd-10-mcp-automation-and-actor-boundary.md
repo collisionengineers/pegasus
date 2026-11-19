@@ -247,6 +247,8 @@ does not value (`VehicleAge`) or a registration it holds no data for
 (`NoVehicleData`) records nothing, and so does a source already answered for
 that guide month at the Case's registration and mileage (`AlreadyAsked`; R900;
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+A CAP card, fetched or saved, is always the current month's whatever month is
+sent ([R1203](../rulings.md)).
 Adopting a basis card, which writes the report's Retail and Trade, stays
 with `pegasus_valuation_save`; the Engineer's Value stays with
 `pegasus_assessment_update`.

@@ -350,6 +350,10 @@ answer is the Vehicle history text, which the report prints verbatim.
   cannot check this vehicle: it holds no data for its registration." (R748).
   A check that could not answer writes nothing and says "The Experian check
   is unavailable. Contact an administrator or report a problem." (R747).
+  An answer without the condition records, such as Experian's message 100
+  "Permission to view ConditionRecords was denied", is a check that could not
+  answer, never a clean vehicle (operator, 18 November 2026: "we cant have
+  this - its literally putting incorrect info in"; R747).
 - Staff and the Automation Actor may run it (ADR-0064). A host without
   Experian composed offers no check.
 

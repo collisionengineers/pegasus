@@ -888,13 +888,18 @@ if (productionProfile || liveGuideValuation)
         provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
 }
 
-// Experian's vehicle history check (ADR-0089): Production, and an offline
-// host (the hosted test instance) under Features:LiveExperian; any other
-// offline host says Experian is not connected. The account is read on each
-// check for the same unresolved-Key-Vault-reference reason as Box's.
+// Experian's vehicle history check and CAP valuation (ADR-0089, R1201):
+// Production, and an offline host (the hosted test instance) under
+// Features:LiveExperian; any other offline host says Experian is not
+// connected and its CAP card is unavailable. Each act is handed its account,
+// read on each call for the same unresolved-Key-Vault-reference reason as
+// Box's. Experian:Account:* is the account with CAP valuations (R1207), and
+// the history check reads it too until its own account's entries exist.
 if (productionProfile || liveExperian)
 {
     builder.Services.AddExperianVehicleHistoryCheck(
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
+    builder.Services.AddExperianCapValuation(
         _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
 }
 
