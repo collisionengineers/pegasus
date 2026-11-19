@@ -355,6 +355,87 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// The BMW's roof panel asks no question and the panoramic roof it is
+    /// hidden by is not on the car, so the editor shows it and a click opens
+    /// its dialog (R1206): the Automation's add asks for the pair that click
+    /// asks for, after reading the maps of the part's two heads. No roof
+    /// dialog is captured, so the scripted editor serves the door's, whose
+    /// part code refuses it before anything is posted. The preview asks for
+    /// the same pair.
+    /// </summary>
+    [Fact]
+    public async Task AHeadItsEquipmentShowsIsAddedWithoutAQuestion()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:roof-1",
+            GlassAutomationPositionKind.Part, "525", GlassAutomationPartOperation.Part));
+        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
+        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
+            Preview(harness, step.Session, "525", GlassAutomationPartOperation.Part, null), CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassFailure.EditorRefused, step.Act.Code);
+        Assert.Null(step.Act.Equipment);
+        Assert.NotNull(preview);
+        Assert.NotEqual(GlassEstimateBuildPolicy.EquipmentCode, preview.Code);
+        var asked = Asked(harness, "GET", "comp.php");
+        Assert.Equal(2, asked.Count);
+        Assert.All(asked, query => Assert.Contains("mcode=525|526", query, StringComparison.Ordinal));
+        Assert.Contains(Asked(harness, "GET", "service.php"), query => query.Contains("rowid=2697&reqcritmap3=1", StringComparison.Ordinal));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
+    /// On a car with the panoramic roof the roof panel is hidden, as the
+    /// editor hides it: the add and the preview are refused with
+    /// glass.build.equipment_hidden by the list alone, with no question and
+    /// nothing more asked (R1206).
+    /// </summary>
+    [Fact]
+    public async Task AHeadItsEquipmentHidesIsRefusedWithItsOwnCode()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList().Replace(
+            NoPanoramicRoof, PanoramicRoof, StringComparison.Ordinal)));
+        var session = await AutomationStartAsync(harness);
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:roof-1",
+            GlassAutomationPositionKind.Part, "525", GlassAutomationPartOperation.Part));
+        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
+            Preview(harness, step.Session, "525", GlassAutomationPartOperation.Part, null), CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, step.Act.Code);
+        Assert.Null(step.Act.Equipment);
+        Assert.NotNull(preview);
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, preview.Code);
+        Assert.Null(preview.Equipment);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
+    }
+
+    /// <summary>
+    /// Repair on a part whose row asks Glass's equipment question is refused
+    /// with a code of its own, never the bare question code (R1172, R1206).
+    /// </summary>
+    [Fact]
+    public async Task ARepairOnAPartThatAsksIsRefusedWithItsOwnCode()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:lining-repair",
+            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Repair));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentPartOnlyCode, step.Act.Code);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
+    }
+
+    /// <summary>
     /// The search answers each part whose block asks with its question,
     /// from the list alone; with a row it reads that row's map too and
     /// answers every answer that leads to a part (R1206). A row that is not
@@ -772,6 +853,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.NotNull(unanswered);
         Assert.Null(unanswered.Dialog);
         Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, unanswered.Code);
+        // The bare code always comes with the question (R1206).
+        Assert.NotNull(unanswered.Equipment);
+        Assert.Equal(LiningOptions, unanswered.Equipment.Options.Select(option => option.Code));
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
     }

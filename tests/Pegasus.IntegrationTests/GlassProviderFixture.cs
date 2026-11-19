@@ -327,15 +327,16 @@ internal static class GlassProviderFixture
     /// then three blocks made for this script in the same row format: the
     /// left and right front door shells, whose dialog the captures hold for
     /// the left one only (rows <c>771|772</c>, code 2020001, 18 November
-    /// 2026), and the BMW's left mirror (<see cref="MirrorRows"/>). Each
+    /// 2026), the BMW's left mirror (<see cref="MirrorRows"/>) and its roof
+    /// panel (<see cref="RoofRows"/>). Each
     /// door's block needs no equipment, and the door can be painted (marked
     /// <c>L</c>), as the browser's use of <c>comp.php</c> for it shows.
     /// </summary>
     public static string BuildPartList() =>
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Select(row => "partlist.addPart(\"" + row + "\");"))
-            + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
+            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Concat(RoofRows).Select(row => "partlist.addPart(\"" + row + "\");"))
+            + "\n" + string.Join('\n', MirrorCriteria.Concat(RoofCriteria).Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
             StringComparison.Ordinal);
 
     /// <summary>
@@ -385,6 +386,31 @@ internal static class GlassProviderFixture
     ];
 
     /// <summary>The BMW's criteria the mirror's block names, as its <c>reqglobcrit2g</c> served them (r18 #745).</summary>
+    /// <summary>
+    /// The BMW's roof panel as its part list served it on 19 November 2026
+    /// (operatorwalkglass.har #369), byte for byte: two heads of one part
+    /// (rows 525 and 2697), each hidden by the panoramic roof (20011, field
+    /// 11) and asking no question, with their Replace and refit time rows.
+    /// The editor's own click asks for <c>525|526</c> and <c>2697|2698</c>.
+    /// </summary>
+    internal static readonly string[] RoofRows =
+    [
+        "525|pbcdLg|STA5-201_204||105|2010000||41007494007|1179.04|ERAEI ||20011|||||Roof Panel|Part made of steel||||||||||ST|E2341BSI2341BS|||272|2697||0.0.0.42",
+        "526|t|||||||12.50|ER|||||||||||||||||||||||2698||0.0.0.42",
+        "527|t|||||||12.50|AE|||||||||||||||||||||||2699||0.0.0.42",
+        "2697|pbcdLg|STA5-201_204||2|2010000||41007494007|1179.04|ERAEI ||20011|||||Roof Panel|Part made of steel||||||||||ST|E2341BSI2341BS|||272|525||0.3.0.3",
+        "2698|t|||||||12.50|ER|||||||||||||||||||||||526||0.3.0.3",
+        "2699|t|||||||12.50|AE|||||||||||||||||||||||527||0.3.0.3",
+    ];
+
+    /// <summary>The panoramic roof as that list served it: the vehicle does not have it, so the roof panel is shown.</summary>
+    internal const string NoPanoramicRoof = "20011|IgNtp|0|_|0|Panoramic Roof|0|0|140|340|0|";
+
+    /// <summary>The same line for a vehicle that has the panoramic roof, which hides the roof panel.</summary>
+    internal const string PanoramicRoof = "20011|IgNtp|1|_|0|Panoramic Roof|0|0|140|340|0|";
+
+    private static readonly string[] RoofCriteria = [NoPanoramicRoof];
+
     private static readonly string[] MirrorCriteria =
     [
         "21115|pNg|0|_|0|Outside Mirrors Automatic Dimming|0|0|240|239|0|",

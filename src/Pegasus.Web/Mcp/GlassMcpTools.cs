@@ -268,7 +268,8 @@ internal sealed record GlassPositionActToolResult(
     [property: Description(AutomationToolText.GlassAlsoNew)] IReadOnlyList<string>? AlsoNew = null,
     [property: Description(AutomationToolText.GlassShownInWindow)] bool? ShownInWindow = null,
     [property: Description(AutomationToolText.GlassPreviewDialog)] GlassDialogToolItem? Dialog = null,
-    [property: Description(AutomationToolText.GlassPreviewCode)] string? PreviewCode = null);
+    [property: Description(AutomationToolText.GlassPreviewCode)] string? PreviewCode = null,
+    [property: Description(AutomationToolText.GlassPreviewEquipment)] GlassEquipmentToolItem? Equipment = null);
 
 internal sealed record GlassSessionActToolResult(
     Guid CaseId,
@@ -702,7 +703,8 @@ internal sealed class GlassMcpTools(
         }
 
         return new GlassPositionActToolResult(
-            caseId, Map(previewed.Session), null, key, Dialog: MapDialog(previewed.Dialog), PreviewCode: previewed.Code);
+            caseId, Map(previewed.Session), null, key, Dialog: MapDialog(previewed.Dialog), PreviewCode: previewed.Code,
+            Equipment: MapEquipment(previewed.Equipment));
     }
 
     /// <summary>A preview's dialog as the tool answers it; Glass's own labels and texts pass through unchanged.</summary>

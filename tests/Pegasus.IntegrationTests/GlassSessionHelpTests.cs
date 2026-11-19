@@ -501,6 +501,53 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// In the Engineer's session the BMW's roof panel, which asks no question
+    /// and which the car's equipment shows, is added as the Engineer's own
+    /// click adds it (R1206): its dialog is asked for by <c>525|526</c>. No
+    /// roof dialog is captured; the door's served instead is refused before
+    /// anything is posted. A preview of a part whose row asks, with no
+    /// answer, comes with the question.
+    /// </summary>
+    [Fact]
+    public async Task AHeadItsEquipmentShowsIsAddedAndTheBareCodeCarriesTheQuestionInTheEngineersSession()
+    {
+        var help = Help.Create();
+        help.Glass.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
+
+        var roof = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-roof-1",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "525",
+                Operation = GlassAutomationPartOperation.Part,
+            },
+            help.Session,
+            CancellationToken.None);
+        var lining = await help.Sessions.PreviewAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, 0, "mcp:help-preview-lining",
+                GlassAutomationActAction.Preview)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "0",
+                Operation = GlassAutomationPartOperation.Part,
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, roof.Act.Outcome);
+        Assert.Equal(GlassFailure.EditorRefused, roof.Act.Code);
+        Assert.Contains(
+            "mcode=525|526",
+            Uri.UnescapeDataString(Assert.Single(help.Glass.Requests, request => request.Path == "/ere/aco/comp.php").Query),
+            StringComparison.Ordinal);
+        Assert.Equal(0, help.Glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, lining.Code);
+        Assert.NotNull(lining.Equipment);
+        Assert.Equal(3, lining.Equipment.Options.Count);
+    }
+
+    /// <summary>
     /// A preview in the Engineer's session (R1206) reads the lists and the
     /// dialog on the held key, posts nothing, records no history row and
     /// does not ask the window to redraw.

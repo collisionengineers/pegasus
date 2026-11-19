@@ -371,8 +371,10 @@ public static class GlassAutomationPositionPolicy
     public const string BothSidesCode = "glass.row.both_sides";
 
     // The refusals of an equipment answer (R1206), each made before anything
-    // is sent to Glass's. A part whose row asks and that is given no answer
-    // is GlassEstimateBuildPolicy.EquipmentCode, as a rebuild's line is.
+    // is sent to Glass's. For the Automation's add and preview,
+    // GlassEstimateBuildPolicy.EquipmentCode means only that the row asks
+    // Glass's equipment question and no answer was given, and it always
+    // carries the question; every other equipment refusal has a code below.
 
     /// <summary>An answer names a code that is not an option of the part's question.</summary>
     public const string EquipmentUnknownCode = "glass.build.equipment_unknown";
@@ -391,6 +393,25 @@ public static class GlassAutomationPositionPolicy
 
     /// <summary>An answer given for a row whose part Glass's adds without asking any equipment question.</summary>
     public const string EquipmentNotAskedCode = "glass.build.equipment_not_asked";
+
+    /// <summary>A part the vehicle's equipment hides on its drawing, so Glass's editor does not show it.</summary>
+    public const string EquipmentHiddenCode = "glass.build.equipment_hidden";
+
+    /// <summary>A wheel: Glass's editor chooses its rows with its own wheel selector, which is not built.</summary>
+    public const string EquipmentWheelCode = "glass.build.equipment_wheel";
+
+    /// <summary>
+    /// A part whose rows depend on equipment Glass's editor does not ask about
+    /// for it: its block or its equipment map has variants the question does
+    /// not cover, so the rows the editor would choose are not certain.
+    /// </summary>
+    public const string EquipmentUncertainCode = "glass.build.equipment_uncertain";
+
+    /// <summary>
+    /// A part whose row asks Glass's equipment question, added with another
+    /// operation than Part: the question is answered for Part only (R1172, R1206).
+    /// </summary>
+    public const string EquipmentPartOnlyCode = "glass.build.equipment_part_only";
 
     /// <summary>
     /// Whether an add may give an equipment answer: a part added as Part
@@ -1196,4 +1217,8 @@ public sealed record GlassDialogQuestion(string Kind, string? Text, bool Answere
 /// position Glass's lists do not hold, a row that is not certain, or a page
 /// Glass's did not answer. Nothing was posted either way.
 /// </summary>
-public sealed record GlassAutomationPreview(GlassRepairEstimateSession Session, GlassDialogPreview? Dialog, string? Code);
+public sealed record GlassAutomationPreview(GlassRepairEstimateSession Session, GlassDialogPreview? Dialog, string? Code)
+{
+    /// <summary>With <see cref="GlassEstimateBuildPolicy.EquipmentCode"/>: the part's equipment question, as the search gives it.</summary>
+    public GlassEquipmentQuestion? Equipment { get; init; }
+}

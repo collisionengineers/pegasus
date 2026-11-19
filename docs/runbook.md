@@ -1698,8 +1698,8 @@ it stopped.
     operation has the name, the part number names different parts, or the
     part has more than one time row of the line's operation),
     `glass.build.equipment` (the part's row waits on an equipment answer;
-    for the Automation's add, it gave none, and the act carries the
-    question), `glass.build.no_key` (a new part, or a Glass's export's repair or
+    for the Automation's add or preview, it gave none, and the act or the
+    preview carries the question), `glass.build.no_key` (a new part, or a Glass's export's repair or
     remove-and-refit line, with no Glass's part code or part number),
     `glass.build.stopped` (not sent after a line that was not confirmed). A
     part whose dialog served another side or another part, did not offer the
@@ -1711,7 +1711,14 @@ it stopped.
     `glass.build.equipment_repeated` (a code named twice),
     `glass.build.equipment_same_group` (two options of one group),
     `glass.build.equipment_no_part` (it leads to no part or no Replace
-    hours) or `glass.build.equipment_not_asked` (the row asks nothing). An
+    hours) or `glass.build.equipment_not_asked` (the row asks nothing).
+    The Automation's add or preview is also refused, with nothing sent, as
+    `glass.build.equipment_hidden` (the vehicle's equipment hides the part
+    on its drawing), `glass.build.equipment_wheel` (a wheel, chosen in
+    Glass's own wheel selector), `glass.build.equipment_uncertain` (its rows
+    depend on equipment Glass's does not ask about for it) or
+    `glass.build.equipment_part_only` (the row asks a question, and the
+    operation is not Part). An
     act whose `equipmentStored` is true sent the answer to Glass's, which
     keeps it for the vehicle even when the add was then refused.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so

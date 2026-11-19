@@ -344,8 +344,10 @@ drawing, the first is used. It is left off and listed:
 - as waiting on an equipment answer, when the row Glass's would give depends
   on the vehicle's equipment (variants of the part, time rows by equipment,
   or a part shown only with some equipment), or the number is a variant's.
-  The rebuild answers no equipment question; only the Automation's own add
-  does, in its session or with help on (19 November 2026; R1206;
+  The rebuild answers no equipment question, and leaves off a part shown
+  by equipment even where the vehicle's criteria show it; only the
+  Automation's own add answers the question or adds such a part, in its
+  session or with help on (19 November 2026; R1206;
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions));
 - as having no row, when Glass's part list has none with that code and side,
   or that number, or the row offers no Replace;
@@ -466,7 +468,9 @@ asks Glass's equipment question, with the Automation's answer, which is
 stored at Glass's for the vehicle as the editor stores the Engineer's own
 and may untick an option the vehicle has (19 November 2026; R1206). A part
 with no answer is refused with the question, as in the Automation's own
-session. One Automation act runs at a time, and
+session. A part that asks nothing and that the car's equipment shows on its
+drawing is added as the Engineer's own click adds it; one the car's
+equipment hides is refused with a code that says so (R1206). One Automation act runs at a time, and
 each is a history row on the session as the Automation's. After an add or a
 removal the helper reloads Glass's own selected list. The Engineer sees that
 refresh and the chip, and nothing else is drawn: the smallest build, decided

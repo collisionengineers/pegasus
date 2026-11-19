@@ -226,9 +226,9 @@ public sealed partial class GlassSessionHelp(
         var draft = GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
         Require(request.Actor, session);
         using var turn = Enter(session);
-        var (dialog, code, opened) = await Work.PreviewAsync(session, turn.Editor, turn.Opened, draft, cancellationToken);
+        var (dialog, code, opened, equipment) = await Work.PreviewAsync(session, turn.Editor, turn.Opened, draft, cancellationToken);
         Keep(session, turn.Editor, opened);
-        return new(session, dialog, code);
+        return new(session, dialog, code) { Equipment = equipment };
     }
 
     /// <summary>

@@ -180,13 +180,27 @@ internal static class GlassEditorRows
     /// none is named): the reason it is not certain, or null when its
     /// equipment map is to be read next.
     /// </summary>
-    public static string? ListRefusal(IReadOnlyList<GlassEditorPartRow> list, int head, string operation = Replace)
+    /// <remarks>
+    /// With <paramref name="vehicle"/>, the criteria the vehicle has, it is the
+    /// Automation's live add or preview (R1206): a head shown or hidden on its
+    /// drawing by equipment is decided as any other when the vehicle's
+    /// criteria show it, as the editor shows it and a click opens its dialog
+    /// with no question, and each refusal has a code of its own, so
+    /// <see cref="GlassEstimateBuildPolicy.EquipmentCode"/> never comes back
+    /// without its question. Judged offline on 19 November 2026 against the
+    /// editor's own click path, over every head that asks no question and is
+    /// shown by equipment for the vehicle: on the SEAT's list 40 of 61 gave
+    /// the editor's pair and the rest are refused; on the BMW's 46 of 72, the
+    /// same; no pair differed. Without it, a rebuild's rule is unchanged.
+    /// </remarks>
+    public static string? ListRefusal(
+        IReadOnlyList<GlassEditorPartRow> list, int head, string operation = Replace, IReadOnlySet<string>? vehicle = null)
     {
         ArgumentNullException.ThrowIfNull(list);
         var row = list[head];
         if (row.Has('w'))
         {
-            return GlassEstimateBuildPolicy.EquipmentCode;
+            return vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentWheelCode;
         }
         if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
         {
@@ -196,14 +210,30 @@ internal static class GlassEditorRows
         {
             return GlassEstimateBuildPolicy.NoRowCode;
         }
-        if (ShownByEquipment(list, head))
+        if (ShownByEquipment(list, head) && (vehicle is null || !Visible(list, head, vehicle)))
         {
-            return GlassEstimateBuildPolicy.EquipmentCode;
+            return vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentHiddenCode;
         }
 
         return Block(list, head).Any(other => other.Criteria.Length > 0)
-            ? GlassEstimateBuildPolicy.EquipmentCode
+            ? Uncertain(vehicle)
             : null;
+    }
+
+    /// <summary>A rule's own refusal of rows that depend on equipment: a rebuild's, or the Automation's own code.</summary>
+    private static string Uncertain(IReadOnlySet<string>? vehicle) =>
+        vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentUncertainCode;
+
+    /// <summary>
+    /// Whether the vehicle's criteria show a head on its drawing: the head's
+    /// own show and hide fields, and those of its drawing number's rows.
+    /// </summary>
+    private static bool Visible(IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlySet<string> vehicle)
+    {
+        var row = list[head];
+        return Shown(row, vehicle) == 1
+            && list.All(other => !(other.Has('c') && other.Drawing == row.Drawing && other.DrawingNumber == row.DrawingNumber)
+                || Shown(other, vehicle) == 1);
     }
 
     /// <summary>
@@ -305,7 +335,8 @@ internal static class GlassEditorRows
     /// added as Part: the reason it is refused, or null when its equipment
     /// map is to be read next. A wheel (the editor's own wheel selector) and
     /// a head the vehicle's criteria hide on its drawing wait on equipment no
-    /// answer gives; a head that offers no Replace has no row (R1206).
+    /// answer gives, each with its own code; a head that offers no Replace
+    /// has no row (R1206).
     /// </summary>
     public static string? AskedRefusal(GlassEditorPartList list, int head)
     {
@@ -313,15 +344,15 @@ internal static class GlassEditorRows
         var row = list.Rows[head];
         if (row.Has('w'))
         {
-            return GlassEstimateBuildPolicy.EquipmentCode;
+            return GlassAutomationPositionPolicy.EquipmentWheelCode;
         }
         if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
         {
             return GlassEstimateBuildPolicy.NoRowCode;
         }
 
-        return ShownByEquipment(list.Rows, head) && Shown(row, list.Vehicle) != 1
-            ? GlassEstimateBuildPolicy.EquipmentCode
+        return ShownByEquipment(list.Rows, head) && !Visible(list.Rows, head, list.Vehicle)
+            ? GlassAutomationPositionPolicy.EquipmentHiddenCode
             : null;
     }
 
@@ -673,14 +704,16 @@ internal static class GlassEditorRows
 
     /// <summary>
     /// One head, decided for an operation (Replace when none is named) with
-    /// its equipment map as the editor serves it.
+    /// its equipment map as the editor serves it. With
+    /// <paramref name="vehicle"/>, the Automation's live add or preview, as
+    /// <see cref="ListRefusal"/> says (R1206).
     /// </summary>
     public static GlassEditorRowChoice Decide(
         IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlyList<IReadOnlyList<string>> map,
-        string operation = Replace)
+        string operation = Replace, IReadOnlySet<string>? vehicle = null)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (ListRefusal(list, head, operation) is { } refused)
+        if (ListRefusal(list, head, operation, vehicle) is { } refused)
         {
             return GlassEditorRowChoice.Refused(refused);
         }
@@ -696,17 +729,17 @@ internal static class GlassEditorRows
         var replace = Group(map, Replace);
         if (parts.Count > 1 || replace.Count > 1 || !parts.All(Plain) || !replace.All(Plain))
         {
-            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
+            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
         }
 
         var refit = Group(map, RemoveAndRefit);
         if (operation != Replace && (refit.Count > 1 || !refit.All(Plain)))
         {
-            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
+            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
         }
         if (parts.Count == 1 && RowOf(parts[0]) != row.Id)
         {
-            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
+            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
         }
 
         var block = Block(list, head).ToList();
