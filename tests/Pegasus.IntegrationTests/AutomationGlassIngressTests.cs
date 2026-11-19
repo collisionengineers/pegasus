@@ -25,6 +25,8 @@ public sealed class AutomationGlassIngressTests
     /// <summary>The Automation's own login on this host (R1177): a made-up username.</summary>
     private const string AutomationLogin = "automation-ingress-login";
 
+    private static readonly string[] SessionGetParameters = ["caseId", "positionId", "read", "sessionId"];
+
     [Fact]
     public async Task TheGlassToolsNeedTheGlassScope()
     {
@@ -315,6 +317,145 @@ public sealed class AutomationGlassIngressTests
     }
 
     /// <summary>
+    /// session_get's read in the Automation's own session (R1206), one
+    /// request to Glass's each and nothing posted: the positions with
+    /// Glass's running totals, one position's figures with its paint, and
+    /// Glass's calculation. A position Glass's does not answer for answers
+    /// its code and nothing read, and leaves the session open as it was.
+    /// </summary>
+    [Fact]
+    public async Task SessionGetReadsTotalsAPositionAndTheCalculation()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        using (var positions = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_session_get", new
+        {
+            caseId, read = "positions",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(positions);
+            var estimate = structured.GetProperty("estimate");
+            Assert.Empty(estimate.GetProperty("positionIds").EnumerateArray());
+            var due = Assert.Single(estimate.GetProperty("totals").EnumerateArray());
+            Assert.Equal("Amount due (£)", due.GetProperty("label").GetString());
+            Assert.Equal(0m, due.GetProperty("amount").GetDecimal());
+            Assert.True(IsAbsent(structured, "readCode"));
+            Assert.Equal(1, structured.GetProperty("session").GetProperty("version").GetInt64());
+        }
+        using (var position = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_session_get", new
+        {
+            caseId, read = "position", positionId = "C350898.20.C1060000.2464",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(position);
+            var figures = structured.GetProperty("position");
+            Assert.Equal("Bonnet", figures.GetProperty("description").GetString());
+            Assert.Equal("ER", figures.GetProperty("operation").GetString());
+            Assert.Equal(412.12m, figures.GetProperty("price").GetDecimal());
+            Assert.Equal(0.80m, figures.GetProperty("hours").GetDecimal());
+            Assert.Equal("41007290942", figures.GetProperty("partNumber").GetString());
+            Assert.True(IsAbsent(figures, "side"));
+            Assert.Equal(697.10m, figures.GetProperty("paint").GetProperty("price").GetDecimal());
+            Assert.Equal(2.60m, figures.GetProperty("paint").GetProperty("labourTime").GetDecimal());
+            Assert.True(IsAbsent(structured, "estimate"));
+        }
+        using (var calculation = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_session_get", new
+        {
+            caseId, read = "calculation",
+        })))
+        {
+            var summary = (await ReadStructuredContentAsync(calculation)).GetProperty("calculation");
+            Assert.Equal(4, summary.GetProperty("trades").GetArrayLength());
+            var body = summary.GetProperty("trades")[0];
+            Assert.Equal("Body", body.GetProperty("trade").GetString());
+            Assert.Equal(1952.00m, body.GetProperty("labourCosts").GetDecimal());
+            Assert.Equal(7336.24m, summary.GetProperty("totalMaterial").GetDecimal());
+            Assert.Equal(11008.24m, summary.GetProperty("repairCostsExclVat").GetDecimal());
+            Assert.Equal("VAT (20.00 %)", summary.GetProperty("vatLabel").GetString());
+            Assert.Equal(13209.89m, summary.GetProperty("repairCostsInclVat").GetDecimal());
+        }
+        using (var unknown = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_session_get", new
+        {
+            caseId, read = "position", positionId = "C1.2.C3.4",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(unknown);
+            Assert.Equal(GlassFailure.EditorRequest, structured.GetProperty("readCode").GetString());
+            Assert.True(IsAbsent(structured, "position"));
+            var session = structured.GetProperty("session");
+            Assert.Equal("Active", session.GetProperty("state").GetString());
+            Assert.True(IsAbsent(session, "failureCode"));
+        }
+
+        Assert.Equal(4, glass.Requests.Count);
+        Assert.Equal(1, glass.Count("GET /ere/aco/selected.php"));
+        Assert.Equal(2, glass.Count("GET /ere/aco/mcode.php"));
+        Assert.Equal(1, glass.Count("GET /ere/aco/report.php"));
+        Assert.Contains("&cml=C&calcid=0&dummy=", glass.Requests.Single(request => request.Path.EndsWith("/report.php", StringComparison.Ordinal)).Query, StringComparison.Ordinal);
+        Assert.Equal(4, await CountHistoryAsync(factory, "pegasus_glass_session_get"));
+    }
+
+    /// <summary>
+    /// The read's own refusals, before anything is asked of Glass's: a kind
+    /// it does not have, a position read with no position id or one that is
+    /// not as Glass's lists them, and a position id with another read. The
+    /// tool takes read and positionId, and readEstimate no longer.
+    /// </summary>
+    [Fact]
+    public async Task SessionGetRefusesAReadItDoesNotHave()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        using (var unknown = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_session_get", new { caseId, read = "everything" })))
+        {
+            Assert.Contains(AutomationToolText.GlassReadRefused, await RefusalAsync(unknown), StringComparison.Ordinal);
+        }
+        using (var unnamed = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_session_get", new { caseId, read = "position" })))
+        {
+            Assert.Contains(AutomationToolText.GlassReadPositionIdRefused, await RefusalAsync(unnamed), StringComparison.Ordinal);
+        }
+        using (var injected = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_session_get", new
+        {
+            caseId, read = "position", positionId = "C1.2.C3.4&cml=C",
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassReadPositionIdRefused, await RefusalAsync(injected), StringComparison.Ordinal);
+        }
+        using (var stray = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_session_get", new
+        {
+            caseId, read = "positions", positionId = "C1.2.C3.4",
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassReadPositionIdNotForRead, await RefusalAsync(stray), StringComparison.Ordinal);
+        }
+        Assert.Empty(glass.Requests);
+
+        using var tools = await PostMcpAsync(client, token, ToolsListPayload(5));
+        using var document = await ReadJsonRpcAsync(tools);
+        var get = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
+            .Single(tool => tool.GetProperty("name").GetString() == "pegasus_glass_session_get");
+        Assert.Equal(
+            SessionGetParameters,
+            get.GetProperty("inputSchema").GetProperty("properties").EnumerateObject()
+                .Select(property => property.Name)
+                .Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
     /// The two tools' own refusals, before anything is asked of Glass's: a
     /// blank term, a kind or an action they do not have, a part without its
     /// operation, a Case with no Automation session; then, on an open
@@ -548,6 +689,62 @@ public sealed class AutomationGlassIngressTests
               AND CorrelationId = N'mcp:help-add-1'
             """));
         // No Case lease was taken: the Engineer keeps the edit.
+        Assert.Equal(leasesBefore, await database.ScalarAsync<int>(HeldLeases));
+    }
+
+    /// <summary>
+    /// In an Engineer's session with help on and the window's key held, the
+    /// read is asked through help alone (R1206): the calculation is answered,
+    /// a position Glass's does not answer for answers its code, nothing is
+    /// posted, the session's version does not move and no Case lease is
+    /// taken.
+    /// </summary>
+    [Fact]
+    public async Task SessionGetReadsInAnEngineersSessionWithHelpOnAndAKeyHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        var sessionId = await SeedEngineerSessionAsync(mcpFactory, caseId, "engineer-one", helpOn: true);
+        var keys = mcpFactory.Services.GetRequiredService<GlassHelpKeys>();
+        var options = mcpFactory.Services.GetRequiredService<GlassRepairEstimateOptions>();
+        keys.Hold(sessionId, keys.Read(GlassHelpFrameTests.FrameAddress(
+            GlassHelpFrameTests.Url0(options.CallbackFor(GlassHelpFrameTests.Token).AbsoluteUri)))
+            ?? throw new InvalidOperationException("The frame was not read."));
+        var database = await factory.DatabaseAsync;
+        const string HeldLeases = "SELECT COUNT(*) FROM CaseWorkflows WHERE EditLeaseHolder IS NOT NULL";
+        var leasesBefore = await database.ScalarAsync<int>(HeldLeases);
+
+        using (var calculation = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_session_get", new
+        {
+            caseId, read = "calculation",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(calculation);
+            Assert.Equal(13209.89m, structured.GetProperty("calculation").GetProperty("repairCostsInclVat").GetDecimal());
+            Assert.True(IsAbsent(structured, "code"));
+            Assert.True(IsAbsent(structured, "readCode"));
+            var session = structured.GetProperty("session");
+            Assert.Equal("staff", session.GetProperty("owner").GetString());
+            Assert.Equal(0, session.GetProperty("version").GetInt64());
+        }
+        using (var unknown = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_session_get", new
+        {
+            caseId, read = "position", positionId = "C1.2.C3.4",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(unknown);
+            Assert.Equal(GlassFailure.EditorRequest, structured.GetProperty("readCode").GetString());
+            Assert.True(IsAbsent(structured, "code"));
+            Assert.True(IsAbsent(structured, "position"));
+        }
+
+        Assert.Equal(2, glass.Requests.Count);
+        Assert.Equal(0, glass.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(leasesBefore, await database.ScalarAsync<int>(HeldLeases));
     }
 

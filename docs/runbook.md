@@ -1735,6 +1735,15 @@ it stopped.
   - `glass.help.no_window`: no key is held, as the chip says.
     `glass.help.not_automation_session`: start, finish and close are the
     Automation's own session's only.
+  The Automation's read (`pegasus_glass_session_get` with `read`, R1206),
+  in its own session or with help, logs one stage: `EditorRead` (the
+  positions and Glass's totals), `EditorPosition` (one position's record)
+  or `EditorCalculation` (the calculation report). A read Glass's does not
+  answer logs its code at that stage; an answer that is not the page asked
+  for also logs "stage … was answered page=… length=…", the page being
+  `selected`, `position` or `calculation`. The tool answers the code as
+  `readCode` and the session stays as it was. A read sends nothing that
+  changes the estimate.
   An add or a removal that comes back `not_confirmed` carries the editor's
   code (`glass.editor.answer` when the answer was lost, or when Glass's
   answered but no new position carries the dialog's code). Read the

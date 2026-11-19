@@ -13,6 +13,29 @@ internal sealed record GlassEditorPositionDone(
     GlassAutomationAct Act, GlassEditorSession Opened, GlassEditorEstimate? After);
 
 /// <summary>
+/// What one read of an open estimate left: what was read (the estimate,
+/// one position's figures or the calculation), or the <c>glass.*</c> code
+/// when Glass's did not answer, and the editor session after it.
+/// </summary>
+internal sealed record GlassEditorReadDone(
+    GlassEditorEstimate? Estimate,
+    GlassPositionFigures? Position,
+    GlassCalculation? Calculation,
+    string? Code,
+    GlassEditorSession Opened)
+{
+    /// <summary>The read as the Automation's tools answer it, with the session as the read left it.</summary>
+    public GlassAutomationEstimate For(GlassRepairEstimateSession session) =>
+        new(session, Estimate?.Positions, Estimate?.Codes)
+        {
+            Totals = Estimate?.Totals,
+            Position = Position,
+            Calculation = Calculation,
+            Code = Code,
+        };
+}
+
+/// <summary>
 /// The work on an open estimate that reads Glass's editor's lists, adds a
 /// position or removes one: shared by the Automation's own sessions
 /// (<c>GlassRepairEstimateGateway</c>) and its help in a member of staff's
@@ -214,6 +237,50 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         }
 
         return (rows, null, opened);
+    }
+
+    /// <summary>
+    /// One read of an open estimate (R1206), one request to Glass's: the
+    /// positions and Glass's running totals (<c>selected.php</c>, stage
+    /// <c>EditorRead</c>), one position's figures (<c>mcode.php</c>, stage
+    /// <c>EditorPosition</c>) or Glass's calculation (<c>report.php</c>,
+    /// stage <c>EditorCalculation</c>). Reading changes nothing at Glass's:
+    /// a read Glass's did not answer answers nothing read and its code, and
+    /// the editor session as it was.
+    /// </summary>
+    internal async Task<GlassEditorReadDone> ReadAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationRead read,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        try
+        {
+            switch (read.Kind)
+            {
+                case GlassAutomationReadKind.Position:
+                    var positionId = read.PositionId
+                        ?? throw new ArgumentException("A position read names its position.", nameof(read));
+                    var position = await StageAsync(session, "EditorPosition", () => editor.ReadPositionAsync(
+                        opened, positionId, cancellationToken));
+                    return new(null, position.Value, null, null, position.Session);
+                case GlassAutomationReadKind.Calculation:
+                    var calculation = await StageAsync(session, "EditorCalculation", () => editor.ReadCalculationAsync(
+                        opened, cancellationToken));
+                    return new(null, null, calculation.Value, null, calculation.Session);
+                default:
+                    var estimate = await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(
+                        opened, cancellationToken));
+                    return new(estimate.Value, null, null, null, estimate.Session);
+            }
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return new(null, null, null, CodeOf(failure), opened);
+        }
     }
 
     /// <summary>

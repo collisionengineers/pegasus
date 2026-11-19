@@ -158,7 +158,7 @@ public sealed class GlassSessionHelpTests
         var saved = help.Session with { State = GlassRepairEstimateSessionState.Importing };
 
         var refused = await Assert.ThrowsAsync<GlassSessionHelpRefusalException>(() =>
-            help.Sessions.ReadAsync(Automation, saved, CancellationToken.None));
+            help.Sessions.ReadAsync(Automation, saved, GlassAutomationRead.Positions, CancellationToken.None));
 
         Assert.Equal(GlassSessionHelpPolicy.NotActiveCode, refused.Code);
         Assert.False(help.Keys.IsHeld(help.Session.Id));
@@ -171,10 +171,10 @@ public sealed class GlassSessionHelpTests
         var help = Help.Create();
 
         var off = await Assert.ThrowsAsync<GlassSessionHelpRefusalException>(() =>
-            help.Sessions.ReadAsync(Automation, help.Session with { HelpOnAtUtc = null }, CancellationToken.None));
+            help.Sessions.ReadAsync(Automation, help.Session with { HelpOnAtUtc = null }, GlassAutomationRead.Positions, CancellationToken.None));
         help.Keys.Drop(help.Session.Id);
         var unconnected = await Assert.ThrowsAsync<GlassSessionHelpRefusalException>(() =>
-            help.Sessions.ReadAsync(Automation, help.Session, CancellationToken.None));
+            help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Positions, CancellationToken.None));
 
         Assert.Equal(GlassSessionHelpPolicy.OffCode, off.Code);
         Assert.Equal(GlassSessionHelpPolicy.NoWindowCode, unconnected.Code);
@@ -236,7 +236,7 @@ public sealed class GlassSessionHelpTests
     {
         var help = Help.Create(WindowsCookies);
 
-        var read = await help.Sessions.ReadAsync(Automation, help.Session, CancellationToken.None);
+        var read = await help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Positions, CancellationToken.None);
 
         Assert.NotNull(read.PositionIds);
         Assert.Equal("AWSALB=madeUpWindowOne; AWSALBCORS=madeUpWindowTwo", Assert.Single(help.Glass.Requests).Cookie);
@@ -259,7 +259,7 @@ public sealed class GlassSessionHelpTests
             new GlassAutomationCatalogueQuery(Automation, help.Session.Id, "appraisal", GlassAutomationPositionKind.SpecialOperation, null),
             help.Session,
             CancellationToken.None);
-        var read = await help.Sessions.ReadAsync(Automation, help.Session, CancellationToken.None);
+        var read = await help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Positions, CancellationToken.None);
 
         Assert.Empty(found.Rows);
         Assert.Equal(GlassFailure.EditorAnswer, found.Code);
@@ -267,6 +267,39 @@ public sealed class GlassSessionHelpTests
         Assert.All(
             help.Glass.Requests,
             request => Assert.Equal("AWSALB=madeUpWindowOne; AWSALBCORS=madeUpWindowTwo", request.Cookie));
+    }
+
+    /// <summary>
+    /// In an Engineer's session the read is the Automation's own (R1206):
+    /// the positions with Glass's running totals, one position's figures and
+    /// the calculation, each with one request on the held key and nothing
+    /// posted. A position Glass's does not answer for answers its code and
+    /// nothing read.
+    /// </summary>
+    [Fact]
+    public async Task TheReadAnswersTotalsAPositionAndTheCalculationAndAFailedReadItsCode()
+    {
+        var help = Help.Create();
+
+        var positions = await help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Positions, CancellationToken.None);
+        var position = await help.Sessions.ReadAsync(
+            Automation, help.Session, GlassAutomationRead.Position("C350898.20.C1060000.2464"), CancellationToken.None);
+        var calculation = await help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Calculation, CancellationToken.None);
+        var unknown = await help.Sessions.ReadAsync(
+            Automation, help.Session, GlassAutomationRead.Position("C1.2.C3.4"), CancellationToken.None);
+
+        Assert.NotNull(positions.PositionIds);
+        Assert.Equal("Amount due (£)", Assert.Single(positions.Totals!).Label);
+        Assert.Null(positions.Code);
+        Assert.Equal(412.12m, position.Position?.Price);
+        Assert.Equal(697.10m, position.Position?.Paint?.Price);
+        Assert.Equal(13209.89m, calculation.Calculation?.RepairCostsInclVat);
+        Assert.Null(unknown.Position);
+        Assert.Null(unknown.PositionIds);
+        Assert.Equal(GlassFailure.EditorRequest, unknown.Code);
+        Assert.Equal(4, help.Glass.Requests.Count);
+        Assert.Equal(0, help.Glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Empty(help.Store.Acts);
     }
 
     private static GlassAutomationPositionRequest Add(Help help, string key) =>

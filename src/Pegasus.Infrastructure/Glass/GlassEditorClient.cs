@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -163,7 +164,7 @@ internal sealed class GlassEditorClient(
         return new(open.Base, open.Url0, key, Snapshot(jar));
     }
 
-    /// <summary>The estimate's positions and codes.</summary>
+    /// <summary>The estimate's positions and codes, and Glass's running totals from the same page.</summary>
     public async Task<GlassEditorReply<GlassEditorEstimate>> ReadEstimateAsync(
         GlassEditorSession session, CancellationToken cancellationToken)
     {
@@ -172,16 +173,35 @@ internal sealed class GlassEditorClient(
         return new(estimate, session with { Cookies = Snapshot(jar) });
     }
 
-    /// <summary>One position's record, one entry per line, as <c>mcode.php</c> answers it.</summary>
-    public async Task<GlassEditorReply<IReadOnlyList<string>>> ReadPositionAsync(
+    /// <summary>
+    /// One position's figures from its record, as <c>mcode.php</c> answers
+    /// it. The id goes into the address as it is, so only an id as Glass's
+    /// lists them (letters, digits and dots) is asked for.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassPositionFigures>> ReadPositionAsync(
         GlassEditorSession session, string positionId, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrEmpty(positionId);
+        if (!GlassAutomationRead.IsPositionId(positionId))
+        {
+            throw new ArgumentException("A position id is letters, digits and dots.", nameof(positionId));
+        }
+
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.Position(positionId), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
-        var position = GlassMvaClient.Matched(() => GlassEditorPages.Position(text), GlassFailure.EditorAnswer)
+        var position = GlassMvaClient.Matched(() => GlassEditorPages.PositionFigures(text, positionId), GlassFailure.EditorAnswer)
             ?? throw Unread("position", text);
         return new(position, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>Glass's calculation, as <c>report.php?calcid=0</c> states it in its summary.</summary>
+    public async Task<GlassEditorReply<GlassCalculation>> ReadCalculationAsync(
+        GlassEditorSession session, CancellationToken cancellationToken)
+    {
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.Calculation(), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var calculation = GlassMvaClient.Matched(() => GlassEditorPages.Calculation(text), GlassFailure.EditorAnswer)
+            ?? throw Unread("calculation", text);
+        return new(calculation, session with { Cookies = Snapshot(jar) });
     }
 
     /// <summary>

@@ -537,6 +537,44 @@
         "Lxx1010",
         "Lxx1640",
         "Lxx3520"
+      ],
+      "totals": [
+        {
+          "label": "Parts",
+          "amount": "3821.01"
+        },
+        {
+          "label": "Paint material",
+          "amount": "1630.11"
+        },
+        {
+          "label": "Body",
+          "amount": "1320.00"
+        },
+        {
+          "label": "Mechanical",
+          "amount": "48.00"
+        },
+        {
+          "label": "Auxiliary work",
+          "amount": "528.00"
+        },
+        {
+          "label": "Paint",
+          "amount": "648.00"
+        },
+        {
+          "label": "Total (£)",
+          "amount": "7995.12"
+        },
+        {
+          "label": "VAT (20.00 %)",
+          "amount": "1599.02"
+        },
+        {
+          "label": "Amount due (£)",
+          "amount": "9594.14"
+        }
       ]
     },
     "position": {
@@ -600,6 +638,74 @@
     "equipment274": {
       "file": "equipment_274.html",
       "note": "The map of part-list row 274 (Front Door Outer Handle, left) on 7 September 2026, the vehicle of part_list.html"
+    },
+    "selectedEmpty": {
+      "file": "selected_empty.html",
+      "totals": [
+        {
+          "label": "Amount due (£)",
+          "amount": "0.00"
+        }
+      ]
+    },
+    "selectedAtReport": {
+      "file": "selected_at_report.html",
+      "totals": [
+        {
+          "label": "Parts",
+          "amount": "4921.43"
+        },
+        {
+          "label": "Paint material",
+          "amount": "2414.81"
+        },
+        {
+          "label": "Body",
+          "amount": "1952.00"
+        },
+        {
+          "label": "Mechanical",
+          "amount": "48.00"
+        },
+        {
+          "label": "Auxiliary work",
+          "amount": "528.00"
+        },
+        {
+          "label": "Paint",
+          "amount": "1144.00"
+        },
+        {
+          "label": "Total (£)",
+          "amount": "11008.24"
+        },
+        {
+          "label": "VAT (20.00 %)",
+          "amount": "2201.65"
+        },
+        {
+          "label": "Amount due (£)",
+          "amount": "13209.89"
+        }
+      ]
+    },
+    "positionLeft": {
+      "file": "position_left.json",
+      "id": "C241632.45.C1012401.1768"
+    },
+    "positionPaint": {
+      "file": "position_paint.json",
+      "id": "L350903.21.Lxx3520.Lxx3520"
+    },
+    "positionSpecial": {
+      "file": "position_special.json",
+      "id": "A350880.1.A73.A73",
+      "made": "No capture holds mcode.php for a special operation: this is the record its own dialog (special_fixed_price.dialog.html) carries, in mcode.php's shape."
+    },
+    "report": {
+      "file": "report.html",
+      "address": "report.php?ksid=Q0TESTKEY000000000000000000001&cml=C&calcid=0&dummy=",
+      "totalsAtReport": "selectedAtReport"
     }
   },
   "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up.",
@@ -899,5 +1005,6 @@
       "page": "intercooler_operations.dialog.html",
       "post": "intercooler_refit.post.txt"
     }
-  ]
+  ],
+  "readNote": "Cut on 19 November 2026 by scratch-2026-11-19/read-figures/make-fixtures-read.mjs: the estimate's totals (selected.php CalcToolTipTexts and CalcToolTipNums), one position's record (mcode.php) and the calculation report (report.php?calcid=0, its tables from the first trade's to \"Repair costs incl. VAT\"). The key is made up; no cookie, address, token or vehicle detail is copied. position_special.json is made, not captured."
 }

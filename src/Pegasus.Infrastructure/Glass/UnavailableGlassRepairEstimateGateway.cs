@@ -119,9 +119,10 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         ContinueLaunchAsync(request, cancellationToken);
 
     public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
-        ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
+        ActionActor actor, Guid sessionId, GlassAutomationRead read, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(read);
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromException<GlassAutomationEstimate?>(Unavailable());
     }

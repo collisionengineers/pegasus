@@ -47,6 +47,15 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     /// <summary>One position's record (<c>mcode.php</c>).</summary>
     public string Position(string id) => session.BaseAddress + "mcode.php?" + Q + "&partid=" + id + "&mcode=";
 
+    /// <summary>
+    /// Glass's calculation (<c>report.php</c>), as the editor's top bar asks
+    /// for it when Calculation is pressed (<c>navtop.php</c>'s
+    /// <c>LoadCalc( '&amp;calcid=0' )</c>; capture of 18 November 2026),
+    /// stamped in milliseconds.
+    /// </summary>
+    public string Calculation() =>
+        session.BaseAddress + "report.php?" + Q + "&cml=C&calcid=0&dummy=" + Milliseconds();
+
     /// <summary>The equipment map of one row of the part list.</summary>
     public string Equipment(string row) => Service("rowid=" + row + "&reqcritmap3=1");
 
