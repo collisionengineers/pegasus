@@ -428,8 +428,8 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal("20011", panoramic.Code);
         Assert.Equal("Panoramic Roof", panoramic.Name);
         Assert.True(panoramic.Has);
-        Assert.Equal(panoramic, Assert.Single(preview.HiddenBy));
         Assert.NotNull(preview);
+        Assert.Equal(panoramic, Assert.Single(preview.HiddenBy));
         Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, preview.Code);
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
