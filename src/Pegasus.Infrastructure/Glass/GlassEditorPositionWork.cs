@@ -528,7 +528,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 Served = FiguresOf(added.Value.Summary),
                 DialogServed = ServedOf(added.Value.Summary),
                 Sent = SentOf(added.Value.Summary),
-                Listed = ListedOf(added.Value.Listed, adding.Ticks),
+                Listed = ListedOf(added.Value.Listed),
             };
             if (equipment?.Listed is { } fromList && act.Served is { } served
                 && (fromList.Price != served.Price || fromList.Hours != served.Hours))
@@ -690,8 +690,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// for those operations, else the dialog's own. The question before a
     /// part with no figures: <c>inputs.confirmNoFigures</c>, else answered OK
     /// for Repair alone (R1188). "Both": only on a <c>part.php</c> dialog,
-    /// else refused as not built. An operation the return cannot read back is
-    /// refused first (<see cref="GlassAutomationPositionPolicy.OperationRefusal"/>).
+    /// else refused as not built.
     /// The optional parts to tick. The typed figures and reason (R1206), on
     /// a <c>part.php</c> dialog only; on one that can be painted they are
     /// refused as not built, having no capture. A rebuild never
@@ -736,8 +735,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             Ticks = inputs?.OptionalParts,
         };
         // Typed figures on the dialog of a part that can be painted have no capture (R1206).
-        var refused = GlassAutomationPositionPolicy.OperationRefusal(operation) is { } unread ? unread
-            : !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
+        var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
             : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : null;
@@ -746,15 +744,15 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
     /// <summary>
     /// The parts a "Mandatory parts:" page listed, each ticked as it was
-    /// confirmed: by Glass's itself, or as an optional part the add named.
+    /// confirmed: by Glass's itself, or as an optional box the act named,
+    /// each with the id that names it (R1206).
     /// </summary>
-    private static List<GlassAutomationListedPart> ListedOf(
-        IReadOnlyList<GlassEditorListed> listed, IReadOnlyCollection<string>? ticks) =>
+    private static List<GlassAutomationListedPart> ListedOf(IReadOnlyList<GlassEditorListed> listed) =>
         listed
-            .Select(item => new GlassAutomationListedPart(
-                item.Code, item.Text, item.Ticked || (item.Optional && ticks is not null && ticks.Contains(item.Code)))
+            .Select(item => new GlassAutomationListedPart(item.Code, item.Text, item.Ticked || item.Chosen)
             {
                 Optional = item.Optional,
+                Id = item.Id,
             })
             .ToList();
 
@@ -815,7 +813,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             act = act with
             {
                 PositionIds = act.PositionIds.Concat(second.Value.Added).Distinct(StringComparer.Ordinal).ToList(),
-                Listed = act.Listed.Concat(ListedOf(second.Value.Listed, first.Ticks)).ToList(),
+                Listed = act.Listed.Concat(ListedOf(second.Value.Listed)).ToList(),
             };
             return (act, second.Session, second.Value.Estimate);
         }
@@ -961,7 +959,6 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         return GlassEditorPages.DialogPage(positionId, estimate.Groups) switch
         {
             null => (null, GlassFailure.EditorAnswer),
-            "lack" => (null, GlassEstimateBuildPolicy.NotBuiltCode),
             { } page => (page, null),
         };
     }
@@ -987,7 +984,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 GlassAutomationButton.PartAndPaint => PartAndPaintButton,
                 _ => null,
             };
-        var refused = paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
+        var refused = page == "lack" ? GlassEstimateBuildPolicy.NotBuiltCode
+            : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : !paintable && (inputs?.Button is not null and not GlassAutomationButton.Part || inputs?.Paint is not null)
                 ? GlassAutomationPositionPolicy.NotPaintableCode
             : null;
@@ -1062,7 +1060,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 Served = FiguresOf(changed.Value.Summary),
                 DialogServed = ServedOf(changed.Value.Summary),
                 Sent = SentOf(changed.Value.Summary),
-                Listed = ListedOf(changed.Value.Listed, act.Inputs?.OptionalParts),
+                Listed = ListedOf(changed.Value.Listed),
                 Position = changed.Value.Position,
             };
         }
@@ -1108,22 +1106,21 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(record);
         var positionId = act.PositionId ?? string.Empty;
-        if (!before.Positions.Contains(positionId, StringComparer.Ordinal))
+        var (found, unfound) = PageOf(before, positionId);
+        if (found is null)
         {
-            act = act with
-            {
-                Outcome = GlassAutomationActOutcome.Refused,
-                Code = GlassAutomationPositionPolicy.RowUnknownCode,
-            };
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = unfound };
             await record(act, opened);
             return new(act, opened, null);
         }
 
+        // From the dialog the editor's own list opens for the position (R1206).
+        string page = found;
         GlassEditorEstimate? after = null;
         try
         {
             var removed = await StageAsync(session, "EditorRemove", () => editor.RemoveAsync(
-                opened, positionId, cancellationToken));
+                opened, positionId, page, cancellationToken));
             opened = removed.Session;
             after = removed.Value;
             act = act with { Outcome = GlassAutomationActOutcome.Removed, Code = null };
@@ -1202,8 +1199,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         code is GlassFailure.EditorDialog or GlassFailure.EditorRefused
             or GlassAutomationPositionPolicy.ReasonRequiredCode
             or GlassAutomationPositionPolicy.ReasonNotAskedCode
-            or GlassAutomationPositionPolicy.OverlapAboveHoursCode
-            or GlassAutomationPositionPolicy.PaintNotReadBackCode;
+            or GlassAutomationPositionPolicy.OverlapAboveHoursCode;
 
     /// <summary>
     /// The change with the act's typed figures and reason set as the dialog

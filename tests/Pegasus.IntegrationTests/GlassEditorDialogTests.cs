@@ -188,12 +188,12 @@ public sealed class GlassEditorDialogTests
             GlassEditorFixture.Text(dialog.GetProperty("confirm").GetString()!),
             GlassEditorText.EncodeForm(answer.Fields));
         Assert.Equal(
-            dialog.GetProperty("listed").EnumerateArray().Select(listed => new GlassEditorListed(
+            dialog.GetProperty("listed").EnumerateArray().Select(listed => (
                 listed.GetProperty("code").GetString()!,
                 listed.GetProperty("ticked").GetBoolean(),
                 listed.GetProperty("optional").GetBoolean(),
                 listed.GetProperty("text").GetString()!)),
-            answer.Listed);
+            answer.Listed.Select(listed => (listed.Code, listed.Ticked, listed.Optional, listed.Text)));
         Assert.Equal(
             GlassEditorAnswerKind.Done,
             GlassEditorDialogs.AfterPost(GlassEditorFixture.Text(dialog.GetProperty("confirmAnswer").GetString()!)).Kind);
@@ -324,7 +324,7 @@ public sealed class GlassEditorDialogTests
     /// Glass's own text and the figures its script serves for the side,
     /// the fields with Glass's own
     /// labels, and its one button; with no inputs it says nothing of a send.
-    /// Renew is offered but not choosable: the return cannot read it back.
+    /// Renew is choosable: the return reads every repair kind (R1206).
     /// </summary>
     [Fact]
     public void APreviewReadsAPlainDialogAsAForm()
@@ -340,9 +340,7 @@ public sealed class GlassEditorDialogTests
         var refit = Assert.Single(preview.Operations, item => item.Code == "AE");
         Assert.Equal(0.60m, refit.Hours);
         Assert.True(refit.Changeable);
-        var renew = Assert.Single(preview.Operations, item => item.Code == "AN");
-        Assert.False(renew.Changeable);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, renew.RefusedCode);
+        Assert.True(Assert.Single(preview.Operations, item => item.Code == "AN").Changeable);
         Assert.DoesNotContain(preview.Operations, item => item.Code == "-");
         Assert.Equal("Repair type", Assert.Single(preview.Fields, field => field.Name == "Repart").Label);
         Assert.Contains(preview.Buttons, button => button.Value == "BS");
@@ -500,6 +498,37 @@ public sealed class GlassEditorDialogTests
 
     private static readonly string[] PaintOnlyGroups = ["", "L", "CL"];
 
+    private static readonly string[] Cartridge = ["1102450.ER."];
+
+    private static readonly string[] SecondCartridge = ["1102450.ER.#2"];
+
+    private static readonly string[] CartridgeBoxes = ["1102450.ER.#1", "1102450.ER.#2"];
+
+    /// <summary>
+    /// A code the "Mandatory parts:" page lists twice (the windscreen's
+    /// Additional Cartridge, #717) is two boxes, each with its own id (R1206):
+    /// the second id ticks the second box alone, as the browser ticked it
+    /// (#723), and the bare code ticks the first optional one.
+    /// </summary>
+    [Fact]
+    public void ACodeListedTwiceIsTickedOneBoxAtATime()
+    {
+        var page = GlassEditorFixture.Text("windscreen_overlap.answer.html");
+
+        var second = GlassEditorDialogs.AfterPost(page, SecondCartridge);
+        var first = GlassEditorDialogs.AfterPost(page, Cartridge);
+
+        var boxes = second.Listed.Where(listed => listed.Code == "1102450.ER.").ToList();
+        Assert.Equal(CartridgeBoxes, boxes.Select(listed => listed.Id));
+        Assert.False(boxes[0].Chosen);
+        Assert.True(boxes[1].Chosen);
+        Assert.Equal(GlassEditorFixture.Text("windscreen_overlap.confirm.txt"), GlassEditorText.EncodeForm(second.Fields));
+        var firstBoxes = first.Listed.Where(listed => listed.Code == "1102450.ER.").ToList();
+        Assert.True(firstBoxes[0].Chosen);
+        Assert.False(firstBoxes[1].Chosen);
+        Assert.Equal("1102410.ER.#1", first.Listed[1].Id);
+    }
+
     /// <summary>
     /// The editor's own rule for which dialog opens a position on the
     /// estimate (selected.php's LoadGraph, 19 November 2026; R1206): a part
@@ -544,9 +573,8 @@ public sealed class GlassEditorDialogTests
     /// <summary>
     /// The paint choices a dialog's own script would not take are problems
     /// (R1206): Surcharge where the paint type fixes it, a level the type does
-    /// not offer, and on a part that is not metal a level the return cannot
-    /// read back, refused with its code. Unticking Surcharge where it may be
-    /// changed is posted without it.
+    /// not offer. A plastic part's level goes through (R1206). Unticking
+    /// Surcharge where it may be changed is posted without it.
     /// </summary>
     [Fact]
     public void PaintChoicesTheDialogWouldNotTakeAreRefused()
@@ -561,7 +589,8 @@ public sealed class GlassEditorDialogTests
 
         Assert.Contains("The dialog fixes Surcharge here.", fixedSurcharge.Problems);
         Assert.Contains("The paint type 2 does not offer the paint level Z.", unoffered.Problems);
-        Assert.Equal(GlassAutomationPositionPolicy.PaintNotReadBackCode, unread.RefusalCode);
+        Assert.Empty(unread.Problems);
+        Assert.Contains(unread.Fields, pair => pair.Key == "Lackstufe" && pair.Value == "3");
         Assert.Empty(unticked.Problems);
         Assert.DoesNotContain(unticked.Fields, pair => pair.Key == "Zuschlag");
         Assert.Contains(unticked.Fields, pair => pair.Key == "Klarlack" && pair.Value == "1");

@@ -157,7 +157,18 @@ internal enum GlassEditorAnswerKind
 }
 
 /// <summary>One part the "Mandatory parts:" page lists, by its code (such as <c>1017810.ER.</c>).</summary>
-internal sealed record GlassEditorListed(string Code, bool Ticked, bool Optional, string Text);
+internal sealed record GlassEditorListed(string Code, bool Ticked, bool Optional, string Text)
+{
+    /// <summary>
+    /// The value that names this one box (R1206): the code, or for a code
+    /// the page lists more than once the code and its listing's number
+    /// (<c>1102450.ER.#2</c>, the windscreen's second Additional Cartridge, #717).
+    /// </summary>
+    public string Id { get; init; } = Code;
+
+    /// <summary>Whether the ticks asked for ticked this optional box.</summary>
+    public bool Chosen { get; init; }
+}
 
 /// <summary>
 /// The editor's answer to a dialog's post. For <see cref="GlassEditorAnswerKind.Confirm"/>
@@ -599,20 +610,13 @@ internal static partial class GlassEditorDialogs
         var servedPaintTime = paintTime;
         if (paintIn is not null)
         {
-            var paintMaterial = form.Field("Mater") is { } materialBox ? materialBox.Value
-                : material.Success ? material.Groups[1].Value
-                : null;
+            // Every level the dialog offers goes through, a plastic part's as well (R1206): the
+            // return reads every paint level Glass's exports (issue 2155).
             var chosenLevel = PaintLevel(html, data, paintIn, areaIndex, paintState, coatsChanged, problems);
             if (chosenLevel is { } level)
             {
                 paintPrice = level.Price;
                 paintTime = level.Time;
-                if (paintMaterial != "B" || !GlassAutomationPositionPolicy.ReadBackPaintLevels.Contains(level.Level))
-                {
-                    // Only a metal part's levels are known to come back as levels the return reads.
-                    problems.Add("The paint level " + level.Level + " of material " + Show(paintMaterial) + " is not one the return reads back.");
-                    paintCoded = GlassAutomationPositionPolicy.PaintNotReadBackCode;
-                }
             }
             if (paintIn.Hours is { } typedPaintHours)
             {
@@ -1130,9 +1134,11 @@ internal static partial class GlassEditorDialogs
     /// The answer to a dialog's post: the "Mandatory parts:" page, whose
     /// Continue button posts its own parameter list back, or the page that
     /// tells the editor to redraw. <paramref name="ticks"/> names optional
-    /// listed parts to tick as well, by their code. The confirm post is built
-    /// as the page's own clickCheckbox and clickButton build it: field 2 of a
-    /// ticked listed part is 1, and field 3 of the pressed button is 1.
+    /// listed parts to tick as well, one box each, as a person ticks them
+    /// (R1206): by its <see cref="GlassEditorListed.Id"/>, or by a bare code,
+    /// which ticks the first optional box of that code. The confirm post is
+    /// built as the page's own clickCheckbox and clickButton build it: field 2
+    /// of a ticked listed part is 1, and field 3 of the pressed button is 1.
     /// </summary>
     public static GlassEditorAnswer AfterPost(string html, IReadOnlyCollection<string>? ticks = null)
     {
@@ -1164,10 +1170,37 @@ internal static partial class GlassEditorDialogs
             return new(GlassEditorAnswerKind.Unknown, title, null, null, [], []);
         }
 
-        var chosen = parameters.Select(entry =>
+        // Each listed box by its id: a code the page lists more than once is numbered by listing.
+        var codes = parameters.Where(entry => entry.StartsWith("L|", StringComparison.Ordinal)).Select(entry => entry.Split('|')[1]).ToList();
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var ids = new List<string?>();
+        var firstOptional = new HashSet<string>(StringComparer.Ordinal);
+        var tickedAt = new HashSet<int>();
+        for (var index = 0; index < parameters.Count; index++)
+        {
+            var fields = parameters[index].Split('|');
+            if (fields[0] != "L" || fields.Length < 2)
+            {
+                ids.Add(null);
+                continue;
+            }
+
+            var code = fields[1];
+            var number = seen[code] = seen.GetValueOrDefault(code) + 1;
+            var boxId = codes.Count(item => item == code) > 1 ? code + "#" + number.ToString(CultureInfo.InvariantCulture) : code;
+            ids.Add(boxId);
+            var optional = At(fields, 3) == "1";
+            var bare = optional && firstOptional.Add(code) && ticked.Contains(code);
+            if (optional && (ticked.Contains(boxId) || bare))
+            {
+                tickedAt.Add(index);
+            }
+        }
+
+        var chosen = parameters.Select((entry, index) =>
         {
             var fields = entry.Split('|').ToList();
-            if (fields[0] == "L" && fields.Count > 3 && fields[3] == "1" && ticked.Contains(fields[1]))
+            if (tickedAt.Contains(index))
             {
                 SetAt(fields, 2, "1");
             }
@@ -1178,15 +1211,20 @@ internal static partial class GlassEditorDialogs
         chosen[at] = string.Join('|', descriptor);
 
         var listed = parameters
-            .Where(entry => entry.StartsWith("L|", StringComparison.Ordinal))
-            .Select(entry =>
+            .Select((entry, index) => (Entry: entry, Index: index))
+            .Where(item => item.Entry.StartsWith("L|", StringComparison.Ordinal))
+            .Select(item =>
             {
-                var fields = entry.Split('|');
+                var fields = item.Entry.Split('|');
                 return new GlassEditorListed(
                     fields[1],
                     At(fields, 2) == "1",
                     At(fields, 3) == "1",
-                    WhiteSpace().Replace(At(fields, 4) ?? string.Empty, " ").Trim());
+                    WhiteSpace().Replace(At(fields, 4) ?? string.Empty, " ").Trim())
+                {
+                    Id = ids[item.Index] ?? fields[1],
+                    Chosen = tickedAt.Contains(item.Index),
+                };
             })
             .ToList();
         return new(
@@ -1289,14 +1327,7 @@ internal static partial class GlassEditorDialogs
                 Amount(GlassEditorPages.Lookup(times, option.Value)),
                 Amount(GlassEditorPages.Lookup(own, option.Value)),
                 option.Value == select!.Value,
-                !special && Choosable(html, offered, option.Value, paintable)
-                    && GlassAutomationPositionPolicy.OperationRefusal(option.Value) is null)
-            {
-                // Offered and buildable, but the return cannot read it back (R1206; issue 2155).
-                RefusedCode = !special && Choosable(html, offered, option.Value, paintable)
-                    ? GlassAutomationPositionPolicy.OperationRefusal(option.Value)
-                    : null,
-            })
+                !special && Choosable(html, offered, option.Value, paintable)))
             .ToList();
 
         var both = BothDescriptor().Match(html);

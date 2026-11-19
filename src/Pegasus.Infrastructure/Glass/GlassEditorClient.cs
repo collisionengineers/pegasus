@@ -491,7 +491,7 @@ internal sealed class GlassEditorClient(
         }
 
         var (jar, at) = Begin(session);
-        var address = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var address = at.OpenOnEstimate(page, positionId);
         var shown = await GetAsync(address, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var (preview, build) = GlassMvaClient.Matched(
             () => change is null
@@ -534,7 +534,7 @@ internal sealed class GlassEditorClient(
         }
 
         var (jar, at) = Begin(session);
-        var dialogAddress = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var dialogAddress = at.OpenOnEstimate(page, positionId);
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var pressed = page == "comp" ? button ?? GlassEditorDialogs.VisibleButton(dialog) : null;
         if (page == "comp" && pressed is null)
@@ -635,17 +635,27 @@ internal sealed class GlassEditorClient(
     /// Removes one position as the editor does: its dialog first, then the
     /// removal, then the estimate is read back and must no longer list it.
     /// </summary>
+    public Task<GlassEditorReply<GlassEditorEstimate>> RemoveAsync(
+        GlassEditorSession session, string positionId, CancellationToken cancellationToken) =>
+        RemoveAsync(session, positionId, "part", cancellationToken);
+
+    /// <summary>
+    /// Removes one position as the editor does, from the dialog the editor's
+    /// list opens for it (<paramref name="page"/>: <c>part</c>, <c>comp</c> or
+    /// <c>lack</c>, by <see cref="GlassEditorPages.DialogPage"/>; R1206): the
+    /// dialog first, which must be a dialog form, then the removal its Delete
+    /// sends, then the estimate is read back and must no longer list it.
+    /// </summary>
     public async Task<GlassEditorReply<GlassEditorEstimate>> RemoveAsync(
-        GlassEditorSession session, string positionId, CancellationToken cancellationToken)
+        GlassEditorSession session, string positionId, string page, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(positionId);
         var (jar, at) = Begin(session);
-        var openAddress = at.OpenPosition(positionId);
+        var openAddress = at.OpenOnEstimate(page, positionId);
         var shown = await GetAsync(openAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
-        var dialog = GlassMvaClient.Matched(() => GlassEditorDialogs.PlainPost(shown), GlassFailure.EditorDialog);
-        if (dialog.Error is not null)
+        if (GlassMvaClient.Matched(() => GlassEditorForm.Read(shown, "Part"), GlassFailure.EditorDialog) is null)
         {
-            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: dialog.Error);
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
         }
 
         var removed = await GetAsync(at.Remove(positionId), openAddress, jar, GlassFailure.EditorAnswer, true, cancellationToken);

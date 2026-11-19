@@ -140,6 +140,8 @@ internal static class AutomationToolText
 
     public const string GlassActMandatoryPartOptional = "Whether the page let the part be left off; only these can be named in inputs.optionalParts.";
 
+    public const string GlassActMandatoryPartId = "The value inputs.optionalParts names this one box by: the code, or the code and #n for the n-th listing of a code the page lists more than once.";
+
     public const string GlassActs = "Each position act the Automation asked for on this session, in order.";
 
     // A part's equipment question (R1206; design 10 section 3). Drafts for
@@ -186,13 +188,13 @@ internal static class AutomationToolText
     // labels, option texts and question texts pass through as Glass's gives
     // them.
 
-    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD or P. The dialog then sends the price and hours it serves for that operation. Only an operation preview marks changeable is taken. Only I, AE, AD and P are taken, because Pegasus cannot yet read back any other when the estimate returns; any other is refused with glass.build.operation_not_read_back and nothing is sent. Not with inputs.button paint.";
+    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD, P or Z. The dialog then sends the price and hours its own script sets for that operation. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
 
     public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it, unless inputs.paint chooses it. With change, the button the position's dialog shows is pressed when none is given. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
 
     public const string GlassInputsSide = "both: ticks Both on a part's dialog that offers it, with operation part, the dialog's own operation and the Part button. Glass's then opens the other side's own dialog, which is posted as served. If that dialog does not come or is not the one expected, the first side stays added and the act's code is glass.row.other_side_not_added.";
 
-    public const string GlassInputsOptionalParts = "The codes of the optional parts to tick on Glass's Mandatory parts page when it comes after the post, such as 1017810.ER. A code the page does not list as optional is not ticked. Which parts the page lists cannot be known before the post; an earlier add's mandatoryParts show the codes.";
+    public const string GlassInputsOptionalParts = "The optional parts to tick on Glass's Mandatory parts page when it comes after the post, one box each as a person ticks them: by its id from an earlier act's mandatoryParts, such as 1102450.ER.#2 for the second listing of a code the page lists twice, or by its code, such as 1017810.ER., which ticks the first optional listing of that code. A part the page does not list as optional is not ticked. Which parts the page lists cannot be known before the post.";
 
     public const string GlassInputsConfirmNoFigures = "true answers OK when the dialog asks before sending a part with no price and no hours. Repair is answered OK without it. Any other operation served with no figures is refused without it, and nothing is sent.";
 
@@ -236,11 +238,11 @@ internal static class AutomationToolText
     // Paint choices (R1206, 19 November 2026): drafts for the operator to
     // approve on the merge request.
 
-    public const string GlassInputsPaint = "On a part that can be painted, pressed with Paint or Part and Paint (or with change): the paint choices a person makes. Pegasus makes them in the order the dialog's own script gives the same post whatever their order: the paint type, then the level, then Surcharge, then the paint hours. The type and level are chosen only on a metal part, whose levels Pegasus can read back when the estimate returns; any other is refused with glass.build.paint_not_read_back and nothing is posted.";
+    public const string GlassInputsPaint = "On a part that can be painted, pressed with Paint or Part and Paint (or with change): the paint choices a person makes. Pegasus makes them in the order the dialog's own script gives the same post whatever their order: the paint type, then the level, then Surcharge, then the paint hours.";
 
     public const string GlassInputsPaintCoats = "The paint type by Glass's own value, as preview's paint choices give it, such as 2 (2 Coat) or 3 (3 Coat). Choosing it sets the level, price and hours as Glass's script does.";
 
-    public const string GlassInputsPaintLevel = "The paint level by Glass's own value, one the paint type offers in preview's paint choices: 1, 2, 3, 4, B or S. Choosing it sets the paint price and hours as Glass's script does.";
+    public const string GlassInputsPaintLevel = "The paint level by Glass's own value, one the paint type offers in preview's paint choices, such as 1 to 4, B or S on metal and R, N, G, 2 or 3 on plastic. Choosing it sets the paint price and hours as Glass's script does.";
 
     public const string GlassInputsPaintSurcharge = "true ticks Surcharge and false unticks it. Where the paint type fixes Surcharge, a different value is refused.";
 
@@ -288,7 +290,6 @@ internal static class AutomationToolText
 
     public const string GlassPreviewServed = "The dialog serves this one selected.";
 
-    public const string GlassPreviewOperationRefusedCode = "glass.build.operation_not_read_back when the dialog offers the operation but Pegasus cannot yet read it back when the estimate returns, so add refuses it.";
 
     public const string GlassPreviewChangeable = "Whether Pegasus can change it yet. An operation that reloads the dialog or opens a window Pegasus does not answer cannot be chosen.";
 

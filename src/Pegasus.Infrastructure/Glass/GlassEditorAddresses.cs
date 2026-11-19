@@ -81,6 +81,22 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     public string OpenComposite(string id) =>
         session.BaseAddress + "comp.php?" + Q + "&partid=" + id + "&cml=C&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
+    /// <summary>
+    /// The dialog of a paint position of its own already on the estimate
+    /// (<c>lack.php</c>), as the list's <c>OpenSimpleDialogWindow( "lack", Partid )</c>
+    /// asks for it (R1206).
+    /// </summary>
+    public string OpenPaint(string id) =>
+        session.BaseAddress + "lack.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>The dialog of a position by the page the editor's list opens for it: <c>part</c>, <c>comp</c> or <c>lack</c>.</summary>
+    public string OpenOnEstimate(string page, string id) => page switch
+    {
+        "comp" => OpenComposite(id),
+        "lack" => OpenPaint(id),
+        _ => OpenPosition(id),
+    };
+
     /// <summary>The dialog of a position already on the estimate (<c>part.php</c>, as its <c>OpenSimpleDialogWindow</c> asks for it, #795).</summary>
     public string OpenPosition(string id) =>
         session.BaseAddress + "part.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();

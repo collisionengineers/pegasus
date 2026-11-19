@@ -437,12 +437,12 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
-    /// An operation the return cannot read back (R1206; issue 2155) is
-    /// refused in the Engineer's session with its own code before anything
-    /// is asked of Glass's, and the refusal is a history row.
+    /// Renew in the Engineer's session (R1206): every operation the dialog
+    /// offers goes through, the return reading every repair kind (issue
+    /// 2155); the history row keeps the operation.
     /// </summary>
     [Fact]
-    public async Task AnOperationTheReturnCannotReadBackIsRefusedInTheEngineersSession()
+    public async Task RenewIsAddedInTheEngineersSession()
     {
         var help = Help.Create();
 
@@ -458,9 +458,8 @@ public sealed class GlassSessionHelpTests
             help.Session,
             CancellationToken.None);
 
-        Assert.Equal(GlassAutomationActOutcome.Refused, outcome.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, outcome.Act.Code);
-        Assert.Empty(help.Glass.Requests);
+        Assert.Equal(GlassAutomationActOutcome.Added, outcome.Act.Outcome);
+        Assert.Contains("&Repart=AN&", help.Glass.Requests.First(request => request.Method == "POST").Body, StringComparison.Ordinal);
         Assert.Equal("AN", Assert.Single(help.Store.Acts).Inputs?.Operation);
     }
 

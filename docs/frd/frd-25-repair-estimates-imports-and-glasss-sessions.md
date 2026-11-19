@@ -702,14 +702,10 @@ In its own session and in an Engineer's with help on, the Automation gives
 a dialog what a person gives it without typing
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
 Paint on its own and Part and Paint, in place of R1182's refusal, with the
-paint section as Glass's serves it; another operation the dialog offers,
-only Repair, Uninstall and install, Sealing and Control and adjustment,
-whose positions the return reads back from Glass's export, with Glass's
-question before no figures answered OK for Repair by itself (R1188) and
-for anything else only when the Automation says so (any other operation,
-Renew among them, waits on the operator's decision under issue 2155,
-because the return refuses a whole export on a repair kind it does not
-read); Both, with the other
+paint section as Glass's serves it; any other operation the dialog offers,
+with Glass's question before no figures answered OK for Repair by itself
+(R1188) and for anything else only when the Automation says so (the return
+reads every repair kind Glass's exports, issue 2155); Both, with the other
 side's own dialog posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
 posted for a preview. A typed part number or text and free rows still wait.
@@ -737,9 +733,8 @@ figures afterwards. A paint position's own dialog is not changed.
 pressed with Paint or Part and Paint, and in a change, the Automation may
 choose the paint type, the level and Surcharge and type the paint hours, as
 a person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
-Glass's own script sets the paint price and hours for the type and level.
-The type and level are chosen on a metal part only, whose levels the return
-reads back.
+Glass's own script sets the paint price and hours for the type and level,
+a plastic part's levels as well as a metal one's.
 
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may

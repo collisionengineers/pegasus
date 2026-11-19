@@ -74,7 +74,8 @@ internal sealed record GlassListedPartToolItem(
     string Code,
     string Text,
     [property: Description(AutomationToolText.GlassActMandatoryPartTicked)] bool Ticked,
-    [property: Description(AutomationToolText.GlassActMandatoryPartOptional)] bool Optional);
+    [property: Description(AutomationToolText.GlassActMandatoryPartOptional)] bool Optional,
+    [property: Description(AutomationToolText.GlassActMandatoryPartId)] string? Id = null);
 
 /// <summary>What an add or a preview gives Glass's dialog (R1206): later versions add members.</summary>
 internal sealed record GlassPositionInputsToolInput(
@@ -128,8 +129,7 @@ internal sealed record GlassDialogOperationToolItem(
     [property: Description(AutomationToolText.GlassPreviewOperationFigures)] decimal? Hours,
     [property: Description(AutomationToolText.GlassPreviewGlassHours)] decimal? GlassHours,
     [property: Description(AutomationToolText.GlassPreviewServed)] bool Served,
-    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable,
-    [property: Description(AutomationToolText.GlassPreviewOperationRefusedCode)] string? RefusedCode = null);
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
 
 internal sealed record GlassDialogChoiceToolItem(string Value, [property: Description(AutomationToolText.GlassPreviewText)] string Text);
 
@@ -719,8 +719,7 @@ internal sealed class GlassMcpTools(
                 dialog.Side,
                 dialog.Operations
                     .Select(item => new GlassDialogOperationToolItem(
-                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable,
-                        item.RefusedCode))
+                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable))
                     .ToList(),
                 dialog.Fields
                     .Select(field => new GlassDialogFieldToolItem(
@@ -1056,7 +1055,7 @@ internal sealed class GlassMcpTools(
             act.Description,
             act.Served?.Price,
             act.Served?.Hours,
-            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked, listed.Optional)).ToList(),
+            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked, listed.Optional, listed.Id)).ToList(),
             act.RequestedAtUtc,
             act.Inputs is { } given
                 ? new GlassPositionInputsToolInput(

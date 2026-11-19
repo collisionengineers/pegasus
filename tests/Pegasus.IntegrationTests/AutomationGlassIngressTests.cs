@@ -438,9 +438,7 @@ public sealed class AutomationGlassIngressTests
             Assert.Equal("S (Sealing)", sealing.GetProperty("text").GetString());
             Assert.True(sealing.GetProperty("changeable").GetBoolean());
             var dismantle = operations.Single(item => item.GetProperty("code").GetString() == "Z");
-            Assert.False(dismantle.GetProperty("changeable").GetBoolean());
-            Assert.Equal(
-                GlassAutomationPositionPolicy.OperationNotReadBackCode, dismantle.GetProperty("refusedCode").GetString());
+            Assert.True(dismantle.GetProperty("changeable").GetBoolean());
             var sends = dialog.GetProperty("sends");
             Assert.Equal(GlassFailure.EditorRefused, sends.GetProperty("code").GetString());
             var question = sends.GetProperty("questions").EnumerateArray()
@@ -484,7 +482,7 @@ public sealed class AutomationGlassIngressTests
         {
             var act = (await ReadStructuredContentAsync(renew)).GetProperty("act");
             Assert.Equal("refused", act.GetProperty("outcome").GetString());
-            Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, act.GetProperty("code").GetString());
+            Assert.Equal(GlassFailure.EditorRefused, act.GetProperty("code").GetString());
             Assert.Equal("AN", act.GetProperty("inputs").GetProperty("operation").GetString());
         }
         Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));

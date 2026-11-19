@@ -2098,7 +2098,7 @@
     }
   ],
   "readNote": "Cut on 19 November 2026 by scratch-2026-11-19/read-figures/make-fixtures-read.mjs: the estimate's totals (selected.php CalcToolTipTexts and CalcToolTipNums), one position's record (mcode.php) and the calculation report (report.php?calcid=0, its tables from the first trade's to \"Repair costs incl. VAT\"). The key is made up; no cookie, address, token or vehicle detail is copied. position_special.json is made, not captured.",
-  "typedNote": "Typed inputs (R1206) from the operator's walk on a BMW of 19 November 2026 (operatorwalkglass.har, entry numbers its own). Each page is the dialog cut as make-fixtures.mjs cuts it, with Defstates, Verftexts, Methtexts and KrKlarlack kept as well; each post is the browser's own post of that dialog with the person's input, rebuilt byte for byte offline by the dialog's own script (13-typed-inputs-design.md section 1) and by the reference builder. Every session key is the made-up one. The windscreen's Mandatory parts page lists one optional part twice; the browser ticked the second only, so its confirm post is not pinned.",
+  "typedNote": "Typed inputs (R1206) from the operator's walk on a BMW of 19 November 2026 (operatorwalkglass.har, entry numbers its own). Each page is the dialog cut as make-fixtures.mjs cuts it, with Defstates, Verftexts, Methtexts and KrKlarlack kept as well; each post is the browser's own post of that dialog with the person's input, rebuilt byte for byte offline by the dialog's own script (13-typed-inputs-design.md section 1) and by the reference builder. Every session key is the made-up one. The windscreen's Mandatory parts page lists one optional part twice; the browser ticked the second only (#723), named 1102450.ER.#2.",
   "typed": [
     {
       "name": "door_glass_left_hours",
@@ -2239,7 +2239,12 @@
           "text": "RP Windscreen Spacing Block"
         }
       ],
-      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=491|495"
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=491|495",
+      "ticks": [
+        "1102450.ER.#2"
+      ],
+      "confirm": "windscreen_overlap.confirm.txt",
+      "confirmAnswer": "windscreen_overlap.confirm_answer.html"
     },
     {
       "name": "bulb_price",

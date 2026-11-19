@@ -768,18 +768,12 @@ compose Glass's, each tool is refused with "Glass's is not available."
   part's dialog what a person gives it without typing, in both kinds of
   live session. Paint on its own and Part and Paint are sent: the button is
   pressed on the dialog of a part that can be painted, and the paint section
-  is sent as Glass's serves it. `inputs.operation` chooses another
-  operation the dialog offers, by Glass's own code, only where Pegasus can
-  read its position back when the estimate returns: I (Repair), AE
-  (Uninstall and install), AD (Sealing) and P (Control and adjustment),
-  whose positions Glass's exports as repair kinds the return reads. Any
-  other operation, Renew (AN) among them, is refused with
-  `glass.build.operation_not_read_back` before anything is sent, because
-  the return refuses the whole export on a repair kind it does not read
-  (issue 2155), and which line each becomes is the operator's decision
-  there. Pegasus can build more of them, as Glass's own script was seen
-  offline to post them; they wait on that decision. An operation that
-  reloads the dialog or opens any other window stays refused. Repair answers OK to the
+  is sent as Glass's serves it. `inputs.operation` chooses any other
+  operation the dialog offers, by Glass's own code, with the price and
+  hours its own script sets for it. No operation is refused for the
+  return's sake: the return reads every repair kind Glass's exports (issue
+  2155). An operation that reloads the dialog or opens any other window
+  stays refused. Repair answers OK to the
   dialog's question before a part with no price and no hours (R1188); any
   other operation does so only with `inputs.confirmNoFigures`, and is
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;
@@ -789,7 +783,10 @@ compose Glass's, each tool is refused with "Glass's is not available."
   next, is then posted as served, and if it does not come as expected the
   first side stays added with `glass.row.other_side_not_added`.
   `inputs.optionalParts` names the optional parts to tick on the
-  "Mandatory parts:" page. The top-level `operation` keeps its meaning;
+  "Mandatory parts:" page, one box each as a person ticks them: by the id
+  its listing carries on an earlier act, a code the page lists twice being
+  two boxes (`1102450.ER.#2` is the second), or by its code, which ticks
+  the first optional box of that code. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
   input given is kept on the act, beside the figures Glass's served. A
   typed part number or description and free rows stay refused.
@@ -835,6 +832,8 @@ compose Glass's, each tool is refused with "Glass's is not available."
   whose answer is lost is `not_confirmed`, and the position's own read
   settles it. `preview` of a position takes the same inputs, reads the
   estimate to choose the dialog, and says what the change would send.
+  `remove` opens the dialog the editor's own list opens for the position,
+  `part.php`, `comp.php` or `lack.php`, before its Delete.
 - **19 November 2026; R1206.** `inputs.paint` chooses a part's paint where
   Paint or Part and Paint is pressed, or in a `change`: the paint type
   (`coats`), the level, Surcharge and typed paint hours. Pegasus makes the
@@ -846,10 +845,8 @@ compose Glass's, each tool is refused with "Glass's is not available."
   reason. Coloured clear is posted as the paint state sets it, greyed or
   not, as the dialog posts it. A paint type the list does not offer, a level
   the type does not offer, Surcharge where the type fixes it and a button
-  the page hides are refused before anything is posted. The type and level
-  are chosen only on a metal part, whose levels come back as levels the
-  return reads; on any other part the act is refused with
-  `glass.build.paint_not_read_back`. A typed price or hours on a part that
+  the page hides are refused before anything is posted. Every level the
+  type offers may be chosen, a plastic part's as well. A typed price or hours on a part that
   can be painted, a paint reason, the procedure and method, scratch-resistant
   clear and coloured clear stay refused, having no capture. `preview` gives
   each paint type and level the paint area offers with Glass's price and
@@ -865,9 +862,7 @@ compose Glass's, each tool is refused with "Glass's is not available."
   its served value, its choices and whether Pegasus may change it; the
   paint section; the buttons; and, for the inputs given, what the add would
   send, each question on the way, and the code the add would be refused
-  with. An operation the dialog offers that the return cannot read back
-  is shown as not choosable, with `glass.build.operation_not_read_back`.
-  Each box the Automation may type in names the input that changes it, and
+  with. Each box the Automation may type in names the input that changes it, and
   the hours box gives Glass's own hours, above which a reason is needed.
   Glass's own labels and texts pass through unchanged. Which
   mandatory parts Glass's lists after a post cannot be known before it.

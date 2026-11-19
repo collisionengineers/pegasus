@@ -587,31 +587,25 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// An operation the return cannot read back (R1206; issue 2155) is
-    /// refused with its own code when it is claimed, before anything is asked
-    /// of Glass's: Renew, Dismantle and assemble, Adjustments, and Paintless
-    /// dent repair, which also reloads the dialog. The act keeps the
-    /// operation asked for.
+    /// Every operation the dialog offers goes through (R1206): the return
+    /// reads every repair kind Glass's exports (issue 2155). Dismantle and
+    /// assemble, with the question before no figures answered, and
+    /// Adjustments are each posted as the door's own script posted them.
     /// </summary>
     [Theory]
-    [InlineData("AN")]
-    [InlineData("Z")]
-    [InlineData("E")]
-    [InlineData("DD")]
-    public async Task AnOperationTheReturnCannotReadBackIsRefusedAndNothingIsSent(string operation)
+    [InlineData("Z", "door_left_z.post.txt")]
+    [InlineData("E", "door_left_e.post.txt")]
+    public async Task EveryOperationTheDialogOffersIsPostedAsItsScriptPostsIt(string operation, string post)
     {
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
-        var requests = harness.Mva.Requests.Count;
 
         var step = await PositionAsync(harness, Add(harness, session, "mcp:op-" + operation,
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: operation)));
+            inputs: new GlassAutomationInputs(Operation: operation, ConfirmNoFigures: true)));
 
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, step.Act.Code);
-        Assert.Equal(operation, step.Act.Inputs?.Operation);
-        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
+        Assert.Equal(GlassEditorFixture.Text(post), Assert.Single(DialogPosts(harness)));
     }
 
     /// <summary>
@@ -776,10 +770,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(2.90m, replace.Hours);
         Assert.True(replace.Served);
         Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AD").Changeable);
-        var dismantle = Assert.Single(dialog.Operations, item => item.Code == "Z");
-        Assert.False(dismantle.Changeable);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, dismantle.RefusedCode);
-        Assert.False(Assert.Single(dialog.Operations, item => item.Code == "DD").Changeable);
+        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "Z").Changeable);
         Assert.False(Assert.Single(dialog.Operations, item => item.Code == "AN").Changeable);
         var repairType = Assert.Single(dialog.Fields, field => field.Name == "Repart");
         Assert.Equal("Repair type", repairType.Label);
@@ -804,7 +795,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var unread = await harness.Gateway.PreviewAutomationPositionAsync(
             Preview(harness, preview.Session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AN")),
             CancellationToken.None);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, unread?.Dialog?.Sends?.Code);
+        Assert.Equal(GlassFailure.EditorRefused, unread?.Dialog?.Sends?.Code);
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
     }
 
@@ -1315,6 +1306,31 @@ public sealed partial class GlassRepairEstimateGatewayTests
         {
             PositionId = positionId,
         };
+
+    /// <summary>
+    /// A position is removed from the dialog the editor's own list opens for
+    /// it (R1206): the captured bonnet, a part with its paint, from comp.php.
+    /// </summary>
+    [Fact]
+    public async Task APartWithItsPaintIsRemovedFromItsOwnDialog()
+    {
+        const string CapturedBonnet = "C350898.20.C1060000.2464";
+        var harness = Harness.Create();
+        var captured = GlassEditorFixture.Text("selected.html");
+        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(
+            harness.Mva.Count("GET /ere/aco/compproc.php") == 0
+                ? captured
+                : captured.Replace("'" + CapturedBonnet + "', ", string.Empty, StringComparison.Ordinal)));
+        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("bonnet_change_paint.dialog.html", null));
+        harness.Mva.Enqueue("GET /ere/aco/compproc.php", EditorPage("removed.answer.html", null));
+        var session = await AutomationStartAsync(harness);
+
+        var removed = await PositionAsync(harness, Remove(harness, session, "mcp:remove-bonnet", CapturedBonnet));
+
+        Assert.Equal(GlassAutomationActOutcome.Removed, removed.Act.Outcome);
+        Assert.Contains("partid=" + CapturedBonnet + "&cml=C", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/part.php"));
+    }
 
     /// <summary>A position act's prepare half, then its provider work inline, as the tool's queue runs it.</summary>
     private static async Task<GlassAutomationPositionStep> PositionAsync(

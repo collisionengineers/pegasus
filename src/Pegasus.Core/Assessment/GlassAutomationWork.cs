@@ -103,6 +103,14 @@ public sealed record GlassAutomationListedPart(string Code, string Text, bool Ti
 {
     /// <summary>Whether the page let the part be ticked or left: an optional part.</summary>
     public bool Optional { get; init; }
+
+    /// <summary>
+    /// The value <see cref="GlassAutomationInputs.OptionalParts"/> names this
+    /// one box by (R1206): the code, or for a code the page lists more than
+    /// once the code and its listing's number, such as <c>1102450.ER.#2</c>.
+    /// Null on an act recorded before boxes had ids.
+    /// </summary>
+    public string? Id { get; init; }
 }
 
 /// <summary>The button an add presses on the dialog of a part that can be painted (Glass's <c>comp.php</c>).</summary>
@@ -725,20 +733,6 @@ public static class GlassAutomationPositionPolicy
         : null;
 
     /// <summary>
-    /// A paint choice the return cannot read back (R1206): a paint type or
-    /// level changed on a part that is not metal, or a level whose code the
-    /// return's paint table (<c>GlassPaintLevels</c>) does not print. The
-    /// dialog's metal levels 1 to 4, B and S are printed I, II, III, IV, B
-    /// and SP, each of which the table holds; no plastic part's levels have
-    /// been captured. Nothing is posted.
-    /// </summary>
-    public const string PaintNotReadBackCode = "glass.build.paint_not_read_back";
-
-    /// <summary>The dialog's own codes of the paint levels of a metal part, each printed as a level the return reads.</summary>
-    public static IReadOnlySet<string> ReadBackPaintLevels { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "1", "2", "3", "4", "B", "S" };
-
-    /// <summary>
     /// A figure as the Automation types it in a dialog (R1206): two decimal
     /// places after a full stop and no thousands separator, as Glass's serves
     /// its own figures (<c>2.80</c>, <c>1234.00</c>). The dialog posts the text
@@ -841,45 +835,10 @@ public static class GlassAutomationPositionPolicy
             Inputs = Kept(request.Inputs),
         };
 
-        // An add of an operation the return cannot read back is refused
-        // before anything is asked of Glass's; a preview still shows its dialog.
-        return request.Action == GlassAutomationActAction.Add && OperationRefusal(act.Inputs?.Operation) is { } unread
-            ? act with { Outcome = GlassAutomationActOutcome.Refused, Code = unread }
-            : act;
+        // Every operation the dialog offers goes through (R1206): the return reads every repair
+        // kind Glass's exports (issue 2155).
+        return act;
     }
-
-    /// <summary>
-    /// The operation chosen in a part's dialog names a position the return
-    /// cannot read back: the add is refused before anything is sent (R1206,
-    /// R1208; issue 2155).
-    /// </summary>
-    public const string OperationNotReadBackCode = "glass.build.operation_not_read_back";
-
-    /// <summary>
-    /// The operations the Automation may choose in a part's dialog, by Glass's
-    /// own code: those whose position comes back in Glass's export with a
-    /// repair kind the return's reader reads
-    /// (<c>GlassEstimateXmlParser.Operation</c>; change the two together).
-    /// ER, I and AE are Replace, Repair and Uninstall and install. AD
-    /// ("S (Sealing)") and P ("CA (Control and adjustment)") are Sealing and
-    /// Control: the MP23KTV sheet of 5 September 2026 prints S beside the
-    /// position its export calls Sealing and CA beside the one it calls
-    /// Control, and lists "S Sealing" and "CA Control and adjustment". Every
-    /// other operation (AN Renew, ET, HO, IT, KM, KS, UN, V, Z, E, H and any
-    /// not judged) would make the Engineer's Save &amp; Exit fail to import, or
-    /// is not shown to come back as a kind the reader reads; which line each
-    /// becomes is the operator's decision under issue 2155.
-    /// </summary>
-    public static IReadOnlySet<string> ReadBackOperations { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "ER", "I", "AE", "AD", "P" };
-
-    /// <summary>
-    /// <see cref="OperationNotReadBackCode"/> when the operation chosen is not
-    /// one of <see cref="ReadBackOperations"/>; null when none is chosen or
-    /// the return reads it back.
-    /// </summary>
-    public static string? OperationRefusal(string? operation) =>
-        operation is null || ReadBackOperations.Contains(operation.Trim()) ? null : OperationNotReadBackCode;
 }
 
 /// <summary>
@@ -1101,15 +1060,7 @@ public sealed record GlassDialogPreview(
 /// selected, and whether Pegasus may choose it.
 /// </summary>
 public sealed record GlassDialogOperation(
-    string Code, string Text, decimal? Price, decimal? Hours, decimal? GlassHours, bool Served, bool Changeable)
-{
-    /// <summary>
-    /// The <c>glass.*</c> code an add choosing it is refused with although
-    /// the dialog offers it: <see cref="GlassAutomationPositionPolicy.OperationNotReadBackCode"/>
-    /// for one the return cannot read back; null otherwise.
-    /// </summary>
-    public string? RefusedCode { get; init; }
-}
+    string Code, string Text, decimal? Price, decimal? Hours, decimal? GlassHours, bool Served, bool Changeable);
 
 /// <summary>A value of a dialog's list or a button: the value Glass's posts and Glass's own text for it.</summary>
 public sealed record GlassDialogChoice(string Value, string Text);
