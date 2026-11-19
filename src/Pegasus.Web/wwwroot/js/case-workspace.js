@@ -2595,6 +2595,11 @@
         if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
         event.preventDefault();
         if (glassOpening) { return; }
+        // An answer to the import question (R1171) closes its dialog before
+        // the window opens, so focus returning to the page does not pull it
+        // back over Glass's; the form is found again by its action below.
+        var asking = form.closest('[data-dialog]');
+        if (asking && !asking.hidden && typeof asking.pegasusClose === 'function') { asking.pegasusClose(); }
         var windowName = 'pegasus-glass-' + window.location.pathname;
         glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }

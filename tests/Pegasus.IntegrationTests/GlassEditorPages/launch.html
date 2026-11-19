@@ -1,0 +1,74 @@
+
+
+
+
+
+<html>
+
+<head>
+<title>RepairEstimate XML interface</title>
+<script language="JavaScript">
+<!--
+function checkSessions(){
+    try{
+      if(localStorage["eresessiontimestamp"]){
+
+        if ( new Date().getTime() - Number(localStorage["eresessiontimestamp"]) >= 5*60*1000 ) {
+          localStorage["openeresessions"] = 0 ;
+		      localStorage["eresessiontimestamp"] = new Date().getTime() ;
+	        }
+        }else{
+          localStorage["eresessiontimestamp"] = new Date().getTime() ;
+          }
+      if(localStorage["openeresessions"]){
+        if (Number(localStorage["openeresessions"]) < 0 ){
+          localStorage["openeresessions"] = 0 ;
+          }
+        localStorage["openeresessions"] = Number(localStorage["openeresessions"]) + 1 ;
+      }else{
+        localStorage["openeresessions"] = 1 ;
+        }     
+      if ( Number(localStorage["openeresessions"]) > 5 ){
+        localStorage["openeresessions"] = Number(localStorage["openeresessions"]) - 1 ;
+        return false;
+        }
+      return true;
+    } catch (e) {
+    return true ;
+    }
+  }
+
+function endSession(){
+    try{
+      localStorage["openeresessions"] = Number(localStorage["openeresessions"]) - 1 ;
+      } catch (e) {}
+    }  
+
+//-->
+</script>
+</head>
+
+<body bgcolor="#CCCCCC">
+
+<font size=+1><br><br><center> ...RepairEstimate... </center></font>
+
+  <script language="JavaScript">
+  <!--
+  function WT() {
+    WorkTime = new Date();
+    return "&WT=" + WorkTime.getTime();
+  }
+
+  function Auth() {
+        return "";
+      }
+
+  
+if (checkSessions()){
+document.location.replace( '../aco/aco.php?url0=../acolib/aco_call_xml.php?caller=https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000&XmlPar=%3C%3Fxml%20version%3D%221.0%22%20inURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Frequest%2F0000000000_000000_0000000000.xml%22%20outURI%3D%22D%3A%2Fvar%2Fdb%2Feremware%2Fresponse%2F0000000000_000000_0000000000.xml%22%20UserId%3D%22glassnet%22%20Signature%3D%22Test%22%3F%3E'+Auth()+WT() );}else{
+document.location.replace( 'blocked.html?caller=https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000' );}  //-->
+  </script>
+
+</body>
+</html>
+

@@ -5,12 +5,15 @@
 // its handoff; then this window continues to Go, which answers with the
 // estimator or hands the outcome back to the Case. The estimator address
 // never reaches this script. Without script, the Continue link does the same.
+// While a build runs, each answer carries how far it has gone ("12 of 34"),
+// which replaces the progress the page was drawn with.
 (function () {
     'use strict';
 
     var stateUrl = document.body.getAttribute('data-glass-opening-state');
     var goUrl = document.body.getAttribute('data-glass-opening-go');
     if (!stateUrl || !goUrl) { return; }
+    var progress = document.querySelector('[data-glass-opening-progress]');
 
     function go() { window.location.replace(goUrl); }
 
@@ -37,6 +40,7 @@
                 return response.json();
             })
             .then(function (state) {
+                if (progress && typeof state.building === 'string') { progress.textContent = state.building; }
                 if (state.pending) { window.setTimeout(poll, 1000); return; }
                 if (state.open) { handOff(); } else { go(); }
             })

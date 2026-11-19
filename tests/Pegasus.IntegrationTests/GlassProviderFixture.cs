@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Pegasus.Infrastructure.Glass;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -233,6 +234,92 @@ internal static class GlassProviderFixture
             HttpStatusCode.OK, ReportLink()));
         mva.Set("GET /ndp_download/18390/", new(
             HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ReportPdf));
+        ScriptEditor(mva);
+    }
+
+    /// <summary>
+    /// The return address the editor's captured pages carry. Each page is
+    /// served with it replaced by the session's own, read from the launch
+    /// address the editor is opened with, as Glass's would serve it.
+    /// </summary>
+    private const string CapturedCallback =
+        "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000";
+
+    private const string EmptyEstimate = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
+
+    /// <summary>
+    /// Glass's editor on the estimator's host, answering from the pages cut
+    /// from browser sessions (<c>GlassEditorPages/</c>): the launch page, the
+    /// two opening pages, the estimate (empty until a position is posted),
+    /// the special list, the dialogs and answers of two special operations
+    /// (<c>AC0000073</c> and <c>AC0000075</c>), and Save and Exit's three
+    /// pages. One scripted editor for the editor client's own tests is
+    /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
+    /// provider as the portal, so a build runs end to end.
+    /// </summary>
+    public static void ScriptEditor(ScriptedGlass glass)
+    {
+        ArgumentNullException.ThrowIfNull(glass);
+        string? callback = null;
+        glass.Respond("GET /ere/acolib/aco_call_xml.php", request =>
+        {
+            callback = QueryValue(request.Query, "caller") ?? callback;
+            return EditorPage(
+                request.Query.Contains("DoSave=", StringComparison.Ordinal) ? "return.html" : "launch.html", callback);
+        });
+        glass.Set("GET /ere/aco/aco.php", Editor("<html><body></body></html>"));
+        glass.Respond("GET /ere/aco/aco2.php", _ => EditorPage("aco2.html", null));
+        glass.Respond("GET /ere/aco/selected.php", _ => glass.Count("POST /ere/aco/compproc.php") == 0
+            ? Editor(EmptyEstimate)
+            : EditorPage("selected.html", null));
+        glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
+        glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
+        glass.Respond("POST /ere/aco/compproc.php", request => SpecialOperation(request.Query, "answer"));
+        glass.Respond("GET /ere/aco/service.php", _ => EditorPage("save.answer.html", null));
+        glass.Respond("GET /ere/aco/close.php", _ => EditorPage("close.html", callback));
+    }
+
+    /// <summary>A captured editor page, its return address replaced by the session's own.</summary>
+    public static Reply EditorPage(string file, string? callback)
+    {
+        var text = GlassEditorFixture.Text(file);
+        if (callback is not null)
+        {
+            text = text
+                .Replace(CapturedCallback, callback, StringComparison.Ordinal)
+                .Replace(CapturedCallback.Replace("/", "\\/", StringComparison.Ordinal),
+                    callback.Replace("/", "\\/", StringComparison.Ordinal), StringComparison.Ordinal);
+        }
+
+        return Editor(text);
+    }
+
+    /// <summary>An editor answer, sent as windows-1252 as the editor sends it.</summary>
+    public static Reply Editor(string body) =>
+        new(HttpStatusCode.OK, body, Bytes: GlassEditorText.Encode(body));
+
+    /// <summary>The dialog or the answer of the special operation a request names, or a 404 for any other.</summary>
+    private static Reply SpecialOperation(string query, string page) =>
+        QueryValue(query, "mcode") switch
+        {
+            "AC0000073" => EditorPage("special_fixed_price." + page + ".html", null),
+            "AC0000075" => EditorPage("special_hours." + page + ".html", null),
+            _ => new Reply(HttpStatusCode.NotFound, string.Empty),
+        };
+
+    /// <summary>One parameter of a request's query, unescaped.</summary>
+    private static string? QueryValue(string query, string name)
+    {
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = part.IndexOf('=', StringComparison.Ordinal);
+            if (separator > 0 && string.Equals(part[..separator], name, StringComparison.Ordinal))
+            {
+                return Uri.UnescapeDataString(part[(separator + 1)..]);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -312,6 +399,7 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     private readonly Dictionary<string, Reply> standing = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Queue<Reply>> queued = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action<ScriptedGlass>> hooks = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<Recorded, Reply>> responders = new(StringComparer.Ordinal);
 
     public List<Recorded> Requests { get; } = [];
 
@@ -325,6 +413,14 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     /// which is theory data.
     /// </summary>
     public void OnServed(string route, Action<ScriptedGlass> served) => hooks[route] = served;
+
+    /// <summary>
+    /// Answers the route from the request itself, for a page that must name
+    /// what the request named (the editor's pages name the session's return
+    /// address). A reply queued for the route is still served first; a
+    /// standing one is not served while a responder is set.
+    /// </summary>
+    public void Respond(string route, Func<Recorded, Reply> responder) => responders[route] = responder;
 
     public void Enqueue(string route, params Reply[] replies)
     {
@@ -346,24 +442,27 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     {
         var uri = request.RequestUri!;
         var key = $"{request.Method.Method} {uri.AbsolutePath}";
-        Requests.Add(new(
+        var recorded = new Recorded(
             request.Method.Method,
             uri.AbsolutePath,
             uri.Query,
             request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
             Header(request, "Cookie"),
             Header(request, "X-Requested-With"),
-            request.Headers.Referrer?.AbsoluteUri));
+            request.Headers.Referrer?.AbsoluteUri);
+        Requests.Add(recorded);
 
-        var route = queued.Keys.Concat(standing.Keys)
+        var route = queued.Keys.Concat(standing.Keys).Concat(responders.Keys)
             .Where(candidate => key.StartsWith(candidate, StringComparison.Ordinal))
             .OrderByDescending(candidate => candidate.Length)
             .FirstOrDefault();
         var reply = route is not null && queued.TryGetValue(route, out var queue) && queue.Count > 0
             ? queue.Dequeue()
-            : route is not null && standing.TryGetValue(route, out var standingReply)
-                ? standingReply
-                : new Reply(HttpStatusCode.NotFound, string.Empty);
+            : route is not null && responders.TryGetValue(route, out var responder)
+                ? responder(recorded)
+                : route is not null && standing.TryGetValue(route, out var standingReply)
+                    ? standingReply
+                    : new Reply(HttpStatusCode.NotFound, string.Empty);
         if (route is not null && hooks.TryGetValue(route, out var served))
         {
             served(this);

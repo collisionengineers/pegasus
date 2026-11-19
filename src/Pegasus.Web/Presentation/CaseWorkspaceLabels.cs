@@ -1389,6 +1389,72 @@ public static class CaseWorkspaceLabels
         public const string Continue = "Continue";
 
         /// <summary>
+        /// The question Glass's asks on a repair spec made outside Pegasus,
+        /// and the window while the build runs, in the operator's words
+        /// (18 November 2026; R1171).
+        /// </summary>
+        public const string BuildTitle = "Import into Glass's?";
+
+        public const string BuildPrompt =
+            "This estimate was made outside Pegasus. Import it into Glass's and open it there?";
+
+        public const string BuildImport = "Import and open";
+
+        public const string BuildEmpty = "Open an empty estimate";
+
+        public const string Building = "Building the estimate in Glass's…";
+
+        /// <summary>How many of the build's acts are done, of how many: "12 of 34".</summary>
+        public static string BuildProgress(int done, int total) =>
+            string.Create(CultureInfo.InvariantCulture, $"{done} of {total}");
+
+        /// <summary>
+        /// The built-or-not list on the rebuilt repair spec, for the member of
+        /// staff who ran the build (R1173): one row per line of the outside
+        /// estimate, what was sent or why not, and Glass's figures where they
+        /// differ from the outside estimate's (R1168).
+        /// </summary>
+        public const string BuildList = "Built in Glass's";
+
+        public const string BuildLine = "Outside estimate line";
+
+        public const string BuildResult = "In Glass's";
+
+        public const string BuildPrice = "Glass's price";
+
+        public const string BuildHours = "Glass's hours";
+
+        /// <summary>What became of one line, with the reason it was left off.</summary>
+        public static string BuildOutcome(GlassEstimateBuildAct act)
+        {
+            ArgumentNullException.ThrowIfNull(act);
+            return act.Outcome switch
+            {
+                GlassEstimateBuildOutcome.Added => "Added",
+                GlassEstimateBuildOutcome.NotConfirmed => "Sent, not confirmed",
+                GlassEstimateBuildOutcome.AddedByGlass => "Not sent: Glass's adds it itself",
+                // A build that landed tried every act; one never tried is not on the estimate.
+                _ => act.ReasonCode is { } reason ? "Left off: " + BuildReason(reason) : "Left off",
+            };
+        }
+
+        /// <summary>
+        /// Why a line was left off. A code with no sentence of its own, such
+        /// as a request Glass's did not answer, is shown as the code, as the
+        /// session line shows a failure.
+        /// </summary>
+        public static string BuildReason(string code) => code switch
+        {
+            GlassEstimateBuildPolicy.NotBuiltCode => "not built in this version",
+            GlassEstimateBuildPolicy.NoRowCode => "Glass's has no row for it",
+            GlassEstimateBuildPolicy.AmbiguousRowCode => "Glass's has more than one row of this name",
+            GlassEstimateBuildPolicy.StoppedCode => "not sent after a line that was not confirmed",
+            "glass.editor.dialog" => "Glass's dialog could not be read",
+            "glass.editor.refused" => "Glass's dialog did not match the line",
+            _ => code,
+        };
+
+        /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate
         /// section's own commands and the provider's return read the same one
         /// sentence per outcome.
