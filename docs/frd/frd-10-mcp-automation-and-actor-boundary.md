@@ -866,10 +866,12 @@ compose Glass's, each tool is refused with "Glass's is not available."
   more than one, and the paint list is then read for that area's levels.
   The panel sets no price, typed figures, reason, labour type, part number,
   overlap hours, optional parts, paint type, Surcharge or clear coats; the
-  dialog route does. A part already on the estimate (the panel would delete
-  its positions first), a button the panel greys, an area it does not offer
-  and Both on a part with no other side are refused with
-  `glass.panel.refused` before anything is sent. Judged offline on 19
+  dialog route does. On a part already on the estimate the panel replaces
+  it as it does for a person (New every position of the part, Remove and
+  Install or Repair its New position, `deletepartid`). A press on an
+  operation the part already has, which would remove it, a button the
+  panel greys, an area it does not offer and Both on a part with no other
+  side are refused with `glass.panel.refused` before anything is sent. Judged offline on 19
   November 2026: the panel's own script (glasss2missing.har #295, #296)
   sent #536 and #537 byte for byte, and 16 commands over seven parts.
 - **19 November 2026; R1206.** The dialog's own fields are given as a

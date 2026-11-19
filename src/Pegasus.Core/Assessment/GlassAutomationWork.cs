@@ -1006,8 +1006,8 @@ public static class GlassAutomationPositionPolicy
     /// <summary>
     /// The quick repair panel would not add the part as asked (R1206): its
     /// button is greyed for the part, the paint area is not one its paint box
-    /// offers, the part has no other side for Both, or the estimate holds the
-    /// part already, whose positions the panel would delete first. Nothing
+    /// offers, the part has no other side for Both, or the part already has
+    /// the operation on the estimate, which the press would remove. Nothing
     /// was sent.
     /// </summary>
     public const string PanelRefusedCode = "glass.panel.refused";

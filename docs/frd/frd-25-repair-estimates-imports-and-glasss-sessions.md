@@ -785,8 +785,8 @@ also add a part as a person does with the panel under the editor's drawing
 Remove and Install or Repair with its hours, for one side or both, with the
 paint the panel adds itself and the paint area it offers. It is quicker and
 sets less than the dialog: no price, typed figures, labour type, part
-number or paint choices. A part already on the estimate is not added this
-way, because the panel would first delete its positions.
+number or paint choices. On a part already on the estimate it replaces
+the part's positions as the panel does for a person.
 
 **Renew and its old-for-new deductions (19 November 2026; R1206).** When
 the Automation chooses Renew, it answers the old-for-new window as a person
