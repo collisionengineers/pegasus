@@ -336,7 +336,7 @@ internal static class GlassProviderFixture
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
             "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Concat(RoofRows).Select(row => "partlist.addPart(\"" + row + "\");"))
-            + "\n" + string.Join('\n', MirrorCriteria.Concat(RoofCriteria).Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
+            + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
             StringComparison.Ordinal);
 
     /// <summary>
@@ -409,7 +409,16 @@ internal static class GlassProviderFixture
     /// <summary>The same line for a vehicle that has the panoramic roof, which hides the roof panel.</summary>
     internal const string PanoramicRoof = "20011|IgNtp|1|_|0|Panoramic Roof|0|0|140|340|0|";
 
-    private static readonly string[] RoofCriteria = [NoPanoramicRoof];
+    /// <summary>
+    /// The panoramic roof as the SEAT's list (<c>part_list.html</c>) already
+    /// carries it, not set. The scripted list keeps that line: a vehicle's
+    /// criteria are read first line first, so a second line for 20011 would
+    /// never be read.
+    /// </summary>
+    internal const string SeatNoPanoramicRoof = "20011|IgNpt|0|_|0|Panoramic Roof|0|0|123|123|0|";
+
+    /// <summary>The SEAT's line set: a vehicle with the panoramic roof, which hides the roof panel.</summary>
+    internal const string SeatPanoramicRoof = "20011|IgNpt|1|_|0|Panoramic Roof|0|0|123|123|0|";
 
     private static readonly string[] MirrorCriteria =
     [

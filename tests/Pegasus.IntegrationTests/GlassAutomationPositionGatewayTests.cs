@@ -398,8 +398,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
     public async Task AHeadItsEquipmentHidesIsRefusedWithItsOwnCode()
     {
         var harness = Harness.Create();
-        harness.Mva.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList().Replace(
-            NoPanoramicRoof, PanoramicRoof, StringComparison.Ordinal)));
+        var hidden = BuildPartList().Replace(SeatNoPanoramicRoof, SeatPanoramicRoof, StringComparison.Ordinal);
+        Assert.Contains(SeatPanoramicRoof, hidden, StringComparison.Ordinal);
+        harness.Mva.Respond("GET /ere/aco/list.php", _ => Editor(hidden));
         var session = await AutomationStartAsync(harness);
 
         var step = await PositionAsync(harness, Add(harness, session, "mcp:roof-1",
