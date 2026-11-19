@@ -18,7 +18,10 @@ namespace Pegasus.Infrastructure.Assessment;
 /// it, the same table the XML reader maps its repair kind with: RP and RN are
 /// a new part, Auxiliary work (EC) and Additional costs (EC) are Specialist,
 /// and a code the table does not know is an Other line whose note names it
-/// (R1209). RP and RN rows are the parts the parts appendix lists. The paint
+/// (R1209). Each parts appendix entry joins the next charged row with its
+/// name and amount, a user-defined part's entry printing no number; a row the
+/// appendix does not list keeps no part number. A flag printed run together
+/// with its amount (<c>1,234.00*F</c>) is read as one printed apart. The paint
 /// level a sheet prints lands as the line type <see cref="GlassPaintLevels"/> gives it, the same table the XML reader uses.
 /// Printed PDF hours are already net and never use the XML overlap rule.
 /// The sheet's <c>Labour time unit</c> is <c>1 Hour</c> or <c>N WU</c>, N work
@@ -338,10 +341,16 @@ internal static class GlassEstimatePdfParser
             rows.Add(item); parent = item; annotation = false;
         }
 
-        /// <summary>The printed flag column, and any value Glass's marks as modified with an asterisk.</summary>
+        /// <summary>
+        /// The printed flag column, and any value Glass's marks as modified with
+        /// an asterisk. A flag printed hard against the material amount (a
+        /// user-defined part's <c>1,234.00*F</c>) reaches this reader as one word
+        /// with it; its flag is the same column's.
+        /// </summary>
         private static void AddFlags(Row item, VisualRow row)
         {
             var flags = Cell(row, 555, 600);
+            if (flags.Length == 0) flags = GluedFlags(Cell(row, 505, 555));
             if (flags.Length > 0) item.Notes.Add(flags == "Z" ? MarkupMaterialNote : flags);
             foreach (var word in row.Words.Where(word => word.Text.Contains('*')))
                 item.Notes.Add($"Modified source value: {word.Text}");
@@ -353,7 +362,10 @@ internal static class GlassEstimatePdfParser
             var text = row.JoinedText;
             if (text.StartsWith("Annotation", StringComparison.Ordinal)
                 || text.StartsWith("Selected criteria:", StringComparison.Ordinal)
-                || text.StartsWith("Additional work", StringComparison.Ordinal))
+                || text.StartsWith("Additional work", StringComparison.Ordinal)
+                // Glass's reason for an Old for New deduction, printed under the row's included work.
+                || text.StartsWith("Original price", StringComparison.Ordinal)
+                || text.StartsWith("Original labour hours", StringComparison.Ordinal))
                 annotation = true;
             if (annotation) parent.Notes.Add(text);
             else rows[^1].Wrapped.Add(text);
@@ -408,6 +420,13 @@ internal static class GlassEstimatePdfParser
             {
                 description = name;
                 number = glued;
+            }
+            // A user-defined part (the XML's Free_Part) prints its name and amount with no part number.
+            if (number.Length == 0 && Cell(row, 200, 475).Length == 0 && AmountCell(row, 475, 580) is { } unnumbered
+                && UnpositionedRows().Any(item => item.Fit(description) >= 0))
+            {
+                parts.Add((description, string.Empty, unnumbered));
+                return;
             }
             if (number.Length == 0)
             {
@@ -520,6 +539,32 @@ internal static class GlassEstimatePdfParser
             positionDescription = null; positionCodes = null;
         }
 
+        /// <summary>
+        /// Each parts appendix entry is the next charged row, in printed order,
+        /// with its name and amount; a row the table lands as a new part (RP,
+        /// RN) is preferred over another with the same name and amount. A row
+        /// the appendix does not list keeps no part number rather than refusing
+        /// the sheet, whatever its code (R1209): Glass's lists a user-defined
+        /// part with no number, and whether it lists a PN row (Partial renew or
+        /// Synthetics repair normal) no sheet has shown. An entry no row takes
+        /// still refuses.
+        /// </summary>
+        private void JoinParts()
+        {
+            var charged = rows.Where(item => item.Parent is null && item.Section != Section.Paint).ToArray();
+            var cursor = 0;
+            foreach (var part in parts)
+            {
+                var candidates = Enumerable.Range(cursor, charged.Length - cursor)
+                    .Where(index => Name(charged[index].Description) == part.Description && charged[index].Material == part.Amount)
+                    .ToArray();
+                if (candidates.Length == 0) throw Reject("A part number cannot be joined unambiguously to its source row");
+                var chosen = candidates.FirstOrDefault(index => OperationOf(charged[index]) == EstimateOperation.Replace, candidates[0]);
+                charged[chosen].PartNumber = part.Part.Length == 0 ? null : part.Part;
+                cursor = chosen + 1;
+            }
+        }
+
         private decimal? SummaryHoursOf(Section key) => totals.TryGetValue(key, out var found) ? found.SummaryHours : null;
 
         public ParsedEstimate Complete()
@@ -569,16 +614,9 @@ internal static class GlassEstimatePdfParser
                 || totalLabour + totalMaterial != net || net + vat != gross
                 || decimal.Round(net.Value * vatPercent.Value / 100, 2, MidpointRounding.AwayFromZero) != vat)
                 throw Reject("The document's printed totals do not reconcile");
-            var replacements = rows.Where(item => OperationOf(item) == EstimateOperation.Replace).ToArray();
-            if (parts.Count != replacements.Length || partsTotal is null || parts.Sum(item => item.Amount) != partsTotal
+            if (partsTotal is null || parts.Sum(item => item.Amount) != partsTotal
                 || positioned.Count != MainRows().Count()) throw Reject("The source appendices are incomplete");
-            for (var index = 0; index < parts.Count; index++)
-            {
-                var main = replacements[index]; var part = parts[index];
-                if (Name(main.Description) != part.Description || main.Material != part.Amount)
-                    throw Reject("A part number cannot be joined unambiguously to its source row");
-                main.PartNumber = part.Part;
-            }
+            JoinParts();
             // Rows the appendix does not name (included work, paint) keep every line they printed.
             foreach (var item in rows) item.Settle(item.Wrapped.Count);
             var bodyHours = SummaryHoursOf(Section.Body); var auxiliaryHours = SummaryHoursOf(Section.Auxiliary);
@@ -648,9 +686,26 @@ internal static class GlassEstimatePdfParser
         return Amount(text);
     }
     private static decimal LastAmount(VisualRow row) => Amount(row.Words[^1].Text.TrimStart('£'));
+    /// <summary>
+    /// The flags printed hard against an amount, as one word with it
+    /// (<c>1,234.00*F</c> gives <c>*F</c>), or empty when the cell is anything else.
+    /// </summary>
+    private static string GluedFlags(string cell)
+    {
+        var match = Regex.Match(cell, @"^[0-9][0-9,]*\.[0-9]{2}(?<flags>[*A-Z]{1,3})$",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        return match.Success ? match.Groups["flags"].Value : string.Empty;
+    }
+
+    /// <summary>
+    /// A printed amount. The sheet's flags (<c>*</c> price or time modified,
+    /// <c>F</c> user-defined operation, <c>Z</c> markup material) may follow it,
+    /// apart or run together with it; they are read by <c>AddFlags</c>, not here.
+    /// </summary>
     private static decimal Amount(string text)
     {
-        var cleaned = text.Trim().TrimEnd('*').Trim();
+        var cleaned = Regex.Replace(text.Trim(), @"\s*[*A-Z]{1,3}$", string.Empty,
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         if (!Regex.IsMatch(cleaned, @"^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)\.[0-9]{2}$", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
             || !decimal.TryParse(cleaned, NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var value))
             throw Reject("A printed amount is unreadable");

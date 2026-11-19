@@ -216,6 +216,10 @@ export and the calculation PDF land the same spec:
   repair kind. A position with no repair kind, and a position type with none
   of those prefixes, still refuse the import, and the log names the type
   (19 November 2026, R1209).
+- On the calculation sheet, a row the parts appendix does not list keeps no
+  part number, and a user-defined part listed with no number is read. A flag
+  printed run together with its amount (`1,234.00*F`) is read as if printed
+  apart (19 November 2026, R1209).
 
 **Labour rate on a new spec.** A new repair spec — imported, returned from
 Glass's, or started with **New repair spec** — takes the Standard

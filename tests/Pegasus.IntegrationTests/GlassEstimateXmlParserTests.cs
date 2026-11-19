@@ -956,7 +956,7 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Equal("Included in row 17; no separate charge.", result.Lines[17].Justification);
         Assert.Equal(450.00m, result.Lines[16].Price);
         Assert.Equal(2.70m, result.Lines[16].WorkUnits);
-        Assert.Equal(234.00m, result.Lines[20].Price);
+        Assert.Equal(1250.00m, result.Lines[20].Price);
         Assert.Equal(1.00m, result.Lines[21].WorkUnits);
         Assert.Equal(77.20m, result.Lines[24].Materials);
         Assert.Equal(0.40m, result.Lines[24].PaintWorkUnits);
@@ -1360,7 +1360,7 @@ public sealed class GlassEstimateXmlParserTests
                 time: "1.20", materialCode: "2025581", place: "L", guideTime: "0.00"),
             Position("Part_SparePart", "Replace", "Front Door Glass (Tinted)", price: "150.00", time: "0.50",
                 materialCode: "2023241", oemPartNo: "PN-0009", place: "L", guideTime: "0.90", timeMarker: true),
-            Position("Free_Part", "Replace", "Bulbs", price: "234.00", materialCode: "0", guidePrice: "0.00",
+            Position("Free_Part", "Replace", "Bulbs 6V 55W", price: "1250.00", materialCode: "0", guidePrice: "0.00",
                 priceMarker: true),
             Position("Free_Part", "Extra costs", ".Yard Charge", time: "1.00", materialCode: "83"),
             Position("Paint_Part", "Replace", "Bonnet", price: "400.00", time: "1.40", materialCode: "1640",

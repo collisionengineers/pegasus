@@ -471,6 +471,87 @@ public sealed class GlassEstimatePdfParserTests
     }
 
     /// <summary>
+    /// The calculation sheet embedded in the export refused on 19 November
+    /// 2026 (issue 2155), shape for shape with this fixture's identity, part
+    /// numbers and figures: the Old for New door (RN) with Glass's reason
+    /// printed under its included work, a user-defined part whose amount and
+    /// flags print as one word (<c>1,250.00*F</c>) and that the parts appendix
+    /// lists with no number, a user-defined Extra costs row, and a free paint
+    /// row flagged F. It reads whole, and FRD-25's both routes land the same
+    /// spec: line for line the type, description and figures of the same
+    /// positions read from the XML export.
+    /// </summary>
+    [Fact]
+    public void TheRefusedExportsSheetReadsToTheSameLinesAsItsXml()
+    {
+        var sheet = GlassEstimatePdfParser.Parse(RefusedExportSheet());
+        var export = GlassEstimateXmlParser.Read(Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml(
+            positions: GlassEstimateXmlParserTests.GlassExport.RefusedExportShapes))).Estimate;
+
+        Assert.Equal(28, sheet.Lines.Count);
+        Assert.Equal(export.Lines.Select(line => line.Type), sheet.Lines.Select(line => line.Type));
+        Assert.Equal(export.Lines.Select(line => line.Description), sheet.Lines.Select(line => line.Description));
+        Assert.Equal(export.Lines.Select(line => line.WorkUnits), sheet.Lines.Select(line => line.WorkUnits));
+        Assert.Equal(export.Lines.Select(line => line.PaintWorkUnits), sheet.Lines.Select(line => line.PaintWorkUnits));
+        Assert.Equal(export.Lines.Select(line => line.Price), sheet.Lines.Select(line => line.Price));
+        Assert.Equal(export.Lines.Select(line => line.Materials), sheet.Lines.Select(line => line.Materials));
+
+        var door = sheet.Lines[16];
+        Assert.Equal("PN-DOOR-1", door.PartNumber);
+        Assert.Contains("Printed operation: RN.", door.Justification, StringComparison.Ordinal);
+        Assert.Contains(GlassEstimateXmlParserTests.GlassExport.OldForNewReason, door.Justification, StringComparison.Ordinal);
+        var bulbs = sheet.Lines[20];
+        Assert.Equal(1250.00m, bulbs.Price);
+        Assert.Null(bulbs.PartNumber);
+        Assert.Contains("*F", bulbs.Justification, StringComparison.Ordinal);
+        Assert.Contains("H1 Headlamp/Driving Lamp", bulbs.Justification, StringComparison.Ordinal);
+        Assert.Contains(" F ", sheet.Lines[21].Justification, StringComparison.Ordinal);
+        Assert.Contains(" F ", sheet.Lines[24].Justification, StringComparison.Ordinal);
+        Assert.Equal(3558.30m, sheet.SourceTotals!.Parts);
+    }
+
+    private static readonly string[] ListedOrLeftOutTypes = ["new_part", "check_labour", "new_part"];
+    private static readonly string?[] ListedOrLeftOutPartNumbers = ["PN100", "PN200", null];
+
+    /// <summary>
+    /// R1209: a row never refuses the sheet for want of a parts appendix
+    /// entry. A PN row (Partial renew or Synthetics repair normal, so Other)
+    /// that the appendix lists takes its number, and a new part the appendix
+    /// does not list keeps none.
+    /// </summary>
+    [Fact]
+    public void ARowTheAppendixListsOrLeavesOutIsReadWhateverItsCode()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body",
+                new SheetRow("1001", "Wing (L)", "RP", 1.00m, 80.00m, 100.00m),
+                new SheetRow("1002", "Door Skin (L)", "PN", 1.00m, 80.00m, 50.00m),
+                new SheetRow("1003", "Clip", "RP", 0.00m, 0m, 2.00m))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            [new PartRow("Wing", "PN100", 100.00m), new PartRow("Door Skin", "PN200", 50.00m)],
+            [new PositionRow("Wing", "1001"), new PositionRow("Door Skin", "1002"), new PositionRow("Clip", "1003")]));
+
+        Assert.Equal(ListedOrLeftOutTypes, parsed.Lines.Take(3).Select(line => line.Type));
+        Assert.Equal(ListedOrLeftOutPartNumbers, parsed.Lines.Take(3).Select(line => line.PartNumber));
+        Assert.Equal(50.00m, parsed.Lines[1].Materials);
+        Assert.Equal(2.00m, parsed.Lines[2].Price);
+    }
+
+    [Fact]
+    public void AnAppendixPartNoRowTakesStillRefuses()
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(() => GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("1001", "Wing (L)", "RP", 1.00m, 80.00m, 100.00m))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            [new PartRow("Wing", "PN100", 100.00m), new PartRow("Wing", "PN101", 100.00m)],
+            [new PositionRow("Wing", "1001")])));
+
+        Assert.Contains("cannot be joined", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// "Heated)" ends at x 205.25 and the number starts at 205.0, so the
     /// extractor yields one word, name and number together: it splits at the
     /// main row's own name, in the parts appendix and in the positions one.
@@ -687,10 +768,14 @@ public sealed class GlassEstimatePdfParserTests
     private static decimal? Number(string value) => value == "-" ? null
         : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
 
-    /// <summary>One printed operation row; no operation prints an included row, which has no amounts.</summary>
+    /// <summary>
+    /// One printed operation row; no operation prints an included row, which
+    /// has no amounts. A flag prints in the flag column, or run together with
+    /// the material amount when <paramref name="GluedFlag"/> is set.
+    /// </summary>
     private sealed record SheetRow(
         string Guide, string Description, string? Operation, decimal Hours, decimal Labour, decimal Material,
-        string[]? Wrapped = null, decimal? Overlap = null);
+        string[]? Wrapped = null, decimal? Overlap = null, string? Flag = null, bool GluedFlag = false);
 
     private sealed record SectionRows(string Label, params SheetRow[] Rows);
 
@@ -702,7 +787,8 @@ public sealed class GlassEstimatePdfParserTests
         public decimal Labour => PrintedLabour ?? Hours * 80m;
     }
 
-    private sealed record PartRow(string Name, string Number, decimal Amount, bool Glued = false);
+    /// <summary>One parts appendix row; an empty number prints none, and flags print run together with the amount.</summary>
+    private sealed record PartRow(string Name, string Number, decimal Amount, bool Glued = false, string? AmountFlags = null);
 
     private sealed record PositionRow(string Name, string? Codes, bool Glued = false);
 
@@ -770,7 +856,8 @@ public sealed class GlassEstimatePdfParserTests
                         [(28, row.Guide), (92, row.Description), (247, row.Operation), (318, Money(row.Hours))];
                     if (row.Overlap is { } overlap) words.Add((382, Money(overlap)));
                     if (row.Labour != 0m) words.Add((467, Money(row.Labour)));
-                    words.Add((526, Money(row.Material)));
+                    words.Add((526, row.GluedFlag ? Money(row.Material) + row.Flag : Money(row.Material)));
+                    if (row.Flag is not null && !row.GluedFlag) words.Add((557, row.Flag));
                     Put([.. words]);
                     hours += row.Hours; labour += row.Labour; material += row.Material;
                 }
@@ -839,8 +926,8 @@ public sealed class GlassEstimatePdfParserTests
         foreach (var part in parts)
         {
             List<(double X, string Text)> words = [.. NameWords(part.Name, part.Glued ? part.Number : null)];
-            if (!part.Glued) words.Add((205, part.Number));
-            words.Add((528, Money(part.Amount)));
+            if (!part.Glued && part.Number.Length > 0) words.Add((205, part.Number));
+            words.Add((528, Money(part.Amount) + part.AmountFlags));
             Put([.. words]);
         }
         Put((28, "Total Parts"), (509.5, Money(parts.Sum(part => part.Amount))));
@@ -855,6 +942,68 @@ public sealed class GlassEstimatePdfParserTests
         Put((28, "Abbreviations"), (205, "Description"));
         return [.. rows];
     }
+
+    /// <summary>
+    /// The shapes of the sheet embedded in the export refused on 19 November
+    /// 2026, with the figures of <c>GlassExport.RefusedExportShapes</c> and
+    /// made-up guides and part numbers. Glass's prints the Old for New reason
+    /// and a selected criterion or additional work under the included rows of
+    /// their part; a user-defined part's amount and flags as one word.
+    /// </summary>
+    private static PdfEstimateDocumentParser.VisualRow[] RefusedExportSheet() => Sheet(
+        [new SectionRows("Body",
+            new SheetRow("5000001", "Front Bumper Lining", "RP", 2.30m, 184.00m, 600.00m),
+            new SheetRow("5000002", "Front Bumper Distance-Sensor Kit", null, 0m, 0m, 0m,
+                Wrapped: ["Selected criteria: Parking Sensors"]),
+            new SheetRow("NN", "Front Bumper Lining Screw", "RP", 0.00m, 0m, 0.80m),
+            new SheetRow("5000003", "Bonnet", "RP", 0.70m, 56.00m, 600.00m, Overlap: 0.30m,
+                Wrapped: ["Annotation (time): Time includes adjustment"]),
+            new SheetRow("5000004", "Windscreen (Tinted)", "RP", 2.30m, 184.00m, 400.00m, Overlap: 0.50m),
+            new SheetRow("NN", "Windscreen Rain Sensor", null, 0m, 0m, 0m),
+            new SheetRow("5000005", "Windscreen Side Moulding (L)", null, 0m, 0m, 0m),
+            new SheetRow("5000005", "Windscreen Side Moulding (R)", null, 0m, 0m, 0m),
+            new SheetRow("5000006", "Interior Rear View Mirror", null, 0m, 0m, 0m),
+            new SheetRow("5000007", "Scuttle Grille", null, 0m, 0m, 0m),
+            new SheetRow("5000008", "A-Post Upper Interior Trim (L)", null, 0m, 0m, 0m),
+            new SheetRow("5000008", "A-Post Upper Interior Trim (R)", null, 0m, 0m, 0m,
+                Wrapped: ["Additional work (1.00): test"]),
+            new SheetRow("NN", "Windscreen Repair/Bonding", "RP", 0.00m, 0m, 70.00m, Wrapped: ["Kit"]),
+            new SheetRow("NN", "Windscreen Activator", "RP", 0.00m, 0m, 15.00m),
+            new SheetRow("NN", "Windscreen Additional", "RP", 0.00m, 0m, 20.00m, Wrapped: ["Cartridge"]),
+            new SheetRow("NN", "Windscreen Spacing Block", "RP", 0.00m, 0m, 2.50m),
+            new SheetRow("NN", "Front Door Shell (L)", "RN", 2.70m, 216.00m, 450.00m, Flag: "*"),
+            new SheetRow("5000009", "Front Door Window Guide (L)", null, 0m, 0m, 0m),
+            new SheetRow("5000010", "Front Door Electric Window Regulator (L)", null, 0m, 0m, 0m,
+                Wrapped: [GlassEstimateXmlParserTests.GlassExport.OldForNewReason]),
+            new SheetRow("5000011", "Front Door Glass (Tinted) (L)", "RP", 0.50m, 40.00m, 150.00m)),
+         new SectionRows("Auxiliary work",
+            new SheetRow("NN", "Bulbs 6V 55W", "RP", 0.00m, 0m, 1250.00m, Wrapped: ["H1 Headlamp/Driving Lamp"],
+                Flag: "*F", GluedFlag: true),
+            new SheetRow("NN", ".Yard Charge", "EC", 1.00m, 80.00m, 0.00m, Flag: "F"))],
+        [new PaintRow("Bonnet", "200", "II", 1.40m, 400.00m, Annotation: "Annotation (price) Part made from aluminium"),
+         new PaintRow("Side of Vehicle", "200", "II", 3.90m, 700.00m),
+         new PaintRow("Front Bumper Reinforcement", "200", "II", 0.40m, 77.20m, Flag: "F"),
+         new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 0.70m, 120.00m),
+         new PaintRow("Colour mixing (1)", null, null, 0.30m, 0.00m),
+         new PaintRow("Sample colour creation (1)", null, null, 0.30m, 12.00m)],
+        [],
+        [new PartRow("Front Bumper Lining", "PN-0001", 600.00m),
+         new PartRow("Front Bumper Lining Screw", "PN-0002", 0.80m),
+         new PartRow("Bonnet", "PN-0003", 600.00m),
+         new PartRow("Windscreen (Tinted)", "PN-0004", 400.00m),
+         new PartRow("Windscreen Repair/Bonding Kit", "PN-0005", 70.00m),
+         new PartRow("Windscreen Activator", "PN-0006", 15.00m),
+         new PartRow("Windscreen Additional Cartridge", "PN-0007", 20.00m),
+         new PartRow("Windscreen Spacing Block", "PN-0008", 2.50m),
+         new PartRow("Front Door Shell", "PN-DOOR-1", 450.00m, AmountFlags: " *"),
+         new PartRow("Front Door Glass (Tinted)", "PN-0009", 150.00m),
+         new PartRow("Bulbs 6V 55W", "", 1250.00m, AmountFlags: "*F")],
+        [new PositionRow("Front Bumper Lining", "5000001"), new PositionRow("Front Bumper Lining Screw", null),
+         new PositionRow("Bonnet", "5000003"), new PositionRow("Windscreen (Tinted)", "5000004"),
+         new PositionRow("Windscreen Repair/Bonding Kit", null), new PositionRow("Windscreen Activator", null),
+         new PositionRow("Windscreen Additional Cartridge", null), new PositionRow("Windscreen Spacing Block", null),
+         new PositionRow("Front Door Shell", null), new PositionRow("Front Door Glass (Tinted)", "5000011"),
+         new PositionRow("Bulbs 6V 55W", null), new PositionRow(".Yard Charge", null)]);
 
     /// <summary>Body, Paint and Additional costs with the set-up time row's labour as printed (a.QDOS26066).</summary>
     private static PdfEstimateDocumentParser.VisualRow[] SetUpTimeSheet(string setUpLabour) => Sheet(
