@@ -222,6 +222,62 @@ public sealed class GlassEditorRowsTests
 
     private static readonly string[] FogLamp = ["12000"];
 
+    /// <summary>The wheel shown on the left front wheel's drawing: the head's own criteria.</summary>
+    private static readonly string[] WheelShown = ["25580", "28004"];
+
+    /// <summary>Row 719's map as the editor held it in the offline run (made from the list, scratch-2026-11-18/b4/maps.json).</summary>
+    private static readonly IReadOnlyList<IReadOnlyList<string>> StripMap =
+    [
+        new List<string> { "", "7033020" },
+        new List<string> { "e|0|719", "e|0|732" },
+        new List<string> { "ER", "e|0|720", "e|12000|721", "e|12000_24119|722", "e|24119|723", "e|24119_90109|724", "e|90109|725", "e|0|733", "e|12000|734", "e|12000_24119|735", "e|24119|736", "e|24119_90109|737", "e|90109|738" },
+        new List<string> { "AE", "e|0|726", "e|12000|727", "e|12000_24119|728", "e|24119|729", "e|24119_90109|730", "e|90109|731", "e|0|739", "e|12000|740", "e|12000_24119|741", "e|24119|742", "e|24119_90109|743", "e|90109|744" },
+    ];
+
+    /// <summary>The left front wheel's map as the editor held it in the offline run (b4/maps.json).</summary>
+    private static readonly IReadOnlyList<IReadOnlyList<string>> WheelMap =
+    [
+        new List<string> { "I", "4070001" },
+        new List<string> { "e|25580_28004|5023", "e|25580_28005|5024", "e|25580_28006|5025", "e|25581_28005|5028" },
+        new List<string> { "ER", "e|0|5026", "e|0|5029" },
+        new List<string> { "AE", "e|0|5027", "e|0|5030" },
+    ];
+
+    /// <summary>
+    /// The SEAT's front wheels (rows 5023 to 5038 of glasses7.har #356, byte
+    /// for byte): steel wheels on drawing numbers 12 and 30, each side. The
+    /// list's own criteria name the rims.
+    /// </summary>
+    private static readonly string[] WheelRows =
+    [
+        "5023|pBbclTIdgw|HTB3-407|701910521925|12|4070001|25580_28004|2Q0601027F03C|67.10|ERAEI |||||HTB3-407|Wheels Front|Front Wheel|Part made of steel|||HTB3-506|HTB3-401_402_403_404_405|HTB3-407_2|||||SI||||||5031|0.19.0.0",
+        "5024|plTIw|HTB3-407||||25580_28005|2Q0601027AG03C|88.80|ERAEI ||||||||||||||||||||||||5032|0.19.0.0",
+        "5025|plTIw|HTB3-407||||25580_28006|2Q0601027E03C|81.50|ERAEI ||||||||||||||||||||||||5033|0.19.0.0",
+        "5026|tlTI|||||||0.50|ER||||||||Time includes counter balancing||||||||||||||||5034|0.19.0.0",
+        "5027|tlTI|||||||0.50|AE||||||||||||||||||||||||5035|0.19.0.0",
+        "5028|pclTIw|HTB3-407||30||25581_28005|2Q0601027AG03C|88.80|ERAEI ||||||||||||||||||SI||||||5036|0.19.0.0",
+        "5029|tlTI|||||||0.50|ER||||||||Time includes counter balancing||||||||||||||||5037|0.19.0.0",
+        "5030|tlTI|||||||0.50|AE||||||||||||||||||||||||5038|0.19.0.0",
+        "5031|pbcrTIgw|HTB3-407||12|4070002|25580_28004|2Q0601027F03C|67.10|ERAEI |||||||Front Wheel|Part made of steel||||||||||SI||||||5023|0.19.0.0",
+        "5032|prTIw|HTB3-407||||25580_28005|2Q0601027AG03C|88.80|ERAEI ||||||||||||||||||||||||5024|0.19.0.0",
+        "5033|prTIw|HTB3-407||||25580_28006|2Q0601027E03C|81.50|ERAEI ||||||||||||||||||||||||5025|0.19.0.0",
+        "5034|trTI|||||||0.50|ER||||||||Time includes counter balancing||||||||||||||||5026|0.19.0.0",
+        "5035|trTI|||||||0.50|AE||||||||||||||||||||||||5027|0.19.0.0",
+        "5036|pcrTIw|HTB3-407||30||25581_28005|2Q0601027AG03C|88.80|ERAEI ||||||||||||||||||SI||||||5028|0.19.0.0",
+        "5037|trTI|||||||0.50|ER||||||||Time includes counter balancing||||||||||||||||5029|0.19.0.0",
+        "5038|trTI|||||||0.50|AE||||||||||||||||||||||||5030|0.19.0.0",
+    ];
+
+    /// <summary>The front wheels with the SEAT list's own criteria (glasses7 #356).</summary>
+    private static readonly Lazy<GlassEditorPartList> Wheels = new(() =>
+    {
+        var page = "<script>\n" + string.Join('\n', WheelRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>\n";
+        return new GlassEditorPartList(
+            GlassEditorPages.PartList(page) ?? throw new InvalidOperationException("The wheels' list holds no row."),
+            GlassEditorPages.Criteria(GlassEditorFixture.Text("part_list.html")),
+            null);
+    });
+
     private static readonly string[] NoTicks = [];
 
     private static readonly string[] ParkAndFog = ["12000", "24119"];
@@ -551,12 +607,15 @@ public sealed class GlassEditorRowsTests
 
         Assert.True(Assert.Single(primed.Asked.Options, option => option.Code == "800").Greyed);
         Assert.False(Assert.Single(primed.Asked.Options, option => option.Code == "85161").Greyed);
-        Assert.Null(GlassEditorRows.AskedRefusal(list, Index(list.Rows, "320")));
+        Assert.Empty(GlassEditorRows.HiddenBy(list, Index(list.Rows, "320")));
         Assert.Equal(ParkAndFog, shown.Asked.Options.Select(option => option.Code));
         Assert.True(Assert.Single(shown.Asked.Options, option => option.Code == "24119").Greyed);
         Assert.True(Assert.Single(shown.Asked.Options, option => option.Code == "24119").Ticked);
         Assert.Equal("320|322", GlassEditorRows.Answer(list, Index(list.Rows, "320"), shown, MadeUpMaps["320"], FogLamp).Rows);
-        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, GlassEditorRows.AskedRefusal(list, Index(list.Rows, "330")));
+        var keyless = Assert.Single(GlassEditorRows.HiddenBy(list, Index(list.Rows, "330")));
+        Assert.Equal("85161", keyless.Code);
+        Assert.Equal("Keyless Entry and Start", keyless.Name);
+        Assert.False(keyless.Has);
         Assert.Null(GlassEditorRows.Question(list, Index(list.Rows, "340")));
         Assert.Null(GlassEditorRows.Question(First.Value, Index("17")));
     }
@@ -612,13 +671,13 @@ public sealed class GlassEditorRowsTests
     /// <summary>
     /// The BMW's roof panel (rows 525 and 2697 of its list of 19 November
     /// 2026) asks no question and is hidden by the panoramic roof the car
-    /// does not have. For the Automation's live add it is decided as any
-    /// certain head, to the pair the editor's own click asks for; a car with
-    /// the panoramic roof is refused with a code of its own. A rebuild's
-    /// rule is unchanged (R1206).
+    /// does not have. A click on either row is decided by that row, to the
+    /// pair the editor's own click asks for; a car with the panoramic roof
+    /// hides both, and what hides them is named. A rebuild's rule is
+    /// unchanged (R1206).
     /// </summary>
     [Fact]
-    public void AHeadItsEquipmentShowsIsDecidedAsAnyOtherForTheAutomation()
+    public void AHeadItsEquipmentShowsIsDecidedByTheRowNamed()
     {
         var shown = Roof(GlassProviderFixture.NoPanoramicRoof);
         var hidden = Roof(GlassProviderFixture.PanoramicRoof);
@@ -626,52 +685,107 @@ public sealed class GlassEditorRowsTests
         var again = Index(shown.Rows, "2697");
 
         Assert.Null(GlassEditorRows.Question(shown, roof));
-        Assert.Null(GlassEditorRows.ListRefusal(shown.Rows, roof, Replace, shown.Vehicle));
-        Assert.Equal("525|526", GlassEditorRows.Decide(shown.Rows, roof, NoVariants(shown.Rows[roof]), Replace, shown.Vehicle).Rows);
-        Assert.Equal("2697|2698", GlassEditorRows.Decide(shown.Rows, again, NoVariants(shown.Rows[again]), Replace, shown.Vehicle).Rows);
-        Assert.Equal(
-            GlassAutomationPositionPolicy.EquipmentHiddenCode,
-            GlassEditorRows.ListRefusal(hidden.Rows, roof, Replace, hidden.Vehicle));
+        Assert.Empty(GlassEditorRows.HiddenBy(shown, roof));
+        Assert.Equal("525|526", Click(shown, roof).Rows);
+        Assert.Equal("2697|2698", Click(shown, again).Rows);
+        var panoramic = Assert.Single(GlassEditorRows.HiddenBy(hidden, roof));
+        Assert.Equal("20011", panoramic.Code);
+        Assert.Equal("Panoramic Roof", panoramic.Name);
+        Assert.True(panoramic.Has);
         Assert.Equal(Equipment, GlassEditorRows.ListRefusal(shown.Rows, roof));
-        Assert.Equal(Equipment, GlassEditorRows.Decide(shown.Rows, roof, NoVariants(shown.Rows[roof])).ReasonCode);
     }
 
     /// <summary>
-    /// The cut list's distance sensor (row 65) is shown only with the park
-    /// assistant: hidden as first served, shown once the answers of 08:06
-    /// stored it. A wheel and a map with variants the part list does not
-    /// ask about have codes of their own for the Automation (R1206).
+    /// Heads the rebuild's rule leaves off and the editor's click adds are
+    /// added as the click adds them (R1206): the distance sensor once the
+    /// park assistant is stored (it is hidden before, and the head whose
+    /// question offers the park assistant is named); a support whose map has
+    /// a variant its part list does not ask about; a wheel that asks nothing.
     /// </summary>
     [Fact]
-    public void TheAutomationsOtherEquipmentRefusalsHaveCodesOfTheirOwn()
+    public void HeadsTheRebuildLeavesOffAreAddedAsTheClickAddsThem()
     {
         var sensor = Index("65");
         var made = MadeUpEquipment.Value;
 
+        var park = Assert.Single(GlassEditorRows.HiddenBy(First.Value, sensor));
+        Assert.Equal("24119", park.Code);
+        Assert.False(park.Has);
+        Assert.Contains("0", park.AnsweredOn);
+        Assert.Empty(GlassEditorRows.HiddenBy(Later.Value, sensor));
+        Assert.Equal("65|66", Click(Later.Value, sensor).Rows);
+        Assert.Equal(Equipment, GlassEditorRows.Decide(Parts, Index("17"), SupportWithAVariant).ReasonCode);
         Assert.Equal(
-            GlassAutomationPositionPolicy.EquipmentHiddenCode,
-            GlassEditorRows.ListRefusal(Parts, sensor, Replace, First.Value.Vehicle));
-        Assert.Equal("65|66", GlassEditorRows.Decide(Parts, sensor, NoVariants(Parts[sensor]), Replace, Later.Value.Vehicle).Rows);
-        Assert.Equal(
-            GlassAutomationPositionPolicy.EquipmentUncertainCode,
-            GlassEditorRows.Decide(Parts, Index("17"), SupportWithAVariant, Replace, First.Value.Vehicle).ReasonCode);
-        Assert.Equal(
-            GlassAutomationPositionPolicy.EquipmentWheelCode,
-            GlassEditorRows.ListRefusal(made.Rows, Index(made.Rows, "400"), Replace, made.Vehicle));
-        Assert.Equal(GlassAutomationPositionPolicy.EquipmentWheelCode, GlassEditorRows.AskedRefusal(made, Index(made.Rows, "400")));
+            "17|18",
+            GlassEditorRows.Answer(First.Value, Index("17"), GlassEditorRows.Build(First.Value, Index("17")), SupportWithAVariant, NoTicks).Rows);
+        Assert.Equal("400|401", Click(made, Index(made.Rows, "400")).Rows);
     }
 
     /// <summary>
-    /// For the Automation the bare <see cref="GlassEstimateBuildPolicy.EquipmentCode"/>
-    /// means only "this row asks a question": no head of the cut list in
-    /// either state, nor of the made-up blocks, is refused with it by the
-    /// list or by a map with no variants, unless its block asks.
+    /// The SEAT's "Strip &amp; Setup for Paint" (row 719) offers remove-and-refit
+    /// alone: the editor asks its dialog with the map's Replace time row
+    /// where the map names one for the answer, else with its
+    /// remove-and-refit time row, as its own code chose for every answer
+    /// (eq-dump2.mjs, 19 November 2026).
+    /// </summary>
+    [Theory]
+    [InlineData("", "719|720")]
+    [InlineData("12000", "719|721")]
+    [InlineData("24119_90109", "719|724")]
+    [InlineData("12000_90109", "719|726")]
+    [InlineData("12000_24119_90109", "719|726")]
+    public void APartThatOffersNoReplaceIsAskedWithTheTimeRowTheEditorChooses(string ticked, string rows)
+    {
+        var strip = Index("719");
+        var question = GlassEditorRows.Build(First.Value, strip);
+
+        var answered = GlassEditorRows.Answer(
+            First.Value, strip, question, StripMap, ticked.Length == 0 ? NoTicks : ticked.Split('_'));
+
+        Assert.True(question.Asks);
+        Assert.Equal(rows, answered.Rows);
+    }
+
+    /// <summary>
+    /// The SEAT's left front wheel (rows 5023 to 5030), as the wheel selector
+    /// chooses it (R1206): the wheel shown is ticked, each wheel of the block
+    /// is an answer, and an answer that names no wheel's criteria leads to
+    /// none, as the editor's own code gave (wheel-dump.mjs, 19 November 2026).
+    /// </summary>
+    [Theory]
+    [InlineData("25580_28004", "5023|5026")]
+    [InlineData("25580_28005", "5024|5026")]
+    [InlineData("25580_28006", "5025|5026")]
+    [InlineData("25581_28005", "5028|5029")]
+    [InlineData("25581_28004", null)]
+    [InlineData("", null)]
+    public void AWheelIsChosenAsTheWheelSelectorChoosesIt(string ticked, string? rows)
+    {
+        var list = Wheels.Value;
+        var wheel = Index(list.Rows, "5023");
+        var question = GlassEditorRows.Build(list, wheel);
+
+        var answered = GlassEditorRows.Answer(list, wheel, question, WheelMap, ticked.Length == 0 ? NoTicks : ticked.Split('_'));
+        var answers = GlassEditorRows.WithAnswers(list, wheel, question, WheelMap).Answers;
+
+        Assert.True(question.Wheel);
+        Assert.Equal(WheelShown, question.Asked.Options.Where(option => option.Ticked).Select(option => option.Code));
+        Assert.Equal(rows, answered.Rows);
+        Assert.NotNull(answers);
+        Assert.Equal(4, answers.Count);
+        Assert.Equal(rows is not null, answers.Any(answer => answer.Rows == rows));
+    }
+
+    /// <summary>
+    /// Every head of the cut list, in both vehicle states, and of the made-up
+    /// blocks, that the vehicle's equipment does not hide is added by a click
+    /// (R1206): a head that asks nothing leads to its rows with no answer.
     /// </summary>
     [Theory]
     [InlineData("first")]
     [InlineData("later")]
     [InlineData("made-up")]
-    public void TheAutomationIsRefusedWithTheBareEquipmentCodeOnlyForAQuestion(string state)
+    public void EveryHeadAPersonCanClickAndThatAsksNothingIsAdded(string state)
     {
         var list = state switch
         {
@@ -682,20 +796,12 @@ public sealed class GlassEditorRowsTests
 
         for (var at = 0; at < list.Rows.Count; at++)
         {
-            if (!list.Rows[at].IsHead)
+            if (!list.Rows[at].IsHead || GlassEditorRows.HiddenBy(list, at).Count > 0 || GlassEditorRows.Build(list, at).Asks)
             {
-                continue;
-            }
-            if (GlassEditorRows.Question(list, at) is not null)
-            {
-                Assert.NotEqual(Equipment, GlassEditorRows.AskedRefusal(list, at));
                 continue;
             }
 
-            Assert.NotEqual(Equipment, GlassEditorRows.ListRefusal(list.Rows, at, Replace, list.Vehicle));
-            Assert.NotEqual(
-                Equipment,
-                GlassEditorRows.Decide(list.Rows, at, NoVariants(list.Rows[at]), Replace, list.Vehicle).ReasonCode);
+            Assert.NotNull(Click(list, at).Rows);
         }
     }
 
@@ -740,6 +846,10 @@ public sealed class GlassEditorRowsTests
 
     private static IOrderedEnumerable<string> Sorted(JsonElement element, string name) =>
         element.GetProperty(name).EnumerateArray().Select(item => item.GetString()!).Order(StringComparer.Ordinal);
+
+    /// <summary>A click on a head that asks nothing, with the map Glass's serves for a row with no variants.</summary>
+    private static GlassEditorAnswered Click(GlassEditorPartList list, int head) =>
+        GlassEditorRows.Answer(list, head, GlassEditorRows.Build(list, head), NoVariants(list.Rows[head]), NoTicks);
 
     /// <summary>The roof panel's captured block with the panoramic roof's line as given.</summary>
     private static GlassEditorPartList Roof(string panoramicRoof)

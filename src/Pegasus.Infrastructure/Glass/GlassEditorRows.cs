@@ -22,7 +22,10 @@ internal sealed record GlassEditorRowChoice(
 /// the criteria the vehicle fixes and the dialog adds to every answer
 /// unshown, every criterion of the block the vehicle's list knows in number
 /// order, the criteria of its part rows and of its time rows, and the block's
-/// rows as the editor takes them.
+/// rows as the editor takes them. <see cref="Asks"/>: whether the editor asks
+/// it at all (its <c>toAsk</c>); a head that asks nothing has it built too,
+/// with no options, as its click is decided the same way. <see cref="Wheel"/>:
+/// a wheel, chosen as the editor's wheel selector chooses it.
 /// </summary>
 internal sealed record GlassEditorQuestion(
     GlassEquipmentQuestion Asked,
@@ -30,13 +33,16 @@ internal sealed record GlassEditorQuestion(
     IReadOnlyList<string> All,
     IReadOnlyList<string> PartCriteria,
     IReadOnlyList<string> TimeCriteria,
-    IReadOnlyList<GlassEditorPartRow> Block);
+    IReadOnlyList<GlassEditorPartRow> Block,
+    bool Asks = true,
+    bool Wheel = false);
 
 /// <summary>
-/// What one equipment answer leads to: the part row and its Replace time
-/// row, the value stored for the vehicle as the editor stores it (null when
-/// it stores nothing), and the values it changes; or the reason it leads to
-/// none.
+/// What one click or equipment answer leads to: the part row and the time
+/// row the editor asks its dialog with (the Replace time row of a part that
+/// offers Replace, else its remove-and-refit time row), the value stored for
+/// the vehicle as the editor stores it (null when it stores nothing), and the
+/// values it changes; or the reason it leads to none.
 /// </summary>
 internal sealed record GlassEditorAnswered(
     GlassEditorPartRow? Part,
@@ -178,29 +184,17 @@ internal static class GlassEditorRows
     /// <summary>
     /// What the list alone says of a head for an operation (Replace when
     /// none is named): the reason it is not certain, or null when its
-    /// equipment map is to be read next.
+    /// equipment map is to be read next. The rule of a rebuild of an outside
+    /// estimate; the Automation's add chooses its rows as the editor's own
+    /// click does (<see cref="Answer"/>; R1206).
     /// </summary>
-    /// <remarks>
-    /// With <paramref name="vehicle"/>, the criteria the vehicle has, it is the
-    /// Automation's live add or preview (R1206): a head shown or hidden on its
-    /// drawing by equipment is decided as any other when the vehicle's
-    /// criteria show it, as the editor shows it and a click opens its dialog
-    /// with no question, and each refusal has a code of its own, so
-    /// <see cref="GlassEstimateBuildPolicy.EquipmentCode"/> never comes back
-    /// without its question. Judged offline on 19 November 2026 against the
-    /// editor's own click path, over every head that asks no question and is
-    /// shown by equipment for the vehicle: on the SEAT's list 40 of 61 gave
-    /// the editor's pair and the rest are refused; on the BMW's 46 of 72, the
-    /// same; no pair differed. Without it, a rebuild's rule is unchanged.
-    /// </remarks>
-    public static string? ListRefusal(
-        IReadOnlyList<GlassEditorPartRow> list, int head, string operation = Replace, IReadOnlySet<string>? vehicle = null)
+    public static string? ListRefusal(IReadOnlyList<GlassEditorPartRow> list, int head, string operation = Replace)
     {
         ArgumentNullException.ThrowIfNull(list);
         var row = list[head];
         if (row.Has('w'))
         {
-            return vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentWheelCode;
+            return GlassEstimateBuildPolicy.EquipmentCode;
         }
         if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
         {
@@ -210,30 +204,14 @@ internal static class GlassEditorRows
         {
             return GlassEstimateBuildPolicy.NoRowCode;
         }
-        if (ShownByEquipment(list, head) && (vehicle is null || !Visible(list, head, vehicle)))
+        if (ShownByEquipment(list, head))
         {
-            return vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentHiddenCode;
+            return GlassEstimateBuildPolicy.EquipmentCode;
         }
 
         return Block(list, head).Any(other => other.Criteria.Length > 0)
-            ? Uncertain(vehicle)
+            ? GlassEstimateBuildPolicy.EquipmentCode
             : null;
-    }
-
-    /// <summary>A rule's own refusal of rows that depend on equipment: a rebuild's, or the Automation's own code.</summary>
-    private static string Uncertain(IReadOnlySet<string>? vehicle) =>
-        vehicle is null ? GlassEstimateBuildPolicy.EquipmentCode : GlassAutomationPositionPolicy.EquipmentUncertainCode;
-
-    /// <summary>
-    /// Whether the vehicle's criteria show a head on its drawing: the head's
-    /// own show and hide fields, and those of its drawing number's rows.
-    /// </summary>
-    private static bool Visible(IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlySet<string> vehicle)
-    {
-        var row = list[head];
-        return Shown(row, vehicle) == 1
-            && list.All(other => !(other.Has('c') && other.Drawing == row.Drawing && other.DrawingNumber == row.DrawingNumber)
-                || Shown(other, vehicle) == 1);
     }
 
     /// <summary>
@@ -256,31 +234,38 @@ internal static class GlassEditorRows
     /// <c>critConvPart</c>), or null when it asks none: the editor then opens
     /// the part's dialog at once.
     /// </summary>
+    public static GlassEditorQuestion? Question(GlassEditorPartList list, int head)
+    {
+        var question = Build(list, head);
+        return question.Asks ? question : null;
+    }
+
+    /// <summary>
+    /// A head's question as the editor's list code builds it on a click,
+    /// asked or not (R1206): what <see cref="Answer"/> decides the click by.
+    /// </summary>
     /// <remarks>
     /// The block is the head and the rows after it up to the next row marked
     /// <c>b</c>, leaving out a row marked <c>T</c> of the other side and the
     /// rows of a drawing number the vehicle's criteria hide. It asks when any
-    /// of its rows names a criterion. The options are the block's criteria
-    /// the vehicle's list knows, in number order, but those the vehicle fixes
-    /// (mark <c>f</c>), which the dialog adds to every answer when the vehicle
-    /// has them. An option is greyed out when the head's own show or hide
-    /// fields name it, when every part row of the block names it and Glass's
-    /// does not keep it for the vehicle, or when it is a radio partner of a
-    /// greyed radio option. Judged offline against the editor's own list code
-    /// on the list of 7 September 2026: the options, the greying, the fixed
-    /// criteria and the ticks agreed on all 396 heads accepted (19 November
-    /// 2026).
+    /// of its rows names a criterion: on the lists of 7 September and 19
+    /// November 2026 this is the editor's own <c>toAsk</c> for all 1,091 and
+    /// 1,347 heads the vehicle's criteria show. The options are the block's
+    /// criteria the vehicle's list knows, in number order, but those the
+    /// vehicle fixes (mark <c>f</c>), which the dialog adds to every answer
+    /// when the vehicle has them. An option is greyed out when the head's own
+    /// show or hide fields name it, when every part row of the block names it
+    /// and Glass's does not keep it for the vehicle, or when it is a radio
+    /// partner of a greyed radio option. An option is ticked when the vehicle
+    /// has it; on a wheel, when the wheel shown (the head) has it, as the
+    /// wheel selector ticks it.
     /// </remarks>
-    public static GlassEditorQuestion? Question(GlassEditorPartList list, int head)
+    public static GlassEditorQuestion Build(GlassEditorPartList list, int head)
     {
         ArgumentNullException.ThrowIfNull(list);
         var rows = list.Rows;
         var block = AskedBlock(rows, head, list.Vehicle);
-        if (!block.Exists(row => row.Criteria.Length > 0))
-        {
-            return null;
-        }
-
+        var wheel = rows[head].Has('w');
         var all = block
             .SelectMany(row => CriteriaOf(row.Criteria))
             .Distinct(StringComparer.Ordinal)
@@ -312,11 +297,12 @@ internal static class GlassEditorRows
             }
         }
 
+        var shownWheel = CriteriaOf(rows[head].Criteria);
         var options = shown
             .Select(criterion => new GlassEquipmentOption(
                 criterion.Code,
                 criterion.Name,
-                criterion.IsSet,
+                wheel ? shownWheel.Contains(criterion.Code) : criterion.IsSet,
                 greyed.Contains(criterion.Code),
                 criterion.IsRadio ? criterion.Group : null,
                 criterion.AffectsOtherParts ? list.ReferencedNote ?? GlassReferencedNote : null))
@@ -327,33 +313,65 @@ internal static class GlassEditorRows
             all,
             block.Where(row => row.Has('p')).SelectMany(row => CriteriaOf(row.Criteria)).Distinct(StringComparer.Ordinal).ToList(),
             block.Where(row => row.Has('t')).SelectMany(row => CriteriaOf(row.Criteria)).Distinct(StringComparer.Ordinal).ToList(),
-            block);
+            block,
+            block.Exists(row => row.Criteria.Length > 0),
+            wheel);
     }
 
     /// <summary>
-    /// What the list alone says of a head that asks a question, for a part
-    /// added as Part: the reason it is refused, or null when its equipment
-    /// map is to be read next. A wheel (the editor's own wheel selector) and
-    /// a head the vehicle's criteria hide on its drawing wait on equipment no
-    /// answer gives, each with its own code; a head that offers no Replace
-    /// has no row (R1206).
+    /// What hides a head on its drawing for the vehicle (R1206), as the
+    /// editor hides it, so a person cannot click it either; empty when the
+    /// vehicle's criteria show it. Each entry names Glass's code and name of
+    /// a stored value: one the vehicle has that hides the head (its or its
+    /// drawing number's hide field), or one the head needs that the vehicle
+    /// lacks (its show field), with the heads of the same drawing whose
+    /// question has it as an option an answer may tick or untick.
     /// </summary>
-    public static string? AskedRefusal(GlassEditorPartList list, int head)
+    public static IReadOnlyList<GlassEquipmentHiding> HiddenBy(GlassEditorPartList list, int head)
     {
         ArgumentNullException.ThrowIfNull(list);
-        var row = list.Rows[head];
-        if (row.Has('w'))
+        var rows = list.Rows;
+        var row = rows[head];
+        if (!ShownByEquipment(rows, head))
         {
-            return GlassAutomationPositionPolicy.EquipmentWheelCode;
-        }
-        if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
-        {
-            return GlassEstimateBuildPolicy.NoRowCode;
+            return [];
         }
 
-        return ShownByEquipment(list.Rows, head) && !Visible(list.Rows, head, list.Vehicle)
-            ? GlassAutomationPositionPolicy.EquipmentHiddenCode
-            : null;
+        var hiding = new List<(string Code, bool Has)>();
+        foreach (var shownBy in rows.Where(other => ReferenceEquals(other, row)
+            || (other.Has('c') && other.Drawing == row.Drawing && other.DrawingNumber == row.DrawingNumber)))
+        {
+            if (Shown(shownBy, list.Vehicle) == 1)
+            {
+                continue;
+            }
+
+            string[] show = shownBy.Show.Length > 0 ? shownBy.Show.Split('+') : [];
+            string[] hide = shownBy.Hide.Length > 0 ? shownBy.Hide.Split('+') : [];
+            if (show.Length > 0 && !show.Any(rule => rule.Split('_').All(list.Vehicle.Contains)))
+            {
+                hiding.AddRange(show.SelectMany(rule => CriteriaOf(rule)).Where(code => !list.Vehicle.Contains(code)).Select(code => (code, false)));
+            }
+
+            hiding.AddRange(hide.Where(rule => rule.Split('_').All(list.Vehicle.Contains)).SelectMany(rule => CriteriaOf(rule)).Select(code => (code, true)));
+        }
+
+        var askers = Enumerable.Range(0, rows.Count)
+            .Where(index => index != head && rows[index].IsHead && rows[index].Drawing == row.Drawing)
+            .Select(index => (Row: rows[index].Id, Question: Build(list, index)))
+            .Where(item => item.Question.Asks)
+            .ToList();
+        return hiding
+            .DistinctBy(item => item.Code, StringComparer.Ordinal)
+            .Select(item => new GlassEquipmentHiding(
+                item.Code,
+                list.Criteria.TryGetValue(item.Code, out var criterion) ? criterion.Name : null,
+                item.Has,
+                askers
+                    .Where(asker => asker.Question.Asked.Options.Any(option => option.Code == item.Code && !option.Greyed))
+                    .Select(asker => asker.Row)
+                    .ToList()))
+            .ToList();
     }
 
     /// <summary>Whether a map is the head's own: its first list names the head's part code.</summary>
@@ -365,8 +383,10 @@ internal static class GlassEditorRows
     }
 
     /// <summary>
-    /// The rows one equipment answer leads to, as the dialog's OK chooses
-    /// them (<c>submitCritPartInCritDlg</c>, <c>getCritResPart</c>,
+    /// The rows a click on a head leads to, with an equipment answer when it
+    /// asks one (none when it does not), as the editor's own code chooses
+    /// them (<c>getCritResPart</c>, <c>getCritResPartByCritMap</c>,
+    /// <c>getCritResPartByCrit</c>, <c>selWheelsByCrit</c>,
     /// <c>getSelPartTime</c>), and the value the editor stores for the
     /// vehicle before it asks for the dialog (<c>histSavePart</c>,
     /// <c>saveCritToKernel</c>); or why it leads to none (R1206).
@@ -374,19 +394,29 @@ internal static class GlassEditorRows
     /// <remarks>
     /// The answer's rule is the ticked codes and the fixed ones the vehicle
     /// has, in number order. Its part criteria find the part row in the map's
-    /// part group (a blank rule finds <c>0</c>; an empty group is the head),
-    /// and its time criteria the Replace time row in the map's Replace group,
-    /// trying again with only the criteria that group knows, else the block's
-    /// Replace time row with no criteria. When the map names no part row, the
-    /// part row is the block's whose own criteria are exactly the part
-    /// criteria, with the time row after it whose own are exactly the time
-    /// criteria; failing a part, the fixed criteria are dropped one at a time.
-    /// The value stored is <c>code|0 or 1|1</c> for every option of the
-    /// question Glass's keeps for the vehicle (mark <c>g</c>), in number
-    /// order. Judged offline against the editor's own code on the list of
-    /// 7 September 2026: the same pair and the same stored value for all 985
-    /// answers on accepted heads where the editor gives a part, and both
-    /// refusing the other 158 (19 November 2026).
+    /// part group (a blank rule finds <c>0</c>; an empty group is the head).
+    /// The time rows follow the part's own operations: when it offers
+    /// Replace, the map's Replace entry for the time criteria (trying again
+    /// with only the criteria the group knows), else the block's Replace time
+    /// rows with no criteria; when it offers remove-and-refit, likewise from
+    /// the map's remove-and-refit group; then the time rows of other
+    /// operations whose rule is the answer's. The dialog is asked with the
+    /// first Replace time row of these, else the first. When the map names
+    /// no part row, the part row is the block's whose own criteria are
+    /// exactly the part criteria, with the time rows after it whose own are
+    /// exactly the time criteria; failing a part, the fixed criteria are
+    /// dropped one at a time. A wheel is the one part row of its block whose
+    /// own criteria are exactly the rule, up to the next drawing number, with
+    /// its time rows. The value stored is <c>code|0 or 1|1</c> for every
+    /// option of the question Glass's keeps for the vehicle (mark
+    /// <c>g</c>), in number order. Judged offline on 19 November 2026
+    /// against the editor's own code on the lists of 7 September (the SEAT's)
+    /// and 19 November 2026 (the BMW's), for every head the vehicle's
+    /// criteria show and every answer to the heads that ask: the same pair
+    /// for all 1,752 and 2,675 answers where the editor gives a part (the 20
+    /// wheel heads, the 48 heads that offer no Replace and the 1,529 that ask
+    /// nothing included), both refusing the other 202 and 225, and the same
+    /// stored value for all 1,077 and 1,821 answers that store one.
     /// </remarks>
     public static GlassEditorAnswered Answer(
         GlassEditorPartList list, int head, GlassEditorQuestion question,
@@ -407,24 +437,62 @@ internal static class GlassEditorRows
         }
 
         var rule = question.Frozen.Concat(ticked).Distinct(StringComparer.Ordinal).OrderBy(code => code, ByNumber).ToList();
+        if (question.Wheel)
+        {
+            return Wheel(list, question, rule);
+        }
+
         var block = question.Block;
         var parts = map.Count > 1 ? Entries(map[1]) : new List<string[]>();
-        var times = Entries(Group(map, Replace));
         var (partCriteria, timeCriteria) = Split(question, rule);
 
         // The editor's first way: the served map (getCritResPartByCritMap).
         var part = InBlock(block, parts.Count > 0 ? Find(partCriteria, parts) : rows[head].Id);
-        GlassEditorPartRow? time = null;
+        GlassEditorPartRow? time;
         if (part is not null && part.Has('p'))
         {
-            var timeId = FindTime(timeCriteria, times);
-            time = (timeId.Length > 0 ? rows.FirstOrDefault(row => row.Id == timeId) : null)
-                ?? block.FirstOrDefault(row => row.Has('t') && row.Operations == Replace && row.Criteria.Length == 0);
+            var replaceId = FindTime(timeCriteria, Entries(Group(map, Replace)));
+            var refitId = FindTime(timeCriteria, Entries(Group(map, RemoveAndRefit)));
+            var selected = new List<GlassEditorPartRow>();
+            if (InBlock(block, replaceId) is { } replaceRow)
+            {
+                selected.Add(replaceRow);
+            }
+            else if (part.Operations.Contains(Replace, StringComparison.Ordinal))
+            {
+                selected.AddRange(block.Where(row => row.Has('t') && row.Operations == Replace && Own(row).Length == 0));
+            }
+
+            var hasReplace = selected.Exists(row => row.Has('t') && row.Operations == Replace);
+            if (InBlock(block, refitId) is { } refitRow)
+            {
+                selected.Add(refitRow);
+            }
+            else if (part.Operations.Contains(RemoveAndRefit, StringComparison.Ordinal))
+            {
+                selected.AddRange(block.Where(row => row.Has('t') && row.Operations == RemoveAndRefit && Own(row).Length == 0));
+            }
+
+            var hasRefit = selected.Exists(row => row.Has('t') && row.Operations == RemoveAndRefit);
+            if (!hasReplace && replaceId.Length > 0 && rows.FirstOrDefault(row => row.Id == replaceId) is { } listedReplace)
+            {
+                selected.Add(listedReplace);
+            }
+            if (!hasRefit && refitId.Length > 0 && rows.FirstOrDefault(row => row.Id == refitId) is { } listedRefit)
+            {
+                selected.Add(listedRefit);
+            }
+
+            var ruleText = string.Join('_', rule);
+            selected.AddRange(block.Where(row => row.Has('t')
+                && row.Operations != Replace && row.Operations != RemoveAndRefit && Own(row) == ruleText));
+            time = TimeOf(selected);
         }
         else
         {
             // Its second way, when the map names no row (getCritResPartByCrit).
             part = null;
+            time = null;
             while (true)
             {
                 (partCriteria, timeCriteria) = Split(question, rule);
@@ -432,12 +500,11 @@ internal static class GlassEditorRows
                 if (at >= 0)
                 {
                     part = block[at];
-                    var after = block.Skip(at + 1).Where(row => row.Has('t') && Own(row) == timeCriteria).ToList();
-                    time = after.Find(row => row.Operations == Replace) ?? after.FirstOrDefault();
+                    time = TimeOf(block.Skip(at + 1).Where(row => row.Has('t') && Own(row) == timeCriteria).ToList());
                     break;
                 }
 
-                var fixedAt = rule.FindIndex(code => list.Criteria.TryGetValue(code, out var criterion) && criterion.Has('f'));
+                var fixedAt = FixedAt(list, rule);
                 if (fixedAt < 0)
                 {
                     break;
@@ -448,13 +515,70 @@ internal static class GlassEditorRows
 
             if (part is null)
             {
-                return GlassEditorAnswered.Refused(GlassAutomationPositionPolicy.EquipmentNoPartCode);
+                return GlassEditorAnswered.Refused(NoPart(question));
             }
         }
 
-        if (time is null || time.Operations != Replace)
+        return Chosen(list, question, rule, part, time);
+    }
+
+    /// <summary>
+    /// A wheel, as the wheel selector chooses it (<c>selWheelsByCrit</c>):
+    /// the one part row of the block whose own criteria are exactly the rule,
+    /// up to the next drawing number once one is found, with its time rows
+    /// (theirs exactly the rule's, or none); failing one, the fixed criteria
+    /// are dropped one at a time.
+    /// </summary>
+    private static GlassEditorAnswered Wheel(GlassEditorPartList list, GlassEditorQuestion question, List<string> rule)
+    {
+        while (true)
         {
-            return GlassEditorAnswered.Refused(GlassAutomationPositionPolicy.EquipmentNoPartCode);
+            var key = string.Join('_', rule);
+            var selected = new List<GlassEditorPartRow>();
+            var found = 0;
+            foreach (var row in question.Block)
+            {
+                if (found > 0 && row.Has('c'))
+                {
+                    break;
+                }
+                if (row.Has('p'))
+                {
+                    if (Own(row) == key)
+                    {
+                        selected.Add(row);
+                        found++;
+                    }
+                }
+                else if (found > 0 && row.Has('t') && (Own(row) == key || Own(row).Length == 0))
+                {
+                    selected.Add(row);
+                }
+            }
+
+            if (found == 1)
+            {
+                return Chosen(list, question, rule, selected[0], TimeOf(selected));
+            }
+
+            var fixedAt = FixedAt(list, rule);
+            if (fixedAt < 0)
+            {
+                return GlassEditorAnswered.Refused(NoPart(question));
+            }
+
+            rule.RemoveAt(fixedAt);
+        }
+    }
+
+    /// <summary>The click's outcome for the rows chosen: refused when no time row was chosen, as no captured part's is.</summary>
+    private static GlassEditorAnswered Chosen(
+        GlassEditorPartList list, GlassEditorQuestion question, List<string> rule, GlassEditorPartRow part,
+        GlassEditorPartRow? time)
+    {
+        if (time is null)
+        {
+            return GlassEditorAnswered.Refused(NoPart(question));
         }
 
         var kept = question.All.Where(code => list.Criteria[code].Has('g')).ToList();
@@ -466,12 +590,25 @@ internal static class GlassEditorRows
         return new GlassEditorAnswered(part, time, store.Length > 0 ? store : null, changes, null);
     }
 
+    /// <summary>An answer that leads to no part, or a head that asks nothing and has no time row.</summary>
+    private static string NoPart(GlassEditorQuestion question) =>
+        question.Asks ? GlassAutomationPositionPolicy.EquipmentNoPartCode : GlassEstimateBuildPolicy.NoRowCode;
+
+    /// <summary>The time row <c>getSelPartTime</c> asks the dialog with: the first Replace time row, else the first.</summary>
+    private static GlassEditorPartRow? TimeOf(List<GlassEditorPartRow> selected) =>
+        selected.Find(row => row.Has('t') && row.Operations == Replace) ?? selected.Find(row => row.Has('t'));
+
+    /// <summary>The first criterion of a rule the vehicle fixes (<c>removeFrozen</c>), or -1.</summary>
+    private static int FixedAt(GlassEditorPartList list, List<string> rule) =>
+        rule.FindIndex(code => list.Criteria.TryGetValue(code, out var criterion) && criterion.Has('f'));
+
     /// <summary>
     /// The question with every allowed answer that leads to a part (R1206):
     /// each combination of the options that are not greyed, at most one of a
     /// group, with the rows it leads to and the part list's figures for
-    /// them. Above <see cref="AnswerCap"/> combinations the answers are left
-    /// out and the map's own part and Replace hours entries are given.
+    /// them; for a wheel, each wheel of its block, as the wheel selector
+    /// shows them. Above <see cref="AnswerCap"/> combinations the answers are
+    /// left out and the map's own part and Replace hours entries are given.
     /// </summary>
     public static GlassEquipmentQuestion WithAnswers(
         GlassEditorPartList list, int head, GlassEditorQuestion question, IReadOnlyList<IReadOnlyList<string>> map)
@@ -479,6 +616,27 @@ internal static class GlassEditorRows
         ArgumentNullException.ThrowIfNull(list);
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(map);
+        var answers = new List<GlassEquipmentAnswer>();
+        void Try(List<string> ticked)
+        {
+            var answered = Answer(list, head, question, map, ticked);
+            if (answered is { Part: { } part, Time: { } time, Rows: { } pair }
+                && !answers.Exists(answer => answer.Ticked.SequenceEqual(ticked)))
+            {
+                answers.Add(new GlassEquipmentAnswer(ticked, pair, Present(part.Number), Amount(part.Price), Amount(time.Price)));
+            }
+        }
+
+        if (question.Wheel)
+        {
+            foreach (var wheel in question.Block.Where(row => row.Has('p')))
+            {
+                Try(CriteriaOf(wheel.Criteria).Where(code => !question.Frozen.Contains(code)).OrderBy(code => code, ByNumber).ToList());
+            }
+
+            return question.Asked with { Answers = answers };
+        }
+
         var slots = new List<List<string>>();
         foreach (var option in question.Asked.Options.Where(item => !item.Greyed))
         {
@@ -509,19 +667,12 @@ internal static class GlassEditorRows
             }
         }
 
-        var answers = new List<GlassEquipmentAnswer>();
         var picked = new List<string>();
         void Pick(int at)
         {
             if (at == slots.Count)
             {
-                var ticked = picked.OrderBy(code => code, ByNumber).ToList();
-                var answered = Answer(list, head, question, map, ticked);
-                if (answered is { Part: { } part, Time: { } time, Rows: { } pair })
-                {
-                    answers.Add(new GlassEquipmentAnswer(ticked, pair, Present(part.Number), Amount(part.Price), Amount(time.Price)));
-                }
-
+                Try(picked.OrderBy(code => code, ByNumber).ToList());
                 return;
             }
 
@@ -536,6 +687,26 @@ internal static class GlassEditorRows
 
         Pick(0);
         return question.Asked with { Answers = answers };
+    }
+
+    /// <summary>
+    /// The head a part row belongs to: the row itself when it is a head,
+    /// else the nearest head above it that starts its block (marked
+    /// <c>b</c>), the head a click on its drawing number shows; -1 when there
+    /// is none. A variant row's part number finds its head by this.
+    /// </summary>
+    public static int HeadOf(IReadOnlyList<GlassEditorPartRow> list, int row)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        for (var index = row; index >= 0; index--)
+        {
+            if (list[index].Has('b'))
+            {
+                return list[index].IsHead ? index : -1;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>A map group's entries as the part list's figures for each: the codes the entry needs and its one row.</summary>
@@ -704,16 +875,14 @@ internal static class GlassEditorRows
 
     /// <summary>
     /// One head, decided for an operation (Replace when none is named) with
-    /// its equipment map as the editor serves it. With
-    /// <paramref name="vehicle"/>, the Automation's live add or preview, as
-    /// <see cref="ListRefusal"/> says (R1206).
+    /// its equipment map as the editor serves it.
     /// </summary>
     public static GlassEditorRowChoice Decide(
         IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlyList<IReadOnlyList<string>> map,
-        string operation = Replace, IReadOnlySet<string>? vehicle = null)
+        string operation = Replace)
     {
         ArgumentNullException.ThrowIfNull(map);
-        if (ListRefusal(list, head, operation, vehicle) is { } refused)
+        if (ListRefusal(list, head, operation) is { } refused)
         {
             return GlassEditorRowChoice.Refused(refused);
         }
@@ -729,17 +898,17 @@ internal static class GlassEditorRows
         var replace = Group(map, Replace);
         if (parts.Count > 1 || replace.Count > 1 || !parts.All(Plain) || !replace.All(Plain))
         {
-            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
         }
 
         var refit = Group(map, RemoveAndRefit);
         if (operation != Replace && (refit.Count > 1 || !refit.All(Plain)))
         {
-            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
         }
         if (parts.Count == 1 && RowOf(parts[0]) != row.Id)
         {
-            return GlassEditorRowChoice.Refused(Uncertain(vehicle));
+            return GlassEditorRowChoice.Refused(GlassEstimateBuildPolicy.EquipmentCode);
         }
 
         var block = Block(list, head).ToList();

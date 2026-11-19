@@ -901,25 +901,38 @@ compose Glass's, each tool is refused with "Glass's is not available."
   answer leads to and that row's part number before it is posted as
   served. The act keeps the answer, the row pair and the stored values it
   changed, and says when the answer was stored though the add was then
-  refused. Repair and remove-and-refit on such a part stay refused, with
-  `glass.build.equipment_part_only` (R1172), and the server's rebuild of an
-  outside estimate answers no question (R1168, R1169, R1172).
-- A part that asks no question but is shown or hidden on its drawing by
-  equipment is added as any certain part when the vehicle's criteria show
-  it, as Glass's editor shows it and opens its dialog with no question
-  (19 November 2026; R1206). One the vehicle's criteria hide is refused
-  with `glass.build.equipment_hidden`. For the Actor
-  `glass.build.equipment` means only that the row asks Glass's equipment
-  question and no answer was given, and an add or a preview always carries
-  the question with it. Every other equipment refusal has a code of its
-  own: `glass.build.equipment_wheel` for a wheel, which Glass's chooses in
-  its own wheel selector, and `glass.build.equipment_uncertain` for a part
-  whose rows depend on equipment Glass's does not ask about for it. Judged
-  offline against the editor's own click on both captured part lists: of
-  the heads that ask nothing and that the vehicle's equipment shows, 40 of
-  61 on the SEAT's list and 46 of 72 on the BMW's give the editor's own
-  row pair; the others are refused with a reason, and none gives another
-  pair.
+  refused. The server's rebuild of an outside estimate answers no question
+  (R1168, R1169, R1172).
+- Every part a person can add the Actor can add (19 November 2026; R1206,
+  the operator: "claude should be able to essentially independantly do an
+  estimate"). An add is decided as a person's click on the row named
+  decides it, by the editor's own rule, and by that row alone: a part
+  Glass's lists on several drawings is added by the row the Actor names,
+  and nothing is refused as having more than one row. That rule covers
+  heads that ask nothing, heads shown on their drawing by equipment the
+  vehicle has, parts whose rows have variants Glass's does not ask about,
+  parts that offer no Replace (asked for with their remove-and-refit time
+  row, as the editor asks them), and wheels: a wheel's question is its
+  rims, a person's choice in Glass's wheel selector, and the answer names
+  the wheel's own criteria. An equipment answer is taken with any
+  operation, as the editor asks a part's dialog by one row pair whatever
+  the operation; the operation is chosen in the dialog. A variant row's
+  own part number finds its head in the search, with the variant named,
+  and the search for that variant's row gives each answer that leads to
+  it. Judged offline against the editor's own code on both captured part
+  lists, for every head the vehicle's equipment shows and every answer to
+  those that ask: the same row pair for all 1,752 answers on the SEAT's
+  list and all 2,675 on the BMW's where the editor gives a part, both
+  refusing the rest, the same stored answer for all 1,077 and 1,821, and
+  the same question for all 20 wheels.
+- A part the vehicle's equipment hides on its drawing is not shown by
+  Glass's editor, so a person cannot click it either. It is refused with
+  `glass.build.equipment_hidden`, naming each stored value that hides it
+  (Glass's code and name, whether the vehicle has it or lacks it) and the
+  heads of the same drawing whose question offers it, where an answer
+  would change it. For the Actor `glass.build.equipment` means only that
+  the row asks Glass's equipment question and no answer was given, and an
+  add or a preview always carries the question with it.
 - A session the Automation owns has no lifetime, as any Glass's session.
   Staff see it on its Case, and any member of staff who can open the Case's
   assessment may close it with a reason (R1180;

@@ -251,6 +251,25 @@ public sealed record GlassEquipmentQuestion(IReadOnlyList<GlassEquipmentOption> 
 public sealed record GlassEquipmentChange(string Code, bool Ticked);
 
 /// <summary>
+/// A stored value that hides a part on its drawing for the vehicle, so
+/// Glass's editor does not show it (R1206): Glass's code and own name for
+/// it, whether the vehicle has it (it hides the part) or lacks it (the part
+/// needs it), and the heads of the same drawing whose equipment question
+/// offers it, where an answer would change it.
+/// </summary>
+public sealed record GlassEquipmentHiding(string Code, string? Name, bool Has, IReadOnlyList<string> AnsweredOn);
+
+/// <summary>
+/// A variant row of a part, found by its part number (R1206): its row and
+/// part number. Asked for alone, the search also gives each answer to the
+/// head's question that leads to it.
+/// </summary>
+public sealed record GlassCatalogueVariant(string Row, string? PartNumber)
+{
+    public IReadOnlyList<GlassEquipmentAnswer>? Answers { get; init; }
+}
+
+/// <summary>
 /// One position act of the Automation's session: what was asked, what became
 /// of it and what Glass's served. Only the figures Glass's own dialog served
 /// are kept; none is ever typed (R1168).
@@ -348,6 +367,9 @@ public sealed record GlassAutomationAct(
     /// <summary>The values Glass's held for the vehicle that the add's equipment answer changed.</summary>
     public IReadOnlyList<GlassEquipmentChange> EquipmentChanged { get; init; } = [];
 
+    /// <summary>The stored values that hide the part on its drawing, kept on an add refused as hidden.</summary>
+    public IReadOnlyList<GlassEquipmentHiding> HiddenBy { get; init; } = [];
+
     /// <summary>
     /// Whether the add's equipment answer was sent to Glass's, which keeps it
     /// for the vehicle as it keeps a person's: recorded just before it is
@@ -375,6 +397,9 @@ public static class GlassAutomationPositionPolicy
     // GlassEstimateBuildPolicy.EquipmentCode means only that the row asks
     // Glass's equipment question and no answer was given, and it always
     // carries the question; every other equipment refusal has a code below.
+    // A wheel, a part that offers no Replace, a part whose rows depend on
+    // equipment it does not ask about and Repair or remove-and-refit on a
+    // part that asks are added as the editor's own click adds them (R1206).
 
     /// <summary>An answer names a code that is not an option of the part's question.</summary>
     public const string EquipmentUnknownCode = "glass.build.equipment_unknown";
@@ -397,29 +422,14 @@ public static class GlassAutomationPositionPolicy
     /// <summary>A part the vehicle's equipment hides on its drawing, so Glass's editor does not show it.</summary>
     public const string EquipmentHiddenCode = "glass.build.equipment_hidden";
 
-    /// <summary>A wheel: Glass's editor chooses its rows with its own wheel selector, which is not built.</summary>
-    public const string EquipmentWheelCode = "glass.build.equipment_wheel";
-
     /// <summary>
-    /// A part whose rows depend on equipment Glass's editor does not ask about
-    /// for it: its block or its equipment map has variants the question does
-    /// not cover, so the rows the editor would choose are not certain.
+    /// Whether an add may give an equipment answer: a part, with any
+    /// operation, as the editor asks a part's dialog by one row pair whatever
+    /// the operation and the operation is chosen in the dialog (R1206, 19
+    /// November 2026; in place of Part alone).
     /// </summary>
-    public const string EquipmentUncertainCode = "glass.build.equipment_uncertain";
-
-    /// <summary>
-    /// A part whose row asks Glass's equipment question, added with another
-    /// operation than Part: the question is answered for Part only (R1172, R1206).
-    /// </summary>
-    public const string EquipmentPartOnlyCode = "glass.build.equipment_part_only";
-
-    /// <summary>
-    /// Whether an add may give an equipment answer: a part added as Part
-    /// (Replace) only. Repair and remove-and-refit on a part whose row asks
-    /// stay refused (R1172, R1206).
-    /// </summary>
-    public static bool TakesEquipment(GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation) =>
-        kind == GlassAutomationPositionKind.Part && operation == GlassAutomationPartOperation.Part;
+    public static bool TakesEquipment(GlassAutomationPositionKind? kind) =>
+        kind == GlassAutomationPositionKind.Part;
 
     /// <summary>
     /// Why an equipment answer is not one Glass's dialog would take, before
@@ -641,7 +651,7 @@ public static class GlassAutomationPositionPolicy
             return FirstTyped(inputs);
         }
         if (inputs.Equipment is { } equipment
-            && (!TakesEquipment(kind, operation) || equipment.Any(string.IsNullOrWhiteSpace)))
+            && (!TakesEquipment(kind) || equipment.Any(string.IsNullOrWhiteSpace)))
         {
             return "inputs.equipment";
         }
@@ -947,6 +957,9 @@ public sealed record GlassAutomationCatalogueRow(
     string? PartCode, string? PartNumber, string? Side, bool Paintable)
 {
     public GlassEquipmentQuestion? Equipment { get; init; }
+
+    /// <summary>The variant row a part number found, when the head was found by a variant's number (R1206).</summary>
+    public GlassCatalogueVariant? Variant { get; init; }
 }
 
 /// <summary>
@@ -1221,4 +1234,7 @@ public sealed record GlassAutomationPreview(GlassRepairEstimateSession Session, 
 {
     /// <summary>With <see cref="GlassEstimateBuildPolicy.EquipmentCode"/>: the part's equipment question, as the search gives it.</summary>
     public GlassEquipmentQuestion? Equipment { get; init; }
+
+    /// <summary>With <see cref="GlassAutomationPositionPolicy.EquipmentHiddenCode"/>: the stored values that hide the part.</summary>
+    public IReadOnlyList<GlassEquipmentHiding> HiddenBy { get; init; } = [];
 }

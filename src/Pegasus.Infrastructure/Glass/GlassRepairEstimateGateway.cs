@@ -487,8 +487,7 @@ public sealed partial class GlassRepairEstimateGateway(
                         else
                         {
                             (request, reason, opened) = await Positions.ChoosePartAsync(
-                                session, editor, opened, parts, act.KeyKind, act.Key, act.Side, operation, vehicle: null,
-                                cancellationToken);
+                                session, editor, opened, parts, act.KeyKind, act.Key, act.Side, operation, cancellationToken);
                         }
                     }
                     else
@@ -1421,7 +1420,7 @@ public sealed partial class GlassRepairEstimateGateway(
         provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
         session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, session.FailureCode,
             provider, material.CallbackDigest, Kept(material), cancellationToken);
-        return new(session, dialog, code) { Equipment = equipment };
+        return new(session, dialog, code) { Equipment = equipment?.Question, HiddenBy = equipment?.HiddenBy ?? [] };
     }
 
     /// <summary>

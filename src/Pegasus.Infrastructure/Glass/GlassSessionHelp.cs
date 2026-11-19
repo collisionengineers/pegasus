@@ -228,7 +228,7 @@ public sealed partial class GlassSessionHelp(
         using var turn = Enter(session);
         var (dialog, code, opened, equipment) = await Work.PreviewAsync(session, turn.Editor, turn.Opened, draft, cancellationToken);
         Keep(session, turn.Editor, opened);
-        return new(session, dialog, code) { Equipment = equipment };
+        return new(session, dialog, code) { Equipment = equipment?.Question, HiddenBy = equipment?.HiddenBy ?? [] };
     }
 
     /// <summary>

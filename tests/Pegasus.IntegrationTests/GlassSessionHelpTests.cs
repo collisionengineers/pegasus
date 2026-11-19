@@ -548,6 +548,36 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// In the Engineer's session a part the car's equipment hides is refused
+    /// as in the Automation's own, naming what hides it (R1206): the
+    /// scripted list's roof panel with the panoramic roof stored.
+    /// </summary>
+    [Fact]
+    public async Task AHiddenPartNamesWhatHidesItInTheEngineersSession()
+    {
+        var help = Help.Create();
+        help.Glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList().Replace(
+            SeatNoPanoramicRoof, SeatPanoramicRoof, StringComparison.Ordinal)));
+
+        var roof = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-roof-hidden",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "525",
+                Operation = GlassAutomationPartOperation.Part,
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, roof.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, roof.Act.Code);
+        Assert.Equal("20011", Assert.Single(roof.Act.HiddenBy).Code);
+        Assert.Equal(0, help.Glass.Count("GET /ere/aco/service.php"));
+        Assert.Equal(0, help.Glass.Count("GET /ere/aco/comp.php"));
+    }
+
+    /// <summary>
     /// A preview in the Engineer's session (R1206) reads the lists and the
     /// dialog on the held key, posts nothing, records no history row and
     /// does not ask the window to redraw.

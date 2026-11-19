@@ -365,6 +365,18 @@ public sealed class AutomationGlassIngressTests
             Assert.Equal("Fog Lamp", options[0].GetProperty("name").GetString());
             Assert.Equal("144", options[1].GetProperty("group").GetString());
             Assert.Equal(8, equipment.GetProperty("answers").GetArrayLength());
+        }
+
+        // A variant's own part number finds its head, and its row the answers that lead to it (R1206).
+        using (var keyless = await PostMcpAsync(client, token, ToolCallPayload(21, "pegasus_glass_catalogue_search", new { caseId, row = "276" })))
+        {
+            var structured = await ReadStructuredContentAsync(keyless);
+            var item = Assert.Single(structured.GetProperty("items").EnumerateArray());
+            Assert.Equal("274", item.GetProperty("row").GetString());
+            var variant = item.GetProperty("variant");
+            Assert.Equal("276", variant.GetProperty("row").GetString());
+            Assert.Equal("5G0837205NGRU", variant.GetProperty("partNumber").GetString());
+            Assert.Equal(2, variant.GetProperty("answers").GetArrayLength());
             version = structured.GetProperty("session").GetProperty("version").GetInt64();
         }
 

@@ -56,7 +56,7 @@ internal static class AutomationToolText
     // preview and inputs sentences, are drafts for the operator under R1206
     // (19 November 2026).
     public const string GlassPositionAct =
-        "Add a position to the Automation's open Glass's estimate, change or remove one already on it, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. It also types hours, a price and overlap hours as a person would, with the Automation's own reason when the hours are above Glass's own; Pegasus never writes a reason. On a part that can be painted it chooses the paint type, level and Surcharge and types the paint hours. No part number or description is typed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. change takes the id of any position on the estimate and inputs, and posts the position's own dialog, the one Glass's opens for it, with the hours, price, overlap hours, reason and paint inputs gives, the OK to no figures and the optional parts to tick; it reads the estimate before and after, and the position's own figures once changed. preview takes what add takes, or a position id with the inputs a change would give, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add, change and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again, or the position before changing it again.";
+        "Add a position to the Automation's open Glass's estimate, change or remove one already on it, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. It also types hours, a price and overlap hours as a person would, with the Automation's own reason when the hours are above Glass's own; Pegasus never writes a reason. On a part that can be painted it chooses the paint type, level and Surcharge and types the paint hours. No part number or description is typed. A part is added by the row named, as a person's click on that row adds it. A part whose row asks Glass's equipment question, a wheel's included, is added with inputs.equipment, the answer a person would give, with any operation; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. A part the vehicle's equipment hides is refused with what hides it. remove takes a position id. change takes the id of any position on the estimate and inputs, and posts the position's own dialog, the one Glass's opens for it, with the hours, price, overlap hours, reason and paint inputs gives, the OK to no figures and the optional parts to tick; it reads the estimate before and after, and the position's own figures once changed. preview takes what add takes, or a position id with the inputs a change would give, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add, change and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again, or the position before changing it again.";
 
     // The parameter and field descriptions and the refusals of the catalogue
     // search and the position act that the ruled set (R1178) does not hold.
@@ -121,10 +121,7 @@ internal static class AutomationToolText
     // 2026). Drafts for the operator to approve on the merge request.
     public const string GlassEquipmentCodes =
         "glass.build.equipment: the row asks Glass's equipment question; answer it with inputs.equipment. "
-        + "glass.build.equipment_hidden: the vehicle's equipment hides this part on its drawing, so Glass's does not show it. "
-        + "glass.build.equipment_wheel: a wheel, which Glass's chooses in its own wheel selector; not built. "
-        + "glass.build.equipment_uncertain: the part's rows depend on equipment Glass's does not ask about for it; not built. "
-        + "glass.build.equipment_part_only: the row asks Glass's equipment question, which is answered only to add the part as part.";
+        + "glass.build.equipment_hidden: the vehicle's equipment hides this part on its drawing, so Glass's does not show it; hiddenBy names that equipment and the rows whose question can change it.";
 
     public const string GlassActPositionIds = "The positions the add put on the estimate.";
 
@@ -147,7 +144,7 @@ internal static class AutomationToolText
     // and its own "Criteria affects other parts!" are passed through as
     // Glass's gives them.
 
-    public const string GlassSearchRow = "A part's row from an earlier search: the search answers that row alone, with each answer to its equipment question that leads to a part.";
+    public const string GlassSearchRow = "A part's row from an earlier search, a head or a variant: the search answers that row's head alone, with each answer to its equipment question that leads to a part, and for a variant the answers that lead to it.";
 
     public const string GlassCatalogueEquipment = "Present only when Glass's asks an equipment question before it adds this part: the options as Glass's dialog shows them, and with row each answer that leads to a part.";
 
@@ -177,9 +174,9 @@ internal static class AutomationToolText
 
     public const string GlassAddInputs = "add, change and preview: what to give Glass's dialog for the position, as a person would; omit it with add to give nothing and take the dialog as served. A change gives at least one.";
 
-    public const string GlassInputsEquipment = "A part added as part whose row asks Glass's equipment question: the option codes to tick, from the row's equipment in pegasus_glass_catalogue_search; [] ticks none. It is the whole answer: an option not named is unticked, even one the vehicle has now. Glass's keeps the answer for the vehicle, as it keeps a person's. Omit it for a row that asks nothing.";
+    public const string GlassInputsEquipment = "A part whose row asks Glass's equipment question, with any operation: the option codes to tick, from the row's equipment in pegasus_glass_catalogue_search; [] ticks none. It is the whole answer: an option not named is unticked, even one the vehicle has now. Glass's keeps the answer for the vehicle, as it keeps a person's. Omit it for a row that asks nothing.";
 
-    public const string GlassInputsEquipmentRefused = "inputs.equipment is given only to add a part as part, and holds option codes, none blank.";
+    public const string GlassInputsEquipmentRefused = "inputs.equipment is given only to add a part, and holds option codes, none blank.";
 
     // The dialog's own inputs and the preview (R1206, 19 November 2026):
     // drafts for the operator to approve on the merge request. Glass's own
@@ -272,6 +269,18 @@ internal static class AutomationToolText
 
     public const string GlassPreviewCode = "preview: the glass.* code when no dialog was read, such as a row that is not certain or an equipment question with no answer. " + GlassEquipmentCodes;
 
+    // A part's variants and what hides a part (R1206; 19 November 2026). Drafts for the operator.
+
+    public const string GlassCatalogueVariant = "Present when a variant row's own part number matched: the variant's row and part number. Search again with row set to the variant's row for the answers that lead to it.";
+
+    public const string GlassCatalogueVariantAnswers = "With row set to a variant's row: each answer to the head's equipment question that leads to that variant; add the head's row with one of them.";
+
+    public const string GlassHiddenBy = "A part the vehicle's equipment hides: each stored value that hides it, with Glass's own name.";
+
+    public const string GlassHidingHas = "true: the vehicle has it, and it hides the part; false: the part needs it, and the vehicle lacks it.";
+
+    public const string GlassHidingAnsweredOn = "The rows on the same drawing whose equipment question offers it; an answer there changes it.";
+
     public const string GlassPreviewEquipment = "preview, with glass.build.equipment: the part's equipment question, as the search gives it.";
 
     public const string GlassPreviewKind = "part_paintable (a part with a paint section and the Part, Paint and Part and Paint buttons), part, or special_operation.";
@@ -324,7 +333,7 @@ internal static class AutomationToolText
 
     public const string GlassActEquipment = "An add refused on a part's equipment question: the question, as the search gives it.";
 
-    public const string GlassActRowPair = "The rows Glass's dialog was asked for, as the equipment answer chose them.";
+    public const string GlassActRowPair = "The rows Glass's dialog was asked for, as a person's click on the row, with the equipment answer, chooses them.";
 
     public const string GlassActEquipmentChanged = "The options whose value Glass's held for the vehicle the answer changed, each with its new tick.";
 

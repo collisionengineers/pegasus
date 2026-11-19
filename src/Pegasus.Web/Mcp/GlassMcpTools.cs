@@ -204,6 +204,17 @@ internal sealed record GlassEquipmentToolItem(
 
 internal sealed record GlassEquipmentChangeToolItem(string Code, bool Ticked);
 
+internal sealed record GlassEquipmentHidingToolItem(
+    [property: Description(AutomationToolText.GlassEquipmentOptionCode)] string Code,
+    [property: Description(AutomationToolText.GlassEquipmentOptionName)] string? Name,
+    [property: Description(AutomationToolText.GlassHidingHas)] bool Has,
+    [property: Description(AutomationToolText.GlassHidingAnsweredOn)] IReadOnlyList<string> AnsweredOn);
+
+internal sealed record GlassCatalogueVariantToolItem(
+    string Row,
+    string? PartNumber,
+    [property: Description(AutomationToolText.GlassCatalogueVariantAnswers)] IReadOnlyList<GlassEquipmentAnswerToolItem>? Answers);
+
 internal sealed record GlassActToolItem(
     string OperationKey,
     [property: Description(AutomationToolText.GlassPositionAction)] string Action,
@@ -227,7 +238,8 @@ internal sealed record GlassActToolItem(
     [property: Description(AutomationToolText.GlassActEquipmentStored)] bool? EquipmentStored = null,
     [property: Description(AutomationToolText.GlassActServed)] GlassFiguresToolItem? Served = null,
     [property: Description(AutomationToolText.GlassActSent)] GlassFiguresToolItem? Sent = null,
-    [property: Description(AutomationToolText.GlassActPosition)] GlassPositionToolItem? Position = null);
+    [property: Description(AutomationToolText.GlassActPosition)] GlassPositionToolItem? Position = null,
+    [property: Description(AutomationToolText.GlassHiddenBy)] IReadOnlyList<GlassEquipmentHidingToolItem>? HiddenBy = null);
 
 internal sealed record GlassSessionGetToolResult(
     Guid CaseId,
@@ -250,7 +262,8 @@ internal sealed record GlassCatalogueRowToolItem(
     string? PartNumber,
     [property: Description(AutomationToolText.GlassCatalogueSide)] string? Side,
     [property: Description(AutomationToolText.GlassCataloguePaintable)] bool Paintable,
-    [property: Description(AutomationToolText.GlassCatalogueEquipment)] GlassEquipmentToolItem? Equipment = null);
+    [property: Description(AutomationToolText.GlassCatalogueEquipment)] GlassEquipmentToolItem? Equipment = null,
+    [property: Description(AutomationToolText.GlassCatalogueVariant)] GlassCatalogueVariantToolItem? Variant = null);
 
 internal sealed record GlassCatalogueSearchToolResult(
     Guid CaseId,
@@ -269,7 +282,8 @@ internal sealed record GlassPositionActToolResult(
     [property: Description(AutomationToolText.GlassShownInWindow)] bool? ShownInWindow = null,
     [property: Description(AutomationToolText.GlassPreviewDialog)] GlassDialogToolItem? Dialog = null,
     [property: Description(AutomationToolText.GlassPreviewCode)] string? PreviewCode = null,
-    [property: Description(AutomationToolText.GlassPreviewEquipment)] GlassEquipmentToolItem? Equipment = null);
+    [property: Description(AutomationToolText.GlassPreviewEquipment)] GlassEquipmentToolItem? Equipment = null,
+    [property: Description(AutomationToolText.GlassHiddenBy)] IReadOnlyList<GlassEquipmentHidingToolItem>? HiddenBy = null);
 
 internal sealed record GlassSessionActToolResult(
     Guid CaseId,
@@ -545,7 +559,10 @@ internal sealed class GlassMcpTools(
                     .Take(pageSize)
                     .Select(item => new GlassCatalogueRowToolItem(
                         item.Row, KindName(item.Kind), item.Description, item.PartCode, item.PartNumber, item.Side,
-                        item.Paintable, MapEquipment(item.Equipment)))
+                        item.Paintable, MapEquipment(item.Equipment),
+                        item.Variant is { } variant
+                            ? new GlassCatalogueVariantToolItem(variant.Row, variant.PartNumber, MapAnswers(variant.Answers))
+                            : null))
                     .ToList();
                 var next = offset + pageSize < found.Rows.Count
                     ? cursors.Protect(scope, (offset + pageSize).ToString(CultureInfo.InvariantCulture), searched)
@@ -704,7 +721,7 @@ internal sealed class GlassMcpTools(
 
         return new GlassPositionActToolResult(
             caseId, Map(previewed.Session), null, key, Dialog: MapDialog(previewed.Dialog), PreviewCode: previewed.Code,
-            Equipment: MapEquipment(previewed.Equipment));
+            Equipment: MapEquipment(previewed.Equipment), HiddenBy: MapHidden(previewed.HiddenBy));
     }
 
     /// <summary>A preview's dialog as the tool answers it; Glass's own labels and texts pass through unchanged.</summary>
@@ -1088,7 +1105,14 @@ internal sealed class GlassMcpTools(
             act.EquipmentStored ? true : null,
             MapFigures(act.DialogServed),
             MapFigures(act.Sent),
-            act.Position is { } position ? MapPosition(position) : null);
+            act.Position is { } position ? MapPosition(position) : null,
+            HiddenBy: MapHidden(act.HiddenBy));
+
+    /// <summary>What hides a part, as the tools answer it; Glass's own names pass through unchanged.</summary>
+    private static List<GlassEquipmentHidingToolItem>? MapHidden(IReadOnlyList<GlassEquipmentHiding> hiding) =>
+        hiding.Count == 0
+            ? null
+            : hiding.Select(item => new GlassEquipmentHidingToolItem(item.Code, item.Name, item.Has, item.AnsweredOn)).ToList();
 
     private static GlassFiguresToolItem? MapFigures(GlassAutomationFigures? figures) =>
         figures is null

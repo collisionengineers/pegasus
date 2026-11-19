@@ -1710,15 +1710,15 @@ it stopped.
     `glass.build.equipment_greyed` (an option Glass's greys out),
     `glass.build.equipment_repeated` (a code named twice),
     `glass.build.equipment_same_group` (two options of one group),
-    `glass.build.equipment_no_part` (it leads to no part or no Replace
-    hours) or `glass.build.equipment_not_asked` (the row asks nothing).
-    The Automation's add or preview is also refused, with nothing sent, as
-    `glass.build.equipment_hidden` (the vehicle's equipment hides the part
-    on its drawing), `glass.build.equipment_wheel` (a wheel, chosen in
-    Glass's own wheel selector), `glass.build.equipment_uncertain` (its rows
-    depend on equipment Glass's does not ask about for it) or
-    `glass.build.equipment_part_only` (the row asks a question, and the
-    operation is not Part). An
+    `glass.build.equipment_no_part` (it leads to no part or no time row)
+    or `glass.build.equipment_not_asked` (the row asks nothing).
+    The Automation's add or preview of a part the vehicle's equipment hides
+    is refused, with nothing sent, as `glass.build.equipment_hidden`; its
+    `hiddenBy` names the stored values that hide it (19 November 2026;
+    R1206). Its other adds are decided as a person's click on the row named
+    decides them, so `glass.build.ambiguous_row` and the rebuild's
+    `glass.build.equipment` for wheels, parts that offer no Replace and
+    parts with unasked variants do not come back to it. An
     act whose `equipmentStored` is true sent the answer to Glass's, which
     keeps it for the vehicle even when the add was then refused.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
