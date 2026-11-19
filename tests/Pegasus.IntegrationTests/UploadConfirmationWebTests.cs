@@ -200,6 +200,97 @@ public sealed class UploadConfirmationWebTests
     }
 
     /// <summary>
+    /// A Garage authorisation and invoice Audit that lacks only its External
+    /// estimate enters Review when the estimate uploaded from the Case is
+    /// filed, in the same processing pass, not on the Worker's next sweep
+    /// (operator, 18 November 2026; R1196).
+    /// </summary>
+    [Fact]
+    public async Task AnEstimateUploadedToAGarageAuditMovesItWhenItIsFiled()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 GAR", "DECLARED-GARAGE-01");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows
+                .Include(item => item.Case)
+                .SingleAsync(item => item.CaseId == caseId);
+            workflow.Case.Type = CaseTypeCodes.Audit;
+            workflow.Case.AuditWorkflow = Pegasus.Core.Cases.PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode;
+            workflow.Case.ImagesComplete = true;
+            workflow.State = nameof(CaseLifecycleState.NotReady);
+            workflow.AssignedEngineerId = null;
+            // The Case folder exists, so the upload is filed, not left pending.
+            workflow.Case.CustodyState = "confirmed";
+            workflow.Case.CustodyRootRemoteId = "case-root";
+            // The registration came with the instruction; the mileage is
+            // recorded here, so only the garage's estimate is missing (R1141).
+            if (!await context.CaseDataFields.AnyAsync(item =>
+                    item.WorkId == caseId && item.FieldName == Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileage))
+            {
+                var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+                context.CaseDataFields.Add(new()
+                {
+                    WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileage,
+                    ValueKind = CaseDataCodes.Confirmed, ValueType = CaseDataCodes.Integer, Value = "41200",
+                    SourceKind = "intake_evidence", SourceIdentity = "mileage", SourceLabel = "garage upload fixture",
+                    PolicyKey = "garage-upload-fixture", PolicyVersion = 1,
+                    ConfirmedByActor = "staff", ConfirmedAtUtc = now
+                });
+                context.CaseDataFields.Add(new()
+                {
+                    WorkId = caseId, FieldName = Pegasus.Core.Cases.CaseDataFieldNames.VehicleMileageUnit,
+                    ValueKind = CaseDataCodes.Confirmed, ValueType = CaseDataCodes.Text, Value = "miles",
+                    SourceKind = "intake_evidence", SourceIdentity = "mileage-unit", SourceLabel = "garage upload fixture",
+                    PolicyKey = "garage-upload-fixture", PolicyVersion = 1,
+                    ConfirmedByActor = "staff", ConfirmedAtUtc = now
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "garage-estimate.pdf",
+            "application/pdf",
+            // No photographs: a photograph's filing completes the images and
+            // moves the Case by that route, not this one.
+            IntakeTestEvidence.CreatePdf("Garage estimate for AB12 GAR"),
+            declaredCaseId: caseId,
+            documentType: Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReplayCompletedWorkAsync(replay.ServiceProvider, receiptId);
+        }
+        var estimate = Assert.Single(
+            await FiledDocumentsAsync(factory, receiptId, caseId),
+            document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.ExternalEstimate);
+
+        await using var readScope = factory.Services.CreateAsyncScope();
+        await using var read = await readScope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Equal(
+            Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed,
+            (await read.Set<DocumentVersionEntity>().AsNoTracking()
+                .SingleAsync(version => version.Id == estimate.VersionId)).CustodyStatus);
+        Assert.Equal(
+            nameof(CaseLifecycleState.Review),
+            (await read.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId)).State);
+        var completed = await read.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(item => item.CaseId == caseId
+                && item.EventType == Pegasus.Core.Lifecycle.GarageAuthorisationPolicy.RequirementsCompletedEventType);
+        Assert.Equal(
+            Pegasus.Core.Lifecycle.GarageAuthorisationPolicy.ExternalEstimateFiledReason, completed.Reason);
+    }
+
+    /// <summary>
     /// A file added from a Case takes the type chosen for it on its row
     /// (operator, 30 October 2026; R564, R565): the declared picker offers the
     /// upload types with Other chosen, an ordinary upload offers none, the
