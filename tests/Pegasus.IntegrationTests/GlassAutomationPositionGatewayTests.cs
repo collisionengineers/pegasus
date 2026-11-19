@@ -106,6 +106,86 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassRepairEstimateSessionState.Active, right.Session.State);
     }
 
+    /// <summary>
+    /// The search's lists (R1206): each Additional list is one
+    /// <c>list_1G.php</c> with its group opened after the free positions
+    /// parts, as the editor asks for it (walk #1146 to #1294), and its rows
+    /// answer the value an add takes, Glass's name, the list's name and the
+    /// dialog they open; the paint areas are one <c>list_paint.php</c>; a list
+    /// the account's tree does not hold answers its code.
+    /// </summary>
+    [Fact]
+    public async Task EachListAPersonOpensIsSearchedWithItsOwnRequest()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        harness.Mva.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("additional_list.html", null));
+        harness.Mva.Respond("GET /ere/aco/list_paint.php", _ => EditorPage("panel_paint.html", null));
+
+        var bulbs = await ListAsync(harness, session.Id, "H1", GlassAutomationCatalogueList.Bulbs);
+        var metal = await ListAsync(harness, session.Id, "Bumper", GlassAutomationCatalogueList.SpecialMetal);
+        var labour = await ListAsync(harness, session.Id, "Engine", GlassAutomationCatalogueList.AdditionalLabour);
+        var areas = await ListAsync(harness, session.Id, "Front Door", GlassAutomationCatalogueList.PaintAreas);
+        var texts = await ListAsync(harness, session.Id, "a", GlassAutomationCatalogueList.LabourDescriptions);
+
+        var bulb = Assert.Single(bulbs.Rows, row => row.Row == "AB0000000");
+        Assert.Equal(GlassAutomationPositionKind.SpecialOperation, bulb.Kind);
+        Assert.Equal("6/55 H1 Headlamp/Driving Lamp", bulb.Description);
+        Assert.Equal("part", bulb.Dialog);
+        Assert.Equal("Bulbs", bulb.Group);
+        var table = Assert.Single(metal.Rows, row => row.Row == "AL0B8005");
+        Assert.Equal(GlassAutomationPositionKind.Paint, table.Kind);
+        Assert.Equal("paint", table.Dialog);
+        Assert.Equal("Lxx8005", table.PartCode);
+        Assert.Contains(labour.Rows, row => row.Row == "AM7021600" && row.Group == "Additional Labour");
+        Assert.All(areas.Rows, row => Assert.Equal(GlassAutomationPositionKind.Paint, row.Kind));
+        Assert.Contains(areas.Rows, row => row.Row == "Lxx2010.80");
+        Assert.Empty(texts.Rows);
+        Assert.Equal(GlassAutomationPositionPolicy.ListNotOfferedCode, texts.Code);
+        Assert.Contains(harness.Mva.Requests, request => request.Path == "/ere/aco/list_1G.php"
+            && Uri.UnescapeDataString(request.Query).Contains("&tcode=SS-FREEPART|SS-BULPS", StringComparison.Ordinal));
+        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/list_paint.php"));
+    }
+
+    /// <summary>
+    /// A row of another Additional list is added by its own <c>part.php</c>
+    /// in mode A with no list read, and a paint row by its <c>lack.php</c>
+    /// (R1206): the walk's bulb with a typed price (#1257, #1275) and its
+    /// special table metal row (#1310, #1326), each read back by the code its
+    /// position carries (A0, Lxx8005).
+    /// </summary>
+    [Fact]
+    public async Task ARowOfEveryListIsAddedByTheDialogItOpens()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        harness.Mva.Respond("GET /ere/aco/part.php", _ => EditorPage("bulb_price.dialog.html", null));
+        harness.Mva.Respond("GET /ere/aco/lack.php", _ => EditorPage("lack_a.dialog.html", null));
+        harness.Mva.Respond("POST /ere/aco/compproc.php", _ => EditorPage("bulb_price.answer.html", null));
+        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(harness.Mva.Count("POST /ere/aco/compproc.php") switch
+        {
+            0 => NoPositions,
+            1 => "<script>\nvar Partids = [ '', 'A421433.15.A0.A0' ];\nvar CheckIds = [ 'A0' ];\n</script>\n",
+            _ => "<script>\nvar Partids = [ '', 'A421433.15.A0.A0', 'L421474.16.Lxx8005.Lxx8005' ];\nvar CheckIds = [ 'A0', 'Lxx8005' ];\n</script>\n",
+        }));
+
+        var bulb = await PositionAsync(harness, Add(harness, session, "mcp:bulb-1",
+            GlassAutomationPositionKind.SpecialOperation, "AB0000000", inputs: new GlassAutomationInputs(Price: 1234m)));
+        var table = await PositionAsync(harness, Add(harness, bulb.Session, "mcp:table-1",
+            GlassAutomationPositionKind.Paint, "AL0B8005"));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, bulb.Act.Outcome);
+        Assert.Equal("A0", bulb.Act.ExpectedCode);
+        Assert.Equal("A421433.15.A0.A0", Assert.Single(bulb.Act.PositionIds));
+        Assert.Equal(GlassAutomationActOutcome.Added, table.Act.Outcome);
+        Assert.Equal("Lxx8005", table.Act.ExpectedCode);
+        Assert.Equal("L421474.16.Lxx8005.Lxx8005", Assert.Single(table.Act.PositionIds));
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/list_1G.php"));
+        var posts = DialogPosts(harness);
+        Assert.Contains("&Price=1234.00&", posts[0], StringComparison.Ordinal);
+        Assert.Equal(GlassEditorFixture.Text("c7_lack_a_served.post.txt"), posts[1]);
+    }
+
     /// <summary>A list Glass's does not answer answers no rows and its code; the session stays open.</summary>
     [Fact]
     public async Task ASearchWhoseListIsNotAnsweredAnswersItsCode()
@@ -1439,6 +1519,15 @@ public sealed partial class GlassRepairEstimateGatewayTests
     {
         var found = await harness.Gateway.SearchAutomationCatalogueAsync(
             new(harness.Automation, sessionId, term, kind, side), CancellationToken.None);
+        Assert.NotNull(found);
+        return found;
+    }
+
+    private static async Task<GlassAutomationCatalogue> ListAsync(
+        Harness harness, Guid sessionId, string term, GlassAutomationCatalogueList list)
+    {
+        var found = await harness.Gateway.SearchAutomationCatalogueAsync(
+            new(harness.Automation, sessionId, term, null, null) { List = list }, CancellationToken.None);
         Assert.NotNull(found);
         return found;
     }

@@ -743,7 +743,13 @@ same button and operation and otherwise posted as served; and the optional parts
 posted for a preview. It also types a part number, a labour description and
 a special operation's own description, chooses the labour type and the side
 boxes, ticks outside work and presses the overlap hours' Full, as a person
-would. Free rows still wait. The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
+would. It also adds a row of every list a person opens under Areas >
+Additional and Areas > Paint, as a person adds it: Additional Labour,
+tyres, bulbs, labour descriptions where the account has them, the user
+defined parts with the free part ***Special*** and its typed description
+and figures, the special tables, user defined paint and the paint areas,
+each through the dialog the editor opens for it (19 November 2026; R1206).
+The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
 
 **Typed hours, price and overlap hours (19 November 2026; R1206).** In the
 dialog of a special operation or of any part, the Automation may type the labour hours, the price and the overlap hours, as a

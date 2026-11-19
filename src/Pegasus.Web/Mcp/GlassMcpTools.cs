@@ -287,7 +287,9 @@ internal sealed record GlassCatalogueRowToolItem(
     [property: Description(AutomationToolText.GlassCatalogueSide)] string? Side,
     [property: Description(AutomationToolText.GlassCataloguePaintable)] bool Paintable,
     [property: Description(AutomationToolText.GlassCatalogueEquipment)] GlassEquipmentToolItem? Equipment = null,
-    [property: Description(AutomationToolText.GlassCatalogueVariant)] GlassCatalogueVariantToolItem? Variant = null);
+    [property: Description(AutomationToolText.GlassCatalogueVariant)] GlassCatalogueVariantToolItem? Variant = null,
+    [property: Description(AutomationToolText.GlassCatalogueDialog)] string? Dialog = null,
+    [property: Description(AutomationToolText.GlassCatalogueGroup)] string? Group = null);
 
 internal sealed record GlassCatalogueSearchToolResult(
     Guid CaseId,
@@ -515,6 +517,7 @@ internal sealed class GlassMcpTools(
         [Description(AutomationToolText.PageSize)] int? limit = null,
         [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
         [Description(AutomationToolText.GlassSearchRow)] string? row = null,
+        [Description(AutomationToolText.GlassSearchList)] string? list = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -539,6 +542,26 @@ internal sealed class GlassMcpTools(
                     _ => throw new McpException(AutomationToolText.GlassSearchKindRefused),
                 };
                 var wantedSide = SideOf(side);
+                GlassAutomationCatalogueList? wantedList = list?.Trim() switch
+                {
+                    null or "" => null,
+                    "parts" => GlassAutomationCatalogueList.Parts,
+                    "special_operations" or "user_defined_parts" => GlassAutomationCatalogueList.SpecialOperations,
+                    "additional_labour" => GlassAutomationCatalogueList.AdditionalLabour,
+                    "user_defined_paint" => GlassAutomationCatalogueList.UserDefinedPaint,
+                    "labour_descriptions" => GlassAutomationCatalogueList.LabourDescriptions,
+                    "tyres" => GlassAutomationCatalogueList.Tyres,
+                    "bulbs" => GlassAutomationCatalogueList.Bulbs,
+                    "special_metal" => GlassAutomationCatalogueList.SpecialMetal,
+                    "special_plastic" => GlassAutomationCatalogueList.SpecialPlastic,
+                    "paint_areas" => GlassAutomationCatalogueList.PaintAreas,
+                    _ => throw new McpException(AutomationToolText.GlassSearchListRefused),
+                };
+                if (wantedList is not null && (wantedRow is not null || wantedKind is not null))
+                {
+                    throw new McpException(AutomationToolText.GlassSearchListRefused);
+                }
+
                 var pageSize = CursorPaging.NormalizeLimit(limit);
                 var target = await FindAsync(caseId, sessionId, cancellationToken);
                 var session = RequireActable(target);
@@ -554,7 +577,7 @@ internal sealed class GlassMcpTools(
                 var scope = CursorPaging.CreateScope(
                     "pegasus_glass_catalogue_search", context.Actor,
                     searched.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide,
-                    wantedRow);
+                    wantedRow, list?.Trim() ?? string.Empty);
                 var offset = 0;
                 if (!string.IsNullOrEmpty(cursor))
                 {
@@ -569,6 +592,7 @@ internal sealed class GlassMcpTools(
                 var query = new GlassAutomationCatalogueQuery(context.Actor, searched, wantedTerm, wantedKind, wantedSide)
                 {
                     Row = wantedRow,
+                    List = wantedList,
                 };
                 var found = target.IsStaff
                     ? await HelpAsync(() => Help.SearchAsync(query, session, cancellationToken))
@@ -586,7 +610,9 @@ internal sealed class GlassMcpTools(
                         item.Paintable, MapEquipment(item.Equipment),
                         item.Variant is { } variant
                             ? new GlassCatalogueVariantToolItem(variant.Row, variant.PartNumber, MapAnswers(variant.Answers))
-                            : null))
+                            : null,
+                        item.Dialog,
+                        item.Group))
                     .ToList();
                 var next = offset + pageSize < found.Rows.Count
                     ? cursors.Protect(scope, (offset + pageSize).ToString(CultureInfo.InvariantCulture), searched)
@@ -866,6 +892,7 @@ internal sealed class GlassMcpTools(
                 {
                     "part" => GlassAutomationPositionKind.Part,
                     "special_operation" => GlassAutomationPositionKind.SpecialOperation,
+                    "paint" => GlassAutomationPositionKind.Paint,
                     _ => throw new McpException(AutomationToolText.GlassAddKindRefused),
                 };
                 if (string.IsNullOrWhiteSpace(row))
@@ -1078,8 +1105,12 @@ internal sealed class GlassMcpTools(
         _ => throw new McpException(AutomationToolText.GlassSideRefused),
     };
 
-    private static string KindName(GlassAutomationPositionKind kind) =>
-        kind == GlassAutomationPositionKind.SpecialOperation ? "special_operation" : "part";
+    private static string KindName(GlassAutomationPositionKind kind) => kind switch
+    {
+        GlassAutomationPositionKind.SpecialOperation => "special_operation",
+        GlassAutomationPositionKind.Paint => "paint",
+        _ => "part",
+    };
 
     private static string OperationName(GlassAutomationPartOperation operation) => operation switch
     {

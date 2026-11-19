@@ -893,6 +893,8 @@ internal static partial class GlassEditorDialogs
             new GlassEditorSummary
             {
                 Position = At(record, 0),
+                // The code the position carries: the record's kind and number (Lxx and 8005 for Lxx8005).
+                PartCode = (At(record, 0) ?? string.Empty).Split('|')[0] + (At(record, 1) ?? string.Empty).Trim(),
                 Description = (At(record, 2) ?? string.Empty).Split('|')[0].Trim(),
                 PaintType = data.Get("Lackart"),
                 PaintLevel = data.Get("Lackstufe"),

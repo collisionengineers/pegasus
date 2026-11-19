@@ -67,11 +67,57 @@ public enum GlassAutomationActOutcome
     Refused,
 }
 
-/// <summary>What an added position is: a part of the vehicle's part list, or a special operation.</summary>
+/// <summary>
+/// What an added position is: a part of the vehicle's part list; a row of
+/// one of the editor's Additional lists, which opens <c>part.php</c> in mode
+/// <c>A</c> (user defined parts, the special operations, Additional Labour,
+/// labour descriptions, tyres and bulbs); or a paint row, which opens the
+/// paint dialog <c>lack.php</c> (special tables metal and plastic, user
+/// defined paint and the paint areas, R1206).
+/// </summary>
 public enum GlassAutomationPositionKind
 {
     Part,
     SpecialOperation,
+    Paint,
+}
+
+/// <summary>
+/// Which of the editor's lists a catalogue search reads (R1206): the part
+/// list, or one a person opens under Areas &gt; Additional (each a group of
+/// <c>list_1G.php</c>) or Areas &gt; Paint (<c>list_paint.php</c>).
+/// </summary>
+public enum GlassAutomationCatalogueList
+{
+    /// <summary>The vehicle's part list (<c>list.php</c>).</summary>
+    Parts,
+
+    /// <summary>"Free positions parts" (<c>SS-FREEPART</c>): the user defined parts, the free part ***Special*** among them.</summary>
+    SpecialOperations,
+
+    /// <summary>"Additional Labour" (<c>DS-AUXWORK-702</c>).</summary>
+    AdditionalLabour,
+
+    /// <summary>"Free positions paint" (<c>SS-FREEPAINT</c>).</summary>
+    UserDefinedPaint,
+
+    /// <summary>Labour descriptions (<c>SS-FREETEXT</c>), where the account offers them.</summary>
+    LabourDescriptions,
+
+    /// <summary>"Tyres" (<c>SS-TYRES</c>).</summary>
+    Tyres,
+
+    /// <summary>"Bulbs" (<c>SS-BULPS</c>).</summary>
+    Bulbs,
+
+    /// <summary>"Special table metal" (<c>SS-SPECMET</c>).</summary>
+    SpecialMetal,
+
+    /// <summary>"Special table plastic" (<c>SS-SPECPLA</c>).</summary>
+    SpecialPlastic,
+
+    /// <summary>The paint areas (<c>list_paint.php</c>).</summary>
+    PaintAreas,
 }
 
 /// <summary>The operation a part is added with.</summary>
@@ -443,6 +489,9 @@ public static class GlassAutomationPositionPolicy
     /// <summary>A row neither of the session's lists holds, or a position the estimate does not hold.</summary>
     public const string RowUnknownCode = "glass.row.unknown";
 
+    /// <summary>The account's editor does not offer the list asked for (its Additional tree has no such group, R1206).</summary>
+    public const string ListNotOfferedCode = "glass.list.not_offered";
+
     // The refusals of an equipment answer (R1206), each made before anything
     // is sent to Glass's. For the Automation's add and preview,
     // GlassEstimateBuildPolicy.EquipmentCode means only that the row asks
@@ -683,6 +732,16 @@ public static class GlassAutomationPositionPolicy
         {
             // A position already on the estimate: what its dialog lets a person change (R1206).
             return ChangeRefused(inputs);
+        }
+        if (kind == GlassAutomationPositionKind.Paint)
+        {
+            // A paint row's own dialog (lack.php) takes its paint, its side boxes and a free row's description.
+            if (inputs.Paint is { } paint && paint.Area is not null)
+            {
+                return "inputs.paint";
+            }
+
+            return FirstGiven(inputs with { Paint = null, Place = null, Description = null });
         }
         if (kind != GlassAutomationPositionKind.Part)
         {
@@ -1072,6 +1131,9 @@ public sealed record GlassAutomationCatalogueQuery(
     ActionActor Actor, Guid SessionId, string Term, GlassAutomationPositionKind? Kind, string? Side)
 {
     public string? Row { get; init; }
+
+    /// <summary>The one list to read (R1206); null reads the part list and the special operations, as before.</summary>
+    public GlassAutomationCatalogueList? List { get; init; }
 }
 
 /// <summary>
@@ -1091,6 +1153,15 @@ public sealed record GlassAutomationCatalogueRow(
 
     /// <summary>The variant row a part number found, when the head was found by a variant's number (R1206).</summary>
     public GlassCatalogueVariant? Variant { get; init; }
+
+    /// <summary>
+    /// The dialog the row opens, by the editor's own OpenCompDialogWindow
+    /// (R1206): <c>part</c>, <c>part_paintable</c> or <c>paint</c>.
+    /// </summary>
+    public string? Dialog { get; init; }
+
+    /// <summary>Glass's name for the list group the row is in, where the list names one (R1206).</summary>
+    public string? Group { get; init; }
 }
 
 /// <summary>

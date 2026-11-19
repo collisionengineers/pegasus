@@ -272,12 +272,32 @@ internal static class GlassEditorPanel
     /// </summary>
     public static Dictionary<string, string> ZoneLevels(string html)
     {
-        ArgumentNullException.ThrowIfNull(html);
         var levels = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in PaintList(html))
+        {
+            if (row.Count > 16 && row[16].Length > 0)
+            {
+                levels.TryAdd(row[16], row[15]);
+            }
+        }
+
+        return levels;
+    }
+
+    /// <summary>
+    /// The paint list's rows (<c>list_paint.php</c>'s <c>lacklist</c>), each
+    /// as its strings: field 0 the row a paint dialog is asked for by
+    /// (<c>Lxx4200.480</c>), 1 its marks, 2 its name, 3 its group's name on
+    /// the group's first row (R1206). Empty when the page holds no list.
+    /// </summary>
+    public static List<IReadOnlyList<string>> PaintList(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var rows = new List<IReadOnlyList<string>>();
         var start = html.IndexOf("lacklist = [", StringComparison.Ordinal);
         if (start < 0)
         {
-            return levels;
+            return rows;
         }
 
         var index = start + "lacklist = [".Length;
@@ -306,21 +326,21 @@ internal static class GlassEditorPanel
             else if (character == '[')
             {
                 depth++;
-                row.Clear();
+                row = [];
             }
             else if (character == ']')
             {
                 depth--;
-                if (depth == 1 && row.Count > 16 && row[16].Length > 0)
+                if (depth == 1 && row.Count > 0)
                 {
-                    levels.TryAdd(row[16], row[15]);
+                    rows.Add(row);
                 }
             }
 
             index++;
         }
 
-        return levels;
+        return rows;
     }
 
     /// <summary>The hours the panel's repair spinner holds, typed as the Automation types them: one decimal place.</summary>

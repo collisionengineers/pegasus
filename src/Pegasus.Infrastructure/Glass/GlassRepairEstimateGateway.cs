@@ -1375,7 +1375,7 @@ public sealed partial class GlassRepairEstimateGateway(
         var editor = NewEditorClient(provider.EditorLastRequestAtUtc);
         var (rows, code, opened) = await Positions.SearchAsync(
             session, editor, open.Session(), query.Term.Trim(), query.Kind, query.Side,
-            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), cancellationToken);
+            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), query.List, cancellationToken);
         provider.Editor = EditorState.Of(opened);
         provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
         session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, session.FailureCode,

@@ -38,6 +38,20 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
         + groups + "&win7=1";
 
     /// <summary>
+    /// One of the Additional lists (<c>list_1G.php</c>, R1206) as the editor
+    /// asks for it when a person opens its group in the tree after the free
+    /// positions parts (walk #1146, #1223, #1237, #1294; r #638): the
+    /// editor's group list, and the groups opened, the free positions parts
+    /// first.
+    /// </summary>
+    public string AdditionalList(string group) =>
+        session.BaseAddress + "list_1G.php?" + Q + "&cml=A&ds=" + AdditionalGroups + "&html5svg=1&win7=1&tcode="
+        + SpecialListGroup + "|" + group;
+
+    /// <summary>The editor's Additional group list, as every capture's <c>list_1G.php</c> address carries it.</summary>
+    private const string AdditionalGroups = "DS-AUXWORK-702|SS-FREEPAINT|SS-FREEPART|SS-SPECMET|SS-SPECPL";
+
+    /// <summary>
     /// The vehicle's part list (<c>list.php</c>, about 2 MB), with the
     /// editor's group list in its address as the graph page asks for it.
     /// </summary>

@@ -85,7 +85,7 @@ public sealed partial class GlassSessionHelp(
         using var turn = Enter(session);
         var (rows, code, opened) = await Work.SearchAsync(
             session, turn.Editor, turn.Opened, query.Term.Trim(), query.Kind, query.Side,
-            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), cancellationToken);
+            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), query.List, cancellationToken);
         Keep(session, turn.Editor, opened);
         return new(session, rows, code);
     }

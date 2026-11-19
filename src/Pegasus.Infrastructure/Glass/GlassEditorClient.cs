@@ -33,6 +33,13 @@ internal enum GlassEditorDialog
 
     /// <summary>A special operation: <c>part.php</c> for its code, in mode <c>A</c>.</summary>
     SpecialOperation,
+
+    /// <summary>
+    /// A paint row (R1206): <c>lack.php</c> for its code, in mode <c>L</c>
+    /// for a paint area's row (<c>Lxx…</c>) and <c>A</c> for an Additional
+    /// list's (<c>AL…</c>), as the editor opens them.
+    /// </summary>
+    Paint,
 }
 
 /// <summary>
@@ -290,6 +297,39 @@ internal sealed class GlassEditorClient(
     }
 
     /// <summary>
+    /// One Additional list's rows (R1206): <c>list_1G.php</c> asked for with
+    /// that group opened after the free positions parts, as the editor asks
+    /// for it, and the group's rows read; null rows when the account's tree
+    /// has no such group.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassEditorSpecialGroup?>> ReadAdditionalListAsync(
+        GlassEditorSession session, string group, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(group);
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.AdditionalList(group), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var list = GlassMvaClient.Matched(() => GlassEditorPages.SpecialOperations(text), GlassFailure.EditorAnswer)
+            ?? throw Unread("special-list", text);
+        var found = list.FirstOrDefault(item => string.Equals(item.Code, group, StringComparison.Ordinal));
+        return new(found, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>The paint list's rows (<c>list_paint.php</c>, R1206), as the editor loads it for Areas &gt; Paint.</summary>
+    public async Task<GlassEditorReply<List<IReadOnlyList<string>>>> ReadPaintListAsync(
+        GlassEditorSession session, CancellationToken cancellationToken)
+    {
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.PaintList(), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var rows = GlassMvaClient.Matched(() => GlassEditorPanel.PaintList(text), GlassFailure.EditorAnswer);
+        if (rows.Count == 0)
+        {
+            throw Unread("list_paint", text);
+        }
+
+        return new(rows, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
     /// The vehicle's part list (<c>list.php</c>), asked for with the editor's
     /// group list as the graph page asks for it, read row by row, with the
     /// vehicle's equipment criteria the same page carries.
@@ -374,6 +414,7 @@ internal sealed class GlassEditorClient(
             GlassEditorDialog.PaintablePart => ("comp.php", "C"),
             GlassEditorDialog.Part => ("part.php", "C"),
             GlassEditorDialog.SpecialOperation => ("part.php", "A"),
+            GlassEditorDialog.Paint => ("lack.php", request.Rows.StartsWith('L') ? "L" : "A"),
             _ => throw new ArgumentOutOfRangeException(nameof(request), "The dialog is not one the editor has."),
         };
         if (request.Dialog == GlassEditorDialog.PaintablePart && string.IsNullOrEmpty(request.Button))
@@ -398,9 +439,12 @@ internal sealed class GlassEditorClient(
             cancellationToken);
         var built = change;
         var build = GlassMvaClient.Matched(
-            () => request.Dialog == GlassEditorDialog.PaintablePart
-                ? GlassEditorDialogs.PartPost(dialog, request.Button!, built)
-                : GlassEditorDialogs.PlainPost(dialog, built),
+            () => request.Dialog switch
+            {
+                GlassEditorDialog.PaintablePart => GlassEditorDialogs.PartPost(dialog, request.Button!, built),
+                GlassEditorDialog.Paint => GlassEditorDialogs.LackPost(dialog, built),
+                _ => GlassEditorDialogs.PlainPost(dialog, built),
+            },
             GlassFailure.EditorDialog);
         if (Refusal(build, request) is { } refusal)
         {
@@ -568,6 +612,7 @@ internal sealed class GlassEditorClient(
             GlassEditorDialog.PaintablePart => ("comp.php", "C"),
             GlassEditorDialog.Part => ("part.php", "C"),
             GlassEditorDialog.SpecialOperation => ("part.php", "A"),
+            GlassEditorDialog.Paint => ("lack.php", request.Rows.StartsWith('L') ? "L" : "A"),
             _ => throw new ArgumentOutOfRangeException(nameof(request), "The dialog is not one the editor has."),
         };
         var (jar, at) = Begin(session);

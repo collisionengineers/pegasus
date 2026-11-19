@@ -63,11 +63,19 @@ internal static class AutomationToolText
 
     public const string GlassSearchTerm = "Matched against each row's description, part code or part number, ignoring case; 1 to 200 characters. Not needed with row.";
 
-    public const string GlassSearchKind = "part, special_operation or any; omit for any.";
+    public const string GlassSearchKind = "part, special_operation or any; omit for any. Not with list.";
 
     public const string GlassSearchSide = "L or R: only parts of that side, and no special operations.";
 
     public const string GlassSearchTermRefused = "term must be 1 to 200 characters.";
+
+    public const string GlassSearchList = "The one list to search, as a person opens it: parts, special_operations (Free positions parts, the user defined parts; user_defined_parts is the same list), additional_labour, user_defined_paint, labour_descriptions, tyres, bulbs, special_metal, special_plastic or paint_areas (Areas > Paint). Omit to search parts and special_operations together. Glass's is asked once; tyres is a large list. Not with kind or row. A list the account's editor does not offer answers no rows and glass.list.not_offered.";
+
+    public const string GlassSearchListRefused = "list must be one of: parts, special_operations, user_defined_parts, additional_labour, user_defined_paint, labour_descriptions, tyres, bulbs, special_metal, special_plastic, paint_areas, and is not given with kind or row.";
+
+    public const string GlassCatalogueDialog = "The dialog the row opens: part, part_paintable or paint.";
+
+    public const string GlassCatalogueGroup = "Glass's own name for the list the row is in.";
 
     public const string GlassSearchKindRefused = "kind must be one of: part, special_operation, any.";
 
@@ -75,7 +83,7 @@ internal static class AutomationToolText
 
     public const string GlassCatalogueRow = "The value pegasus_glass_position_act adds the row by: a special operation's code, or a part's list row.";
 
-    public const string GlassCatalogueKind = "part or special_operation.";
+    public const string GlassCatalogueKind = "part, special_operation (a row of an Additional list, added by part.php) or paint (a paint row, added by its paint dialog).";
 
     public const string GlassCatalogueSide = "L, R, both, or none for a part with no side.";
 
@@ -87,7 +95,7 @@ internal static class AutomationToolText
 
     public const string GlassPositionAction = "add, change, remove or preview.";
 
-    public const string GlassAddKind = "add and preview: part or special_operation.";
+    public const string GlassAddKind = "add and preview: part, special_operation (a row of any Additional list but the special tables and user defined paint) or paint (a special table, user defined paint or paint area row), as the search answered it.";
 
     public const string GlassAddRow = "add and preview: the row value pegasus_glass_catalogue_search returned.";
 
@@ -99,7 +107,7 @@ internal static class AutomationToolText
 
     public const string GlassPositionActionRefused = "The action must be one of: add, change, remove, preview.";
 
-    public const string GlassAddKindRefused = "kind must be one of: part, special_operation.";
+    public const string GlassAddKindRefused = "kind must be one of: part, special_operation, paint.";
 
     public const string GlassAddRowRefused = "row is required for add.";
 

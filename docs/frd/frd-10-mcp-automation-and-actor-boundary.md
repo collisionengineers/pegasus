@@ -764,6 +764,29 @@ compose Glass's, each tool is refused with "Glass's is not available."
   dialog serves it with nothing typed, and only where the row is certain
   (18 November 2026; R1182, as R1168 and R1172 for a rebuild). `remove`
   removes a position by its id.
+- **19 November 2026; R1206.** `pegasus_glass_catalogue_search` takes
+  `list`, one of the lists a person opens: `parts`, `special_operations`
+  (Free positions parts, the user defined parts), and under Areas >
+  Additional `additional_labour`, `user_defined_paint`,
+  `labour_descriptions`, `tyres`, `bulbs`, `special_metal` and
+  `special_plastic`, each one `list_1G.php` with its group opened after the
+  free positions parts, as the editor asks for it; and under Areas > Paint
+  `paint_areas`, one `list_paint.php`. Each row answers the value an add
+  takes it by, Glass's name, the list's name and the dialog it opens, as
+  the editor's own OpenCompDialogWindow chooses it (`paint` for a code
+  beginning L or AL, else `part`). A list the account's tree does not hold
+  answers no rows and `glass.list.not_offered`. `add`, `preview`, `change`
+  and `remove` take every such row: kind `special_operation` for a
+  `part.php` row (no list is read for one outside the free positions parts;
+  its dialog names it), with the description, price, hours and fields a
+  person types there, the free part ***Special*** among them; kind `paint`
+  for a special table, user defined paint or paint area row, through its
+  `lack.php` (mode A, or L for a paint area), with its paint. Each is read
+  back by the code its position carries (the walk's bulb made A0, its
+  special table metal row Lxx8005 and its paint area Lxx4200). Judged
+  offline on 19 November 2026 against the walk's own posts: the free part
+  .Yard Charge (#1127), the bulb with a typed price (#1275), the special
+  table metal row (#1326) and the paint area (#1504).
 - **19 November 2026; R1206.** In place of R1182's set, `add` gives a
   part's dialog what a person gives it without typing, in both kinds of
   live session. Paint on its own and Part and Paint are sent: the button is
@@ -1136,7 +1159,7 @@ its one command when none is given.
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
 | `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `read` the open estimate's positions and Glass's running totals, one position's figures, or Glass's calculation (R1206; [Glass's sessions](#glasss-sessions)) | none |
 | `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
-| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
+| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, or with `list` one list a person opens under Areas > Additional or Areas > Paint (R1206), each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
 | `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment`, with the dialog's own choices in `inputs`: another operation, the paint buttons, Both and optional parts (R1206); `remove` one by its id (R1185); `preview` a dialog as a form, posting nothing (R1206); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key; `preview` key only |
 
 ## States and transitions

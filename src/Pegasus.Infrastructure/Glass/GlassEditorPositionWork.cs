@@ -241,11 +241,24 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         GlassAutomationPositionKind? kind,
         string? side,
         string? row,
+        GlassAutomationCatalogueList? list,
         CancellationToken cancellationToken)
     {
         var rows = new List<GlassAutomationCatalogueRow>();
         try
         {
+            if (list is { } chosen && chosen is not (GlassAutomationCatalogueList.Parts or GlassAutomationCatalogueList.SpecialOperations))
+            {
+                return await ListSearchAsync(session, editor, opened, term, chosen, cancellationToken);
+            }
+            if (list == GlassAutomationCatalogueList.Parts)
+            {
+                kind = GlassAutomationPositionKind.Part;
+            }
+            else if (list == GlassAutomationCatalogueList.SpecialOperations)
+            {
+                kind = GlassAutomationPositionKind.SpecialOperation;
+            }
             if (row is not null)
             {
                 var list = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
@@ -342,6 +355,89 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         }
 
         return (rows, null, opened);
+    }
+
+    /// <summary>The Additional group each list is, as the editor's tree names it (R1206).</summary>
+    private static string? GroupOf(GlassAutomationCatalogueList list) => list switch
+    {
+        GlassAutomationCatalogueList.AdditionalLabour => "DS-AUXWORK-702",
+        GlassAutomationCatalogueList.UserDefinedPaint => "SS-FREEPAINT",
+        GlassAutomationCatalogueList.LabourDescriptions => "SS-FREETEXT",
+        GlassAutomationCatalogueList.Tyres => "SS-TYRES",
+        GlassAutomationCatalogueList.Bulbs => "SS-BULPS",
+        GlassAutomationCatalogueList.SpecialMetal => "SS-SPECMET",
+        GlassAutomationCatalogueList.SpecialPlastic => "SS-SPECPLA",
+        _ => null,
+    };
+
+    /// <summary>
+    /// A search of one list a person opens under Areas &gt; Additional or
+    /// Areas &gt; Paint (R1206): one <c>list_1G.php</c> with its group
+    /// opened, or one <c>list_paint.php</c>; each row whose text holds the
+    /// term, with the value an add takes it by, Glass's name, the list's own
+    /// name and the dialog it opens, chosen as the editor's
+    /// OpenCompDialogWindow chooses it: <c>part_paintable</c> for a row
+    /// marked L, <c>paint</c> for a code beginning L or AL, else
+    /// <c>part</c>. A list the account's tree does not hold answers no rows
+    /// and <see cref="GlassAutomationPositionPolicy.ListNotOfferedCode"/>.
+    /// </summary>
+    private async Task<(IReadOnlyList<GlassAutomationCatalogueRow> Rows, string? Code, GlassEditorSession Opened)> ListSearchAsync(
+        GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened, string term,
+        GlassAutomationCatalogueList list, CancellationToken cancellationToken)
+    {
+        var rows = new List<GlassAutomationCatalogueRow>();
+        if (list == GlassAutomationCatalogueList.PaintAreas)
+        {
+            var paint = await StageAsync(session, "EditorPaintList", () => editor.ReadPaintListAsync(opened, cancellationToken));
+            var area = string.Empty;
+            foreach (var item in paint.Value)
+            {
+                area = item.Count > 3 && item[3].Trim().Length > 0 ? item[3].Trim() : area;
+                if (item.Count > 2 && Matches(term, item[2], item[0], null))
+                {
+                    rows.Add(new GlassAutomationCatalogueRow(
+                        item[0], GlassAutomationPositionKind.Paint, item[2].Trim(), PaintCodeOf(item[0]), null, null, true)
+                    {
+                        Dialog = "paint",
+                        Group = area.Length == 0 ? null : area,
+                    });
+                }
+            }
+
+            return (rows, null, paint.Session);
+        }
+
+        var group = await StageAsync(session, "EditorAdditionalList", () => editor.ReadAdditionalListAsync(
+            opened, GroupOf(list)!, cancellationToken));
+        if (group.Value is not { } found)
+        {
+            return (rows, GlassAutomationPositionPolicy.ListNotOfferedCode, group.Session);
+        }
+
+        foreach (var item in found.Rows)
+        {
+            var name = item.Count > 8 && item[8].Trim().Length > 0 ? item[8] : item.Count > 2 ? item[2] : string.Empty;
+            if (!Matches(term, name, item[0], item.Count > 2 ? item[2] : null))
+            {
+                continue;
+            }
+
+            var dialog = item[1].Contains('L', StringComparison.Ordinal) ? "part_paintable"
+                : item[0].StartsWith('L') || item[0].StartsWith("AL", StringComparison.Ordinal) ? "paint"
+                : "part";
+            rows.Add(new GlassAutomationCatalogueRow(
+                item[0],
+                dialog == "paint" ? GlassAutomationPositionKind.Paint : GlassAutomationPositionKind.SpecialOperation,
+                name.Trim(),
+                dialog == "paint" ? PaintCodeOf(item[0]) : PartCodeOf(item[0]),
+                null, null, dialog != "part")
+            {
+                Dialog = dialog,
+                Group = found.Name,
+            });
+        }
+
+        return (rows, null, group.Session);
     }
 
     /// <summary>A part's head row as the search answers it.</summary>
@@ -466,7 +562,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         var row = act.Row ?? string.Empty;
         try
         {
-            if (act.Kind == GlassAutomationPositionKind.SpecialOperation)
+            if (ListRowRequest(act.Kind, row, act.Inputs) is { } listed)
+            {
+                // A row of another Additional list or a paint row (R1206): its dialog names it.
+                request = listed;
+            }
+            else if (act.Kind == GlassAutomationPositionKind.SpecialOperation)
             {
                 var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
                     opened, SpecialOperationGroup, cancellationToken));
@@ -529,7 +630,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         // that carry it now, so a lost answer is settled by the next read;
         // and an equipment answer's rows, the values it changes and that it
         // is about to be stored (R1206).
-        var expected = (adding.Dialog == GlassEditorDialog.SpecialOperation ? "A" : "C") + adding.ExpectedPartCode;
+        var expected = adding.Dialog switch
+        {
+            GlassEditorDialog.Paint => adding.ExpectedPartCode,
+            GlassEditorDialog.SpecialOperation => "A" + adding.ExpectedPartCode,
+            _ => "C" + adding.ExpectedPartCode,
+        };
         act = act with
         {
             ExpectedCode = expected,
@@ -1087,7 +1193,11 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             string? refusedBy = null;
             GlassEditorEquipmentChoice? equipment = null;
             var row = draft.Row ?? string.Empty;
-            if (draft.Kind == GlassAutomationPositionKind.SpecialOperation)
+            if (ListRowRequest(draft.Kind, row, draft.Inputs) is { } listed)
+            {
+                request = listed;
+            }
+            else if (draft.Kind == GlassAutomationPositionKind.SpecialOperation)
             {
                 var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
                     opened, SpecialOperationGroup, cancellationToken));
@@ -1352,7 +1462,57 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// The part code a special operation's dialog carries: its row code
     /// without the prefix and the leading zeros (<c>AC0000073</c> is 73).
     /// </summary>
-    internal static string PartCodeOf(string code) => code[SpecialOperationPrefix.Length..].TrimStart('0');
+    internal static string PartCodeOf(string code) =>
+        code[SpecialOperationPrefix.Length..].TrimStart('0') is { Length: > 0 } number ? number : "0";
+
+    /// <summary>
+    /// The add of a row the free positions parts' list does not hold (R1206):
+    /// a row of another Additional list (Additional Labour <c>AM…</c>, tyres
+    /// <c>AT…</c>, bulbs <c>AB…</c>, labour descriptions), whose
+    /// <c>part.php</c> in mode <c>A</c> names its code, so no list is read;
+    /// or a paint row (<c>AL…</c> of the special tables and user defined
+    /// paint, <c>Lxx…</c> of the paint areas), whose <c>lack.php</c> is
+    /// opened as the editor's OpenCompDialogWindow opens a row whose code
+    /// begins L or AL. A special operation's own row (<c>AC…</c>) keeps its
+    /// list read. Null for those and for a part.
+    /// </summary>
+    private static GlassEditorAddRequest? ListRowRequest(
+        GlassAutomationPositionKind? kind, string row, GlassAutomationInputs? inputs) => kind switch
+    {
+        GlassAutomationPositionKind.Paint when PaintCodeOf(row) is { } code =>
+            new GlassEditorAddRequest(
+                GlassEditorDialog.Paint, row, code, Change: WithPaint(WithTyped(null, inputs), inputs)),
+        GlassAutomationPositionKind.SpecialOperation
+            when row.Length > 2 && !row.StartsWith(SpecialOperationPrefix, StringComparison.Ordinal)
+                && row.StartsWith('A') && !row.StartsWith("AL", StringComparison.Ordinal) =>
+            new GlassEditorAddRequest(
+                GlassEditorDialog.SpecialOperation, row, PartCodeOf(row), Change: WithTyped(null, inputs)),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The code a paint row's position carries (R1206): <c>Lxx</c> and the
+    /// digits its row ends in before any area suffix, as the walk's
+    /// <c>AL0B8005</c> made <c>Lxx8005</c> and <c>Lxx4200.480</c> made
+    /// <c>Lxx4200</c>; the dialog's own record must name the same. Null for a
+    /// row that is not a paint row.
+    /// </summary>
+    internal static string? PaintCodeOf(string row)
+    {
+        if (!(row.StartsWith('L') || row.StartsWith("AL", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var head = row.Split('.')[0];
+        var start = head.Length;
+        while (start > 0 && char.IsAsciiDigit(head[start - 1]))
+        {
+            start--;
+        }
+
+        return start == head.Length ? null : "Lxx" + head[start..];
+    }
 
     /// <summary>What the dialog served, a zero read as none so it compares with a line that has none.</summary>
     internal static GlassEstimateBuildFigures FiguresOf(GlassEditorSummary summary) =>

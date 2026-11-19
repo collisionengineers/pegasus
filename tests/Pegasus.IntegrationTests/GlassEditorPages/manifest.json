@@ -3840,6 +3840,33 @@
       },
       "page": "lack_l.dialog.html",
       "post": "c7_lack_l_left.post.txt"
+    },
+    {
+      "name": "c8_yard_served",
+      "dialog": "part.php",
+      "capture": "#1109, post #1127",
+      "button": "BS",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AC0000083",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AC0000083|64",
+        "partCode": "83",
+        "description": ".Yard Charge",
+        "special": true,
+        "operation": "ZK",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "0",
+        "hours": "1.00",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "yard_charge.dialog.html",
+      "post": "c8_yard_served.post.txt"
     }
   ],
   "panelNote": "The quick repair panel (R1206), judged on 19 November 2026: rpvwpart.php and rpvwpaint.php from glasss2missing.har (#295, #296) run offline in headless Chromium (scratch-2026-11-19/miss/panel.mjs), each given the item list.php's createRepairViewItem builds from the captured list (#373) and paint list (#412), a button pressed, and the commands its AcoCommand gave recorded. p_door_skin_both_ae is #536 and #537 byte for byte.",

@@ -1781,7 +1781,11 @@ it stopped.
   asked for one that can. An operation that reloads the dialog (DD, R1206)
   posts the form to `comp.php` or `part.php` with `frl=1` inside stage
   `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
-  answer is `glass.editor.request`. An add with `inputs.panel` sends
+  answer is `glass.editor.request`. A search with `list` reads one
+  `list_1G.php` (stage `EditorAdditionalList`, `tyres` about 6 MB) or one
+  `list_paint.php` (stage `EditorPaintList`); `glass.list.not_offered`
+  means the account's tree has no such group. A paint row's add opens
+  `lack.php`. An add with `inputs.panel` sends
   `service.php?…&partadd=…&addpart2g=1` once per side in stage
   `EditorPanelAdd` (reading `list_paint.php` first in stage
   `EditorPaintList` when the part is painted in more than one area), then
