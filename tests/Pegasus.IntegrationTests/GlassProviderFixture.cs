@@ -253,11 +253,16 @@ internal static class GlassProviderFixture
     /// two opening pages, the estimate (empty until a position is posted),
     /// the special list, the dialogs and answers of two special operations
     /// (<c>AC0000073</c> and <c>AC0000075</c>), the part list
-    /// (<see cref="BuildPartList"/>), an equipment map with no variants for
-    /// any row, the left front door's dialog for its rows <c>771|772</c> and
-    /// for the right door's <c>790|791</c> (so that one serves the wrong side),
-    /// cut with the script values a changed operation reads, its "Mandatory
-    /// parts:" page and answer, and Save and Exit's three
+    /// (<see cref="BuildPartList"/>), the captured equipment maps of rows 0,
+    /// 274, 682 and 821 and one with no variants for any other row, the
+    /// answer to a stored equipment answer (<c>globcrit</c>), the left front
+    /// door's dialog for its rows <c>771|772</c> and for the right door's
+    /// <c>790|791</c> (so that one serves the wrong side), cut with the
+    /// script values a changed operation reads, its "Mandatory parts:" page
+    /// and answer, the front bumper lining's dialog for any pair of its row 0
+    /// (captured for <c>0|5</c>, so any other is the wrong variant) with its
+    /// "Mandatory parts:" page and answer, the left mirror's dialog for
+    /// <c>822|829</c> and its answer, and Save and Exit's three
     /// pages. One scripted editor for the editor client's own tests is
     /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
     /// provider as the portal, so a build runs end to end.
@@ -279,36 +284,92 @@ internal static class GlassProviderFixture
             : EditorPage("selected.html", null));
         glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
         glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
-        glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
-        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") is "771|772" or "790|791"
-            ? EditorPage("door_left_operations.dialog.html", null)
-            : new Reply(HttpStatusCode.NotFound, string.Empty));
+        glass.Respond("GET /ere/aco/part.php", request => QueryValue(request.Query, "mcode") is "822|829"
+            ? EditorPage("mirror_left.dialog.html", null)
+            : SpecialOperation(request.Query, "dialog"));
+        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") switch
+        {
+            "771|772" or "790|791" => EditorPage("door_left_operations.dialog.html", null),
+            { } rows when rows.StartsWith("0|", StringComparison.Ordinal) => EditorPage("bumper_part.dialog.html", null),
+            _ => new Reply(HttpStatusCode.NotFound, string.Empty),
+        });
         glass.Respond("POST /ere/aco/compproc.php", request => QueryValue(request.Query, "mcode") switch
         {
             "771|772" => EditorPage(
                 QueryValue(request.Query, "BX") is null ? "door_left_part.answer.html" : "door_left_part.confirm_answer.html", null),
+            "0|5" => EditorPage(
+                QueryValue(request.Query, "BX") is null ? "bumper_part.answer.html" : "bumper_part.confirm_answer.html", null),
+            "822|829" => EditorPage("mirror_left.answer.html", null),
             _ => SpecialOperation(request.Query, "answer"),
         });
-        glass.Respond("GET /ere/aco/service.php", request => QueryValue(request.Query, "rowid") is { } row
-            ? Editor(EquipmentMapWithNoVariants(row))
+        glass.Respond("GET /ere/aco/service.php", request =>
+            QueryValue(request.Query, "globcrit") is not null ? EditorPage("globcrit.answer.html", null)
+            : QueryValue(request.Query, "rowid") is { } row ? EquipmentMap(row)
             : EditorPage("save.answer.html", null));
         glass.Respond("GET /ere/aco/close.php", _ => EditorPage("close.html", callback));
     }
 
     /// <summary>
     /// The part list the scripted editor serves: the blocks cut from the list
-    /// of 7 September 2026 (<c>part_list.html</c>), then two blocks made for
-    /// this script in the same row format, the left and right front door
-    /// shells, whose dialog the captures hold for the left one only (rows
-    /// <c>771|772</c>, code 2020001, 18 November 2026). Each door's block
-    /// needs no equipment, and the door can be painted (marked <c>L</c>), as
-    /// the browser's use of <c>comp.php</c> for it shows.
+    /// of 7 September 2026 (<c>part_list.html</c>, with that page's criteria),
+    /// then three blocks made for this script in the same row format: the
+    /// left and right front door shells, whose dialog the captures hold for
+    /// the left one only (rows <c>771|772</c>, code 2020001, 18 November
+    /// 2026), and the BMW's left mirror (<see cref="MirrorRows"/>). Each
+    /// door's block needs no equipment, and the door can be painted (marked
+    /// <c>L</c>), as the browser's use of <c>comp.php</c> for it shows.
     /// </summary>
     public static string BuildPartList() =>
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>",
+            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Select(row => "partlist.addPart(\"" + row + "\");"))
+            + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
             StringComparison.Ordinal);
+
+    /// <summary>
+    /// The BMW's left mirror (code 2027021), made for this script in the
+    /// list's row format, as no BMW part list is captured (design 10 section
+    /// 5): the head 821, its part variants 822 to 828 as its captured map
+    /// (<c>equipment_821.html</c>) names them, and its Replace and refit
+    /// time rows. Row 822's number and price and row 829's hours are those
+    /// its captured dialog (<c>822|829</c>, 18 November 2026) serves; every
+    /// other number and figure is made up. None can be painted, as the
+    /// browser's use of <c>part.php</c> for it shows.
+    /// </summary>
+    private static readonly string[] MirrorRows =
+    [
+        "821|pbclTId|HTB3-202_809|701300250101|40|2027021||51167459045|350.00|ERAEI |||||||Front Door Ext Mirror (Elec/Htd)|||||||||||KS|||||830|0|0.0.0.10",
+        "822|plTI|||||21115|51167459047|383.48|ERAEI |||||||||||||||||||||||831|0|0.0.0.10",
+        "823|plTI|||||21115_21117|51167459048|390.00|ERAEI |||||||||||||||||||||||832|0|0.0.0.10",
+        "824|plTI|||||21115_21117_85142|51167459049|395.00|ERAEI |||||||||||||||||||||||833|0|0.0.0.10",
+        "825|plTI|||||21115_85142|51167459050|385.00|ERAEI |||||||||||||||||||||||834|0|0.0.0.10",
+        "826|plTI|||||21117|51167459051|360.00|ERAEI |||||||||||||||||||||||835|0|0.0.0.10",
+        "827|plTI|||||21117_85142|51167459052|365.00|ERAEI |||||||||||||||||||||||836|0|0.0.0.10",
+        "828|plTI|||||85142|51167459053|355.00|ERAEI |||||||||||||||||||||||837|0|0.0.0.10",
+        "829|tlTI|||||||0.80|ER|||||||||||||||||||||||838|0|0.0.0.10",
+        "830|tlTI|||||||0.60|AE|||||||||||||||||||||||839|0|0.0.0.10",
+    ];
+
+    /// <summary>The BMW's criteria the mirror's block names, as its <c>reqglobcrit2g</c> served them (r18 #745).</summary>
+    private static readonly string[] MirrorCriteria =
+    [
+        "21115|pNg|0|_|0|Outside Mirrors Automatic Dimming|0|0|240|239|0|",
+        "21117|pNg|0|_|0|Outside Mirrors with Memory|0|0|240|240|0|",
+        "85142|pNg|0|_|0|Window Mouldings Gloss Black|0|0|160|160|1|",
+    ];
+
+    /// <summary>The rows whose captured equipment map the scripted editor serves, by row.</summary>
+    private static readonly Dictionary<string, string> CapturedMaps = new(StringComparer.Ordinal)
+    {
+        ["0"] = "equipment_0.html",
+        ["274"] = "equipment_274.html",
+        ["682"] = "equipment_682.html",
+        ["821"] = "equipment_821.html",
+    };
+
+    /// <summary>A row's equipment map: its captured one, or one with no variants.</summary>
+    private static Reply EquipmentMap(string row) =>
+        CapturedMaps.TryGetValue(row, out var file) ? EditorPage(file, null) : Editor(EquipmentMapWithNoVariants(row));
 
     /// <summary>The two door blocks of <see cref="BuildPartList"/>: the head row, its Replace time row, its refit time row.</summary>
     private static readonly string[] DoorRows =

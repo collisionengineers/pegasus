@@ -13,6 +13,19 @@ internal sealed record GlassEditorPositionDone(
     GlassAutomationAct Act, GlassEditorSession Opened, GlassEditorEstimate? After);
 
 /// <summary>
+/// A part's equipment question as an add met it (R1206): the question, and
+/// once an answer chose them, the row pair, the value stored for the vehicle
+/// (null when the answer stores none), the values it changes and the part
+/// list's figures for the part (price and Replace hours).
+/// </summary>
+internal sealed record GlassEditorEquipmentChoice(
+    GlassEquipmentQuestion Question,
+    string? Rows = null,
+    string? Store = null,
+    IReadOnlyList<GlassEquipmentChange>? Changes = null,
+    GlassEstimateBuildFigures? Listed = null);
+
+/// <summary>
 /// The work on an open estimate that reads Glass's editor's lists, adds a
 /// position or removes one: shared by the Automation's own sessions
 /// (<c>GlassRepairEstimateGateway</c>) and its help in a member of staff's
@@ -164,10 +177,16 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// special list's "Free positions parts" group, the part list, or both,
     /// asked for once each and matched against each row's description, part
     /// code or part number, ignoring case. A part is answered by its list's
-    /// head row, the row an add takes. A side asked for keeps the parts of
-    /// that side and leaves the special list unread, as a special operation
-    /// has none. Nothing changes at Glass's. A list Glass's does not answer
-    /// answers no rows and its code.
+    /// head row, the row an add takes, with the equipment question its block
+    /// asks, when it asks one (R1206), built from the list alone. A side
+    /// asked for keeps the parts of that side and leaves the special list
+    /// unread, as a special operation has none. With <paramref name="row"/>
+    /// the part list alone is read and that one head row answered, with
+    /// every answer to its question that leads to a part, which reads the
+    /// row's equipment map as well. Nothing changes at Glass's. A list or a
+    /// map Glass's does not answer answers no rows and its code; a row that
+    /// is not a head of the part list answers no rows and
+    /// <see cref="GlassAutomationPositionPolicy.RowUnknownCode"/>.
     /// </summary>
     internal async Task<(IReadOnlyList<GlassAutomationCatalogueRow> Rows, string? Code, GlassEditorSession Opened)> SearchAsync(
         GlassRepairEstimateSession session,
@@ -176,20 +195,50 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         string term,
         GlassAutomationPositionKind? kind,
         string? side,
+        string? row,
         CancellationToken cancellationToken)
     {
         var rows = new List<GlassAutomationCatalogueRow>();
         try
         {
+            if (row is not null)
+            {
+                var list = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
+                    opened, PartListGroups, cancellationToken));
+                opened = list.Session;
+                var head = IndexOfHead(list.Value.Rows, row);
+                if (head < 0)
+                {
+                    return (Array.Empty<GlassAutomationCatalogueRow>(), GlassAutomationPositionPolicy.RowUnknownCode, opened);
+                }
+
+                var found = CatalogueRowOf(list.Value.Rows[head]);
+                if (GlassEditorRows.Question(list.Value, head) is { } question)
+                {
+                    var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
+                        opened, list.Value.Rows[head].Id, cancellationToken));
+                    opened = map.Session;
+                    if (!GlassEditorRows.IsMapOf(map.Value, list.Value.Rows[head]))
+                    {
+                        return (Array.Empty<GlassAutomationCatalogueRow>(), GlassFailure.EditorAnswer, opened);
+                    }
+
+                    found = found with { Equipment = GlassEditorRows.WithAnswers(list.Value, head, question, map.Value) };
+                }
+
+                rows.Add(found);
+                return (rows, null, opened);
+            }
+
             if (kind != GlassAutomationPositionKind.Part && side is null)
             {
                 var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
                     opened, SpecialOperationGroup, cancellationToken));
                 opened = specials.Session;
                 rows.AddRange(SpecialOperationsOf(specials.Value)
-                    .Where(row => Matches(term, row.Name, row.Code, null))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Code, GlassAutomationPositionKind.SpecialOperation, row.Name.Trim(),
+                    .Where(item => Matches(term, item.Name, item.Code, null))
+                    .Select(item => new GlassAutomationCatalogueRow(
+                        item.Code, GlassAutomationPositionKind.SpecialOperation, item.Name.Trim(),
                         PartCode: null, PartNumber: null, Side: null, Paintable: false)));
             }
             if (kind != GlassAutomationPositionKind.SpecialOperation)
@@ -197,36 +246,66 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                rows.AddRange(parts.Value
-                    .Where(row => row.IsHead
-                        && (side is null || string.Equals(SideOf(row), side, StringComparison.Ordinal))
-                        && Matches(term, row.Name, row.Code, row.Number))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Id, GlassAutomationPositionKind.Part, row.Name.Trim(), row.Code,
-                        string.IsNullOrWhiteSpace(row.Number) ? null : row.Number, SideOf(row), row.Paintable)));
+                var list = parts.Value;
+                for (var index = 0; index < list.Rows.Count; index++)
+                {
+                    var part = list.Rows[index];
+                    if (part.IsHead
+                        && (side is null || string.Equals(SideOf(part), side, StringComparison.Ordinal))
+                        && Matches(term, part.Name, part.Code, part.Number))
+                    {
+                        rows.Add(CatalogueRowOf(part) with { Equipment = GlassEditorRows.Question(list, index)?.Asked });
+                    }
+                }
             }
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
-            // Reading a list changes nothing: no rows, and the code.
+            // Reading a list or a map changes nothing: no rows, and the code.
             return (Array.Empty<GlassAutomationCatalogueRow>(), CodeOf(failure), opened);
         }
 
         return (rows, null, opened);
     }
 
+    /// <summary>A part's head row as the search answers it.</summary>
+    private static GlassAutomationCatalogueRow CatalogueRowOf(GlassEditorPartRow row) =>
+        new(row.Id, GlassAutomationPositionKind.Part, row.Name.Trim(), row.Code,
+            string.IsNullOrWhiteSpace(row.Number) ? null : row.Number, SideOf(row), row.Paintable);
+
+    /// <summary>The index of the head row with this id, or -1.</summary>
+    private static int IndexOfHead(IReadOnlyList<GlassEditorPartRow> rows, string? id)
+    {
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (rows[index].IsHead && string.Equals(rows[index].Id, id, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     /// <summary>
     /// A claimed add's work (design 07 section 3.4): its row chosen as a
     /// build chooses one, from the open estimate's own lists, and refused
     /// with the reason and nothing sent when the row is not certain (R1169).
-    /// Before the post the code its position will carry and the positions
-    /// that carry it now are handed to <paramref name="record"/>, so a lost
-    /// answer can be settled by the next read. The dialog is posted as
-    /// Glass's serves it, nothing typed (R1168). The outcome, Glass's own
-    /// figures and the new positions (every position on the estimate after
-    /// the post that was not in <paramref name="before"/>) are handed to
-    /// <paramref name="record"/> last, with the editor session as it stands.
+    /// A part whose block asks Glass's equipment question is added as Part
+    /// only by the Automation's answer (R1206): its rows are the ones the
+    /// editor's own rule gives for it, and an add with no answer, or one the
+    /// dialog would not take or that leads to no part, is refused with the
+    /// question and nothing sent. Before the post the code its position will
+    /// carry, the positions that carry it now and the answer's rows and
+    /// changes are handed to <paramref name="record"/>, so a lost answer can
+    /// be settled by the next read. The answer is then stored for the vehicle
+    /// as the editor stores it, just before the dialog is asked for. The
+    /// dialog is posted as Glass's serves it, nothing typed (R1168). The
+    /// outcome, Glass's own figures and the new positions (every position on
+    /// the estimate after the post that was not in <paramref name="before"/>)
+    /// are handed to <paramref name="record"/> last, with the editor session
+    /// as it stands.
     /// </summary>
     internal async Task<GlassEditorPositionDone> AddPositionAsync(
         GlassRepairEstimateSession session,
@@ -242,6 +321,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         ArgumentNullException.ThrowIfNull(record);
         GlassEditorAddRequest? request = null;
         string? reason = null;
+        GlassEditorEquipmentChoice? equipment = null;
         var row = act.Row ?? string.Empty;
         try
         {
@@ -267,7 +347,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                (request, reason, opened) = await ChooseAutomationPartAsync(
+                (request, reason, opened, equipment) = await ChooseAutomationPartAsync(
                     session, editor, opened, parts.Value, act, cancellationToken);
             }
         }
@@ -285,6 +365,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             {
                 Outcome = GlassAutomationActOutcome.Refused,
                 Code = reason ?? GlassEstimateBuildPolicy.NoRowCode,
+                Equipment = equipment?.Question,
             };
             await record(act, opened);
             return new(act, opened, null);
@@ -292,7 +373,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
         // Before the post: the code the new position carries on the estimate
         // (A73 for AC0000073, C2020001 for part 2020001) and the positions
-        // that carry it now, so a lost answer is settled by the next read.
+        // that carry it now, so a lost answer is settled by the next read;
+        // and an equipment answer's rows, the values it changes and that it
+        // is about to be stored (R1206).
         var expected = (adding.Dialog == GlassEditorDialog.SpecialOperation ? "A" : "C") + adding.ExpectedPartCode;
         act = act with
         {
@@ -300,8 +383,32 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             Before = before.Positions
                 .Where(id => string.Equals(GlassAutomationPositionPolicy.CodeOf(id), expected, StringComparison.Ordinal))
                 .ToList(),
+            RowPair = equipment?.Rows,
+            EquipmentChanged = equipment?.Changes ?? [],
+            EquipmentStored = equipment?.Store is not null,
         };
         await record(act, opened);
+        if (equipment?.Store is { } store)
+        {
+            try
+            {
+                var stored = await StageAsync(session, "EditorEquipmentAnswer", () => editor.StoreEquipmentAsync(
+                    opened, store, cancellationToken));
+                opened = stored.Session;
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                // Nothing was posted, but the answer may be stored: the act says so.
+                var refused = AsFailure(failure);
+                LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                    GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
+                act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
+                await record(act, opened);
+                return new(act, opened, null);
+            }
+        }
+
         GlassEditorEstimate? after = null;
         try
         {
@@ -320,6 +427,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     .Select(listed => new GlassAutomationListedPart(listed.Code, listed.Text, listed.Ticked))
                     .ToList(),
             };
+            if (equipment?.Listed is { } fromList && act.Served is { } served
+                && (fromList.Price != served.Price || fromList.Hours != served.Hours))
+            {
+                // Noted, not refused, until a live walk shows they always agree (design 10 section 2).
+                LogServedFigures(logger, session.Id, session.CaseId, equipment.Rows ?? string.Empty,
+                    fromList.Price, fromList.Hours, served.Price, served.Hours);
+            }
         }
         catch (GlassMvaStageException refused)
             when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
@@ -345,28 +459,37 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
     /// <summary>
     /// The rows an add of a part is placed by: the head row the search
-    /// answered, found in the estimate's part list, decided by the build's
-    /// own rule (<see cref="ChoosePartAsync"/>) for its code, its side and
-    /// the act's operation. A row that is not a head of the list, a row
-    /// serving both sides, and a side asked for that is not the row's own
-    /// are refused before anything is asked.
+    /// answered, found in the estimate's part list. A row that is not a head
+    /// of the list, a row serving both sides, and a side asked for that is
+    /// not the row's own are refused before anything is asked. A head whose
+    /// block asks no equipment question is decided by the build's own rule
+    /// (<see cref="ChoosePartAsync"/>) for its code, its side and the act's
+    /// operation, and an answer given for it is refused. A head whose block
+    /// asks one is added as Part only by the Automation's answer (R1206):
+    /// refused by the list alone when it is a wheel, offers no Replace or is
+    /// hidden for the vehicle; otherwise its equipment map is read, and an
+    /// add with no answer, or with one the dialog would not take or that
+    /// leads to no part, is refused with the question. Repair and
+    /// remove-and-refit on it are refused as before (R1172).
     /// </summary>
-    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChooseAutomationPartAsync(
+    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened, GlassEditorEquipmentChoice? Equipment)> ChooseAutomationPartAsync(
         GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened,
-        IReadOnlyList<GlassEditorPartRow> parts, GlassAutomationAct act, CancellationToken cancellationToken)
+        GlassEditorPartList parts, GlassAutomationAct act, CancellationToken cancellationToken)
     {
-        var row = parts.FirstOrDefault(item => item.IsHead && string.Equals(item.Id, act.Row, StringComparison.Ordinal));
-        if (row is null)
+        var head = IndexOfHead(parts.Rows, act.Row);
+        if (head < 0)
         {
-            return (null, GlassAutomationPositionPolicy.RowUnknownCode, opened);
+            return (null, GlassAutomationPositionPolicy.RowUnknownCode, opened, null);
         }
+
+        var row = parts.Rows[head];
         if (row.Has('l') && row.Has('r'))
         {
-            return (null, GlassAutomationPositionPolicy.BothSidesCode, opened);
+            return (null, GlassAutomationPositionPolicy.BothSidesCode, opened, null);
         }
         if (act.Side is { } side && !string.Equals(side, row.Side, StringComparison.Ordinal))
         {
-            return (null, GlassEstimateBuildPolicy.NoRowCode, opened);
+            return (null, GlassEstimateBuildPolicy.NoRowCode, opened, null);
         }
 
         var operation = act.Operation switch
@@ -375,9 +498,70 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             GlassAutomationPartOperation.RemoveAndRefit => GlassEditorRows.RemoveAndRefit,
             _ => GlassEditorRows.Replace,
         };
-        return await ChoosePartAsync(
-            session, editor, opened, parts, GlassEstimateBuildKeyKind.PartCode, row.Code, row.Side, operation,
-            cancellationToken);
+        var answer = act.Inputs?.Equipment;
+        var question = GlassEditorRows.Question(parts, head);
+        if (question is null && answer is not null)
+        {
+            return (null, GlassAutomationPositionPolicy.EquipmentNotAskedCode, opened, null);
+        }
+        if (question is null || operation != GlassEditorRows.Replace)
+        {
+            var (certain, why, chosen) = await ChoosePartAsync(
+                session, editor, opened, parts.Rows, GlassEstimateBuildKeyKind.PartCode, row.Code, row.Side, operation,
+                cancellationToken);
+            return (certain, why, chosen, null);
+        }
+        if (GlassEditorRows.AskedRefusal(parts, head) is { } refused)
+        {
+            return (null, refused, opened, null);
+        }
+
+        IReadOnlyList<IReadOnlyList<string>> map;
+        try
+        {
+            var read = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
+                opened, row.Id, cancellationToken));
+            opened = read.Session;
+            map = read.Value;
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return (null, CodeOf(failure), opened, null);
+        }
+
+        var asked = new GlassEditorEquipmentChoice(question.Asked);
+        if (!GlassEditorRows.IsMapOf(map, row))
+        {
+            return (null, GlassFailure.EditorAnswer, opened, null);
+        }
+        if (answer is null)
+        {
+            return (null, GlassEstimateBuildPolicy.EquipmentCode, opened, asked);
+        }
+
+        var answered = GlassEditorRows.Answer(parts, head, question, map, answer);
+        if (answered is not { Part: { } part, Time: { } time, Rows: { } rows })
+        {
+            return (null, answered.ReasonCode ?? GlassAutomationPositionPolicy.EquipmentNoPartCode, opened, asked);
+        }
+
+        // The dialog is the variant row's: comp.php when it can be painted.
+        var request = new GlassEditorAddRequest(
+            part.Paintable ? GlassEditorDialog.PaintablePart : GlassEditorDialog.Part,
+            rows,
+            row.Code,
+            Button: part.Paintable ? PartButton : null,
+            ExpectedSide: row.Side ?? string.Empty,
+            CheckRows: true,
+            ExpectedPartNumber: part.Number);
+        return (request, null, opened, asked with
+        {
+            Rows = rows,
+            Store = answered.Store,
+            Changes = answered.Changes,
+            Listed = new(Amount(part.Price), Amount(time.Price)),
+        });
     }
 
     /// <summary>
@@ -500,6 +684,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     [LoggerMessage(Level = LogLevel.Information,
         Message = "Glass's attempt {SessionId} case {CaseId} stage {Stage} was answered {Detail}")]
     private static partial void LogStageDetail(ILogger logger, Guid sessionId, Guid caseId, string stage, string detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Glass's session {SessionId} for case {CaseId} rows {Rows} served price {ServedPrice} hours {ServedHours}, the part list gives {ListedPrice} and {ListedHours}")]
+    private static partial void LogServedFigures(
+        ILogger logger, Guid sessionId, Guid caseId, string rows, decimal? listedPrice, decimal? listedHours,
+        decimal? servedPrice, decimal? servedHours);
 
     [LoggerMessage(
         Level = LogLevel.Warning,

@@ -50,6 +50,15 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     /// <summary>The equipment map of one row of the part list.</summary>
     public string Equipment(string row) => Service("rowid=" + row + "&reqcritmap3=1");
 
+    /// <summary>
+    /// An equipment answer stored for the vehicle, as the list's own
+    /// <c>saveCritToKernel</c> sends it: <c>code|0 or 1|1</c> for each option
+    /// Glass's keeps, joined by bars, <c>encodeURIComponent</c>-encoded
+    /// (glasses7 #519, r18 #987).
+    /// </summary>
+    public string StoreEquipment(string answer) =>
+        Service("globcrit=" + EncodeUriComponent(answer) + "&updatecrit2g=1");
+
     /// <summary>A dialog page: <c>comp.php</c> or <c>part.php</c>, for rows or a code, in a mode (<c>C</c> or <c>A</c>).</summary>
     public string Dialog(string page, string rows, string mode) =>
         session.BaseAddress + page + "?" + Q + "&mcode=" + rows + "&cml=" + mode

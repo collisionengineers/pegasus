@@ -182,6 +182,76 @@ public sealed class GlassEditorPagesTests
             at.SpecialList("DS-AUXWORK-702|SS-FREEPART"));
     }
 
+    /// <summary>
+    /// The vehicle's criteria are the part list's <c>partlist.addCrit</c>
+    /// lines (R1206): each one's code, marks, value, name, radio group and
+    /// flag, and whether another position uses it; and the page's own note
+    /// on an option another position uses. The list served after the
+    /// answers of 7 September 2026 holds the values they stored.
+    /// </summary>
+    [Fact]
+    public void TheVehiclesCriteriaAreReadFromThePartList()
+    {
+        var page = GlassEditorFixture.Text(GlassEditorFixture.Page("partList").GetProperty("file").GetString()!);
+        var later = GlassEditorFixture.Text(GlassEditorFixture.Page("partListAfterAnswers").GetProperty("file").GetString()!);
+
+        var criteria = GlassEditorPages.Criteria(page);
+        var after = GlassEditorPages.Criteria(later);
+
+        Assert.Equal(170, criteria.Count);
+        var park = criteria["24119"];
+        Assert.Equal("Front and Rear Park Assistant System", park.Name);
+        Assert.True(park.Has('g'));
+        Assert.False(park.IsSet);
+        Assert.True(park.IsRadio);
+        Assert.Equal("144", park.Group);
+        Assert.False(park.AffectsOtherParts);
+        Assert.False(criteria["12000"].IsRadio);
+        Assert.True(criteria["740"].Has('f'));
+        Assert.True(criteria["740"].IsSet);
+        Assert.True(after["24119"].IsSet);
+        Assert.True(after["24119"].AffectsOtherParts);
+        Assert.True(after["85161"].IsSet);
+        Assert.False(after["85161"].AffectsOtherParts);
+        Assert.Equal("Criteria affects other parts!", GlassEditorPages.ReferencedNote(page));
+        Assert.Null(GlassEditorPages.ReferencedNote(later));
+        Assert.Empty(GlassEditorPages.Criteria("<html><body>Please wait</body></html>"));
+    }
+
+    /// <summary>
+    /// An equipment answer is stored at the address the editor's list asked
+    /// for it, the answer <c>encodeURIComponent</c>-encoded (glasses7 #519),
+    /// and its answer is the page that tells the list to read the criteria
+    /// again; the save's answer is not.
+    /// </summary>
+    [Fact]
+    public void AnEquipmentAnswerIsStoredAtTheAddressTheEditorAskedForIt()
+    {
+        var page = GlassEditorFixture.Page("globcrit");
+        var at = new GlassEditorAddresses(
+            GlassEditorFixture.Session(),
+            new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)));
+
+        Assert.Equal(page.GetProperty("address").GetString(), at.StoreEquipment(page.GetProperty("answers").GetString()!));
+        Assert.True(GlassEditorPages.EquipmentStored(GlassEditorFixture.Text(page.GetProperty("file").GetString()!)));
+        Assert.False(GlassEditorPages.EquipmentStored(GlassEditorFixture.Text("save.answer.html")));
+    }
+
+    /// <summary>
+    /// A part dialog's record names the row pair it was asked for after
+    /// <c>2G</c> in its first line, as every captured part dialog asked for
+    /// by a pair does; the "both" request names its part row and 0.
+    /// </summary>
+    [Theory]
+    [InlineData("C1010800_701910520101_2G_0_5_|64", "0|5", true)]
+    [InlineData("C1010800_701910520101_2G_0_5_|64", "0|3", false)]
+    [InlineData("C2027021_701300250101_2G_822_829_|64", "822|829", true)]
+    [InlineData("C2020001_701300250101_2G_771_772_|64", "771|772", true)]
+    [InlineData("C1012402_701300250203_2G_1783_0_|64", "1783|1786", false)]
+    [InlineData(null, "0|5", false)]
+    public void ADialogsRecordNamesTheRowsItWasAskedFor(string? position, string rows, bool named) =>
+        Assert.Equal(named, GlassEditorClient.NamesRows(position, rows));
+
     /// <summary>The part list is asked for with the group list in its address, as the browser asked for it.</summary>
     [Fact]
     public void ThePartListIsAskedForAsTheBrowserAskedForIt()

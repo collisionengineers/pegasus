@@ -1697,13 +1697,23 @@ it stopped.
     that operation), `glass.build.ambiguous_row` (more than one special
     operation has the name, the part number names different parts, or the
     part has more than one time row of the line's operation),
-    `glass.build.equipment` (the part's row waits on an equipment answer),
-    `glass.build.no_key` (a new part, or a Glass's export's repair or
+    `glass.build.equipment` (the part's row waits on an equipment answer;
+    for the Automation's add, it gave none, and the act carries the
+    question), `glass.build.no_key` (a new part, or a Glass's export's repair or
     remove-and-refit line, with no Glass's part code or part number),
     `glass.build.stopped` (not sent after a line that was not confirmed). A
     part whose dialog served another side or another part, did not offer the
     line's operation, or would ask for a reason for more hours than Glass's
     own, is `glass.editor.refused`.
+    The Automation's equipment answer (R1206) is refused, with nothing sent,
+    as `glass.build.equipment_unknown` (a code that is no option),
+    `glass.build.equipment_greyed` (an option Glass's greys out),
+    `glass.build.equipment_repeated` (a code named twice),
+    `glass.build.equipment_same_group` (two options of one group),
+    `glass.build.equipment_no_part` (it leads to no part or no Replace
+    hours) or `glass.build.equipment_not_asked` (the row asks nothing). An
+    act whose `equipmentStored` is true sent the answer to Glass's, which
+    keeps it for the vehicle even when the add was then refused.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
     nothing was saved and an empty estimate was opened; `glass.interrupted`
     there means the build stopped part-way and the session was continued as

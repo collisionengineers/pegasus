@@ -7,7 +7,8 @@ namespace Pegasus.IntegrationTests;
 
 // The Automation's catalogue search and position acts in its own Glass's
 // session (design 07 sections 3.3, 3.4 and 7, slices C2 and C3; operator,
-// 18 November 2026, R1168, R1169, R1182, R1185), through the gateway against
+// 18 November 2026, R1168, R1169, R1182, R1185; 19 November 2026, R1206),
+// through the gateway against
 // the scripted editor of GlassProviderFixture: a search changes nothing, an
 // add is claimed before Glass's is asked and posted as the dialog serves it,
 // a row that is not certain is refused and nothing is sent, a lost answer is
@@ -30,6 +31,28 @@ public sealed partial class GlassRepairEstimateGatewayTests
     [
         "900|pbclTIdLg|HTB3-202_809|701300250101|37|2020001||41009628759|600.00|ERAEI |||||||Front Door Shell|||||||||||KS|||||790|0|0.0.0.9",
         "901|tlTI|||||||2.90|ER|||||||||||||||||||||||792|0|0.0.0.9",
+    ];
+
+    /// <summary>The lining's three options (glasses7 #356, row 0).</summary>
+    private static readonly string[] LiningOptions = ["12000", "24119", "90109"];
+
+    /// <summary>An answer that ticks nothing.</summary>
+    private static readonly string[] NothingTicked = [];
+
+    /// <summary>
+    /// An answered add's requests after the estimate's read (design 10
+    /// section 2): the part list, the row's map, the stored answer, the
+    /// dialog, its post and the "Mandatory parts:" confirm, the estimate.
+    /// </summary>
+    private static readonly string[] AnsweredAdd =
+    [
+        "GET /ere/aco/list.php",
+        "GET /ere/aco/service.php",
+        "GET /ere/aco/service.php",
+        "GET /ere/aco/comp.php",
+        "POST /ere/aco/compproc.php",
+        "POST /ere/aco/compproc.php",
+        "GET /ere/aco/selected.php",
     ];
 
     /// <summary>
@@ -204,13 +227,19 @@ public sealed partial class GlassRepairEstimateGatewayTests
             GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part));
         Assert.Equal(GlassAutomationActOutcome.Refused, equipment.Act.Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, equipment.Act.Code);
+        // Given no answer, the add carries the question its map was read for (R1206).
+        Assert.NotNull(equipment.Act.Equipment);
+        Assert.Equal(LiningOptions, equipment.Act.Equipment.Options.Select(option => option.Code));
+        Assert.False(equipment.Act.EquipmentStored);
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
 
         var side = await PositionAsync(harness, Add(harness, equipment.Session, "mcp:side-1",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part, side: "R"));
         Assert.Equal(GlassAutomationActOutcome.Refused, side.Act.Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.NoRowCode, side.Act.Code);
-        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
+        // Only the lining's map was read.
+        Assert.Equal(1, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
+        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("globcrit=", StringComparison.Ordinal)));
 
         var unknown = await PositionAsync(harness, Add(harness, side.Session, "mcp:unknown-1",
             GlassAutomationPositionKind.SpecialOperation, "AC9999999"));
@@ -226,6 +255,138 @@ public sealed partial class GlassRepairEstimateGatewayTests
 
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(4, harness.Store.Material(session.Id).Session.Automation!.Acts.Count);
+    }
+
+    /// <summary>
+    /// A part whose row asks Glass's equipment question is added as Part by
+    /// the Automation's answer (R1206): the list and the row's map are read,
+    /// the answer is stored for the vehicle as the editor stores it
+    /// (<c>encodeURIComponent</c>-encoded) just before the dialog of the row
+    /// pair it leads to is asked for, and the dialog is posted as served. The
+    /// act keeps the answer, the pair and the values it changed.
+    /// </summary>
+    [Fact]
+    public async Task AnAnsweredPartIsStoredThenAddedAsServed()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        var before = harness.Mva.Requests.Count;
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:lining-1",
+            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part, equipment: LiningOptions));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
+        Assert.Equal("C1010800", step.Act.ExpectedCode);
+        Assert.Equal("0|5", step.Act.RowPair);
+        Assert.True(step.Act.EquipmentStored);
+        Assert.Equal(LiningOptions, step.Act.Inputs?.Equipment);
+        Assert.Equal(LiningOptions, step.Act.EquipmentChanged.Select(change => change.Code));
+        Assert.All(step.Act.EquipmentChanged, change => Assert.True(change.Ticked));
+        Assert.Null(step.Act.Equipment);
+        Assert.Equal(new GlassEstimateBuildFigures(379.00m, 1.80m), step.Act.Served);
+        Assert.Contains("C350955.31.C1010800.1580", step.Act.PositionIds);
+        var asked = harness.Mva.Requests.Skip(before).Select(request => request.Method + " " + request.Path).ToList();
+        Assert.Equal("GET /ere/aco/selected.php", asked[0]);
+        Assert.Equal(AnsweredAdd, asked.Skip(1));
+        var stored = Assert.Single(harness.Mva.Requests, request => request.Query.Contains("globcrit=", StringComparison.Ordinal));
+        Assert.Contains(
+            "&globcrit=12000%7C1%7C1%7C24119%7C1%7C1%7C90109%7C1%7C1&updatecrit2g=1&", stored.Query, StringComparison.Ordinal);
+        Assert.Contains("rowid=0&reqcritmap3=1", Assert.Single(
+            Asked(harness, "GET", "service.php"), query => query.Contains("reqcritmap3", StringComparison.Ordinal)), StringComparison.Ordinal);
+        Assert.Contains("mcode=0|5", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
+        var recorded = Assert.Single(harness.Store.Material(session.Id).Session.Automation!.Acts);
+        Assert.Equal("0|5", recorded.RowPair);
+        Assert.True(recorded.EquipmentStored);
+    }
+
+    /// <summary>
+    /// A dialog Glass's serves for another variant than the answer's rows
+    /// is refused before its post (R1206): the answer that ticks nothing
+    /// leads to <c>0|1</c>, and the scripted editor serves the dialog of
+    /// <c>0|5</c>. The answer was stored first, and the act says so.
+    /// </summary>
+    [Fact]
+    public async Task AnotherVariantsDialogIsRefusedAndTheActSaysTheAnswerWasStored()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:lining-1",
+            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part, equipment: NothingTicked));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassFailure.EditorRefused, step.Act.Code);
+        Assert.Equal("0|1", step.Act.RowPair);
+        Assert.True(step.Act.EquipmentStored);
+        Assert.Empty(step.Act.EquipmentChanged);
+        Assert.Contains("globcrit=12000|0|1|24119|0|1|90109|0|1&updatecrit2g=1", Assert.Single(
+            Asked(harness, "GET", "service.php"), query => query.Contains("globcrit=", StringComparison.Ordinal)), StringComparison.Ordinal);
+        Assert.Contains("mcode=0|1", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
+    /// An answer the dialog would not take, or one given for a row that asks
+    /// nothing, is refused with its code and nothing is sent: no answer is
+    /// stored and no dialog asked for (R1206). The lining's refusals carry
+    /// its question.
+    /// </summary>
+    [Theory]
+    [InlineData("0", "99999", GlassAutomationPositionPolicy.EquipmentUnknownCode, 1)]
+    [InlineData("0", "12000,12000", GlassAutomationPositionPolicy.EquipmentRepeatedCode, 1)]
+    [InlineData("771", "12000", GlassAutomationPositionPolicy.EquipmentNotAskedCode, 0)]
+    public async Task AnAnswerTheDialogWouldNotTakeIsRefusedAndNothingIsSent(string row, string equipment, string code, int maps)
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:answer-1",
+            GlassAutomationPositionKind.Part, row, GlassAutomationPartOperation.Part, equipment: equipment.Split(',')));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(code, step.Act.Code);
+        Assert.Equal(maps == 1, step.Act.Equipment is not null);
+        Assert.False(step.Act.EquipmentStored);
+        Assert.Equal(maps, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
+        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("globcrit=", StringComparison.Ordinal)));
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
+    /// The search answers each part whose block asks with its question,
+    /// from the list alone; with a row it reads that row's map too and
+    /// answers every answer that leads to a part (R1206). A row that is not
+    /// a head of the list answers no rows and its code. Nothing is sent.
+    /// </summary>
+    [Fact]
+    public async Task TheSearchCarriesTheQuestionAndARowAsksForItsAnswers()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var linings = await SearchAsync(harness, session.Id, "bumper lining", GlassAutomationPositionKind.Part, null);
+        var doors = await SearchAsync(harness, session.Id, "door shell", GlassAutomationPositionKind.Part, null);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
+        var lining = await harness.Gateway.SearchAutomationCatalogueAsync(
+            new(harness.Automation, session.Id, string.Empty, null, null) { Row = "0" }, CancellationToken.None);
+        var unknown = await harness.Gateway.SearchAutomationCatalogueAsync(
+            new(harness.Automation, session.Id, string.Empty, null, null) { Row = "99999" }, CancellationToken.None);
+
+        Assert.Equal(2, linings.Rows.Count);
+        Assert.All(linings.Rows, row => Assert.Equal(LiningOptions, row.Equipment?.Options.Select(option => option.Code)));
+        Assert.All(linings.Rows, row => Assert.Null(row.Equipment?.Answers));
+        Assert.All(doors.Rows, row => Assert.Null(row.Equipment));
+        Assert.NotNull(lining);
+        var answered = Assert.Single(lining.Rows);
+        Assert.Equal("0", answered.Row);
+        Assert.Equal(8, answered.Equipment?.Answers?.Count);
+        Assert.Contains(answered.Equipment!.Answers!, answer => answer.Rows == "0|5" && answer.Ticked.SequenceEqual(LiningOptions));
+        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/service.php"));
+        Assert.NotNull(unknown);
+        Assert.Empty(unknown.Rows);
+        Assert.Equal(GlassAutomationPositionPolicy.RowUnknownCode, unknown.Code);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
     }
 
     /// <summary>
@@ -507,13 +668,15 @@ public sealed partial class GlassRepairEstimateGatewayTests
         GlassAutomationPositionKind kind,
         string row,
         GlassAutomationPartOperation? operation = null,
-        string? side = null) =>
+        string? side = null,
+        IReadOnlyList<string>? equipment = null) =>
         new(harness.Automation, session.Id, session.Version, operationKey, GlassAutomationActAction.Add)
         {
             Kind = kind,
             Row = row,
             Operation = operation,
             Side = side,
+            Inputs = equipment is null ? null : new GlassAutomationInputs(equipment),
         };
 
     private static GlassAutomationPositionRequest Remove(

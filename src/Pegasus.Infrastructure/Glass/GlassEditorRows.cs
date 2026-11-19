@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
@@ -13,6 +14,41 @@ internal sealed record GlassEditorRowChoice(
     GlassEditorPartRow? Head, string? Rows, string? ReasonCode, string? Same = null)
 {
     public static GlassEditorRowChoice Refused(string reasonCode) => new(null, null, reasonCode);
+}
+
+/// <summary>
+/// The equipment question one head's block asks, as the editor's list code
+/// builds it (R1206): what the Automation is shown (<see cref="Asked"/>),
+/// the criteria the vehicle fixes and the dialog adds to every answer
+/// unshown, every criterion of the block the vehicle's list knows in number
+/// order, the criteria of its part rows and of its time rows, and the block's
+/// rows as the editor takes them.
+/// </summary>
+internal sealed record GlassEditorQuestion(
+    GlassEquipmentQuestion Asked,
+    IReadOnlyList<string> Frozen,
+    IReadOnlyList<string> All,
+    IReadOnlyList<string> PartCriteria,
+    IReadOnlyList<string> TimeCriteria,
+    IReadOnlyList<GlassEditorPartRow> Block);
+
+/// <summary>
+/// What one equipment answer leads to: the part row and its Replace time
+/// row, the value stored for the vehicle as the editor stores it (null when
+/// it stores nothing), and the values it changes; or the reason it leads to
+/// none.
+/// </summary>
+internal sealed record GlassEditorAnswered(
+    GlassEditorPartRow? Part,
+    GlassEditorPartRow? Time,
+    string? Store,
+    IReadOnlyList<GlassEquipmentChange> Changes,
+    string? ReasonCode)
+{
+    /// <summary>The row pair the dialog is asked for (<c>0|5</c>).</summary>
+    public string? Rows => Part is null || Time is null ? null : Part.Id + "|" + Time.Id;
+
+    public static GlassEditorAnswered Refused(string reasonCode) => new(null, null, null, [], reasonCode);
 }
 
 /// <summary>
@@ -160,8 +196,7 @@ internal static class GlassEditorRows
         {
             return GlassEstimateBuildPolicy.NoRowCode;
         }
-        if (row.ShownByEquipment || list.Any(other => other.Has('c') && other.Drawing == row.Drawing
-            && other.DrawingNumber == row.DrawingNumber && other.ShownByEquipment))
+        if (ShownByEquipment(list, head))
         {
             return GlassEstimateBuildPolicy.EquipmentCode;
         }
@@ -170,6 +205,471 @@ internal static class GlassEditorRows
             ? GlassEstimateBuildPolicy.EquipmentCode
             : null;
     }
+
+    /// <summary>
+    /// The most answers a search lists for one row (design 10 section 3, an
+    /// engineering bound). Above it the row's equipment map's own part and
+    /// Replace hours entries are given instead.
+    /// </summary>
+    public const int AnswerCap = 256;
+
+    /// <summary>
+    /// Glass's own note on an option another position uses, as its list page
+    /// sets it (<c>partlist.ttReferenced</c>, list.php of 7 September 2026),
+    /// for a page that does not set one.
+    /// </summary>
+    private const string GlassReferencedNote = "Criteria affects other parts!";
+
+    /// <summary>
+    /// The equipment question a head's block asks (R1206), as the editor's
+    /// list code builds it (<c>getPart</c>, <c>addResCrit</c>,
+    /// <c>critConvPart</c>), or null when it asks none: the editor then opens
+    /// the part's dialog at once.
+    /// </summary>
+    /// <remarks>
+    /// The block is the head and the rows after it up to the next row marked
+    /// <c>b</c>, leaving out a row marked <c>T</c> of the other side and the
+    /// rows of a drawing number the vehicle's criteria hide. It asks when any
+    /// of its rows names a criterion. The options are the block's criteria
+    /// the vehicle's list knows, in number order, but those the vehicle fixes
+    /// (mark <c>f</c>), which the dialog adds to every answer when the vehicle
+    /// has them. An option is greyed out when the head's own show or hide
+    /// fields name it, when every part row of the block names it and Glass's
+    /// does not keep it for the vehicle, or when it is a radio partner of a
+    /// greyed radio option. Judged offline against the editor's own list code
+    /// on the list of 7 September 2026: the options, the greying, the fixed
+    /// criteria and the ticks agreed on all 396 heads accepted (19 November
+    /// 2026).
+    /// </remarks>
+    public static GlassEditorQuestion? Question(GlassEditorPartList list, int head)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        var rows = list.Rows;
+        var block = AskedBlock(rows, head, list.Vehicle);
+        if (!block.Exists(row => row.Criteria.Length > 0))
+        {
+            return null;
+        }
+
+        var all = block
+            .SelectMany(row => CriteriaOf(row.Criteria))
+            .Distinct(StringComparer.Ordinal)
+            .Where(list.Criteria.ContainsKey)
+            .OrderBy(code => code, ByNumber)
+            .ToList();
+        var criteria = all.Select(code => list.Criteria[code]).ToList();
+        var frozen = criteria.Where(criterion => criterion.Has('f') && criterion.IsSet).Select(criterion => criterion.Code).ToList();
+        var shown = criteria.Where(criterion => !criterion.Has('f')).ToList();
+
+        // Greyed as the dialog greys them (critTree.isEnabled, crit.disCritsRB).
+        var common = CriteriaOf(block[0].Criteria);
+        foreach (var partRow in block.Skip(1).Where(item => item.Has('p')))
+        {
+            var own = CriteriaOf(partRow.Criteria);
+            common = own.Count > 0 ? common.Where(own.Contains).ToList() : new List<string>();
+        }
+
+        var greyed = new HashSet<string>(
+            common.Where(code => !(list.Criteria.TryGetValue(code, out var criterion) && criterion.Has('g'))),
+            StringComparer.Ordinal);
+        greyed.UnionWith(Zone(rows[head]));
+        foreach (var radio in shown.Where(item => greyed.Contains(item.Code) && item.IsRadio))
+        {
+            foreach (var partner in shown.Where(item => item.Code != radio.Code
+                && item.Group == radio.Group && item.Radio == "1"))
+            {
+                greyed.Add(partner.Code);
+            }
+        }
+
+        var options = shown
+            .Select(criterion => new GlassEquipmentOption(
+                criterion.Code,
+                criterion.Name,
+                criterion.IsSet,
+                greyed.Contains(criterion.Code),
+                criterion.IsRadio ? criterion.Group : null,
+                criterion.AffectsOtherParts ? list.ReferencedNote ?? GlassReferencedNote : null))
+            .ToList();
+        return new GlassEditorQuestion(
+            new GlassEquipmentQuestion(options),
+            frozen,
+            all,
+            block.Where(row => row.Has('p')).SelectMany(row => CriteriaOf(row.Criteria)).Distinct(StringComparer.Ordinal).ToList(),
+            block.Where(row => row.Has('t')).SelectMany(row => CriteriaOf(row.Criteria)).Distinct(StringComparer.Ordinal).ToList(),
+            block);
+    }
+
+    /// <summary>
+    /// What the list alone says of a head that asks a question, for a part
+    /// added as Part: the reason it is refused, or null when its equipment
+    /// map is to be read next. A wheel (the editor's own wheel selector) and
+    /// a head the vehicle's criteria hide on its drawing wait on equipment no
+    /// answer gives; a head that offers no Replace has no row (R1206).
+    /// </summary>
+    public static string? AskedRefusal(GlassEditorPartList list, int head)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        var row = list.Rows[head];
+        if (row.Has('w'))
+        {
+            return GlassEstimateBuildPolicy.EquipmentCode;
+        }
+        if (!row.Operations.Contains(Replace, StringComparison.Ordinal))
+        {
+            return GlassEstimateBuildPolicy.NoRowCode;
+        }
+
+        return ShownByEquipment(list.Rows, head) && Shown(row, list.Vehicle) != 1
+            ? GlassEstimateBuildPolicy.EquipmentCode
+            : null;
+    }
+
+    /// <summary>Whether a map is the head's own: its first list names the head's part code.</summary>
+    public static bool IsMapOf(IReadOnlyList<IReadOnlyList<string>> map, GlassEditorPartRow head)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        ArgumentNullException.ThrowIfNull(head);
+        return map.Count > 0 && map[0].Count > 1 && map[0][1] == head.Code;
+    }
+
+    /// <summary>
+    /// The rows one equipment answer leads to, as the dialog's OK chooses
+    /// them (<c>submitCritPartInCritDlg</c>, <c>getCritResPart</c>,
+    /// <c>getSelPartTime</c>), and the value the editor stores for the
+    /// vehicle before it asks for the dialog (<c>histSavePart</c>,
+    /// <c>saveCritToKernel</c>); or why it leads to none (R1206).
+    /// </summary>
+    /// <remarks>
+    /// The answer's rule is the ticked codes and the fixed ones the vehicle
+    /// has, in number order. Its part criteria find the part row in the map's
+    /// part group (a blank rule finds <c>0</c>; an empty group is the head),
+    /// and its time criteria the Replace time row in the map's Replace group,
+    /// trying again with only the criteria that group knows, else the block's
+    /// Replace time row with no criteria. When the map names no part row, the
+    /// part row is the block's whose own criteria are exactly the part
+    /// criteria, with the time row after it whose own are exactly the time
+    /// criteria; failing a part, the fixed criteria are dropped one at a time.
+    /// The value stored is <c>code|0 or 1|1</c> for every option of the
+    /// question Glass's keeps for the vehicle (mark <c>g</c>), in number
+    /// order. Judged offline against the editor's own code on the list of
+    /// 7 September 2026: the same pair and the same stored value for all 985
+    /// answers on accepted heads where the editor gives a part, and both
+    /// refusing the other 158 (19 November 2026).
+    /// </remarks>
+    public static GlassEditorAnswered Answer(
+        GlassEditorPartList list, int head, GlassEditorQuestion question,
+        IReadOnlyList<IReadOnlyList<string>> map, IReadOnlyList<string> ticked)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(ticked);
+        var rows = list.Rows;
+        if (!IsMapOf(map, rows[head]))
+        {
+            // Not the map of this row: nothing is chosen from it.
+            return GlassEditorAnswered.Refused(GlassFailure.EditorAnswer);
+        }
+        if (GlassAutomationPositionPolicy.EquipmentRefusal(question.Asked, ticked) is { } refused)
+        {
+            return GlassEditorAnswered.Refused(refused);
+        }
+
+        var rule = question.Frozen.Concat(ticked).Distinct(StringComparer.Ordinal).OrderBy(code => code, ByNumber).ToList();
+        var block = question.Block;
+        var parts = map.Count > 1 ? Entries(map[1]) : new List<string[]>();
+        var times = Entries(Group(map, Replace));
+        var (partCriteria, timeCriteria) = Split(question, rule);
+
+        // The editor's first way: the served map (getCritResPartByCritMap).
+        var part = InBlock(block, parts.Count > 0 ? Find(partCriteria, parts) : rows[head].Id);
+        GlassEditorPartRow? time = null;
+        if (part is not null && part.Has('p'))
+        {
+            var timeId = FindTime(timeCriteria, times);
+            time = (timeId.Length > 0 ? rows.FirstOrDefault(row => row.Id == timeId) : null)
+                ?? block.FirstOrDefault(row => row.Has('t') && row.Operations == Replace && row.Criteria.Length == 0);
+        }
+        else
+        {
+            // Its second way, when the map names no row (getCritResPartByCrit).
+            part = null;
+            while (true)
+            {
+                (partCriteria, timeCriteria) = Split(question, rule);
+                var at = IndexOf(block, row => row.Has('p') && Own(row) == partCriteria);
+                if (at >= 0)
+                {
+                    part = block[at];
+                    var after = block.Skip(at + 1).Where(row => row.Has('t') && Own(row) == timeCriteria).ToList();
+                    time = after.Find(row => row.Operations == Replace) ?? after.FirstOrDefault();
+                    break;
+                }
+
+                var fixedAt = rule.FindIndex(code => list.Criteria.TryGetValue(code, out var criterion) && criterion.Has('f'));
+                if (fixedAt < 0)
+                {
+                    break;
+                }
+
+                rule.RemoveAt(fixedAt);
+            }
+
+            if (part is null)
+            {
+                return GlassEditorAnswered.Refused(GlassAutomationPositionPolicy.EquipmentNoPartCode);
+            }
+        }
+
+        if (time is null || time.Operations != Replace)
+        {
+            return GlassEditorAnswered.Refused(GlassAutomationPositionPolicy.EquipmentNoPartCode);
+        }
+
+        var kept = question.All.Where(code => list.Criteria[code].Has('g')).ToList();
+        var store = string.Join('|', kept.Select(code => code + "|" + (rule.Contains(code) ? "1" : "0") + "|1"));
+        var changes = kept
+            .Where(code => rule.Contains(code) != list.Criteria[code].IsSet)
+            .Select(code => new GlassEquipmentChange(code, rule.Contains(code)))
+            .ToList();
+        return new GlassEditorAnswered(part, time, store.Length > 0 ? store : null, changes, null);
+    }
+
+    /// <summary>
+    /// The question with every allowed answer that leads to a part (R1206):
+    /// each combination of the options that are not greyed, at most one of a
+    /// group, with the rows it leads to and the part list's figures for
+    /// them. Above <see cref="AnswerCap"/> combinations the answers are left
+    /// out and the map's own part and Replace hours entries are given.
+    /// </summary>
+    public static GlassEquipmentQuestion WithAnswers(
+        GlassEditorPartList list, int head, GlassEditorQuestion question, IReadOnlyList<IReadOnlyList<string>> map)
+    {
+        ArgumentNullException.ThrowIfNull(list);
+        ArgumentNullException.ThrowIfNull(question);
+        ArgumentNullException.ThrowIfNull(map);
+        var slots = new List<List<string>>();
+        foreach (var option in question.Asked.Options.Where(item => !item.Greyed))
+        {
+            var slot = option.Group is { } group
+                ? slots.Find(existing => question.Asked.Options.First(item => item.Code == existing[0]).Group == group)
+                : null;
+            if (slot is null)
+            {
+                slots.Add([option.Code]);
+            }
+            else
+            {
+                slot.Add(option.Code);
+            }
+        }
+
+        long count = 1;
+        foreach (var slot in slots)
+        {
+            count *= slot.Count + 1;
+            if (count > AnswerCap)
+            {
+                return question.Asked with
+                {
+                    MapParts = MapEntries(list.Rows, map.Count > 1 ? Entries(map[1]) : new List<string[]>(), part: true),
+                    MapHours = MapEntries(list.Rows, Entries(Group(map, Replace)), part: false),
+                };
+            }
+        }
+
+        var answers = new List<GlassEquipmentAnswer>();
+        var picked = new List<string>();
+        void Pick(int at)
+        {
+            if (at == slots.Count)
+            {
+                var ticked = picked.OrderBy(code => code, ByNumber).ToList();
+                var answered = Answer(list, head, question, map, ticked);
+                if (answered is { Part: { } part, Time: { } time, Rows: { } pair })
+                {
+                    answers.Add(new GlassEquipmentAnswer(ticked, pair, Present(part.Number), Amount(part.Price), Amount(time.Price)));
+                }
+
+                return;
+            }
+
+            Pick(at + 1);
+            foreach (var code in slots[at])
+            {
+                picked.Add(code);
+                Pick(at + 1);
+                picked.RemoveAt(picked.Count - 1);
+            }
+        }
+
+        Pick(0);
+        return question.Asked with { Answers = answers };
+    }
+
+    /// <summary>A map group's entries as the part list's figures for each: the codes the entry needs and its one row.</summary>
+    private static List<GlassEquipmentAnswer> MapEntries(
+        IReadOnlyList<GlassEditorPartRow> rows, List<string[]> entries, bool part) =>
+        entries
+            .Where(entry => entry.Length > 2)
+            .Select(entry =>
+            {
+                var row = rows.FirstOrDefault(item => item.Id == entry[2]);
+                return new GlassEquipmentAnswer(
+                    CriteriaOf(entry[1]),
+                    entry[2],
+                    part ? Present(row?.Number) : null,
+                    part ? Amount(row?.Price) : null,
+                    part ? null : Amount(row?.Price));
+            })
+            .ToList();
+
+    /// <summary>Whether a row, or its drawing number's row, is shown or hidden on its drawing by some equipment.</summary>
+    private static bool ShownByEquipment(IReadOnlyList<GlassEditorPartRow> list, int head)
+    {
+        var row = list[head];
+        return row.ShownByEquipment || list.Any(other => other.Has('c') && other.Drawing == row.Drawing
+            && other.DrawingNumber == row.DrawingNumber && other.ShownByEquipment);
+    }
+
+    /// <summary>
+    /// Whether the vehicle's criteria show a row (1), hide it (2) or both
+    /// (3), as the list code's <c>calcShowHide</c> decides it: alternatives
+    /// joined by <c>+</c>, each one's codes by <c>_</c>.
+    /// </summary>
+    internal static int Shown(GlassEditorPartRow row, IReadOnlySet<string> vehicle)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        ArgumentNullException.ThrowIfNull(vehicle);
+        bool Holds(string rule) => rule.Split('_').All(vehicle.Contains);
+        string[] show = row.Show.Length > 0 ? row.Show.Split('+') : [];
+        string[] hide = row.Hide.Length > 0 ? row.Hide.Split('+') : [];
+        if (vehicle.Count == 0)
+        {
+            return show.Length == 0 ? 1 : 2;
+        }
+        if (show.Length == 0 && hide.Length == 0)
+        {
+            return 1;
+        }
+
+        var shown = show.Any(Holds);
+        var hidden = hide.Any(Holds);
+        if (hide.Length == 0)
+        {
+            return shown ? 1 : 2;
+        }
+        if (show.Length == 0)
+        {
+            return hidden ? 2 : 1;
+        }
+
+        return shown && !hidden ? 1 : shown && hidden ? 3 : 2;
+    }
+
+    /// <summary>
+    /// The block the editor's question is built from: the head and the rows
+    /// after it up to the next row marked <c>b</c>, leaving out the rows of a
+    /// drawing number the vehicle's criteria do not show and a row marked
+    /// <c>T</c> that does not carry the head's side (<c>isLeftRightOK</c>).
+    /// </summary>
+    private static List<GlassEditorPartRow> AskedBlock(
+        IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlySet<string> vehicle)
+    {
+        var first = list[head];
+        var side = first.Has('l') ? 'l' : first.Has('r') ? 'r' : '\0';
+        var block = new List<GlassEditorPartRow> { first };
+        var hidden = false;
+        for (var index = head + 1; index < list.Count && !list[index].Has('b'); index++)
+        {
+            var row = list[index];
+            if (row.Has('c'))
+            {
+                hidden = Shown(row, vehicle) != 1;
+            }
+            if (hidden || (side != '\0' && row.Has('T') && !row.Has(side)))
+            {
+                continue;
+            }
+
+            block.Add(row);
+        }
+
+        return block;
+    }
+
+    /// <summary>The criteria the head's own show and hide fields name: the dialog greys them out (<c>activeZoneCrits</c>).</summary>
+    private static IEnumerable<string> Zone(GlassEditorPartRow head) =>
+        new[] { head.Show, head.Hide, head.DrawingShow, head.DrawingHide }
+            .SelectMany(field => field.Split(ZoneSeparators))
+            .Where(code => code.Length > 0 && code != "0");
+
+    private static readonly char[] ZoneSeparators = ['+', '_'];
+
+    /// <summary>A rule's codes: <c>12000_24119</c> is 12000 and 24119; a blank and <c>0</c> are none.</summary>
+    private static List<string> CriteriaOf(string? rule) =>
+        (rule ?? string.Empty).Split('_').Where(code => code.Length > 0 && code != "0").ToList();
+
+    /// <summary>A row's own rule, as the map's entries write one.</summary>
+    private static string Own(GlassEditorPartRow row) => string.Join('_', CriteriaOf(row.Criteria));
+
+    /// <summary>A rule's part criteria and its time criteria, each joined in the rule's order.</summary>
+    private static (string Part, string Time) Split(GlassEditorQuestion question, List<string> rule) =>
+        (string.Join('_', rule.Where(question.PartCriteria.Contains)),
+            string.Join('_', rule.Where(question.TimeCriteria.Contains)));
+
+    /// <summary>The row of the map entry for a rule (<c>cCritMap.find</c>): a blank rule finds <c>0</c>; none is blank.</summary>
+    private static string Find(string rule, List<string[]> entries)
+    {
+        var key = rule.Length == 0 ? "0" : rule;
+        var entry = entries.Find(item => item.Length > 1 && item[1] == key);
+        return entry is { Length: > 2 } ? entry[2] : string.Empty;
+    }
+
+    /// <summary>The Replace time row's entry: the rule's, else the rule kept to the criteria the group knows (<c>findTER</c>).</summary>
+    private static string FindTime(string rule, List<string[]> entries)
+    {
+        var found = Find(rule, entries);
+        if (found.Length > 0 || rule.Length == 0)
+        {
+            return found;
+        }
+
+        var known = entries.Where(entry => entry.Length > 1).SelectMany(entry => CriteriaOf(entry[1])).ToHashSet(StringComparer.Ordinal);
+        return Find(string.Join('_', CriteriaOf(rule).Where(known.Contains)), entries);
+    }
+
+    private static GlassEditorPartRow? InBlock(IReadOnlyList<GlassEditorPartRow> block, string id) =>
+        id.Length == 0 ? null : block.FirstOrDefault(row => row.Id == id);
+
+    private static int IndexOf(IReadOnlyList<GlassEditorPartRow> block, Func<GlassEditorPartRow, bool> match)
+    {
+        for (var index = 0; index < block.Count; index++)
+        {
+            if (match(block[index]))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>A map group's entries, each split at its bars (<c>e|12000_24119|3</c>).</summary>
+    private static List<string[]> Entries(IReadOnlyList<string> group) =>
+        group.Select(entry => entry.Split('|')).ToList();
+
+    private static string? Present(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    private static decimal? Amount(string? text) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
+
+    /// <summary>Codes in number order, as the list code sorts them; a code that is not a number by its text.</summary>
+    private static readonly Comparer<string> ByNumber = Comparer<string>.Create((left, right) =>
+        long.TryParse(left, NumberStyles.None, CultureInfo.InvariantCulture, out var first)
+        && long.TryParse(right, NumberStyles.None, CultureInfo.InvariantCulture, out var second)
+            ? first.CompareTo(second)
+            : string.CompareOrdinal(left, right));
 
     /// <summary>
     /// One head, decided for an operation (Replace when none is named) with

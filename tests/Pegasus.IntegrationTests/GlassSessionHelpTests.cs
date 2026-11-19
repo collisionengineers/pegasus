@@ -9,7 +9,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Automation's help in an Engineer's open Glass's session (design 08
-/// sections 5 and 6, slice D2; R1170, R1182, R1185) against the scripted
+/// sections 5 and 6, slice D2; R1170, R1182, R1185, R1206) against the scripted
 /// editor of <see cref="GlassProviderFixture"/>, on a key held as the helper
 /// hands it over: an add reads the estimate before and after and tells its
 /// own position from those the Engineer added meanwhile; a lost answer is not
@@ -65,6 +65,101 @@ public sealed class GlassSessionHelpTests
         // Nothing of Glass's save or exit was asked for.
         Assert.Equal(0, help.Glass.Count("GET /ere/aco/close.php"));
         Assert.DoesNotContain(help.Glass.Requests, request => request.Query.Contains("DoSave", StringComparison.Ordinal));
+    }
+
+    /// <summary>The BMW mirror's answer of 18 November 2026: automatic dimming only (r18 #872).</summary>
+    private static readonly string[] Dimming = ["21115"];
+
+    /// <summary>
+    /// An answered part's requests in the Engineer's session (R1206): the
+    /// estimate, the part list, the mirror's map, the stored answer, the
+    /// variant's dialog (part.php, as row 822 cannot be painted), its post,
+    /// the estimate.
+    /// </summary>
+    private static readonly string[] AnsweredMirror =
+    [
+        "GET /ere/aco/selected.php",
+        "GET /ere/aco/list.php",
+        "GET /ere/aco/service.php",
+        "GET /ere/aco/service.php",
+        "GET /ere/aco/part.php",
+        "POST /ere/aco/compproc.php",
+        "GET /ere/aco/selected.php",
+    ];
+
+    /// <summary>
+    /// In an Engineer's session with help on, the Automation answers a
+    /// part's equipment question as in its own (R1206): the BMW mirror's
+    /// answer leads through its map's part group to the variant row 822,
+    /// is stored as the editor stored it on 18 November 2026, and the
+    /// variant's dialog is posted as served. The history row keeps the
+    /// answer, the pair and the value it changed.
+    /// </summary>
+    [Fact]
+    public async Task AnAnsweredPartIsAddedInTheEngineersSession()
+    {
+        var help = Help.Create();
+        using var window = help.Window();
+
+        var outcome = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-mirror-1",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "821",
+                Operation = GlassAutomationPartOperation.Part,
+                Inputs = new GlassAutomationInputs(Dimming),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Added, outcome.Act.Outcome);
+        Assert.Equal(EngineersPosition, Assert.Single(outcome.Act.PositionIds));
+        Assert.Equal("822|829", outcome.Act.RowPair);
+        Assert.True(outcome.Act.EquipmentStored);
+        Assert.Equal(new GlassEquipmentChange("21115", true), Assert.Single(outcome.Act.EquipmentChanged));
+        Assert.Equal(new GlassEstimateBuildFigures(383.48m, 0.80m), outcome.Act.Served);
+        Assert.Equal(AnsweredMirror, help.Glass.Requests.Select(request => request.Method + " " + request.Path));
+        Assert.Contains(
+            "&globcrit=" + Uri.EscapeDataString(GlassEditorFixture.Page("equipment821").GetProperty("answers").GetString()!) + "&",
+            help.Glass.Requests[3].Query,
+            StringComparison.Ordinal);
+        Assert.Contains("rowid=821&reqcritmap3=1", help.Glass.Requests[2].Query, StringComparison.Ordinal);
+        Assert.Contains("mcode=822|829", Uri.UnescapeDataString(help.Glass.Requests[4].Query), StringComparison.Ordinal);
+        var recorded = Assert.Single(help.Store.Acts);
+        Assert.Equal(Dimming, recorded.Inputs?.Equipment);
+        Assert.Equal("822|829", recorded.RowPair);
+        Assert.True(recorded.EquipmentStored);
+    }
+
+    /// <summary>A part whose row asks, added with no answer, is refused with its question and nothing is sent (R1206).</summary>
+    [Fact]
+    public async Task APartWithNoAnswerIsRefusedWithItsQuestionInTheEngineersSession()
+    {
+        var help = Help.Create();
+
+        var outcome = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-mirror-2",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "821",
+                Operation = GlassAutomationPartOperation.Part,
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, outcome.Act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, outcome.Act.Code);
+        Assert.NotNull(outcome.Act.Equipment);
+        Assert.Equal(
+            "Outside Mirrors Automatic Dimming",
+            Assert.Single(outcome.Act.Equipment.Options, option => option.Code == "21115").Name);
+        Assert.Equal("160", Assert.Single(outcome.Act.Equipment.Options, option => option.Code == "85142").Group);
+        Assert.Equal(0, help.Glass.Count("GET /ere/aco/part.php"));
+        Assert.Equal(0, help.Glass.Count("POST /ere/aco/compproc.php"));
+        Assert.DoesNotContain(help.Glass.Requests, request => request.Query.Contains("globcrit=", StringComparison.Ordinal));
+        Assert.False(outcome.ShownInWindow);
     }
 
     [Fact]

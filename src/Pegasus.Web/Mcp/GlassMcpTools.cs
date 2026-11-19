@@ -36,6 +36,33 @@ internal sealed record GlassEstimateToolItem(
 
 internal sealed record GlassListedPartToolItem(string Code, string Text, bool Ticked);
 
+/// <summary>What an add gives Glass's (R1206): later versions add members.</summary>
+internal sealed record GlassPositionInputsToolInput(
+    [property: Description(AutomationToolText.GlassInputsEquipment)] IReadOnlyList<string>? Equipment = null);
+
+internal sealed record GlassEquipmentOptionToolItem(
+    [property: Description(AutomationToolText.GlassEquipmentOptionCode)] string Code,
+    [property: Description(AutomationToolText.GlassEquipmentOptionName)] string Name,
+    [property: Description(AutomationToolText.GlassEquipmentOptionTicked)] bool Ticked,
+    [property: Description(AutomationToolText.GlassEquipmentOptionGreyed)] bool Greyed,
+    [property: Description(AutomationToolText.GlassEquipmentOptionGroup)] string? Group,
+    [property: Description(AutomationToolText.GlassEquipmentOptionNote)] string? AffectsOtherParts);
+
+internal sealed record GlassEquipmentAnswerToolItem(
+    [property: Description(AutomationToolText.GlassEquipmentAnswerTicked)] IReadOnlyList<string> Ticked,
+    [property: Description(AutomationToolText.GlassEquipmentAnswerRows)] string Rows,
+    [property: Description(AutomationToolText.GlassEquipmentAnswerFigures)] string? PartNumber,
+    [property: Description(AutomationToolText.GlassEquipmentAnswerFigures)] decimal? Price,
+    [property: Description(AutomationToolText.GlassEquipmentAnswerFigures)] decimal? Hours);
+
+internal sealed record GlassEquipmentToolItem(
+    IReadOnlyList<GlassEquipmentOptionToolItem> Options,
+    [property: Description(AutomationToolText.GlassEquipmentAnswers)] IReadOnlyList<GlassEquipmentAnswerToolItem>? Answers,
+    [property: Description(AutomationToolText.GlassEquipmentMapParts)] IReadOnlyList<GlassEquipmentAnswerToolItem>? MapParts,
+    [property: Description(AutomationToolText.GlassEquipmentMapHours)] IReadOnlyList<GlassEquipmentAnswerToolItem>? MapHours);
+
+internal sealed record GlassEquipmentChangeToolItem(string Code, bool Ticked);
+
 internal sealed record GlassActToolItem(
     string OperationKey,
     [property: Description(AutomationToolText.GlassPositionAction)] string Action,
@@ -51,7 +78,12 @@ internal sealed record GlassActToolItem(
     [property: Description(AutomationToolText.GlassActPrice)] decimal? Price,
     [property: Description(AutomationToolText.GlassActHours)] decimal? Hours,
     [property: Description(AutomationToolText.GlassActMandatoryParts)] IReadOnlyList<GlassListedPartToolItem> MandatoryParts,
-    DateTimeOffset RequestedAtUtc);
+    DateTimeOffset RequestedAtUtc,
+    [property: Description(AutomationToolText.GlassActInputs)] GlassPositionInputsToolInput? Inputs = null,
+    [property: Description(AutomationToolText.GlassActEquipment)] GlassEquipmentToolItem? Equipment = null,
+    [property: Description(AutomationToolText.GlassActRowPair)] string? RowPair = null,
+    [property: Description(AutomationToolText.GlassActEquipmentChanged)] IReadOnlyList<GlassEquipmentChangeToolItem>? EquipmentChanged = null,
+    [property: Description(AutomationToolText.GlassActEquipmentStored)] bool? EquipmentStored = null);
 
 internal sealed record GlassSessionGetToolResult(
     Guid CaseId,
@@ -70,7 +102,8 @@ internal sealed record GlassCatalogueRowToolItem(
     string? PartCode,
     string? PartNumber,
     [property: Description(AutomationToolText.GlassCatalogueSide)] string? Side,
-    [property: Description(AutomationToolText.GlassCataloguePaintable)] bool Paintable);
+    [property: Description(AutomationToolText.GlassCataloguePaintable)] bool Paintable,
+    [property: Description(AutomationToolText.GlassCatalogueEquipment)] GlassEquipmentToolItem? Equipment = null);
 
 internal sealed record GlassCatalogueSearchToolResult(
     Guid CaseId,
@@ -286,12 +319,13 @@ internal sealed class GlassMcpTools(
     [Description(AutomationToolText.GlassCatalogueSearch + " " + AutomationToolText.GlassHelpWorksIn)]
     public async Task<GlassCatalogueSearchToolResult> SearchCatalogueAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
-        [Description(AutomationToolText.GlassSearchTerm)] string term,
+        [Description(AutomationToolText.GlassSearchTerm)] string? term = null,
         [Description(AutomationToolText.GlassSearchKind)] string? kind = null,
         [Description(AutomationToolText.GlassSearchSide)] string? side = null,
         [Description(AutomationToolText.Cursor)] string? cursor = null,
         [Description(AutomationToolText.PageSize)] int? limit = null,
         [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
+        [Description(AutomationToolText.GlassSearchRow)] string? row = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -301,8 +335,9 @@ internal sealed class GlassMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 RequireAvailable();
-                var wantedTerm = term?.Trim() ?? string.Empty;
-                if (wantedTerm.Length is 0 or > MaximumTermLength)
+                var wantedRow = string.IsNullOrWhiteSpace(row) ? null : row.Trim();
+                var wantedTerm = wantedRow is null ? term?.Trim() ?? string.Empty : string.Empty;
+                if (wantedRow is null && wantedTerm.Length is 0 or > MaximumTermLength)
                 {
                     throw new McpException(AutomationToolText.GlassSearchTermRefused);
                 }
@@ -324,12 +359,13 @@ internal sealed class GlassMcpTools(
                 }
 
                 // The cursor is bound to the caller, the session, the term,
-                // the kind and the side (FRD-10): an offset into the rows
-                // found, which each page asks Glass's for again (no cache).
+                // the kind, the side and the row (FRD-10): an offset into the
+                // rows found, which each page asks Glass's for again (no cache).
                 var searched = session.Id;
                 var scope = CursorPaging.CreateScope(
                     "pegasus_glass_catalogue_search", context.Actor,
-                    searched.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide);
+                    searched.ToString("D"), wantedTerm, wantedKind is { } scoped ? KindName(scoped) : "any", wantedSide,
+                    wantedRow);
                 var offset = 0;
                 if (!string.IsNullOrEmpty(cursor))
                 {
@@ -341,7 +377,10 @@ internal sealed class GlassMcpTools(
                     }
                 }
 
-                var query = new GlassAutomationCatalogueQuery(context.Actor, searched, wantedTerm, wantedKind, wantedSide);
+                var query = new GlassAutomationCatalogueQuery(context.Actor, searched, wantedTerm, wantedKind, wantedSide)
+                {
+                    Row = wantedRow,
+                };
                 var found = target.IsStaff
                     ? await HelpAsync(() => Help.SearchAsync(query, session, cancellationToken))
                     : await RunHereAsync(
@@ -353,8 +392,9 @@ internal sealed class GlassMcpTools(
                 var items = found.Rows
                     .Skip(offset)
                     .Take(pageSize)
-                    .Select(row => new GlassCatalogueRowToolItem(
-                        row.Row, KindName(row.Kind), row.Description, row.PartCode, row.PartNumber, row.Side, row.Paintable))
+                    .Select(item => new GlassCatalogueRowToolItem(
+                        item.Row, KindName(item.Kind), item.Description, item.PartCode, item.PartNumber, item.Side,
+                        item.Paintable, MapEquipment(item.Equipment)))
                     .ToList();
                 var next = offset + pageSize < found.Rows.Count
                     ? cursors.Protect(scope, (offset + pageSize).ToString(CultureInfo.InvariantCulture), searched)
@@ -385,6 +425,7 @@ internal sealed class GlassMcpTools(
         [Description(AutomationToolText.GlassAddSide)] string? side = null,
         [Description(AutomationToolText.GlassRemovePositionId)] string? positionId = null,
         [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
+        [Description(AutomationToolText.GlassAddInputs)] GlassPositionInputsToolInput? inputs = null,
         CancellationToken cancellationToken = default)
     {
         return await auditor.CallAsync(
@@ -397,7 +438,7 @@ internal sealed class GlassMcpTools(
                 RequireAvailable();
                 var asked = PositionRequest(
                     context.Actor, action, key, RequireValue(expectedSessionVersion, "expectedSessionVersion"),
-                    kind, row, operation, side, positionId);
+                    kind, row, operation, side, positionId, inputs);
                 // The same key again answers the act as recorded and sends
                 // nothing, whichever of the Case's Automation sessions holds it.
                 if (await store.FindAutomationActSessionAsync(caseId, key, cancellationToken) is { } replayed
@@ -469,14 +510,26 @@ internal sealed class GlassMcpTools(
     /// </summary>
     private static GlassAutomationPositionRequest PositionRequest(
         ActionActor actor, string? action, string key, long expectedSessionVersion,
-        string? kind, string? row, string? operation, string? side, string? positionId)
+        string? kind, string? row, string? operation, string? side, string? positionId,
+        GlassPositionInputsToolInput? inputs)
     {
+        var equipment = inputs?.Equipment;
+        if (equipment is not null && equipment.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
+        }
+
         switch (action?.Trim())
         {
             case "remove":
                 if (string.IsNullOrWhiteSpace(positionId))
                 {
                     throw new McpException(AutomationToolText.GlassRemovePositionIdRefused);
+                }
+
+                if (equipment is not null)
+                {
+                    throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
                 }
 
                 return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Remove)
@@ -513,6 +566,10 @@ internal sealed class GlassMcpTools(
                 {
                     throw new McpException(AutomationToolText.GlassAddOperationNotForSpecial);
                 }
+                if (equipment is not null && !GlassAutomationPositionPolicy.TakesEquipment(wantedKind, wantedOperation))
+                {
+                    throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
+                }
 
                 return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Add)
                 {
@@ -520,6 +577,7 @@ internal sealed class GlassMcpTools(
                     Row = row.Trim(),
                     Operation = wantedOperation,
                     Side = SideOf(side),
+                    Inputs = equipment is null ? null : new GlassAutomationInputs(equipment.Select(code => code.Trim()).ToList()),
                 };
             default:
                 throw new McpException(AutomationToolText.GlassPositionActionRefused);
@@ -572,7 +630,31 @@ internal sealed class GlassMcpTools(
             act.Served?.Price,
             act.Served?.Hours,
             act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked)).ToList(),
-            act.RequestedAtUtc);
+            act.RequestedAtUtc,
+            act.Inputs is { } given ? new GlassPositionInputsToolInput(given.Equipment) : null,
+            MapEquipment(act.Equipment),
+            act.RowPair,
+            act.EquipmentChanged.Count > 0
+                ? act.EquipmentChanged.Select(change => new GlassEquipmentChangeToolItem(change.Code, change.Ticked)).ToList()
+                : null,
+            act.EquipmentStored ? true : null);
+
+    /// <summary>A part's equipment question as the tools answer it; Glass's own names and note pass through unchanged.</summary>
+    private static GlassEquipmentToolItem? MapEquipment(GlassEquipmentQuestion? question) =>
+        question is null
+            ? null
+            : new GlassEquipmentToolItem(
+                question.Options
+                    .Select(option => new GlassEquipmentOptionToolItem(
+                        option.Code, option.Name, option.Ticked, option.Greyed, option.Group, option.Note))
+                    .ToList(),
+                MapAnswers(question.Answers),
+                MapAnswers(question.MapParts),
+                MapAnswers(question.MapHours));
+
+    private static List<GlassEquipmentAnswerToolItem>? MapAnswers(IReadOnlyList<GlassEquipmentAnswer>? answers) =>
+        answers?.Select(answer => new GlassEquipmentAnswerToolItem(
+            answer.Ticked, answer.Rows, answer.PartNumber, answer.Price, answer.Hours)).ToList();
 
     /// <summary>
     /// start: under the Case's one-command lease, the prepare half proves and

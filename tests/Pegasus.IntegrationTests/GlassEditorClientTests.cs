@@ -210,6 +210,64 @@ public sealed class GlassEditorClientTests
         Assert.Equal(GlassEditorFixture.Text("reinforcement_right.post.txt"), editor.Requests[2].Body);
     }
 
+    /// <summary>
+    /// An equipment answer is stored at the address the browser asked for
+    /// (R1206), and its answer must be the page that tells the list to read
+    /// the criteria again; any other page may still have stored it.
+    /// </summary>
+    [Fact]
+    public async Task AnEquipmentAnswerIsStoredAtTheAddressTheBrowserAskedFor()
+    {
+        using var editor = new ScriptedEditor();
+        var page = GlassEditorFixture.Page("globcrit");
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, GlassEditorFixture.Text(page.GetProperty("file").GetString()!)));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("save.answer.html")));
+        var client = new GlassEditorClient(
+            new HttpClient(editor, disposeHandler: false), GlassEditorFixture.Options(),
+            new GlassEditorFixture.FixedClock(DateTimeOffset.FromUnixTimeMilliseconds(1794979937123)), TimeSpan.Zero);
+
+        var stored = await client.StoreEquipmentAsync(
+            GlassEditorFixture.Session(), page.GetProperty("answers").GetString()!, default);
+        var unread = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.StoreEquipmentAsync(
+            GlassEditorFixture.Session(), page.GetProperty("answers").GetString()!, default));
+
+        Assert.True(stored.Value);
+        var first = editor.Requests[0];
+        Assert.Equal(page.GetProperty("address").GetString(), "https://" + first.Host + first.Path + first.Query);
+        Assert.Equal(GlassEditorFixture.Base + "acofr.php", first.Referer?.Split('?')[0]);
+        Assert.Equal(GlassFailure.EditorAnswer, unread.FailureCode);
+        Assert.True(unread.OutcomeUnknown);
+        Assert.DoesNotContain(GlassEditorFixture.Key, unread.Detail ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A part whose rows an equipment answer chose (R1206) is refused before
+    /// its post when the dialog's record names another row pair, or the
+    /// dialog carries another part number; the captured lining dialog is
+    /// for <c>0|5</c> and number 6F0807221DGRU.
+    /// </summary>
+    [Theory]
+    [InlineData("0|3", "6F0807221DGRU", "The dialog's record names other rows.")]
+    [InlineData("0|5", "6F0807221XXX", "The dialog carries another part number.")]
+    public async Task AnAnsweredPartsDialogForAnotherVariantIsNeverPosted(string rows, string number, string detail)
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET comp.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("bumper_part.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(
+                GlassEditorDialog.PaintablePart, rows, "1010800", Button: "BSS", ExpectedSide: string.Empty,
+                CheckRows: true, ExpectedPartNumber: number),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal(detail, refused.Detail);
+        Assert.Single(editor.Requests);
+    }
+
     /// <summary>The part list is asked for at the address the browser asked for and read row by row.</summary>
     [Fact]
     public async Task ThePartListIsReadFromTheAddressTheBrowserAskedFor()
@@ -221,7 +279,9 @@ public sealed class GlassEditorClientTests
 
         var read = await client.ReadPartListAsync(GlassEditorFixture.Session(), page.GetProperty("groups").GetString()!, default);
 
-        Assert.Equal(page.GetProperty("rows").GetInt32(), read.Value.Count);
+        Assert.Equal(page.GetProperty("rows").GetInt32(), read.Value.Rows.Count);
+        Assert.Equal(170, read.Value.Criteria.Count);
+        Assert.Equal("Criteria affects other parts!", read.Value.ReferencedNote);
         var only = Assert.Single(editor.Requests);
         Assert.Equal(page.GetProperty("address").GetString(), "https://" + only.Host + only.Path + Uri.UnescapeDataString(only.Query));
         Assert.Equal(GlassEditorFixture.Base + "acofr.php", only.Referer?.Split('?')[0]);

@@ -752,6 +752,35 @@ compose Glass's, each tool is refused with "Glass's is not available."
   and remove-and-refit. Paint on its own is refused with its reason
   (18 November 2026; R1182, as R1168 and R1172 for a rebuild). `remove`
   removes a position by its id.
+- A part whose block in Glass's part list asks Glass's equipment question
+  is added as Part with the Actor's answer (19 November 2026; R1206, in
+  place of R1182's "parts whose row needs no equipment answer").
+  `inputs.equipment` names the option codes it ticks, or none, and is the
+  whole answer: an option the vehicle has that it does not name is
+  unticked. The search gives each such part its question, built from the
+  part list alone: Glass's own option names, which are ticked now, which are
+  greyed, their radio groups, and Glass's own "Criteria affects other
+  parts!". With `row` it answers that one row and every answer that leads to
+  a part, with the row pair, part number, price and hours the part list
+  gives; above 256 answers it gives the map's own part and hours entries
+  instead.
+- An add on such a part with no answer is refused with
+  `glass.build.equipment` and the question. An answer that names a code
+  that is no option (`glass.build.equipment_unknown`) or a greyed one
+  (`glass.build.equipment_greyed`), names a code twice
+  (`glass.build.equipment_repeated`) or two options of one group
+  (`glass.build.equipment_same_group`), leads to no part
+  (`glass.build.equipment_no_part`), or is given for a row that asks
+  nothing (`glass.build.equipment_not_asked`) is refused with its code.
+  Nothing is sent for any of them. Otherwise the answer is stored at
+  Glass's as the editor stores it, just before the dialog is asked for, and
+  Glass's keeps it for the vehicle. The dialog must serve the row pair the
+  answer leads to and that row's part number before it is posted as
+  served. The act keeps the answer, the row pair and the stored values it
+  changed, and says when the answer was stored though the add was then
+  refused. Repair and remove-and-refit on such a part stay refused (R1172),
+  and the server's rebuild of an outside estimate answers no question
+  (R1168, R1169, R1172).
 - A session the Automation owns has no lifetime, as any Glass's session.
   Staff see it on its Case, and any member of staff who can open the Case's
   assessment may close it with a reason (R1180;
@@ -771,7 +800,10 @@ named.
 
 - In an Engineer's session the Actor reads the estimate, searches its lists,
   adds the same positions as a rebuild, posted as Glass's dialog serves them
-  with nothing typed (R1182), and removes any position of the estimate
+  with nothing typed (R1182), adds a part whose equipment question it
+  answers as in its own session, the answer stored for the vehicle and any
+  option the vehicle has unticked if the answer leaves it out (19 November
+  2026; R1206), and removes any position of the estimate
   (R1185): the Engineer asked for the help and watches the window. It never
   saves, exits or closes the session and never reads the Engineer's Glass's
   login; it works on the editor key the Pegasus helper handed over
@@ -884,8 +916,8 @@ its one command when none is given.
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
 | `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `readEstimate` the positions the open estimate holds ([Glass's sessions](#glasss-sessions)) | none |
 | `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
-| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by; the Automation's own session or an Engineer's with help on | none |
-| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182); `remove` one by its id (R1185); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key |
+| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
+| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment` (R1206); `remove` one by its id (R1185); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key |
 
 ## States and transitions
 

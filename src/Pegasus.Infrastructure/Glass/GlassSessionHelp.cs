@@ -82,11 +82,16 @@ public sealed class GlassSessionHelp(
         GlassAutomationCatalogueQuery query, GlassRepairEstimateSession session, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
+        if (string.IsNullOrWhiteSpace(query.Row))
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
+        }
+
         Require(query.Actor, session);
         using var turn = Enter(session);
         var (rows, code, opened) = await Work.SearchAsync(
-            session, turn.Editor, turn.Opened, query.Term.Trim(), query.Kind, query.Side, cancellationToken);
+            session, turn.Editor, turn.Opened, query.Term.Trim(), query.Kind, query.Side,
+            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), cancellationToken);
         Keep(session, turn.Editor, opened);
         return new(session, rows, code);
     }
@@ -212,12 +217,18 @@ public sealed class GlassSessionHelp(
                 "An add names its row, and an operation for a part and only for a part.", nameof(request));
         }
 
+        if (request.Inputs?.Equipment is not null && !GlassAutomationPositionPolicy.TakesEquipment(kind, request.Operation))
+        {
+            throw new ArgumentException("An equipment answer is given for a part added as Part only.", nameof(request));
+        }
+
         act = act with
         {
             Kind = kind,
             Row = request.Row.Trim(),
             Operation = request.Operation,
             Side = string.IsNullOrWhiteSpace(request.Side) ? null : request.Side.Trim(),
+            Inputs = request.Inputs?.Equipment is null ? null : request.Inputs,
         };
         return GlassAutomationPositionPolicy.Sends(kind, request.Operation)
             ? act
