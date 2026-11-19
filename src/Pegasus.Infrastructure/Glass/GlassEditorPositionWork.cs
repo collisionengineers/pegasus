@@ -261,31 +261,31 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             }
             if (row is not null)
             {
-                var list = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
+                var partList = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
-                opened = list.Session;
-                var at = IndexOfPart(list.Value.Rows, row);
-                var head = at < 0 ? -1 : GlassEditorRows.HeadOf(list.Value.Rows, at);
+                opened = partList.Session;
+                var at = IndexOfPart(partList.Value.Rows, row);
+                var head = at < 0 ? -1 : GlassEditorRows.HeadOf(partList.Value.Rows, at);
                 if (head < 0)
                 {
                     return (Array.Empty<GlassAutomationCatalogueRow>(), GlassAutomationPositionPolicy.RowUnknownCode, opened);
                 }
 
                 // A variant row named by the row: its head, and the answers that lead to it (R1206).
-                var variant = at == head ? null : list.Value.Rows[at];
-                var found = CatalogueRowOf(list.Value.Rows[head]);
-                var question = GlassEditorRows.Build(list.Value, head);
+                var variant = at == head ? null : partList.Value.Rows[at];
+                var found = CatalogueRowOf(partList.Value.Rows[head]);
+                var question = GlassEditorRows.Build(partList.Value, head);
                 if (question.Asks || variant is not null)
                 {
                     var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
-                        opened, list.Value.Rows[head].Id, cancellationToken));
+                        opened, partList.Value.Rows[head].Id, cancellationToken));
                     opened = map.Session;
-                    if (!GlassEditorRows.IsMapOf(map.Value, list.Value.Rows[head]))
+                    if (!GlassEditorRows.IsMapOf(map.Value, partList.Value.Rows[head]))
                     {
                         return (Array.Empty<GlassAutomationCatalogueRow>(), GlassFailure.EditorAnswer, opened);
                     }
 
-                    var answered = GlassEditorRows.WithAnswers(list.Value, head, question, map.Value);
+                    var answered = GlassEditorRows.WithAnswers(partList.Value, head, question, map.Value);
                     found = found with
                     {
                         Equipment = question.Asks ? answered : null,
@@ -320,27 +320,27 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                var list = parts.Value;
-                for (var index = 0; index < list.Rows.Count; index++)
+                var partList = parts.Value;
+                for (var index = 0; index < partList.Rows.Count; index++)
                 {
-                    var part = list.Rows[index];
+                    var part = partList.Rows[index];
                     if (part.IsHead
                         && (side is null || string.Equals(SideOf(part), side, StringComparison.Ordinal))
                         && Matches(term, part.Name, part.Code, part.Number))
                     {
-                        rows.Add(CatalogueRowOf(part) with { Equipment = GlassEditorRows.Question(list, index)?.Asked });
+                        rows.Add(CatalogueRowOf(part) with { Equipment = GlassEditorRows.Question(partList, index)?.Asked });
                         continue;
                     }
 
                     // A variant row's own part number finds its head, with the variant named (R1206).
                     if (part.IsPart && !part.IsHead && Matches(term, null, null, part.Number)
-                        && GlassEditorRows.HeadOf(list.Rows, index) is var head and >= 0
-                        && list.Rows[head].Number != part.Number
-                        && (side is null || string.Equals(SideOf(list.Rows[head]), side, StringComparison.Ordinal)))
+                        && GlassEditorRows.HeadOf(partList.Rows, index) is var head and >= 0
+                        && partList.Rows[head].Number != part.Number
+                        && (side is null || string.Equals(SideOf(partList.Rows[head]), side, StringComparison.Ordinal)))
                     {
-                        rows.Add(CatalogueRowOf(list.Rows[head]) with
+                        rows.Add(CatalogueRowOf(partList.Rows[head]) with
                         {
-                            Equipment = GlassEditorRows.Question(list, head)?.Asked,
+                            Equipment = GlassEditorRows.Question(partList, head)?.Asked,
                             Variant = new GlassCatalogueVariant(part.Id, Present(part.Number)),
                         });
                     }
