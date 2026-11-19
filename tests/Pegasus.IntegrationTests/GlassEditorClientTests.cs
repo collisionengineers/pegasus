@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.IntegrationTests;
@@ -106,8 +107,14 @@ public sealed class GlassEditorClientTests
             "https://" + editor.Requests[9].Host + editor.Requests[9].Path + editor.Requests[9].Query);
     }
 
+    /// <summary>
+    /// Typed hours above Glass's own with no reason (R1206): the dialog would
+    /// ask for one, so nothing is posted, with the code that tells the
+    /// Automation to give its reason. Only typed hours meet this; a rebuild
+    /// types none.
+    /// </summary>
     [Fact]
-    public async Task ADialogWithAProblemIsNeverPosted()
+    public async Task TypedHoursThatNeedAReasonAreNeverPostedWithoutOne()
     {
         using var editor = new ScriptedEditor();
         editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
@@ -119,9 +126,30 @@ public sealed class GlassEditorClientTests
             new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Hours: "0.80")),
             default));
 
-        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, refused.FailureCode);
         Assert.False(refused.OutcomeUnknown);
         Assert.Contains("the dialog asks for a reason", refused.Detail, StringComparison.Ordinal);
+        var only = Assert.Single(editor.Requests);
+        Assert.Equal("GET", only.Method);
+    }
+
+    /// <summary>Any other problem the builder finds refuses the dialog with the editor's own code, and nothing is posted.</summary>
+    [Fact]
+    public async Task ADialogWithAProblemIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Operation: "XX")),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.False(refused.OutcomeUnknown);
+        Assert.Contains("The dialog does not offer the operation XX.", refused.Detail, StringComparison.Ordinal);
         var only = Assert.Single(editor.Requests);
         Assert.Equal("GET", only.Method);
     }
