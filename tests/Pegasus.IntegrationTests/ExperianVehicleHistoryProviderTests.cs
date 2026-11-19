@@ -177,6 +177,25 @@ public sealed class ExperianVehicleHistoryProviderTests
     }
 
     [Fact]
+    public async Task AnAnswerWithoutTheConditionRecordsIsUnavailableNotClean()
+    {
+        // UAT's answer on 18 November 2026: the vehicle, no provenance block,
+        // and message 100 refusing the condition records.
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"13","title":"Plate Change"},{"id":"100","title":"Permission to view ConditionRecords was denied"}],
+             "vehicle":{"summary":{"vrm":"AB12CDE"}}}
+            """));
+
+        await Assert.ThrowsAsync<VehicleHistoryCheckUnavailableException>(() =>
+            harness.Provider.CheckAsync(Registration, default));
+
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("experian.history.unreadable", StringComparison.Ordinal)
+            && message.Contains("condition=absent messages=13,100", StringComparison.Ordinal));
+        harness.AssertNothingSecretLogged();
+    }
+
+    [Fact]
     public async Task ATransportFailureIsUnavailable()
     {
         var harness = Harness.Create(vehicle: _ => throw new HttpRequestException("connection reset"));
