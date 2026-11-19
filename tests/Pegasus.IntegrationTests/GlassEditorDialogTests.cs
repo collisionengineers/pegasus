@@ -604,6 +604,30 @@ public sealed class GlassEditorDialogTests
     }
 
     /// <summary>
+    /// Only the hours changed on a reopened painted position (R1206), the
+    /// walk's bonnet (#848): its paint is posted as the dialog's own script
+    /// leaves it, the paint price and hours the position's own from its list
+    /// (691.15 and 4.10, where its record holds 3.60) and the procedure and
+    /// method the script selects. The post is the one #848's own script sent
+    /// when driven offline with 0.80 typed and Part and Paint pressed.
+    /// </summary>
+    [Fact]
+    public void OnlyTheHoursChangedOnAReopenedPaintedPositionPostTheDialogsOwnPaint()
+    {
+        var build = GlassEditorDialogs.PartPost(
+            GlassEditorFixture.Text("bonnet_change_paint.dialog.html"), "BSL", new GlassEditorChange(Hours: "0.80"));
+
+        Assert.Null(build.Error);
+        Assert.Empty(build.Problems);
+        Assert.Contains(build.Fields, pair => pair.Key == "LPrice" && pair.Value == "691.15");
+        Assert.Contains(build.Fields, pair => pair.Key == "LTime" && pair.Value == "4.10");
+        Assert.Contains(build.Fields, pair => pair.Key == "Verf" && pair.Value == "30");
+        Assert.Contains(build.Fields, pair => pair.Key == "Meth" && pair.Value == "50");
+        Assert.Equal(GlassEditorFixture.Text("bonnet_change_hours.post.txt"), GlassEditorText.EncodeForm(build.Fields));
+        Assert.Equal("4.10", build.Summary?.ServedPaintHours);
+    }
+
+    /// <summary>
     /// The paint choices a dialog's own script would not take are problems
     /// (R1206): Surcharge where the paint type fixes it, a level the type does
     /// not offer. A plastic part's level goes through (R1206). Unticking

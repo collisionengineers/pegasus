@@ -463,8 +463,15 @@ internal static partial class GlassEditorDialogs
         var price = GlassEditorPages.Lookup(At(record, 6 + placeIndex), operation);
         var time = GlassEditorPages.Lookup(At(record, 8 + placeIndex), operation);
         var partNumber = (At(record, 13 + placeIndex) ?? string.Empty).Split('|')[0];
-        var paintPrice = At(paint, 0);
-        var paintTime = At(paint, 1);
+        // SetLackartValues at load reads the served level's paint price and time from the area's
+        // list; a reopened position's list holds its own figures where its record holds Glass's
+        // (#848: 4.10 hours, the record 3.60), and the browser's form posts the list's. The
+        // record's pair where the list has none. Judged offline on 19 November 2026: #848's own
+        // script, with only the hours typed and with only the operation chosen, posted 691.15 and
+        // 4.10.
+        var loadedPaint = PaintOfLevel(html, areaIndex, servedPaintType, servedPaintLevel, state, []);
+        var paintPrice = loadedPaint?.Price ?? At(paint, 0);
+        var paintTime = loadedPaint?.Time ?? At(paint, 1);
         var remarkTime = GlassEditorPages.Lookup(At(record, 19 + placeIndex), operation) ?? string.Empty;
         if (!changed && (!SameAt(gross, placeIndex, price) || !SameAt(gross, 2 + placeIndex, time)))
         {
@@ -576,8 +583,8 @@ internal static partial class GlassEditorDialogs
         }
         else if (paintIn is null && levelMap is not null && levelMap.Length > 2 && at >= 0)
         {
-            // The served state's checks; a dialog whose paint is chosen (R1206) serves, reopened,
-            // the position's own figures (#848: 4.10 hours where the list holds 3.60).
+            // The served state's checks: the level the script selects for the operation, and the
+            // list's paint price and time for it, which the post carries.
             var wanted = At(levelMap, at + (material.Success && material.Groups[1].Value == "K" ? 2 : 1));
             List<string> levels = form.Field("Lackstufe") is { IsSelect: true } level
                 ? level.Options.Select(option => option.Value).ToList()
@@ -607,8 +614,10 @@ internal static partial class GlassEditorDialogs
         }
 
         // FillVerfSelect, FillMethSelect: both selects are disabled when the paint state's entry
-        // is below 3, and a disabled field is not posted. An enabled one is reported, not guessed,
-        // unless a person's paint choices set it (R1206).
+        // is below 3, and a disabled field is not posted. An enabled one posts the value the
+        // script selects for the state, as the paint section builds it with no choice made
+        // (R1206): #848's own script posted Verf=30 and Meth=50 at state 2.
+        var selectsEnabled = false;
         foreach (var (name, table, _, _) in PaintSelects)
         {
             if (!data.Has(name))
@@ -622,11 +631,19 @@ internal static partial class GlassEditorDialogs
             {
                 data.Delete(name);
             }
-            else if (paintIn is null)
+            else if (entry >= 3)
+            {
+                selectsEnabled = true;
+            }
+            else
             {
                 problems.Add("The select " + name + " would be enabled here (" + table + "[" + ShowNumber(state) + "] = "
                     + (ids is null ? "absent" : ShowAt(ids, stateIndex)) + ").");
             }
+        }
+        if (selectsEnabled && paintIn is null)
+        {
+            paintIn = new GlassEditorPaint();
         }
 
         // Typed part figures (R1206), as on part.php: Part and Part and Paint run CheckSubmit's
@@ -634,13 +651,8 @@ internal static partial class GlassEditorDialogs
         // with Part and Paint, the captured reason window answering.
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, button is "BSS" or "BSL", problems, ref coded);
         TypedTexts(form, data, change, problems);
-        // The paint price and hours served, as SetLackartValues sets them at load: from the area's
-        // list for the served state and level, for a reopened position's list holds its own
-        // figures where its record holds Glass's (#848 served 4.10 hours, its record 3.60). From
-        // the record where the list has none; a changed operation serves its own level's.
-        var servedPaint = changed ? null : PaintOfLevel(html, areaIndex, servedPaintType, servedPaintLevel, state, []);
-        var servedPaintPrice = servedPaint?.Price ?? paintPrice;
-        var servedPaintTime = servedPaint?.Time ?? paintTime;
+        var servedPaintPrice = paintPrice;
+        var servedPaintTime = paintTime;
 
         // The paint section as a person leaves it (R1206), in the order area, paint type,
         // procedure, method, level, Surcharge, coloured clear, scratch-resistant clear, typed
