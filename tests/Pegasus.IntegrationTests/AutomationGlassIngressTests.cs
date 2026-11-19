@@ -533,6 +533,142 @@ public sealed class AutomationGlassIngressTests
     }
 
     /// <summary>
+    /// Typed figures through the tools (R1206): a preview gives the hours
+    /// box's input and Glass's own hours above which a reason is needed; an
+    /// add above them with no reason is refused with its code and nothing is
+    /// posted; with the Automation's own reason, a typed price and overlap
+    /// hours, each is posted as the canonical text and the act keeps the
+    /// inputs beside the figures served and sent. A negative figure, one with
+    /// three decimal places, a reason without hours and hours with Part and
+    /// Paint are refused before anything is asked of Glass's.
+    /// </summary>
+    [Fact]
+    public async Task TypedFiguresAndTheAutomationsReasonGoThroughTheTools()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        long version;
+        using (var preview = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
+        {
+            caseId, action = "preview", operationKey = "mcp:typed-preview",
+            kind = "special_operation", row = "AC0000075", inputs = new { hours = 0.8m },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(preview);
+            var dialog = structured.GetProperty("dialog");
+            var hours = dialog.GetProperty("fields").EnumerateArray().Single(field => field.GetProperty("name").GetString() == "Time");
+            Assert.Equal("inputs.hours", hours.GetProperty("input").GetString());
+            Assert.Equal(0.50m, hours.GetProperty("reasonAbove").GetDecimal());
+            var sends = dialog.GetProperty("sends");
+            Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, sends.GetProperty("code").GetString());
+            Assert.False(sends.GetProperty("questions").EnumerateArray()
+                .Single(item => item.GetProperty("kind").GetString() == "reason").GetProperty("answered").GetBoolean());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+
+        using (var unreasoned = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-1", expectedSessionVersion = version,
+            kind = "special_operation", row = "AC0000075", inputs = new { hours = 0.8m },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(unreasoned);
+            var act = structured.GetProperty("act");
+            Assert.Equal("refused", act.GetProperty("outcome").GetString());
+            Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, act.GetProperty("code").GetString());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+        Assert.Equal(0, glass.Count("POST /ere/aco/compproc.php"));
+
+        using (var reasoned = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-2", expectedSessionVersion = version,
+            kind = "special_operation", row = "AC0000075", inputs = new { hours = 0.8m, reason = "Seized bolts" },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(reasoned);
+            var act = structured.GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
+            Assert.Equal(0.8m, act.GetProperty("inputs").GetProperty("hours").GetDecimal());
+            Assert.Equal("Seized bolts", act.GetProperty("inputs").GetProperty("reason").GetString());
+            Assert.Equal(0.50m, act.GetProperty("served").GetProperty("hours").GetDecimal());
+            Assert.Equal(0.80m, act.GetProperty("sent").GetProperty("hours").GetDecimal());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+
+        using (var priced = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-3", expectedSessionVersion = version,
+            kind = "special_operation", row = "AC0000073", inputs = new { price = 150m },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(priced);
+            Assert.Equal("added", structured.GetProperty("act").GetProperty("outcome").GetString());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+
+        using (var overlapped = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-4", expectedSessionVersion = version,
+            kind = "part", row = "193", operation = "part", inputs = new { overlapHours = 0.4m },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(overlapped);
+            Assert.Equal("added", structured.GetProperty("act").GetProperty("outcome").GetString());
+            Assert.Equal(0.40m, structured.GetProperty("act").GetProperty("sent").GetProperty("overlapHours").GetDecimal());
+        }
+
+        var posts = glass.Requests.Where(request => request.Method == "POST").Select(request => request.Body!).ToList();
+        Assert.Equal(3, posts.Count);
+        Assert.Contains("&Time=0.80&", posts[0], StringComparison.Ordinal);
+        Assert.Contains("&Reason=Seized+bolts&", posts[0], StringComparison.Ordinal);
+        Assert.Contains("&Price=150.00&", posts[1], StringComparison.Ordinal);
+        Assert.Contains("&Ctime=0.40&", posts[2], StringComparison.Ordinal);
+
+        var requests = glass.Requests.Count;
+        using (var negative = await PostMcpAsync(client, token, ToolCallPayload(6, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-5", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000075", inputs = new { hours = -1m },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsHoursRefused, await RefusalAsync(negative), StringComparison.Ordinal);
+        }
+        using (var precise = await PostMcpAsync(client, token, ToolCallPayload(7, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-6", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000073", inputs = new { price = 1.234m },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsPriceRefused, await RefusalAsync(precise), StringComparison.Ordinal);
+        }
+        using (var unhoured = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-7", expectedSessionVersion = 0,
+            kind = "special_operation", row = "AC0000075", inputs = new { reason = "Seized bolts" },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsReasonRefused, await RefusalAsync(unhoured), StringComparison.Ordinal);
+        }
+        using (var painted = await PostMcpAsync(client, token, ToolCallPayload(9, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:typed-8", expectedSessionVersion = 0,
+            kind = "part", row = "771", operation = "part_and_paint", inputs = new { hours = 2m },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsHoursRefused, await RefusalAsync(painted), StringComparison.Ordinal);
+        }
+        Assert.Equal(requests, glass.Requests.Count);
+    }
+
+    /// <summary>
     /// session_get's read in the Automation's own session (R1206), one
     /// request to Glass's each and nothing posted: the positions with
     /// Glass's running totals, one position's figures with its paint, and

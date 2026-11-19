@@ -2085,5 +2085,179 @@
       "post": "reinforcement_right_renew.post.txt"
     }
   ],
-  "readNote": "Cut on 19 November 2026 by scratch-2026-11-19/read-figures/make-fixtures-read.mjs: the estimate's totals (selected.php CalcToolTipTexts and CalcToolTipNums), one position's record (mcode.php) and the calculation report (report.php?calcid=0, its tables from the first trade's to \"Repair costs incl. VAT\"). The key is made up; no cookie, address, token or vehicle detail is copied. position_special.json is made, not captured."
+  "readNote": "Cut on 19 November 2026 by scratch-2026-11-19/read-figures/make-fixtures-read.mjs: the estimate's totals (selected.php CalcToolTipTexts and CalcToolTipNums), one position's record (mcode.php) and the calculation report (report.php?calcid=0, its tables from the first trade's to \"Repair costs incl. VAT\"). The key is made up; no cookie, address, token or vehicle detail is copied. position_special.json is made, not captured.",
+  "typedNote": "Typed inputs (R1206) from the operator's walk on a BMW of 19 November 2026 (operatorwalkglass.har, entry numbers its own). Each page is the dialog cut as make-fixtures.mjs cuts it, with Defstates, Verftexts, Methtexts and KrKlarlack kept as well; each post is the browser's own post of that dialog with the person's input, rebuilt byte for byte offline by the dialog's own script (13-typed-inputs-design.md section 1) and by the reference builder. Every session key is the made-up one. The windscreen's Mandatory parts page lists one optional part twice; the browser ticked the second only, so its confirm post is not pinned.",
+  "typed": [
+    {
+      "name": "door_glass_left_hours",
+      "dialog": "part.php",
+      "capture": "#643, post #662",
+      "change": {
+        "hours": "0.5"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=590|592",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C2023241_701311050101_2G_590_592_|64",
+        "partCode": "2023241",
+        "description": "Front Door Glass (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "147.35",
+        "hours": "0.5",
+        "partNumber": "51337397129",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "door_glass_left_hours.dialog.html",
+      "post": "door_glass_left_hours.post.txt",
+      "answer": "door_glass_left_hours.answer.html",
+      "answerKind": "done"
+    },
+    {
+      "name": "windscreen_overlap",
+      "dialog": "part.php",
+      "capture": "#698, post #717",
+      "change": {
+        "overlapHours": "0.50"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=491|495",
+      "fields": 22,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1100400_701311050101_2G_491_495_|64",
+        "partCode": "1100400",
+        "description": "Windscreen (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|IT|AD|P|AN|E",
+        "price": "461.25",
+        "hours": "1.80",
+        "partNumber": "51317399023",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "windscreen_overlap.dialog.html",
+      "post": "windscreen_overlap.post.txt",
+      "answer": "windscreen_overlap.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1102400.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Windscreen Repair/Bonding Kit"
+        },
+        {
+          "code": "1102410.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Primer"
+        },
+        {
+          "code": "1102430.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Windscreen Activator"
+        },
+        {
+          "code": "1102440.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Cleaner"
+        },
+        {
+          "code": "1102450.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Additional Cartridge"
+        },
+        {
+          "code": "1102550.ER.",
+          "ticked": true,
+          "optional": false,
+          "text": "RP Windscreen Spacing Block"
+        },
+        {
+          "code": "1104200.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Upper Moulding"
+        },
+        {
+          "code": "1102400.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Repair/Bonding Kit"
+        },
+        {
+          "code": "1102410.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Primer"
+        },
+        {
+          "code": "1102430.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Activator"
+        },
+        {
+          "code": "1102440.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Cleaner"
+        },
+        {
+          "code": "1102450.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Additional Cartridge"
+        },
+        {
+          "code": "1102550.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Spacing Block"
+        }
+      ],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=491|495"
+    },
+    {
+      "name": "bulb_price",
+      "dialog": "part.php",
+      "capture": "#1257, post #1275",
+      "change": {
+        "price": "1234"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AB0000000",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AB0000000|64",
+        "partCode": "0",
+        "description": "Bulbs 6V 55W",
+        "special": true,
+        "operation": "ER",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "1234",
+        "hours": "0",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "bulb_price.dialog.html",
+      "post": "bulb_price.post.txt",
+      "answer": "bulb_price.answer.html",
+      "answerKind": "done"
+    }
+  ]
 }

@@ -83,7 +83,14 @@ internal sealed record GlassPositionInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsButton)] string? Button = null,
     [property: Description(AutomationToolText.GlassInputsSide)] string? Side = null,
     [property: Description(AutomationToolText.GlassInputsOptionalParts)] IReadOnlyList<string>? OptionalParts = null,
-    [property: Description(AutomationToolText.GlassInputsConfirmNoFigures)] bool? ConfirmNoFigures = null);
+    [property: Description(AutomationToolText.GlassInputsConfirmNoFigures)] bool? ConfirmNoFigures = null,
+    [property: Description(AutomationToolText.GlassInputsHours)] decimal? Hours = null,
+    [property: Description(AutomationToolText.GlassInputsPrice)] decimal? Price = null,
+    [property: Description(AutomationToolText.GlassInputsOverlapHours)] decimal? OverlapHours = null,
+    [property: Description(AutomationToolText.GlassInputsReason)] string? Reason = null);
+
+/// <summary>A dialog's figures as an act records them (R1206): served by Glass's, or sent by the post.</summary>
+internal sealed record GlassFiguresToolItem(decimal? Price, decimal? Hours, decimal? OverlapHours);
 
 /// <summary>A preview's dialog as a form (R1206); Glass's own labels and texts pass through unchanged.</summary>
 internal sealed record GlassDialogToolItem(
@@ -116,7 +123,9 @@ internal sealed record GlassDialogFieldToolItem(
     [property: Description(AutomationToolText.GlassPreviewFieldValue)] string? Value,
     IReadOnlyList<GlassDialogChoiceToolItem>? Choices,
     [property: Description(AutomationToolText.GlassPreviewFieldDisabled)] bool Disabled,
-    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable,
+    [property: Description(AutomationToolText.GlassPreviewFieldInput)] string? Input = null,
+    [property: Description(AutomationToolText.GlassPreviewFieldReasonAbove)] decimal? ReasonAbove = null);
 
 internal sealed record GlassDialogPaintToolItem(
     GlassDialogChoiceToolItem? Area,
@@ -135,7 +144,8 @@ internal sealed record GlassDialogSendToolItem(
     decimal? PaintHours,
     bool BothSides,
     [property: Description(AutomationToolText.GlassPreviewQuestions)] IReadOnlyList<GlassDialogQuestionToolItem> Questions,
-    [property: Description(AutomationToolText.GlassPreviewSendsCode)] string? Code);
+    [property: Description(AutomationToolText.GlassPreviewSendsCode)] string? Code,
+    decimal? OverlapHours = null);
 
 internal sealed record GlassDialogQuestionToolItem(
     [property: Description(AutomationToolText.GlassPreviewQuestionKind)] string Kind,
@@ -185,7 +195,9 @@ internal sealed record GlassActToolItem(
     [property: Description(AutomationToolText.GlassActEquipment)] GlassEquipmentToolItem? Equipment = null,
     [property: Description(AutomationToolText.GlassActRowPair)] string? RowPair = null,
     [property: Description(AutomationToolText.GlassActEquipmentChanged)] IReadOnlyList<GlassEquipmentChangeToolItem>? EquipmentChanged = null,
-    [property: Description(AutomationToolText.GlassActEquipmentStored)] bool? EquipmentStored = null);
+    [property: Description(AutomationToolText.GlassActEquipmentStored)] bool? EquipmentStored = null,
+    [property: Description(AutomationToolText.GlassActServed)] GlassFiguresToolItem? Served = null,
+    [property: Description(AutomationToolText.GlassActSent)] GlassFiguresToolItem? Sent = null);
 
 internal sealed record GlassSessionGetToolResult(
     Guid CaseId,
@@ -677,7 +689,8 @@ internal sealed class GlassMcpTools(
                     .ToList(),
                 dialog.Fields
                     .Select(field => new GlassDialogFieldToolItem(
-                        field.Name, field.Label, field.Value, MapChoices(field.Choices), field.Disabled, field.Changeable))
+                        field.Name, field.Label, field.Value, MapChoices(field.Choices), field.Disabled, field.Changeable,
+                        field.Input, field.ReasonAbove))
                     .ToList(),
                 dialog.Paint is { } paint
                     ? new GlassDialogPaintToolItem(
@@ -690,7 +703,8 @@ internal sealed class GlassMcpTools(
                         sends.PaintHours, sends.BothSides,
                         sends.Questions.Select(question => new GlassDialogQuestionToolItem(
                             question.Kind, question.Text, question.Answered)).ToList(),
-                        sends.Code)
+                        sends.Code,
+                        sends.OverlapHours)
                     : null);
 
     private static GlassDialogChoiceToolItem? MapChoice(GlassDialogChoice? choice) =>
@@ -830,7 +844,11 @@ internal sealed class GlassMcpTools(
             button,
             both,
             inputs.OptionalParts?.Select(code => code?.Trim() ?? string.Empty).ToList(),
-            inputs.ConfirmNoFigures));
+            inputs.ConfirmNoFigures,
+            inputs.Hours,
+            inputs.Price,
+            inputs.OverlapHours,
+            inputs.Reason));
     }
 
     /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
@@ -841,6 +859,10 @@ internal sealed class GlassMcpTools(
         "inputs.button" => AutomationToolText.GlassInputsButtonRefused,
         "inputs.side" => AutomationToolText.GlassInputsSideRefused,
         "inputs.optionalParts" => AutomationToolText.GlassInputsOptionalPartsRefused,
+        "inputs.hours" => AutomationToolText.GlassInputsHoursRefused,
+        "inputs.price" => AutomationToolText.GlassInputsPriceRefused,
+        "inputs.overlapHours" => AutomationToolText.GlassInputsOverlapHoursRefused,
+        "inputs.reason" => AutomationToolText.GlassInputsReasonRefused,
         _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
     };
 
@@ -978,14 +1000,23 @@ internal sealed class GlassMcpTools(
                     },
                     given.BothSides == true ? "both" : null,
                     given.OptionalParts,
-                    given.ConfirmNoFigures)
+                    given.ConfirmNoFigures,
+                    given.Hours,
+                    given.Price,
+                    given.OverlapHours,
+                    given.Reason)
                 : null,
             MapEquipment(act.Equipment),
             act.RowPair,
             act.EquipmentChanged.Count > 0
                 ? act.EquipmentChanged.Select(change => new GlassEquipmentChangeToolItem(change.Code, change.Ticked)).ToList()
                 : null,
-            act.EquipmentStored ? true : null);
+            act.EquipmentStored ? true : null,
+            MapFigures(act.DialogServed),
+            MapFigures(act.Sent));
+
+    private static GlassFiguresToolItem? MapFigures(GlassAutomationFigures? figures) =>
+        figures is null ? null : new GlassFiguresToolItem(figures.Price, figures.Hours, figures.OverlapHours);
 
     /// <summary>A part's equipment question as the tools answer it; Glass's own names and note pass through unchanged.</summary>
     private static GlassEquipmentToolItem? MapEquipment(GlassEquipmentQuestion? question) =>

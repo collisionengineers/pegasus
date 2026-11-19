@@ -791,11 +791,33 @@ compose Glass's, each tool is refused with "Glass's is not available."
   `inputs.optionalParts` names the optional parts to tick on the
   "Mandatory parts:" page. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
-  input given is kept on the act, beside the figures Glass's served. Any
-  typed price, hours, reason, part number or description, any change in
-  the paint section, a change to a position already on the estimate and
-  free rows stay refused. The server's rebuild of an outside estimate is
-  unchanged (R1168, R1169, R1172).
+  input given is kept on the act, beside the figures Glass's served. A
+  typed part number or description, any change in the paint section, a
+  change to a position already on the estimate and free rows stay refused.
+  The server's rebuild of an outside estimate is unchanged (R1168, R1169,
+  R1172).
+- **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
+  `inputs.overlapHours` type the labour hours, the price and the overlap
+  hours in the dialog of a special operation, or of a part that cannot be
+  painted pressed with Part, one side at a time, in both kinds of live
+  session. A value the Automation types is its own input, as a person's
+  would be. Pegasus sends each with two decimal places after a full stop
+  (`2.80`, `1234.00`), as a person types it; the dialog posts the text
+  typed unchanged. A negative figure, one with more than two decimal
+  places, hours or overlap hours above 1,000 and a price above 999999.99
+  are refused before anything is asked of Glass's. Hours above Glass's own,
+  where Glass's has hours of its own for the operation, need a reason: the
+  Automation writes it in `inputs.reason`, 1 to 150 characters, and Glass's
+  keeps it on the position. Pegasus never writes a reason. An add above
+  Glass's hours with no reason is refused with
+  `glass.build.reason_required` before anything is posted, and a reason
+  given where the dialog asks for none with `glass.build.reason_not_asked`.
+  Overlap hours above the hours sent are refused with
+  `glass.build.overlap_above_hours`, because the return refuses a whole
+  export with such a position. Typed figures on the dialog of a part that
+  can be painted have no capture and are refused with
+  `glass.build.not_built`. The act keeps every input beside the figures the
+  dialog served and the figures sent, recorded just before the post.
 - **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
   `add` with the same row and inputs would post, chosen as the add chooses
   it, or for the dialog of a position on the estimate by its id, and
@@ -809,6 +831,8 @@ compose Glass's, each tool is refused with "Glass's is not available."
   send, each question on the way, and the code the add would be refused
   with. An operation the dialog offers that the return cannot read back
   is shown as not choosable, with `glass.build.operation_not_read_back`.
+  Each box the Automation may type in names the input that changes it, and
+  the hours box gives Glass's own hours, above which a reason is needed.
   Glass's own labels and texts pass through unchanged. Which
   mandatory parts Glass's lists after a post cannot be known before it.
 - **19 November 2026; R1208.** The Automation changes no setting of the

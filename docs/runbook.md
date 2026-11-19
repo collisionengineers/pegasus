@@ -1777,6 +1777,15 @@ it stopped.
   added the first side only, because Glass's did not go on to the other
   side's dialog, or that dialog was not the one expected. Its warning line
   names the reason.
+  Typed figures (R1206) are refused before anything is posted with
+  `glass.build.reason_required` (hours above Glass's own and no
+  `inputs.reason`), `glass.build.reason_not_asked` (a reason where the
+  dialog asks for none) and `glass.build.overlap_above_hours` (more overlap
+  hours than hours, which the return could not read back); the act's
+  warning line names the dialog's own reason. Typed figures on a part that
+  can be painted are `glass.build.not_built`. Each act records the figures
+  the dialog served and those sent, just before the post, as `served` and
+  `sent`.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

@@ -32,6 +32,20 @@ public sealed class GlassEditorDialogTests
         }
     }
 
+    public static TheoryData<string> TypedNames
+    {
+        get
+        {
+            var names = new TheoryData<string>();
+            foreach (var item in GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray())
+            {
+                names.Add(item.GetProperty("name").GetString()!);
+            }
+
+            return names;
+        }
+    }
+
     public static TheoryData<string> DialogNames
     {
         get
@@ -355,6 +369,149 @@ public sealed class GlassEditorDialogTests
         Assert.NotNull(both?.Sends);
         Assert.True(both.Sends.BothSides);
         Assert.Contains(both.Sends.Questions, question => question is { Kind: "other_side", Answered: true });
+    }
+
+    /// <summary>
+    /// The person's typed input in each dialog of the operator's walk of 19
+    /// November 2026 (R1206): built from the dialog page alone with that
+    /// input, and posted byte for byte as the browser posted it.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TypedNames))]
+    public void EachTypedInputIsPostedExactlyAsTheBrowserPostedIt(string name)
+    {
+        var item = Typed(name);
+
+        var build = BuildTyped(item);
+
+        Assert.Null(build.Error);
+        Assert.Equal(GlassEditorFixture.Strings(item, "problems"), build.Problems);
+        Assert.Equal(GlassEditorFixture.Strings(item, "notes"), build.Notes);
+        Assert.Null(build.RefusalCode);
+        Assert.Equal(item.GetProperty("action").GetString(), build.Action);
+        Assert.Equal(item.GetProperty("fields").GetInt32(), build.Fields.Count);
+        Assert.Equal(
+            GlassEditorFixture.Text(item.GetProperty("post").GetString()!),
+            GlassEditorText.EncodeForm(build.Fields));
+        AssertSummary(item, build.Summary);
+    }
+
+    /// <summary>
+    /// The editor's answer to each typed post of the walk: the page that
+    /// tells the editor to redraw, or the "Mandatory parts:" page with its
+    /// parts, and its confirm post where the browser's can be rebuilt.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TypedNames))]
+    public void EachTypedPostsAnswerIsReadAsTheBrowserSawIt(string name)
+    {
+        var item = Typed(name);
+        List<string> ticks = item.TryGetProperty("ticks", out _) ? GlassEditorFixture.Strings(item, "ticks") : [];
+
+        var answer = GlassEditorDialogs.AfterPost(GlassEditorFixture.Text(item.GetProperty("answer").GetString()!), ticks);
+
+        if (item.GetProperty("answerKind").GetString() != "confirm")
+        {
+            Assert.Equal(GlassEditorAnswerKind.Done, answer.Kind);
+            return;
+        }
+
+        Assert.Equal(GlassEditorAnswerKind.Confirm, answer.Kind);
+        Assert.Equal(item.GetProperty("confirmAction").GetString(), answer.Action);
+        Assert.Equal(
+            item.GetProperty("listed").EnumerateArray().Select(listed => listed.GetProperty("code").GetString()),
+            answer.Listed.Select(listed => listed.Code));
+        if (item.TryGetProperty("confirm", out var confirm))
+        {
+            Assert.Equal(GlassEditorFixture.Text(confirm.GetString()!), GlassEditorText.EncodeForm(answer.Fields));
+            Assert.Equal(
+                GlassEditorAnswerKind.Done,
+                GlassEditorDialogs.AfterPost(GlassEditorFixture.Text(item.GetProperty("confirmAnswer").GetString()!)).Kind);
+        }
+    }
+
+    /// <summary>
+    /// The reason window's own Submit trims the spaces at either end of the
+    /// reason (19 November 2026, reason.php); hours above Glass's own with no
+    /// reason are refused with their code, and so is a reason the dialog
+    /// does not ask for, which is never sent (R1206).
+    /// </summary>
+    [Fact]
+    public void AReasonIsTrimmedAndSentOnlyWhenTheDialogAsksForIt()
+    {
+        var page = GlassEditorFixture.Text("special_hours.dialog.html");
+
+        var trimmed = GlassEditorDialogs.PlainPost(page, new GlassEditorChange(Hours: "0.80", Reason: "  Seized bolts  "));
+        var unreasoned = GlassEditorDialogs.PlainPost(page, new GlassEditorChange(Hours: "0.80"));
+        var unasked = GlassEditorDialogs.PlainPost(page, new GlassEditorChange(Hours: "0.30", Reason: "Seized bolts"));
+
+        Assert.Empty(trimmed.Problems);
+        Assert.Equal("Seized bolts", Field(trimmed, "Reason"));
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.RefusalCode);
+        Assert.Equal("A reason is given, but the dialog asks for none.", Assert.Single(unasked.Problems));
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonNotAskedCode, unasked.RefusalCode);
+        Assert.Equal(string.Empty, Field(unasked, "Reason"));
+    }
+
+    /// <summary>
+    /// Overlap hours above the hours sent are refused with their code: the
+    /// return's reader refuses a whole export with such a position.
+    /// </summary>
+    [Fact]
+    public void OverlapHoursAboveTheHoursAreRefused()
+    {
+        var page = GlassEditorFixture.Text("door_glass_left_hours.dialog.html");
+
+        var above = GlassEditorDialogs.PlainPost(page, new GlassEditorChange(Hours: "0.50", OverlapHours: "0.60"));
+        var within = GlassEditorDialogs.PlainPost(page, new GlassEditorChange(Hours: "0.50", OverlapHours: "0.50"));
+
+        Assert.Equal(GlassAutomationPositionPolicy.OverlapAboveHoursCode, above.RefusalCode);
+        Assert.Empty(within.Problems);
+        Assert.Equal("0.50", Field(within, "Ctime"));
+        Assert.Equal("0.00", within.Summary!.ServedOverlapHours);
+        Assert.Equal("0.90", within.Summary.ServedHours);
+        Assert.Equal("0.50", within.Summary.Hours);
+    }
+
+    /// <summary>
+    /// A preview says which inputs change the typed boxes of a dialog of a
+    /// part that cannot be painted, and above which hours Glass's asks for a
+    /// reason; a reason given answers that question (R1206).
+    /// </summary>
+    [Fact]
+    public void APreviewGivesTheTypedBoxesAndTheReasonLimit()
+    {
+        var page = GlassEditorFixture.Text("windscreen_overlap.dialog.html");
+
+        var (preview, _) = GlassEditorDialogs.Preview(page, null, new GlassEditorChange(Hours: "2.80", Reason: "Corroded frame"));
+
+        Assert.NotNull(preview);
+        var hours = Assert.Single(preview.Fields, field => field.Name == "Time");
+        Assert.Equal("inputs.hours", hours.Input);
+        Assert.True(hours.Changeable);
+        Assert.Equal(1.80m, hours.ReasonAbove);
+        Assert.Equal("inputs.overlapHours", Assert.Single(preview.Fields, field => field.Name == "Ctime").Input);
+        Assert.Equal("inputs.price", Assert.Single(preview.Fields, field => field.Name == "Price").Input);
+        Assert.NotNull(preview.Sends);
+        Assert.Equal(2.80m, preview.Sends.Hours);
+        Assert.Null(preview.Sends.Code);
+        Assert.True(Assert.Single(preview.Sends.Questions, question => question.Kind == "reason").Answered);
+    }
+
+    private static JsonElement Typed(string name) =>
+        GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == name);
+
+    private static GlassEditorBuild BuildTyped(JsonElement item)
+    {
+        var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
+        var change = item.GetProperty("change");
+        string? Given(string name) => change.TryGetProperty(name, out var value) ? value.GetString() : null;
+        var typed = new GlassEditorChange(
+            Price: Given("price"), Hours: Given("hours"), Reason: Given("reason"), OverlapHours: Given("overlapHours"));
+        return item.GetProperty("dialog").GetString() == "comp.php"
+            ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed)
+            : GlassEditorDialogs.PlainPost(page, typed);
     }
 
     private static JsonElement Operation(string name) =>

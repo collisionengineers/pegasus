@@ -7,13 +7,16 @@ namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
 /// What a person may change on a <c>part.php</c> dialog before pressing OK:
-/// another operation the dialog offers, a typed price, hours or (a special
-/// operation only) description, the reason the dialog asks for when the hours
-/// are above Glass's own, and the "Both" sides tick. On a <c>comp.php</c>
-/// dialog only the operation may be changed. <see cref="ConfirmNoFigures"/>
-/// is a person's OK to the question the dialog asks before it sends a part
-/// whose price and hours are both zero; the OK changes nothing in the post.
-/// Nothing set is the dialog as served.
+/// another operation the dialog offers, a typed price, hours, overlap hours
+/// (<c>Ctime</c>) or (a special operation only) description, the reason the
+/// dialog asks for when the hours are above Glass's own, and the "Both"
+/// sides tick. On a <c>comp.php</c> dialog only the operation may be
+/// changed. <see cref="ConfirmNoFigures"/> is a person's OK to the question
+/// the dialog asks before it sends a part whose price and hours are both
+/// zero; the OK changes nothing in the post. Typed text is posted as given,
+/// as the browser posts it (19 November 2026: <c>0.5</c>, <c>0.50</c>,
+/// <c>2.80</c> and <c>1234</c> each reached the post unchanged). Nothing set
+/// is the dialog as served.
 /// </summary>
 internal sealed record GlassEditorChange(
     string? Operation = null,
@@ -22,7 +25,8 @@ internal sealed record GlassEditorChange(
     string? Description = null,
     string? Reason = null,
     bool Both = false,
-    bool ConfirmNoFigures = false);
+    bool ConfirmNoFigures = false,
+    string? OverlapHours = null);
 
 /// <summary>
 /// What a built dialog post is for, as the dialog states it. A value is null
@@ -55,6 +59,18 @@ internal sealed record GlassEditorSummary
     public string? Price { get; init; }
 
     public string? Hours { get; init; }
+
+    /// <summary>The price the dialog served for the operation sent, before anything was typed (R1206).</summary>
+    public string? ServedPrice { get; init; }
+
+    /// <summary>The hours the dialog served for the operation sent, before anything was typed (R1206).</summary>
+    public string? ServedHours { get; init; }
+
+    /// <summary>The overlap hours (<c>Ctime</c>) the post sends; null where the dialog has none.</summary>
+    public string? OverlapHours { get; init; }
+
+    /// <summary>The overlap hours the dialog served (R1206).</summary>
+    public string? ServedOverlapHours { get; init; }
 
     public string? PartNumber { get; init; }
 
@@ -92,6 +108,14 @@ internal sealed record GlassEditorBuild(
     IReadOnlyDictionary<string, string> Typed,
     GlassEditorSummary? Summary)
 {
+    /// <summary>
+    /// The <c>glass.*</c> code of the one problem that is a typed input the
+    /// dialog does not take (R1206): a reason it asks for and was not given,
+    /// one it does not ask for, or overlap hours above the hours. Null
+    /// otherwise, when the refusal is the editor's own.
+    /// </summary>
+    public string? RefusalCode { get; init; }
+
     public static GlassEditorBuild Failed(string error) =>
         new(error, null, [], [], [], new Dictionary<string, string>(StringComparer.Ordinal), null);
 }
@@ -255,7 +279,7 @@ internal static partial class GlassEditorDialogs
 
         // ChangeRepart: a person may choose another operation the dialog offers; nothing else.
         if (change.Price is not null || change.Hours is not null || change.Description is not null
-            || change.Reason is not null || change.Both)
+            || change.Reason is not null || change.OverlapHours is not null || change.Both)
         {
             problems.Add("This dialog is built with no change but the operation.");
         }
@@ -488,6 +512,10 @@ internal static partial class GlassEditorDialogs
                 Offered = At(record, 5),
                 Price = price,
                 Hours = time,
+                ServedPrice = price,
+                ServedHours = time,
+                OverlapHours = data.Get("Ctime"),
+                ServedOverlapHours = form.Field("Ctime")?.Value,
                 PartNumber = partNumber,
                 Trade = data.Get("Craft"),
                 Area = data.Get("Bereich"),
@@ -536,6 +564,7 @@ internal static partial class GlassEditorDialogs
 
         var problems = new List<string>();
         var notes = new List<string>();
+        var servedOverlap = form.Field("Ctime")?.Value;
 
         // SetPlaceBoxes
         var place = form.Field("Place")?.Value ?? " ";
@@ -668,9 +697,17 @@ internal static partial class GlassEditorDialogs
             data.Set(name, value);
         }
 
-        // What a person may type: a price, hours, and (a special operation only) its description.
+        // What a person may type: a price, hours, overlap hours (R1206) and (a special operation
+        // only) its description. Outside work, where a dialog has it ticked, greys the overlap hours.
         var typed = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var (value, name) in new[] { (change.Price, "Price"), (change.Hours, "Time"), (change.Description, "Descr") })
+        string? coded = null;
+        if (change.OverlapHours is not null && form.Field("fremdarbeit") is { Checked: true })
+        {
+            problems.Add("The dialog has outside work ticked, which greys the overlap hours.");
+        }
+
+        foreach (var (value, name) in new[]
+            { (change.Price, "Price"), (change.Hours, "Time"), (change.OverlapHours, "Ctime"), (change.Description, "Descr") })
         {
             if (value is null)
             {
@@ -691,21 +728,27 @@ internal static partial class GlassEditorDialogs
             typed[name] = value;
         }
 
-        // CheckSubmit: more hours than Glass's own, where Glass's has a time for the operation,
-        // opens a window that asks for a reason and holds the post back until one is given.
+        // CheckSubmit: more hours than Glass's own, where Glass's has a time for the operation and
+        // no reason is held yet, opens a window that asks for a reason and holds the post back
+        // until one is given. The window's own Submit trims the spaces at either end; CheckSubmit
+        // turns line breaks into bars. A reason the dialog does not ask for is not sent (R1206).
+        var reasonSent = false;
         if (typed.TryGetValue("Time", out var typedTime))
         {
             var own = GlassEditorPages.Lookup(At(GlassEditorPages.SplitPairs(html, "OrigTimes"), placeIndex), operation);
             var database = GlassEditorPages.Lookup(At(GlassEditorPages.SplitPairs(html, "DatabaseTimes"), placeIndex), operation);
+            var reason = change.Reason?.Trim(' ');
             if (own is null || database is null)
             {
                 problems.Add("The dialog's own times for " + Show(operation) + " could not be read to check the typed hours.");
             }
-            else if (Number(database) != 0 && Number(own) != 0 && Number(typedTime) > Number(own))
+            else if (Number(database) != 0 && Number(own) != 0 && Number(typedTime) > Number(own)
+                && string.IsNullOrEmpty(data.Get("Reason")))
             {
-                if (string.IsNullOrEmpty(change.Reason))
+                if (string.IsNullOrEmpty(reason))
                 {
                     problems.Add("More hours than Glass's own (" + own + "): the dialog asks for a reason.");
+                    coded = GlassAutomationPositionPolicy.ReasonRequiredCode;
                 }
                 else if (!data.Has("Reason"))
                 {
@@ -713,9 +756,21 @@ internal static partial class GlassEditorDialogs
                 }
                 else
                 {
-                    data.Set("Reason", ReasonLineBreaks().Replace(change.Reason, "|"));
+                    data.Set("Reason", ReasonLineBreaks().Replace(reason, "|"));
+                    reasonSent = true;
                 }
             }
+        }
+        if (change.Reason is not null && !reasonSent && coded is null)
+        {
+            problems.Add("A reason is given, but the dialog asks for none.");
+            coded = GlassAutomationPositionPolicy.ReasonNotAskedCode;
+        }
+        if (typed.Count > 0 && Number(data.Get("Ctime")) > Number(data.Get("Time")))
+        {
+            // The return's reader refuses a whole export with more overlap time than time.
+            problems.Add("Overlap hours (" + Show(data.Get("Ctime")) + ") are more than the hours (" + Show(data.Get("Time")) + ").");
+            coded = GlassAutomationPositionPolicy.OverlapAboveHoursCode;
         }
 
         var record = Record(data);
@@ -769,11 +824,18 @@ internal static partial class GlassEditorDialogs
                 Offered = string.Join('|', offered.Where(value => value != "-")),
                 Price = data.Get("Price"),
                 Hours = data.Get("Time"),
+                ServedPrice = price,
+                ServedHours = time,
+                OverlapHours = data.Get("Ctime"),
+                ServedOverlapHours = servedOverlap,
                 PartNumber = Side("Etnr"),
                 Trade = data.Get("Craft"),
                 Side = place,
                 SidesOffered = places is null ? null : string.Join('|', places),
-            });
+            })
+        {
+            RefusalCode = problems.Count == 1 ? coded : null,
+        };
     }
 
     /// <summary>
@@ -964,13 +1026,20 @@ internal static partial class GlassEditorDialogs
                 }
             }
 
+            // The typed figures (R1206): on a dialog of a part that cannot be painted or of a
+            // special operation, where the box may be typed in.
+            var input = paintable || control.Disabled || control.ReadOnly ? null : TypedInput(name);
             var changeable = name switch
             {
                 "Repart" => operations.Exists(operation => operation.Changeable && !operation.Served),
                 "Both" => bothOffered,
-                _ => false,
+                _ => input is not null,
             };
-            fields.Add(new GlassDialogField(name, Label(tokens, name), value, choices, control.Disabled, changeable));
+            fields.Add(new GlassDialogField(name, Label(tokens, name), value, choices, control.Disabled, changeable)
+            {
+                Input = input,
+                ReasonAbove = input == "inputs.hours" ? ReasonLimit(html, select?.Value, placeIndex) : null,
+            });
         }
 
         var buttons = form.Controls
@@ -1016,11 +1085,11 @@ internal static partial class GlassEditorDialogs
                 message.Success ? message.Groups[forced ? 1 : 2].Value : null,
                 !forced && change?.ConfirmNoFigures == true));
         }
-        if (!special && pressed != "BLL"
+        if (pressed != "BLL"
             && ReasonAsked(html, built?.Operation, placeIndex, built?.Hours) is { } reason
             && reason.StartsWith("More hours", StringComparison.Ordinal))
         {
-            questions.Add(new GlassDialogQuestion("reason", null, false));
+            questions.Add(new GlassDialogQuestion("reason", null, !string.IsNullOrWhiteSpace(change?.Reason)));
         }
         if (change?.Both == true)
         {
@@ -1032,7 +1101,7 @@ internal static partial class GlassEditorDialogs
         }
 
         var code = build.Error is not null ? GlassFailure.EditorDialog
-            : build.Problems.Count > 0 ? GlassFailure.EditorRefused
+            : build.Problems.Count > 0 ? build.RefusalCode ?? GlassFailure.EditorRefused
             : null;
         return (preview with
         {
@@ -1046,8 +1115,32 @@ internal static partial class GlassEditorDialogs
                 paintable ? Amount(built?.PaintHours) : null,
                 change?.Both == true,
                 questions,
-                code),
+                code)
+            {
+                OverlapHours = Amount(built?.OverlapHours),
+            },
         }, build);
+    }
+
+    /// <summary>The member of the act's inputs that types in a dialog's box (R1206), or null for any other field.</summary>
+    private static string? TypedInput(string name) => name switch
+    {
+        "Price" => "inputs.price",
+        "Time" => "inputs.hours",
+        "Ctime" => "inputs.overlapHours",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Glass's own hours for the operation and side, above which CheckSubmit
+    /// asks for a reason; null where it asks none (Glass's has no hours of its
+    /// own for the operation) or its times cannot be read.
+    /// </summary>
+    private static decimal? ReasonLimit(string html, string? operation, int placeIndex)
+    {
+        var own = GlassEditorPages.Lookup(At(GlassEditorPages.SplitPairs(html, "OrigTimes"), placeIndex), operation);
+        var database = GlassEditorPages.Lookup(At(GlassEditorPages.SplitPairs(html, "DatabaseTimes"), placeIndex), operation);
+        return own is not null && database is not null && Number(database) != 0 && Number(own) != 0 ? Amount(own) : null;
     }
 
     /// <summary>

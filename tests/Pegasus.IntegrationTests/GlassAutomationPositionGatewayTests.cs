@@ -595,6 +595,77 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// Typed figures (R1206): hours above Glass's own with no reason are
+    /// refused with their code before anything is posted, and Pegasus writes
+    /// none; with the Automation's own reason they are posted with it. A
+    /// typed price and overlap hours are posted as the canonical text. Each
+    /// act keeps the inputs beside the figures Glass's served and those sent.
+    /// </summary>
+    [Fact]
+    public async Task TypedFiguresArePostedWithTheAutomationsOwnReason()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(Reinforced(harness.Mva.Count("POST /ere/aco/compproc.php"))));
+        var session = await AutomationStartAsync(harness);
+
+        var unreasoned = await PositionAsync(harness, Add(harness, session, "mcp:typed-1",
+            GlassAutomationPositionKind.SpecialOperation, "AC0000075", inputs: new GlassAutomationInputs(Hours: 0.8m)));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, unreasoned.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.Act.Code);
+        Assert.Equal(0.8m, unreasoned.Act.Inputs?.Hours);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+
+        var reasoned = await PositionAsync(harness, Add(harness, unreasoned.Session, "mcp:typed-2",
+            GlassAutomationPositionKind.SpecialOperation, "AC0000075",
+            inputs: new GlassAutomationInputs(Hours: 0.8m, Reason: "Seized bolts")));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, reasoned.Act.Outcome);
+        var post = Assert.Single(DialogPosts(harness));
+        Assert.Contains("&Time=0.80&", post, StringComparison.Ordinal);
+        Assert.Contains("&Reason=Seized+bolts&", post, StringComparison.Ordinal);
+        Assert.Equal(new GlassAutomationFigures(0m, 0.50m, 0.00m), reasoned.Act.DialogServed);
+        Assert.Equal(new GlassAutomationFigures(0m, 0.80m, 0.00m), reasoned.Act.Sent);
+        Assert.Equal("Seized bolts", reasoned.Act.Inputs?.Reason);
+
+        var priced = await PositionAsync(harness, Add(harness, reasoned.Session, "mcp:typed-3",
+            GlassAutomationPositionKind.SpecialOperation, "AC0000073", inputs: new GlassAutomationInputs(Price: 150m)));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, priced.Act.Outcome);
+        Assert.Contains("&Price=150.00&", DialogPosts(harness)[^1], StringComparison.Ordinal);
+        Assert.Equal(150.00m, priced.Act.Sent?.Price);
+
+        var overlapped = await PositionAsync(harness, Add(harness, priced.Session, "mcp:typed-4",
+            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(OverlapHours: 0.4m)));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, overlapped.Act.Outcome);
+        Assert.Contains("&Ctime=0.40&", DialogPosts(harness)[^1], StringComparison.Ordinal);
+        Assert.Equal(new GlassAutomationFigures(38.68m, 2.20m, 0.40m), overlapped.Act.Sent);
+        Assert.Equal(3, DialogPosts(harness).Count);
+    }
+
+    /// <summary>
+    /// Typed figures on the dialog of a part that can be painted have no
+    /// capture: the add is refused as not built and nothing is asked for.
+    /// </summary>
+    [Fact]
+    public async Task TypedFiguresOnAPaintablePartAreRefusedAndNothingIsSent()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:typed-5",
+            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(Hours: 2m)));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, step.Act.Code);
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
     /// A preview (R1206) reads the part list, the row's map and its dialog,
     /// posts nothing and records no act. It answers the dialog as a form,
     /// with Glass's own labels and texts, and for the inputs given what an

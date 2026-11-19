@@ -290,9 +290,20 @@ internal sealed class GlassEditorClient(
     /// estimate back. <paramref name="before"/> is the estimate as last read,
     /// against which the new positions are found.
     /// </summary>
+    public Task<GlassEditorReply<GlassEditorAdded>> AddAsync(
+        GlassEditorSession session, GlassEditorEstimate before, GlassEditorAddRequest request,
+        CancellationToken cancellationToken) =>
+        AddAsync(session, before, request, null, cancellationToken);
+
+    /// <summary>
+    /// Adds one position as <see cref="AddAsync(GlassEditorSession, GlassEditorEstimate, GlassEditorAddRequest, CancellationToken)"/>
+    /// does; <paramref name="posting"/>, when given, is handed the built
+    /// dialog's summary just before the post, so the caller records what is
+    /// about to be sent (R1206).
+    /// </summary>
     public async Task<GlassEditorReply<GlassEditorAdded>> AddAsync(
         GlassEditorSession session, GlassEditorEstimate before, GlassEditorAddRequest request,
-        CancellationToken cancellationToken)
+        Func<GlassEditorSummary, Task>? posting, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(request);
@@ -320,6 +331,10 @@ internal sealed class GlassEditorClient(
         if (Refusal(build, request) is { } refusal)
         {
             throw refusal;
+        }
+        if (posting is not null)
+        {
+            await posting(build.Summary!);
         }
 
         // From the post on, a lost or unexpected answer may still have added the position.
@@ -364,7 +379,8 @@ internal sealed class GlassEditorClient(
         }
         if (build.Problems.Count > 0)
         {
-            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
+            return new GlassMvaStageException(
+                build.RefusalCode ?? GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
         }
         if (build.Summary is null)
         {

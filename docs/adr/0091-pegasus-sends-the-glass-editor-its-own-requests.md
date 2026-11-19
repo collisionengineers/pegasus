@@ -87,8 +87,10 @@ the key alone reaches the server that holds the session only by chance
 2. **It posts what the page serves.** A position is added by asking for its
    dialog page and posting that page's own form, changed only in the ways the
    dialog's own script changes it. Pegasus makes up no price, time, part
-   number or code. Where a page is not the one the client knows, it refuses
-   and posts nothing.
+   number or code. A price or time the Automation types is the Automation's
+   input, as a person's would be, and never Pegasus's own (19 November 2026;
+   R1206); so is the reason Glass's asks for above its own hours. Where a
+   page is not the one the client knows, it refuses and posts nothing.
 3. **Pinned to what a browser sent.** Every address the client builds and
    every post it makes is compared in tests with the address or body a browser
    sent for the same page. The test pages are cut from browser sessions, with

@@ -376,9 +376,11 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// changes are handed to <paramref name="record"/>, so a lost answer can
     /// be settled by the next read. The answer is then stored for the vehicle
     /// as the editor stores it, just before the dialog is asked for. The
-    /// dialog is posted as Glass's serves it with the button, operation and
-    /// answers the Automation gave it (<see cref="Chosen"/>, R1206), nothing
-    /// typed (R1168); with "Both" the other side's own dialog follows
+    /// dialog is posted as Glass's serves it with the button, operation,
+    /// answers and typed figures the Automation gave it (<see cref="Chosen"/>,
+    /// R1206), and nothing Pegasus types itself (R1168); the figures served
+    /// and sent are handed to <paramref name="record"/> just before the post;
+    /// with "Both" the other side's own dialog follows
     /// (<see cref="OtherSideAsync"/>). The
     /// outcome, Glass's own figures and the new positions (every position on
     /// the estimate after the post that was not in <paramref name="before"/>)
@@ -417,8 +419,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 }
                 else
                 {
+                    // A special operation takes the Automation's typed figures and reason (R1206).
                     request = new GlassEditorAddRequest(
-                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code));
+                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code),
+                        Change: WithTyped(null, act.Inputs));
                 }
             }
             else
@@ -497,11 +501,18 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             }
         }
 
+        // Just before the post: the figures the dialog served and those it is about to send (R1206).
+        async Task PostingAsync(GlassEditorSummary summary)
+        {
+            act = act with { DialogServed = ServedOf(summary), Sent = SentOf(summary) };
+            await record(act, opened);
+        }
+
         GlassEditorEstimate? after = null;
         try
         {
             var added = await StageAsync(session, "EditorAdd", () => editor.AddAsync(
-                opened, before, adding, cancellationToken));
+                opened, before, adding, PostingAsync, cancellationToken));
             opened = added.Session;
             after = added.Value.Estimate;
             act = act with
@@ -511,6 +522,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 PositionIds = added.Value.Added,
                 Description = added.Value.Summary.Description?.Trim(),
                 Served = FiguresOf(added.Value.Summary),
+                DialogServed = ServedOf(added.Value.Summary),
+                Sent = SentOf(added.Value.Summary),
                 Listed = ListedOf(added.Value.Listed, adding.Ticks),
             };
             if (equipment?.Listed is { } fromList && act.Served is { } served
@@ -526,8 +539,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     session, editor, opened, act, adding, added.Value, partList, record, cancellationToken);
             }
         }
-        catch (GlassMvaStageException refused)
-            when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
+        catch (GlassMvaStageException refused) when (RefusedBeforePost(refused.FailureCode))
         {
             // Refused before anything was posted.
             LogPositionAct(logger, session.Id, session.CaseId, act.Action,
@@ -667,7 +679,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// for Repair alone (R1188). "Both": only on a <c>part.php</c> dialog,
     /// else refused as not built. An operation the return cannot read back is
     /// refused first (<see cref="GlassAutomationPositionPolicy.OperationRefusal"/>).
-    /// The optional parts to tick. A rebuild never
+    /// The optional parts to tick. The typed figures and reason (R1206), on
+    /// a <c>part.php</c> dialog only; on one that can be painted they are
+    /// refused as not built, having no capture. A rebuild never
     /// comes here: its lines keep <see cref="ChoosePartAsync"/>'s own rule.
     /// The request is answered with the choices even when refused, so a
     /// preview still shows the dialog.
@@ -699,14 +713,18 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     GlassAutomationButton.Paint => PaintButton,
                     _ => PartButton,
                 },
-            Change = operation is null && !confirm && !both
-                ? null
-                : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
+            Change = WithTyped(
+                operation is null && !confirm && !both
+                    ? null
+                    : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
+                paintable ? null : inputs),
             Ticks = inputs?.OptionalParts,
         };
+        // Typed figures on the dialog of a part that can be painted have no capture (R1206).
         var refused = GlassAutomationPositionPolicy.OperationRefusal(operation) is { } unread ? unread
             : !paintable && button != GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
             : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
+            : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : null;
         return (chosen, refused);
     }
@@ -851,7 +869,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     .Find(item => string.Equals(item.Code, row, StringComparison.Ordinal));
                 request = special is null
                     ? null
-                    : new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code));
+                    : new GlassEditorAddRequest(
+                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code),
+                        Change: WithTyped(null, draft.Inputs));
                 reason = special is null ? GlassAutomationPositionPolicy.RowUnknownCode : null;
             }
             else
@@ -966,6 +986,47 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// <summary>What the dialog served, a zero read as none so it compares with a line that has none.</summary>
     internal static GlassEstimateBuildFigures FiguresOf(GlassEditorSummary summary) =>
         new(Amount(summary.Price), Amount(summary.Hours));
+
+    /// <summary>The figures the dialog served for the operation it sends, before anything typed (R1206); a zero kept.</summary>
+    internal static GlassAutomationFigures ServedOf(GlassEditorSummary summary) =>
+        new(Figure(summary.ServedPrice ?? summary.Price), Figure(summary.ServedHours ?? summary.Hours), Figure(summary.ServedOverlapHours));
+
+    /// <summary>The figures the post sends (R1206); a zero kept.</summary>
+    internal static GlassAutomationFigures SentOf(GlassEditorSummary summary) =>
+        new(Figure(summary.Price), Figure(summary.Hours), Figure(summary.OverlapHours));
+
+    private static decimal? Figure(string? text) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
+
+    /// <summary>
+    /// A stage code that says the dialog was refused before anything was
+    /// posted: the editor's own refusal, or a typed input the dialog does
+    /// not take (R1206).
+    /// </summary>
+    internal static bool RefusedBeforePost(string code) =>
+        code is GlassFailure.EditorDialog or GlassFailure.EditorRefused
+            or GlassAutomationPositionPolicy.ReasonRequiredCode
+            or GlassAutomationPositionPolicy.ReasonNotAskedCode
+            or GlassAutomationPositionPolicy.OverlapAboveHoursCode;
+
+    /// <summary>
+    /// The change with the act's typed figures and reason set as the dialog
+    /// takes them (R1206): each figure as <see cref="GlassAutomationPositionPolicy.TypedText"/>
+    /// gives it, the reason as given. The change as it was when none is typed.
+    /// </summary>
+    private static GlassEditorChange? WithTyped(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
+        inputs is null || !inputs.Typed
+            ? change
+            : (change ?? new GlassEditorChange()) with
+            {
+                Price = TypedOf(inputs.Price),
+                Hours = TypedOf(inputs.Hours),
+                OverlapHours = TypedOf(inputs.OverlapHours),
+                Reason = inputs.Reason,
+            };
+
+    private static string? TypedOf(decimal? value) =>
+        value is { } given ? GlassAutomationPositionPolicy.TypedText(given) : null;
 
     private static decimal? Amount(string? served) =>
         decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value != 0m

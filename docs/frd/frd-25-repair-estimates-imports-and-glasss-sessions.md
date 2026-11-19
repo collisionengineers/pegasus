@@ -708,9 +708,19 @@ because the return refuses a whole export on a repair kind it does not
 read); Both, with the other
 side's own dialog posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
-posted for a preview. A typed figure or text, a paint choice, a change to
-a position already on the estimate and free rows still wait. The rebuild
+posted for a preview. A typed part number or text, a paint choice, a change
+to a position already on the estimate and free rows still wait. The rebuild
 of an outside estimate keeps R1168, R1169 and R1172 as above.
+
+**Typed hours, price and overlap hours (19 November 2026; R1206).** In the
+dialog of a special operation, or of a part that cannot be painted, the
+Automation may type the labour hours, the price and the overlap hours, as a
+person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
+They are its own input, never Pegasus's. Hours above Glass's own need the
+Automation's own reason, which Glass's keeps on the position; without one
+the add is refused before anything is posted, and Pegasus never writes one.
+Overlap hours above the hours are refused, because the return could not
+read that position back.
 
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may

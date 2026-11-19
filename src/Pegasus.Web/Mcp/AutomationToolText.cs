@@ -56,7 +56,7 @@ internal static class AutomationToolText
     // preview and inputs sentences, are drafts for the operator under R1206
     // (19 November 2026).
     public const string GlassPositionAct =
-        "Add a position to the Automation's open Glass's estimate, remove one, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. No price, hours, reason, part number or description is typed, and nothing in the paint section is changed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. preview takes what add takes, or a position id alone, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
+        "Add a position to the Automation's open Glass's estimate, remove one, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. It also types hours, a price and overlap hours as a person would, with the Automation's own reason when the hours are above Glass's own; Pegasus never writes a reason. No part number or description is typed, and nothing in the paint section is changed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. preview takes what add takes, or a position id alone, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
 
     // The parameter and field descriptions and the refusals of the catalogue
     // search and the position act that the ruled set (R1178) does not hold.
@@ -195,7 +195,34 @@ internal static class AutomationToolText
 
     public const string GlassInputsOptionalPartsRefused = "inputs.optionalParts holds part codes, none blank or repeated, and is given for a part only.";
 
-    public const string GlassInputsConfirmNoFiguresRefused = "inputs is given to add or preview a part only.";
+    public const string GlassInputsConfirmNoFiguresRefused = "A special operation takes only inputs.hours, inputs.price, inputs.overlapHours and inputs.reason, and a remove takes no inputs.";
+
+    // Typed figures and the reason (R1206, 19 November 2026): drafts for the
+    // operator to approve on the merge request.
+
+    public const string GlassInputsHours = "The labour hours to type in place of Glass's own, for a special operation or with operation part on a part that cannot be painted. Sent with two decimal places after a full stop, such as 2.80, as a person types them; from 0 to 1000. Above Glass's own hours, which preview gives as reasonAbove, the dialog asks for a reason: give inputs.reason, or the add is refused with glass.build.reason_required and nothing is posted.";
+
+    public const string GlassInputsPrice = "The price to type in place of Glass's own, where inputs.hours may be given. Sent with two decimal places after a full stop, such as 1234.00; from 0 to 999999.99.";
+
+    public const string GlassInputsOverlapHours = "The overlap hours to type, where inputs.hours may be given. Sent as inputs.hours is; from 0 to 1000. More overlap hours than the hours sent is refused with glass.build.overlap_above_hours, because Pegasus could not read that position back when the estimate returns.";
+
+    public const string GlassInputsReason = "The Automation's own reason for hours above Glass's own, 1 to 150 characters, given with inputs.hours. Glass's keeps it on the position. It is sent only when the dialog asks for one; given when it does not, the add is refused with glass.build.reason_not_asked.";
+
+    public const string GlassInputsHoursRefused = "inputs.hours is a number from 0 to 1000 with at most two decimal places, given for a special operation or with operation part, the Part button and no inputs.side.";
+
+    public const string GlassInputsPriceRefused = "inputs.price is a number from 0 to 999999.99 with at most two decimal places, given where inputs.hours may be.";
+
+    public const string GlassInputsOverlapHoursRefused = "inputs.overlapHours is a number from 0 to 1000 with at most two decimal places, given where inputs.hours may be.";
+
+    public const string GlassInputsReasonRefused = "inputs.reason is 1 to 150 characters and is given with inputs.hours.";
+
+    public const string GlassPreviewFieldInput = "The member of inputs that changes this field, such as inputs.hours; absent for a field Pegasus does not change.";
+
+    public const string GlassPreviewFieldReasonAbove = "On the hours field: Glass's own hours for the served operation. Typed hours above them need inputs.reason; absent where Glass's asks no reason.";
+
+    public const string GlassActServed = "The price, hours and overlap hours Glass's dialog served for the operation sent, before anything was typed.";
+
+    public const string GlassActSent = "The price, hours and overlap hours the post sent, typed ones included, recorded just before the post.";
 
     public const string GlassPreviewPositionAlone = "A preview of a position on the estimate takes positionId alone.";
 
@@ -223,7 +250,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewChangeable = "Whether Pegasus can change it yet. An operation that reloads the dialog or opens a window Pegasus does not answer cannot be chosen.";
 
-    public const string GlassPreviewFields = "Each field a person sees, in the dialog's order. Only the operation and Both can be changed yet; typed figures, text and the paint section wait.";
+    public const string GlassPreviewFields = "Each field a person sees, in the dialog's order. The operation, Both, and the price, hours and overlap hours on a dialog of a part that cannot be painted or of a special operation can be changed; other text and the paint section wait.";
 
     public const string GlassPreviewFieldName = "The field's name in Glass's form.";
 
@@ -245,7 +272,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewQuestions = "Each question the dialog or Glass's would ask on the way.";
 
-    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reason: more hours than Glass's own, which add refuses. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
+    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reason: more hours than Glass's own, which inputs.reason answers. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
 
     public const string GlassPreviewQuestionText = "Glass's own words, where the dialog holds them.";
 

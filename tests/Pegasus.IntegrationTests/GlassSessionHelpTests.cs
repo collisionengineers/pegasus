@@ -315,6 +315,42 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// Typed hours in the Engineer's session as in the Automation's own
+    /// (R1206): above Glass's own with no reason they are refused with their
+    /// code and nothing is posted; with the Automation's reason they are
+    /// posted with it, and the history row keeps the inputs beside the
+    /// figures Glass's served and those sent.
+    /// </summary>
+    [Fact]
+    public async Task TypedHoursNeedTheAutomationsOwnReasonInTheEngineersSession()
+    {
+        var help = Help.Create();
+        using var window = help.Window();
+        GlassAutomationPositionRequest Typed(string key, string? reason) =>
+            new(Automation, help.Session.Id, help.Session.Version, key, GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.SpecialOperation,
+                Row = "AC0000075",
+                Inputs = new GlassAutomationInputs(Hours: 0.8m, Reason: reason),
+            };
+
+        var unreasoned = await help.Sessions.AddAsync(Typed("mcp:help-typed-1", null), help.Session, CancellationToken.None);
+        var reasoned = await help.Sessions.AddAsync(Typed("mcp:help-typed-2", "Seized bolts"), help.Session, CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, unreasoned.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.Act.Code);
+        Assert.Equal(GlassAutomationActOutcome.Added, reasoned.Act.Outcome);
+        var posted = Assert.Single(help.Glass.Requests, request => request.Method == "POST").Body;
+        Assert.Contains("&Time=0.80&", posted, StringComparison.Ordinal);
+        Assert.Contains("&Reason=Seized+bolts&", posted, StringComparison.Ordinal);
+        var recorded = help.Store.Acts[^1];
+        Assert.Equal(0.8m, recorded.Inputs?.Hours);
+        Assert.Equal("Seized bolts", recorded.Inputs?.Reason);
+        Assert.Equal(0.50m, recorded.DialogServed?.Hours);
+        Assert.Equal(0.80m, recorded.Sent?.Hours);
+    }
+
+    /// <summary>
     /// An operation the return cannot read back (R1206; issue 2155) is
     /// refused in the Engineer's session with its own code before anything
     /// is asked of Glass's, and the refusal is a history row.

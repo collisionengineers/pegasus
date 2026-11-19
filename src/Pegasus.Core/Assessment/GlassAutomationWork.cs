@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -134,19 +135,46 @@ public enum GlassAutomationButton
 /// with no price and no hours. Repair (<c>I</c>) is answered OK without it
 /// (R1188); any other operation is refused without it.
 /// </param>
+/// <param name="Hours">
+/// The labour hours typed in the dialog's Time box, in place of Glass's own
+/// (19 November 2026, R1206). Sent as <see cref="GlassAutomationPositionPolicy.TypedText"/>
+/// gives it. Above Glass's own hours the dialog asks for a reason, which
+/// <c>Reason</c> gives; Pegasus never writes one.
+/// </param>
+/// <param name="Price">The price typed in the dialog's Price box, sent as <c>Hours</c> is.</param>
+/// <param name="OverlapHours">The overlap hours typed in the dialog's overlap box (<c>Ctime</c>), sent as <c>Hours</c> is.</param>
+/// <param name="Reason">
+/// The Automation's own reason for hours above Glass's own, as a person
+/// types it in Glass's reason window: given only with <c>Hours</c>,
+/// and sent only when the dialog asks for it.
+/// </param>
 public sealed record GlassAutomationInputs(
     IReadOnlyList<string>? Equipment = null,
     string? Operation = null,
     GlassAutomationButton? Button = null,
     bool? BothSides = null,
     IReadOnlyList<string>? OptionalParts = null,
-    bool? ConfirmNoFigures = null)
+    bool? ConfirmNoFigures = null,
+    decimal? Hours = null,
+    decimal? Price = null,
+    decimal? OverlapHours = null,
+    string? Reason = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null;
+        && ConfirmNoFigures is null && !Typed;
+
+    /// <summary>Whether a typed figure or a reason is given (R1206).</summary>
+    public bool Typed => Hours is not null || Price is not null || OverlapHours is not null || Reason is not null;
 }
+
+/// <summary>
+/// The figures of one dialog (R1206): the price, labour hours and overlap
+/// hours, as Glass's served them or as the post sent them. A figure the
+/// dialog does not give is null; a zero is kept.
+/// </summary>
+public sealed record GlassAutomationFigures(decimal? Price, decimal? Hours, decimal? OverlapHours);
 
 /// <summary>One option of Glass's equipment question for a part, as Glass's own dialog shows it.</summary>
 /// <param name="Code">Glass's code for the option: the value an answer names.</param>
@@ -250,6 +278,20 @@ public sealed record GlassAutomationAct(
 
     /// <summary>What an add gave Glass's (R1206); null when it gave nothing.</summary>
     public GlassAutomationInputs? Inputs { get; init; }
+
+    /// <summary>
+    /// The figures the dialog served for the operation and side it sent,
+    /// before anything was typed (R1206); recorded just before the post, and
+    /// null while no dialog has been built.
+    /// </summary>
+    public GlassAutomationFigures? DialogServed { get; init; }
+
+    /// <summary>
+    /// The figures the post sent: Glass's served ones with the Automation's
+    /// typed ones in their place (R1206). Recorded just before the post, so a
+    /// lost answer still says what was sent; null while no dialog has been built.
+    /// </summary>
+    public GlassAutomationFigures? Sent { get; init; }
 
     /// <summary>
     /// The part's equipment question, kept on an add refused on it: one that
@@ -477,7 +519,10 @@ public static class GlassAutomationPositionPolicy
     /// Part, and an operation not with the Paint button, which sends paint
     /// alone; <c>inputs.side</c> ("Both") with the operation Part, the dialog's
     /// own operation and the Part button; <c>inputs.optionalParts</c> as
-    /// codes, none blank or repeated. A remove takes none.
+    /// codes, none blank or repeated. A remove takes none. Typed figures and
+    /// a reason (R1206) are taken by a special operation and by a part
+    /// pressed with Part, one side at a time, as <see cref="TypedRefused"/>
+    /// allows them; a special operation takes nothing else.
     /// </summary>
     public static string? InputRefused(
         GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
@@ -487,9 +532,26 @@ public static class GlassAutomationPositionPolicy
         {
             return null;
         }
-        if (action == GlassAutomationActAction.Remove || kind != GlassAutomationPositionKind.Part)
+        if (action == GlassAutomationActAction.Remove)
         {
             return FirstGiven(inputs);
+        }
+        if (TypedRefused(inputs) is { } typed)
+        {
+            return typed;
+        }
+        if (kind != GlassAutomationPositionKind.Part)
+        {
+            // A special operation takes typed figures and a reason alone.
+            return FirstGiven(inputs with { Hours = null, Price = null, OverlapHours = null, Reason = null });
+        }
+        if (inputs.Typed
+            && (operation is GlassAutomationPartOperation.Paint or GlassAutomationPartOperation.PartAndPaint
+                || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint
+                || inputs.BothSides == true))
+        {
+            // Typed figures go on a dialog of a part that cannot be painted, one side at a time.
+            return FirstTyped(inputs);
         }
         if (inputs.Equipment is { } equipment
             && (!TakesEquipment(kind, operation) || equipment.Any(string.IsNullOrWhiteSpace)))
@@ -521,13 +583,76 @@ public static class GlassAutomationPositionPolicy
         return null;
     }
 
-    private static string FirstGiven(GlassAutomationInputs inputs) =>
+    private static string? FirstGiven(GlassAutomationInputs inputs) =>
         inputs.Equipment is not null ? "inputs.equipment"
         : inputs.Operation is not null ? "inputs.operation"
         : inputs.Button is not null ? "inputs.button"
         : inputs.BothSides is not null ? "inputs.side"
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
-        : "inputs.confirmNoFigures";
+        : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
+        : FirstTyped(inputs);
+
+    private static string? FirstTyped(GlassAutomationInputs inputs) =>
+        inputs.Hours is not null ? "inputs.hours"
+        : inputs.Price is not null ? "inputs.price"
+        : inputs.OverlapHours is not null ? "inputs.overlapHours"
+        : inputs.Reason is not null ? "inputs.reason"
+        : null;
+
+    /// <summary>
+    /// A typed figure that is not one Pegasus sends, or a reason not given as
+    /// one is (R1206), by its tool name: a negative figure, one with more than
+    /// two decimal places, hours or overlap hours above
+    /// <see cref="MaximumTypedHours"/>, a price above <see cref="MaximumTypedPrice"/>;
+    /// a reason given without hours, blank, or longer than
+    /// <see cref="MaximumReasonLength"/>. Null when none is.
+    /// </summary>
+    private static string? TypedRefused(GlassAutomationInputs inputs) =>
+        inputs.Hours is { } hours && (TypedText(hours) is null || hours > MaximumTypedHours) ? "inputs.hours"
+        : inputs.Price is { } price && (TypedText(price) is null || price > MaximumTypedPrice) ? "inputs.price"
+        : inputs.OverlapHours is { } overlap && (TypedText(overlap) is null || overlap > MaximumTypedHours) ? "inputs.overlapHours"
+        : inputs.Reason is { } reason
+            && (inputs.Hours is null || reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength)
+            ? "inputs.reason"
+        : null;
+
+    /// <summary>
+    /// A figure as the Automation types it in a dialog (R1206): two decimal
+    /// places after a full stop and no thousands separator, as Glass's serves
+    /// its own figures (<c>2.80</c>, <c>1234.00</c>). The dialog posts the text
+    /// typed unchanged. Null for a negative figure or one with more than two
+    /// decimal places, which is refused.
+    /// </summary>
+    public static string? TypedText(decimal value) =>
+        value < 0 || decimal.Round(value, 2) != value ? null : value.ToString("0.00", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The most hours or overlap hours typed: the return's reader refuses a
+    /// whole export with a time above 1,000 (<c>EstimatePolicy.MaximumLineWorkUnits</c>).
+    /// </summary>
+    public const decimal MaximumTypedHours = 1000m;
+
+    /// <summary>The highest price typed: nine characters, the length of the dialog's price box.</summary>
+    public const decimal MaximumTypedPrice = 999999.99m;
+
+    /// <summary>
+    /// The longest reason. Glass's keeps it on the position and its export
+    /// carries it into the line's note, which the return's reader refuses
+    /// beyond 500 characters with the line's other notes; 150 leaves them room.
+    /// </summary>
+    public const int MaximumReasonLength = 150;
+
+    /// <summary>Typed hours are above Glass's own and the dialog asks for a reason the act did not give: nothing is posted (R1206).</summary>
+    public const string ReasonRequiredCode = "glass.build.reason_required";
+
+    /// <summary>A reason was given, but the dialog asks for none: the hours sent are not above Glass's own. Nothing is posted.</summary>
+    public const string ReasonNotAskedCode = "glass.build.reason_not_asked";
+
+    /// <summary>
+    /// The overlap hours sent are more than the hours sent. The return's reader
+    /// refuses a whole export with such a position, so nothing is posted.
+    /// </summary>
+    public const string OverlapAboveHoursCode = "glass.build.overlap_above_hours";
 
     /// <summary>The inputs as an act keeps them: null when none is given.</summary>
     public static GlassAutomationInputs? Kept(GlassAutomationInputs? inputs) =>
@@ -860,7 +985,18 @@ public sealed record GlassDialogChoice(string Value, string Text);
 /// the dialog serves it greyed out, and whether Pegasus may change it.
 /// </summary>
 public sealed record GlassDialogField(
-    string Name, string? Label, string? Value, IReadOnlyList<GlassDialogChoice>? Choices, bool Disabled, bool Changeable);
+    string Name, string? Label, string? Value, IReadOnlyList<GlassDialogChoice>? Choices, bool Disabled, bool Changeable)
+{
+    /// <summary>The member of the act's inputs that changes the field (R1206), such as <c>inputs.hours</c>; null for one Pegasus does not change.</summary>
+    public string? Input { get; init; }
+
+    /// <summary>
+    /// The labour hours box: Glass's own hours for the served operation,
+    /// above which the dialog asks for a reason (R1206); null where it asks
+    /// none, because Glass's has no hours of its own for the operation.
+    /// </summary>
+    public decimal? ReasonAbove { get; init; }
+}
 
 /// <summary>
 /// The paint section of a part's dialog as served: the paint area, the paint
@@ -888,12 +1024,16 @@ public sealed record GlassDialogSend(
     decimal? PaintHours,
     bool BothSides,
     IReadOnlyList<GlassDialogQuestion> Questions,
-    string? Code);
+    string? Code)
+{
+    /// <summary>The overlap hours the post would send (R1206); null where the dialog has none.</summary>
+    public decimal? OverlapHours { get; init; }
+}
 
 /// <summary>
 /// A question the dialog or the editor would ask on the way: <c>no_figures</c>
 /// (price and hours are both zero; <see cref="Text"/> is Glass's own),
-/// <c>reason</c> (more hours than Glass's own; the add is refused),
+/// <c>reason</c> (more hours than Glass's own; answered by <c>inputs.reason</c>),
 /// <c>other_side</c> ("Both": the editor then opens the other side's own
 /// dialog, posted as served) or <c>mandatory_parts</c> (Glass's may list
 /// mandatory parts after the post; which, if any, cannot be known before it).
