@@ -589,6 +589,315 @@
         "doSave": "1",
         "hasFile": true
       }
+    },
+    "partList": {
+      "file": "part_list.html",
+      "note": "Whole blocks cut from the list.php of 7 September 2026 (glasses7.har), each partlist.addPart line kept byte for byte, by a cut script in the operator's workspace; the address is the one the browser asked for, with the made-up key.",
+      "address": "https://repairestimate.autovistagroup.com/ere/aco/list.php?ksid=Q0TESTKEY000000000000000000001&cml=C&html5svg=1&ds=DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022&win7=1",
+      "groups": "DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022",
+      "rows": 100
+    },
+    "equipment274": {
+      "file": "equipment_274.html",
+      "note": "The map of part-list row 274 (Front Door Outer Handle, left) on 7 September 2026, the vehicle of part_list.html"
     }
-  }
+  },
+  "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up.",
+  "operations": [
+    {
+      "name": "door_left_repair",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "I",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to I; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "I",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_repair.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_refit",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "AE"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to AE; the record and the gross figures are posted as served."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AE",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.40",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_refit.post.txt"
+    },
+    {
+      "name": "bonnet_repair",
+      "dialog": "comp.php",
+      "rows": "649|650",
+      "button": "BSS",
+      "change": {
+        "operation": "I",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=649|650",
+      "fields": 36,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to I; the record and the gross figures are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C1060000_701300250101_2G_649_650_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "I",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41007290942",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "401.40",
+        "paintHours": "2.60",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "649|650"
+      },
+      "page": "bonnet_operations.dialog.html",
+      "post": "bonnet_repair.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "bonnet_refit",
+      "dialog": "comp.php",
+      "rows": "649|650",
+      "button": "BSS",
+      "change": {
+        "operation": "AE"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=649|650",
+      "fields": 36,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to AE; the record and the gross figures are posted as served."
+      ],
+      "summary": {
+        "position": "C1060000_701300250101_2G_649_650_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "AE",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "0",
+        "hours": "0.40",
+        "partNumber": "41007290942",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "401.40",
+        "paintHours": "2.60",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "649|650"
+      },
+      "page": "bonnet_operations.dialog.html",
+      "post": "bonnet_refit.post.txt"
+    },
+    {
+      "name": "mirror_left_repair",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "I",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to I; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "I",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_repair.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_refit",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "AE"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to AE; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "AE",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0.60",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_refit.post.txt"
+    },
+    {
+      "name": "intercooler_repair",
+      "dialog": "part.php",
+      "rows": "1421|1422",
+      "button": "BS",
+      "change": {
+        "operation": "I",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1421|1422",
+      "fields": 22,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to I; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C6066400_701300250101_2G_1421_1422_|64",
+        "partCode": "6066400",
+        "description": "Intercooler",
+        "special": false,
+        "operation": "I",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "17517600530",
+        "trade": "M",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "intercooler_operations.dialog.html",
+      "post": "intercooler_repair.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "intercooler_refit",
+      "dialog": "part.php",
+      "rows": "1421|1422",
+      "button": "BS",
+      "change": {
+        "operation": "AE"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1421|1422",
+      "fields": 22,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to AE; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C6066400_701300250101_2G_1421_1422_|64",
+        "partCode": "6066400",
+        "description": "Intercooler",
+        "special": false,
+        "operation": "AE",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "0",
+        "hours": "0.80",
+        "partNumber": "17517600530",
+        "trade": "M",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "intercooler_operations.dialog.html",
+      "post": "intercooler_refit.post.txt"
+    }
+  ]
 }

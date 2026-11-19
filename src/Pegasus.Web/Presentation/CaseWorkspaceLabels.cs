@@ -1326,6 +1326,42 @@ public static class CaseWorkspaceLabels
         public const string OpenOn = "Open on";
 
         /// <summary>
+        /// A session the Automation owns, as staff see it (design 07 section 9
+        /// question 3, option a): on its Case the line reads "Glass's session ·
+        /// Open · the Automation, started 10:42"; its Close dialog's one
+        /// sentence; and, on every other Case for staff on the same login,
+        /// the line naming the Case it is open on.
+        /// </summary>
+        // Operator, 18 November 2026: R1180
+        public const string AutomationStarted = "the Automation, started";
+
+        // Operator, 18 November 2026: R1180
+        public const string AutomationClosePrompt = "The Automation is building this Glass's estimate. Closing ends its session without saving, and the Glass's account is free again.";
+
+        // Operator, 18 November 2026: R1180
+        public const string HeldByAutomation = "The Glass's account is in use by the Automation";
+
+        /// <summary>
+        /// The help control on a staff member's own open session (design 08
+        /// section 10 question 1, Set A): its two buttons, and the chip while
+        /// help is on, with the window connected or not.
+        /// </summary>
+        // Operator, 18 November 2026: R1183
+        public const string HelpStart = "Let the Automation help";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpStop = "Stop Automation help";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpOn = "Automation help on";
+
+        // Operator, 18 November 2026: R1183
+        public const string HelpOnNotConnected = "Automation help on · Glass's window not connected";
+
+        /// <summary>A help toggle refused because the session left Active or its work runs. Not ruled.</summary>
+        public const string HelpNotChanged = "Automation help was not changed. The Glass's session is no longer open, or Glass's is busy with it.";
+
+        /// <summary>
         /// The outcomes a launch, a return or a resume reports. A recorded
         /// estimate is named as recorded, not as the spec in use: the outcome
         /// stays on the section for as long as the session is the newest one,
@@ -1409,22 +1445,37 @@ public static class CaseWorkspaceLabels
             string.Create(CultureInfo.InvariantCulture, $"{done} of {total}");
 
         /// <summary>
+        /// The session line of the member of staff who ran a build that saved
+        /// nothing, because Glass's editor could not be opened or nothing
+        /// could be placed, while the empty estimate they were given instead
+        /// is the session the page shows them.
+        /// </summary>
+        // Operator, 18 November 2026: R1186
+        public const string BuildOpenedEmpty = "The estimate could not be imported into Glass's, so an empty estimate was opened.";
+
+        /// <summary>
         /// The built-or-not list on the rebuilt repair spec, for the member of
         /// staff who ran the build (R1173): one row per line of the outside
         /// estimate, what was sent or why not, and Glass's figures where they
         /// differ from the outside estimate's (R1168).
         /// </summary>
+        // Operator, 18 November 2026: R1187
         public const string BuildList = "Built in Glass's";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildLine = "Outside estimate line";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildResult = "In Glass's";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildPrice = "Glass's price";
 
+        // Operator, 18 November 2026: R1187
         public const string BuildHours = "Glass's hours";
 
         /// <summary>What became of one line, with the reason it was left off.</summary>
+        // Operator, 18 November 2026: R1187
         public static string BuildOutcome(GlassEstimateBuildAct act)
         {
             ArgumentNullException.ThrowIfNull(act);
@@ -1443,11 +1494,14 @@ public static class CaseWorkspaceLabels
         /// as a request Glass's did not answer, is shown as the code, as the
         /// session line shows a failure.
         /// </summary>
+        // Operator, 18 November 2026: R1187
         public static string BuildReason(string code) => code switch
         {
             GlassEstimateBuildPolicy.NotBuiltCode => "not built in this version",
             GlassEstimateBuildPolicy.NoRowCode => "Glass's has no row for it",
-            GlassEstimateBuildPolicy.AmbiguousRowCode => "Glass's has more than one row of this name",
+            GlassEstimateBuildPolicy.AmbiguousRowCode => "Glass's has more than one row for it",
+            GlassEstimateBuildPolicy.EquipmentCode => "it waits on an equipment answer",
+            GlassEstimateBuildPolicy.NoKeyCode => "it has no Glass's part code or part number",
             GlassEstimateBuildPolicy.StoppedCode => "not sent after a line that was not confirmed",
             "glass.editor.dialog" => "Glass's dialog could not be read",
             "glass.editor.refused" => "Glass's dialog did not match the line",
