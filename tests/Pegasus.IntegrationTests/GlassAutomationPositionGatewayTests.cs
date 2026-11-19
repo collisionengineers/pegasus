@@ -787,18 +787,21 @@ public sealed partial class GlassRepairEstimateGatewayTests
     /// <summary>The bonnet with its paint on the same estimate.</summary>
     private const string Bonnet = "C421280.12.C1060000.2102";
 
-    /// <summary>The walk's estimate, its dialogs for the windscreen and the posts' answers, as the editor served them.</summary>
+    /// <summary>The walk's estimate, its dialogs for the windscreen and the bonnet and the posts' answers, as the editor served them.</summary>
     private static void ScriptWalk(ScriptedGlass glass)
     {
         glass.Respond("GET /ere/aco/selected.php", _ => EditorPage("selected_before_change.html", null));
         glass.Respond("GET /ere/aco/part.php", _ => EditorPage("windscreen_change_hours.dialog.html", null));
-        glass.Respond("POST /ere/aco/compproc.php", request => EditorPage(
-            request.Query.Contains("BX=1", StringComparison.Ordinal)
-                ? "windscreen_change_hours.confirm_answer.html"
-                : "windscreen_change_hours.answer.html",
-            null));
-        // Glass's answered the record read after a change empty once (#946): it is not read.
-        glass.Respond("GET /ere/aco/mcode.php", _ => Editor(string.Empty));
+        glass.Respond("GET /ere/aco/comp.php", _ => EditorPage("bonnet_change_paint.dialog.html", null));
+        glass.Respond("POST /ere/aco/compproc.php", request =>
+        {
+            var walked = request.Query.Contains("partid=" + Bonnet, StringComparison.Ordinal) ? "bonnet_change_paint" : "windscreen_change_hours";
+            return EditorPage(walked + (request.Query.Contains("BX=1", StringComparison.Ordinal) ? ".confirm_answer.html" : ".answer.html"), null);
+        });
+        // The bonnet's record read after its change (#890); the windscreen's was answered empty, as #946 was: it is not read.
+        glass.Respond("GET /ere/aco/mcode.php", request => request.Query.Contains("partid=" + Bonnet, StringComparison.Ordinal)
+            ? new Reply(HttpStatusCode.OK, GlassEditorFixture.Text("position_bonnet_changed.json"), ContentType: "application/json")
+            : Editor(string.Empty));
     }
 
     /// <summary>The requests of a change of a position with no paint: the estimate, its dialog, the post, the confirm, the estimate, the record.</summary>
@@ -873,6 +876,67 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassAutomationActOutcome.Refused, painted.Act.Outcome);
         // Only the estimate was read for each.
         Assert.Equal(requests + 2, harness.Mva.Requests.Count);
+    }
+
+    /// <summary>
+    /// The paint of a position on the estimate (R1206), the walk's bonnet:
+    /// its own dialog is comp.php with Part and Paint the one button shown,
+    /// posted with 2 Coat and level II as the browser posted it (#867), and
+    /// confirmed as the browser confirmed it (#873). The act keeps the paint
+    /// served and sent, and the bonnet's record read afterwards.
+    /// </summary>
+    [Fact]
+    public async Task APositionsPaintIsChangedAsTheBrowserChangedIt()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        ScriptWalk(harness.Mva);
+
+        var changed = await PositionAsync(harness, Change(harness, session, "mcp:paint-1", Bonnet,
+            new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "2", Level: "2"))));
+
+        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
+        var posts = harness.Mva.Requests.Where(request => request.Method == "POST").ToList();
+        Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.post.txt"), posts[0].Body);
+        Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.confirm.txt"), posts[1].Body);
+        Assert.Contains("partid=" + Bonnet + "&cml=C&dialogCodePage", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
+        Assert.Equal("3", changed.Act.DialogServed?.PaintCoats);
+        Assert.Equal(4.10m, changed.Act.DialogServed?.PaintHours);
+        Assert.Equal("2", changed.Act.Sent?.PaintCoats);
+        Assert.Equal("2", changed.Act.Sent?.PaintLevel);
+        Assert.Equal(393.90m, changed.Act.Sent?.PaintPrice);
+        Assert.Equal(1.40m, changed.Act.Sent?.PaintHours);
+        Assert.Equal(Bonnet, changed.Act.Position?.PositionId);
+    }
+
+    /// <summary>
+    /// Paint chosen with an add (R1206): the left door pressed with Part and
+    /// Paint at level I with Surcharge ticked, both sent as its own script
+    /// sets them; paint on a part that cannot be painted is refused and
+    /// nothing is sent.
+    /// </summary>
+    [Fact]
+    public async Task PaintIsChosenWithAnAddOnAPartThatCanBePainted()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var painted = await PositionAsync(harness, Add(harness, session, "mcp:paint-2",
+            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.PartAndPaint,
+            inputs: new GlassAutomationInputs(Paint: new GlassAutomationPaint(Level: "1", Surcharge: true))));
+        var plain = await PositionAsync(harness, Add(harness, painted.Session, "mcp:paint-3",
+            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.PartAndPaint,
+            inputs: new GlassAutomationInputs(Paint: new GlassAutomationPaint(Level: "1"))));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, painted.Act.Outcome);
+        var post = Assert.Single(DialogPosts(harness));
+        Assert.Contains("&Lackstufe=1&", post, StringComparison.Ordinal);
+        Assert.Contains("&Zuschlag=1&", post, StringComparison.Ordinal);
+        Assert.Contains("&BSL=Part+and+Paint&", post, StringComparison.Ordinal);
+        Assert.Equal("1", painted.Act.Sent?.PaintLevel);
+        Assert.True(painted.Act.Sent?.Surcharge);
+        Assert.Equal(GlassAutomationPositionPolicy.NotPaintableCode, plain.Act.Code);
+        Assert.Single(DialogPosts(harness));
     }
 
     private static GlassAutomationPositionRequest Change(

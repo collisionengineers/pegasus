@@ -792,8 +792,7 @@ compose Glass's, each tool is refused with "Glass's is not available."
   "Mandatory parts:" page. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
   input given is kept on the act, beside the figures Glass's served. A
-  typed part number or description, any change in the paint section and
-  free rows stay refused.
+  typed part number or description and free rows stay refused.
   The server's rebuild of an outside estimate is unchanged (R1168, R1169,
   R1172).
 - **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
@@ -836,6 +835,25 @@ compose Glass's, each tool is refused with "Glass's is not available."
   whose answer is lost is `not_confirmed`, and the position's own read
   settles it. `preview` of a position takes the same inputs, reads the
   estimate to choose the dialog, and says what the change would send.
+- **19 November 2026; R1206.** `inputs.paint` chooses a part's paint where
+  Paint or Part and Paint is pressed, or in a `change`: the paint type
+  (`coats`), the level, Surcharge and typed paint hours. Pegasus makes the
+  choices in the order the dialog's own script gives one post whatever
+  order a person makes them in: the paint type, which sets the paint state,
+  its tick boxes and, where the state enables them, the procedure and
+  method the script selects; then the level, which sets Glass's paint price
+  and hours; then Surcharge; then the paint hours, for which Glass's asks no
+  reason. Coloured clear is posted as the paint state sets it, greyed or
+  not, as the dialog posts it. A paint type the list does not offer, a level
+  the type does not offer, Surcharge where the type fixes it and a button
+  the page hides are refused before anything is posted. The type and level
+  are chosen only on a metal part, whose levels come back as levels the
+  return reads; on any other part the act is refused with
+  `glass.build.paint_not_read_back`. A typed price or hours on a part that
+  can be painted, a paint reason, the procedure and method, scratch-resistant
+  clear and coloured clear stay refused, having no capture. `preview` gives
+  each paint type and level the paint area offers with Glass's price and
+  hours for it, and says when the figures are the position's own.
 - **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
   `add` with the same row and inputs would post, chosen as the add chooses
   it, or for the dialog of a position on the estimate by its id, and

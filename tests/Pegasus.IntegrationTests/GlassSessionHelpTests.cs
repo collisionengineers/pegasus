@@ -398,6 +398,45 @@ public sealed class GlassSessionHelpTests
     private const string Windscreen = "C421260.10.C1100400.2205";
 
     /// <summary>
+    /// The paint of a position in the Engineer's session as in the
+    /// Automation's own (R1206): the walk's bonnet, its own comp.php dialog
+    /// posted with 2 Coat and level II as the browser posted it, and the
+    /// history row keeps the paint chosen, served and sent.
+    /// </summary>
+    [Fact]
+    public async Task ThePaintOfAPositionIsChangedInTheEngineersSession()
+    {
+        var help = Help.Create();
+        help.Glass.Respond("GET /ere/aco/selected.php", _ => EditorPage("selected_before_change.html", null));
+        help.Glass.Respond("GET /ere/aco/comp.php", _ => EditorPage("bonnet_change_paint.dialog.html", null));
+        help.Glass.Respond("POST /ere/aco/compproc.php", request => EditorPage(
+            request.Query.Contains("BX=1", StringComparison.Ordinal)
+                ? "bonnet_change_paint.confirm_answer.html"
+                : "bonnet_change_paint.answer.html",
+            null));
+        using var window = help.Window();
+
+        var outcome = await help.Sessions.ChangeAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-paint-change",
+                GlassAutomationActAction.Change)
+            {
+                PositionId = "C421280.12.C1060000.2102",
+                Inputs = new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "2", Level: "2")),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Changed, outcome.Act.Outcome);
+        Assert.Equal(
+            GlassEditorFixture.Text("bonnet_change_paint.post.txt"),
+            help.Glass.Requests.First(request => request.Method == "POST").Body);
+        var recorded = Assert.Single(help.Store.Acts);
+        Assert.Equal("2", recorded.Inputs?.Paint?.Coats);
+        Assert.Equal("3", recorded.DialogServed?.PaintCoats);
+        Assert.Equal("2", recorded.Sent?.PaintLevel);
+    }
+
+    /// <summary>
     /// An operation the return cannot read back (R1206; issue 2155) is
     /// refused in the Engineer's session with its own code before anything
     /// is asked of Glass's, and the refusal is a history row.

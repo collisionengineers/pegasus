@@ -10,8 +10,8 @@ namespace Pegasus.Infrastructure.Glass;
 /// another operation the dialog offers, a typed price, hours, overlap hours
 /// (<c>Ctime</c>) or (a special operation only) description, the reason the
 /// dialog asks for when the hours are above Glass's own, and the "Both"
-/// sides tick. On a <c>comp.php</c> dialog only the operation may be
-/// changed. <see cref="ConfirmNoFigures"/> is a person's OK to the question
+/// sides tick. On a <c>comp.php</c> dialog only the operation and the paint
+/// (<see cref="Paint"/>, R1206) may be changed. <see cref="ConfirmNoFigures"/> is a person's OK to the question
 /// the dialog asks before it sends a part whose price and hours are both
 /// zero; the OK changes nothing in the post. Typed text is posted as given,
 /// as the browser posts it (19 November 2026: <c>0.5</c>, <c>0.50</c>,
@@ -26,7 +26,16 @@ internal sealed record GlassEditorChange(
     string? Reason = null,
     bool Both = false,
     bool ConfirmNoFigures = false,
-    string? OverlapHours = null);
+    string? OverlapHours = null,
+    GlassEditorPaint? Paint = null);
+
+/// <summary>
+/// The paint choices a person makes on a <c>comp.php</c> dialog (R1206):
+/// the paint type (<c>Lackart</c>), the level (<c>Lackstufe</c>), Surcharge
+/// (<c>Zuschlag</c>) and typed paint hours (<c>LTime</c>), each null when
+/// not made. Typed hours are posted as given.
+/// </summary>
+internal sealed record GlassEditorPaint(string? Coats = null, string? Level = null, bool? Surcharge = null, string? Hours = null);
 
 /// <summary>
 /// What a built dialog post is for, as the dialog states it. A value is null
@@ -85,6 +94,20 @@ internal sealed record GlassEditorSummary
     public string? PaintPrice { get; init; }
 
     public string? PaintHours { get; init; }
+
+    /// <summary>Whether the post sends Surcharge ticked; null where the dialog has none (R1206).</summary>
+    public bool? Surcharge { get; init; }
+
+    /// <summary>The paint type, level, price and hours and Surcharge as the dialog served them, before any paint choice (R1206).</summary>
+    public string? ServedPaintType { get; init; }
+
+    public string? ServedPaintLevel { get; init; }
+
+    public string? ServedPaintPrice { get; init; }
+
+    public string? ServedPaintHours { get; init; }
+
+    public bool? ServedSurcharge { get; init; }
 
     public string? Side { get; init; }
 
@@ -177,7 +200,10 @@ internal static partial class GlassEditorDialogs
     private static readonly string[] ServedNames =
         ["Place", "Stateid", "RemarkP", "RemarkTxt", "RemarkTxtTime", "RemarkTxtLack", "Zuschlag_d", "Klarlack_d"];
 
-    private static readonly (string Name, string Table)[] PaintSelects = [("Verf", "Verfids"), ("Meth", "Methids")];
+    private static readonly (string Name, string Table, string Texts, int First)[] PaintSelects =
+        [("Verf", "Verfids", "Verftexts", 3), ("Meth", "Methids", "Methtexts", 5)];
+
+    private static readonly string[] PaintTicks = ["Zuschlag", "Klarlack"];
 
     private static readonly string[] EnabledRemarks = ["RemarkTxt", "RemarkTxtTime"];
 
@@ -277,11 +303,19 @@ internal static partial class GlassEditorDialogs
             problems.Add("The dialog ticks \"Both\" sides itself.");
         }
 
-        // ChangeRepart: a person may choose another operation the dialog offers; nothing else.
+        // ChangeRepart: a person may choose another operation the dialog offers, and the paint
+        // (R1206); typed part figures here have no capture.
         if (change.Price is not null || change.Hours is not null || change.Description is not null
             || change.Reason is not null || change.OverlapHours is not null || change.Both)
         {
-            problems.Add("This dialog is built with no change but the operation.");
+            problems.Add("This dialog is built with no change but the operation and the paint.");
+        }
+
+        // A button the page hides is not pressed: the dialog of a part with its paint on the
+        // estimate hides Part (19 November 2026, #848).
+        if (Hidden(submitter))
+        {
+            problems.Add("The dialog hides the button " + button + ".");
         }
 
         var changed = change.Operation is not null;
@@ -298,6 +332,69 @@ internal static partial class GlassEditorDialogs
             else
             {
                 select!.Value = chosen;
+            }
+        }
+
+        // The paint choices (R1206) on the form, as their handlers leave it: the paint type
+        // (LackartChange's state and SetZKBoxes) and Surcharge (click_z). The level and typed
+        // hours follow once the form is read. Judged offline on 19 November 2026: #766 in three
+        // orders and #867 in two gave one post each, the browser's own.
+        var paintIn = change.Paint;
+        var servedPaintType = form.Field("Lackart")?.Value;
+        var servedPaintLevel = form.Field("Lackstufe")?.Value;
+        var servedSurcharge = form.Field("Zuschlag")?.Checked;
+        var paintState = state;
+        var paintStateIndex = stateIndex;
+        var coatsChanged = false;
+        string? paintCoded = null;
+        if (paintIn is not null)
+        {
+            (paintState, paintStateIndex, coatsChanged) = PaintType(html, form, paintIn, problems, state, stateIndex);
+            if (coatsChanged && zStates is not null && kStates is not null && zDims is not null && kDims is not null)
+            {
+                foreach (var (name, states, dims) in new[] { ("Zuschlag", zStates, zDims), ("Klarlack", kStates, kDims) })
+                {
+                    if (form.Field(name) is { } box)
+                    {
+                        box.Checked = Truthy(NumberAt(states, paintStateIndex));
+                        box.Disabled = Truthy(NumberAt(dims, paintStateIndex));
+                    }
+                    if (form.Field(name + "_d") is { } twin && At(dims, paintStateIndex) is { } dim)
+                    {
+                        twin.Value = dim;
+                    }
+                }
+            }
+            if (paintIn.Surcharge is { } surcharge)
+            {
+                if (form.Field("Zuschlag") is not { } box || zStates is null || zDims is null)
+                {
+                    problems.Add("The dialog has no Surcharge.");
+                }
+                else if (Truthy(NumberAt(zDims, paintStateIndex)))
+                {
+                    if (Truthy(NumberAt(zStates, paintStateIndex)) != surcharge)
+                    {
+                        problems.Add("The dialog fixes Surcharge here.");
+                    }
+                }
+                else
+                {
+                    box.Checked = surcharge;
+                }
+            }
+            if (coatsChanged && form.Field("KrKlarlack") is { Checked: true })
+            {
+                problems.Add("Scratch-resistant clear is ticked; a paint type is not changed with it.");
+            }
+        }
+
+        // CheckSubmit's Undisable: both paint tick boxes are posted when ticked, greyed or not.
+        foreach (var name in PaintTicks)
+        {
+            if (form.Field(name) is { } tick)
+            {
+                tick.Disabled = false;
             }
         }
 
@@ -434,8 +531,10 @@ internal static partial class GlassEditorDialogs
                 paintTime = level.Time;
             }
         }
-        else if (levelMap is not null && levelMap.Length > 2 && at >= 0)
+        else if (paintIn is null && levelMap is not null && levelMap.Length > 2 && at >= 0)
         {
+            // The served state's checks; a dialog whose paint is chosen (R1206) serves, reopened,
+            // the position's own figures (#848: 4.10 hours where the list holds 3.60).
             var wanted = At(levelMap, at + (material.Success && material.Groups[1].Value == "K" ? 2 : 1));
             List<string> levels = form.Field("Lackstufe") is { IsSelect: true } level
                 ? level.Options.Select(option => option.Value).ToList()
@@ -465,8 +564,10 @@ internal static partial class GlassEditorDialogs
         }
 
         // FillVerfSelect, FillMethSelect: both selects are disabled when the paint state's entry
-        // is below 3, and a disabled field is not posted. An enabled one is reported, not guessed.
-        foreach (var (name, table) in PaintSelects)
+        // is below 3, and a disabled field is not posted. Enabled for a paint type a person chose
+        // (R1206), each posts the value the script selects: the entry's tens and the text key at
+        // its units (#766: Verf=30, Meth=50). An enabled one is otherwise reported, not guessed.
+        foreach (var (name, table, texts, first) in PaintSelects)
         {
             if (!data.Has(name))
             {
@@ -474,15 +575,56 @@ internal static partial class GlassEditorDialogs
             }
 
             var ids = GlassEditorPages.SplitArray(html, table);
-            var entry = ids is null ? double.NaN : NumberAt(ids, stateIndex);
+            var entry = ids is null ? double.NaN : NumberAt(ids, paintStateIndex);
             if (entry < 3)
             {
                 data.Delete(name);
+                continue;
+            }
+
+            var selected = coatsChanged && IsInteger(entry) ? Selected(html, texts, entry, first) : null;
+            if (selected is null)
+            {
+                problems.Add("The select " + name + " would be enabled here (" + table + "[" + ShowNumber(paintState) + "] = "
+                    + (ids is null ? "absent" : ShowAt(ids, paintStateIndex)) + ").");
             }
             else
             {
-                problems.Add("The select " + name + " would be enabled here (" + table + "[" + ShowNumber(state) + "] = "
-                    + (ids is null ? "absent" : ShowAt(ids, stateIndex)) + ").");
+                data.Set(name, selected);
+            }
+        }
+
+        // The level, as FillLackstufeSelect and SetLackartValues leave it, then typed paint hours.
+        var servedPaintPrice = paintPrice;
+        var servedPaintTime = paintTime;
+        if (paintIn is not null)
+        {
+            var paintMaterial = form.Field("Mater") is { } materialBox ? materialBox.Value
+                : material.Success ? material.Groups[1].Value
+                : null;
+            var chosenLevel = PaintLevel(html, data, paintIn, areaIndex, paintState, coatsChanged, problems);
+            if (chosenLevel is { } level)
+            {
+                paintPrice = level.Price;
+                paintTime = level.Time;
+                if (paintMaterial != "B" || !GlassAutomationPositionPolicy.ReadBackPaintLevels.Contains(level.Level))
+                {
+                    // Only a metal part's levels are known to come back as levels the return reads.
+                    problems.Add("The paint level " + level.Level + " of material " + Show(paintMaterial) + " is not one the return reads back.");
+                    paintCoded = GlassAutomationPositionPolicy.PaintNotReadBackCode;
+                }
+            }
+            if (paintIn.Hours is { } typedPaintHours)
+            {
+                if (form.Field("LTime") is not { } box || box.ReadOnly || box.Disabled)
+                {
+                    problems.Add("The dialog does not let LTime be typed.");
+                }
+                else
+                {
+                    data.Set("LTime", typedPaintHours);
+                    paintTime = typedPaintHours;
+                }
             }
         }
         if (!PaintQuantityOff().IsMatch(html))
@@ -504,6 +646,12 @@ internal static partial class GlassEditorDialogs
             new Dictionary<string, string>(StringComparer.Ordinal),
             new GlassEditorSummary
             {
+                Surcharge = form.Field("Zuschlag") is null ? null : data.Has("Zuschlag"),
+                ServedPaintType = servedPaintType,
+                ServedPaintLevel = servedPaintLevel,
+                ServedPaintPrice = servedPaintPrice,
+                ServedPaintHours = servedPaintTime,
+                ServedSurcharge = servedSurcharge,
                 Position = At(record, 0),
                 PartCode = At(record, 1),
                 RightPartCode = At(record, 2),
@@ -526,7 +674,143 @@ internal static partial class GlassEditorDialogs
                 Side = place,
                 SidesOffered = places is null ? null : string.Join('|', places),
                 RowPair = At(record, 87),
-            });
+            })
+        {
+            RefusalCode = problems.Count == 1 ? paintCoded : null,
+        };
+    }
+
+    /// <summary>
+    /// LackartChange for the paint type a person chose (R1206): the type, if
+    /// the list offers it, and the state its coats default to (<c>Defstates</c>).
+    /// Answers the state, its index and whether the type changed; choosing
+    /// the type served changes nothing, as in the editor.
+    /// </summary>
+    private static (double State, int Index, bool Changed) PaintType(
+        string html, GlassEditorForm form, GlassEditorPaint paint, List<string> problems, double state, int stateIndex)
+    {
+        var lackart = form.Field("Lackart");
+        if (lackart is not { IsSelect: true })
+        {
+            problems.Add("The dialog has no paint type.");
+            return (state, stateIndex, false);
+        }
+        if (paint.Coats is not { } coats || coats == lackart.Value)
+        {
+            return (state, stateIndex, false);
+        }
+        if (!lackart.Options.Any(option => option.Value == coats))
+        {
+            problems.Add("The dialog does not offer the paint type " + coats + ".");
+            return (state, stateIndex, false);
+        }
+
+        var next = int.TryParse(coats, NumberStyles.None, CultureInfo.InvariantCulture, out var count) && count > 0
+            ? NumberAt(GlassEditorPages.SplitArray(html, "Defstates"), count - 1)
+            : double.NaN;
+        if (!IsInteger(next) || next is < 0 or > int.MaxValue)
+        {
+            problems.Add("The paint type " + coats + " has no paint state (Defstates).");
+            return (state, stateIndex, false);
+        }
+
+        lackart.Value = coats;
+        return (next, (int)next, true);
+    }
+
+    /// <summary>
+    /// FillLackstufeSelect and SetLackartValues for the paint a person chose
+    /// (R1206): after a new paint type, its state and the level kept if that
+    /// type offers it, else the first it offers; then the level chosen, if
+    /// the type offers it; then that level's paint price and time in the
+    /// area's first quantity. Null, with the form's level, price and time
+    /// as they were, when neither type nor level changed or a problem stops it.
+    /// </summary>
+    private static (string Level, string Price, string Time)? PaintLevel(
+        string html, GlassEditorFields data, GlassEditorPaint paint, int areaIndex, double state, bool coatsChanged,
+        List<string> problems)
+    {
+        var areaPrices = Area(NestedSplits(html, "LPrices"), areaIndex);
+        var areaTimes = Area(NestedSplits(html, "LTimes"), areaIndex);
+        var levelIds = GlassEditorPages.SplitArray(html, "Lackartids");
+        var levelValues = GlassEditorPages.SplitArray(html, "LackStufeValues");
+        if (areaPrices is not { Count: > 0 } || areaTimes is not { Count: > 0 } || levelIds is null || levelValues is null)
+        {
+            problems.Add("The paint lists (LPrices, LTimes, Lackartids, LackStufeValues) could not be read.");
+            return null;
+        }
+
+        var coat = data.Get("Lackart");
+        var levels = OfferedLevels(areaPrices[0], levelIds, levelValues, coat);
+        var level = data.Get("Lackstufe");
+        var changed = coatsChanged;
+        if (coatsChanged)
+        {
+            data.Set("Stateid", ShowNumber(state));
+            if (level is null || !levels.Contains(level))
+            {
+                level = levels.Count > 0 ? levels[0] : null;
+            }
+        }
+        if (paint.Level is { } wanted && wanted != level)
+        {
+            if (!levels.Contains(wanted))
+            {
+                problems.Add("The paint type " + Show(coat) + " does not offer the paint level " + wanted + ".");
+            }
+            else
+            {
+                level = wanted;
+                changed = true;
+            }
+        }
+        if (!changed)
+        {
+            return null;
+        }
+        if (level is null)
+        {
+            problems.Add("The paint type " + Show(coat) + " offers no paint level.");
+            return null;
+        }
+
+        data.Set("Lackstufe", level);
+        var key = StateLetter(state) + level;
+        var price = GlassEditorPages.Lookup(string.Join('|', areaPrices[0]), key);
+        var time = GlassEditorPages.Lookup(string.Join('|', areaTimes[0]), key);
+        if (price is null || time is null)
+        {
+            problems.Add("No paint price and time for " + key + ".");
+            return null;
+        }
+
+        data.Set("LPrice", price);
+        data.Set("LTime", time);
+        return (level, price, time);
+    }
+
+    /// <summary>The levels FillLackstufeSelect offers for a paint type: each level some price key of that type has in the area.</summary>
+    private static List<string> OfferedLevels(string[] prices, string[] levelIds, string[] levelValues, string? coat)
+    {
+        var keys = prices.Where((_, index) => index % 2 == 0).ToList();
+        return levelValues
+            .Where((value, index) => index % 2 == 0 && keys.Exists(key =>
+                key.Length > 1 && At(levelIds, key[0] - 'a') == coat && key[1..2] == value))
+            .ToList();
+    }
+
+    /// <summary>
+    /// FillVerfSelect's or FillMethSelect's value for an entry of 3 or more:
+    /// its tens, then the text list's key at its units (Verfids 30 posts
+    /// <c>30</c>, Methids 51 posts <c>51</c>). Null when the list does not hold it.
+    /// </summary>
+    private static string? Selected(string html, string texts, double entry, int first)
+    {
+        var tens = (int)Math.Floor(entry / 10);
+        var units = (int)(entry % 10);
+        var list = At(GlassEditorPages.SplitPairs(html, texts), tens - first);
+        var key = list is null ? null : At(list.Split('|'), 2 * units);
+        return key is null ? null : tens.ToString(CultureInfo.InvariantCulture) + key;
     }
 
     /// <summary>
@@ -565,6 +849,10 @@ internal static partial class GlassEditorDialogs
         var problems = new List<string>();
         var notes = new List<string>();
         var servedOverlap = form.Field("Ctime")?.Value;
+        if (change.Paint is not null)
+        {
+            problems.Add("This dialog has no paint section.");
+        }
 
         // SetPlaceBoxes
         var place = form.Field("Place")?.Value ?? " ";
@@ -978,6 +1266,8 @@ internal static partial class GlassEditorDialogs
         var paintable = form.Named("Lackart").Any();
         var special = !paintable && form.Field("Descr") is not null;
         var served = paintable ? PartPost(html, "BSS") : PlainPost(html);
+        var metal = (form.Field("Mater")?.Value ?? (Material().Match(html) is { Success: true } mater ? mater.Groups[1].Value : null)) == "B";
+        var surchargeFixed = paintable && SurchargeFixed(html, form);
         var summary = served.Summary;
         var posted = served.Fields;
         var placeIndex = PlaceIndex(form.Field("Place")?.Value ?? " ");
@@ -1050,8 +1340,11 @@ internal static partial class GlassEditorDialogs
             }
 
             // The typed figures (R1206): on a dialog of a part that cannot be painted or of a
-            // special operation, where the box may be typed in.
-            var input = paintable || control.Disabled || control.ReadOnly ? null : TypedInput(name);
+            // special operation, where the box may be typed in; and the paint a person chooses on
+            // one that can be painted (a metal part's type and level only, which the return reads back).
+            var input = control.Disabled || control.ReadOnly ? null
+                : paintable ? PaintInput(name, metal, surchargeFixed)
+                : TypedInput(name);
             var changeable = name switch
             {
                 "Repart" => operations.Exists(operation => operation.Changeable && !operation.Served),
@@ -1076,6 +1369,12 @@ internal static partial class GlassEditorDialogs
                 Choice(form.Field("Lackstufe"), summary.PaintLevel),
                 Amount(summary.PaintPrice),
                 Amount(summary.PaintHours))
+            {
+                Choices = PaintChoices(html, form, form.Field("Bereich") is { IsSelect: true, SelectedIndex: >= 0 } area ? area.SelectedIndex : 0),
+                PositionsOwn = (summary.Position ?? string.Empty).Split('|')[0].Contains('.', StringComparison.Ordinal),
+                Surcharge = summary.Surcharge,
+                SurchargeFixed = surchargeFixed,
+            }
             : null;
         var side = (summary?.Side ?? string.Empty).Trim();
         var preview = new GlassDialogPreview(
@@ -1141,8 +1440,78 @@ internal static partial class GlassEditorDialogs
                 code)
             {
                 OverlapHours = Amount(built?.OverlapHours),
+                PaintCoats = paintable ? built?.PaintType : null,
+                Surcharge = paintable ? built?.Surcharge : null,
             },
         }, build);
+    }
+
+    /// <summary>
+    /// The member of <c>inputs.paint</c> that changes a paint box (R1206), or
+    /// null: the paint type and level of a metal part only, Surcharge where the
+    /// served paint type does not fix it, and the paint hours.
+    /// </summary>
+    private static string? PaintInput(string name, bool metal, bool surchargeFixed) => name switch
+    {
+        "Lackart" when metal => "inputs.paint.coats",
+        "Lackstufe" when metal => "inputs.paint.level",
+        "Zuschlag" when !surchargeFixed => "inputs.paint.surcharge",
+        "LTime" => "inputs.paint.hours",
+        _ => null,
+    };
+
+    /// <summary>Whether the served paint state fixes Surcharge (<c>Zdimmes</c>), so click_z puts it back.</summary>
+    private static bool SurchargeFixed(string html, GlassEditorForm form)
+    {
+        var state = Number(form.Field("Stateid")?.Value);
+        var index = IsInteger(state) && state is >= 0 and <= int.MaxValue ? (int)state : -1;
+        return Truthy(NumberAt(GlassEditorPages.SplitArray(html, "Zdimmes"), index));
+    }
+
+    /// <summary>
+    /// Each paint type the dialog's list offers, with each level it offers in
+    /// the area and the price and labour hours SetLackartValues sets for them
+    /// at the state the type defaults to (R1206). Empty where the page does
+    /// not hold the lists (<c>Defstates</c> among them).
+    /// </summary>
+    private static List<GlassDialogPaintChoice> PaintChoices(string html, GlassEditorForm form, int areaIndex)
+    {
+        var areaPrices = Area(NestedSplits(html, "LPrices"), areaIndex);
+        var areaTimes = Area(NestedSplits(html, "LTimes"), areaIndex);
+        var levelIds = GlassEditorPages.SplitArray(html, "Lackartids");
+        var levelValues = GlassEditorPages.SplitArray(html, "LackStufeValues");
+        var defaults = GlassEditorPages.SplitArray(html, "Defstates");
+        var choices = new List<GlassDialogPaintChoice>();
+        if (areaPrices is not { Count: > 0 } || areaTimes is not { Count: > 0 } || levelIds is null || levelValues is null
+            || defaults is null || form.Field("Lackart") is not { IsSelect: true } types)
+        {
+            return choices;
+        }
+
+        foreach (var option in types.Options)
+        {
+            var state = int.TryParse(option.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var count) && count > 0
+                ? NumberAt(defaults, count - 1)
+                : double.NaN;
+            if (!IsInteger(state))
+            {
+                continue;
+            }
+
+            foreach (var level in OfferedLevels(areaPrices[0], levelIds, levelValues, option.Value))
+            {
+                var key = StateLetter(state) + level;
+                var text = At(levelValues, Array.IndexOf(levelValues, level) + 1);
+                choices.Add(new GlassDialogPaintChoice(
+                    option.Value,
+                    level,
+                    text is null ? null : GlassEditorForm.Collapse(text).Trim(),
+                    Amount(GlassEditorPages.Lookup(string.Join('|', areaPrices[0]), key)),
+                    Amount(GlassEditorPages.Lookup(string.Join('|', areaTimes[0]), key))));
+            }
+        }
+
+        return choices;
     }
 
     /// <summary>The member of the act's inputs that types in a dialog's box (R1206), or null for any other field.</summary>

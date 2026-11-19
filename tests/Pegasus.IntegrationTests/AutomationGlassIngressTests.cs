@@ -758,6 +758,87 @@ public sealed class AutomationGlassIngressTests
     /// <summary>The windscreen on the estimate of the operator's walk of 19 November 2026 (#776).</summary>
     private const string Windscreen = "C421260.10.C1100400.2205";
 
+    /// <summary>The bonnet with its paint on the same estimate.</summary>
+    private const string Bonnet = "C421280.12.C1060000.2102";
+
+    /// <summary>
+    /// Paint through the tools (R1206): a preview of the walk's bonnet gives
+    /// each paint type and level with Glass's figures, says its figures are
+    /// the position's own, and names the paint inputs; a change to 2 Coat at
+    /// level II posts its own dialog as the browser posted it, and the act
+    /// keeps the paint served and sent. Paint with a remove is refused before
+    /// anything is asked of Glass's.
+    /// </summary>
+    [Fact]
+    public async Task APositionsPaintIsChangedThroughTheTools()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        glass.Respond("GET /ere/aco/selected.php", _ => GlassProviderFixture.EditorPage("selected_before_change.html", null));
+        glass.Respond("GET /ere/aco/comp.php", _ => GlassProviderFixture.EditorPage("bonnet_change_paint.dialog.html", null));
+        glass.Respond("POST /ere/aco/compproc.php", request => GlassProviderFixture.EditorPage(
+            request.Query.Contains("BX=1", StringComparison.Ordinal)
+                ? "bonnet_change_paint.confirm_answer.html"
+                : "bonnet_change_paint.answer.html",
+            null));
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        long version;
+        using (var preview = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
+        {
+            caseId, action = "preview", operationKey = "mcp:paint-preview", positionId = Bonnet,
+            inputs = new { paint = new { coats = "2", level = "2" } },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(preview);
+            var dialog = structured.GetProperty("dialog");
+            Assert.Equal("part_paintable", dialog.GetProperty("kind").GetString());
+            var paint = dialog.GetProperty("paint");
+            Assert.True(paint.GetProperty("positionsOwn").GetBoolean());
+            Assert.Contains(paint.GetProperty("choices").EnumerateArray(), choice =>
+                choice.GetProperty("coats").GetString() == "2" && choice.GetProperty("level").GetString() == "2");
+            Assert.Equal("inputs.paint.level", dialog.GetProperty("fields").EnumerateArray()
+                .Single(field => field.GetProperty("name").GetString() == "Lackstufe").GetProperty("input").GetString());
+            var sends = dialog.GetProperty("sends");
+            Assert.Equal("Part and Paint", sends.GetProperty("button").GetString());
+            Assert.Equal("2", sends.GetProperty("paintCoats").GetString());
+            Assert.True(IsAbsent(sends, "code"));
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+
+        var requests = glass.Requests.Count;
+        using (var remove = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_position_act", new
+        {
+            caseId, action = "remove", operationKey = "mcp:paint-remove", expectedSessionVersion = version, positionId = Bonnet,
+            inputs = new { paint = new { coats = "2" } },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsPaintRefused, await RefusalAsync(remove), StringComparison.Ordinal);
+        }
+        Assert.Equal(requests, glass.Requests.Count);
+
+        using (var changed = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
+        {
+            caseId, action = "change", operationKey = "mcp:paint-1", expectedSessionVersion = version, positionId = Bonnet,
+            inputs = new { paint = new { coats = "2", level = "2" } },
+        })))
+        {
+            var act = (await ReadStructuredContentAsync(changed)).GetProperty("act");
+            Assert.Equal("changed", act.GetProperty("outcome").GetString());
+            Assert.Equal("2", act.GetProperty("inputs").GetProperty("paint").GetProperty("coats").GetString());
+            Assert.Equal("3", act.GetProperty("served").GetProperty("paintCoats").GetString());
+            Assert.Equal(1.40m, act.GetProperty("sent").GetProperty("paintHours").GetDecimal());
+        }
+        Assert.Equal(
+            GlassEditorFixture.Text("bonnet_change_paint.post.txt"),
+            glass.Requests.First(request => request.Method == "POST").Body);
+    }
+
     /// <summary>
     /// session_get's read in the Automation's own session (R1206), one
     /// request to Glass's each and nothing posted: the positions with

@@ -713,16 +713,18 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     GlassAutomationButton.Paint => PaintButton,
                     _ => PartButton,
                 },
-            Change = WithTyped(
-                operation is null && !confirm && !both
-                    ? null
-                    : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
-                paintable ? null : inputs),
+            Change = WithPaint(
+                WithTyped(
+                    operation is null && !confirm && !both
+                        ? null
+                        : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
+                    paintable ? null : inputs),
+                paintable ? inputs : null),
             Ticks = inputs?.OptionalParts,
         };
         // Typed figures on the dialog of a part that can be painted have no capture (R1206).
         var refused = GlassAutomationPositionPolicy.OperationRefusal(operation) is { } unread ? unread
-            : !paintable && button != GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
+            : !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
             : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : null;
@@ -959,7 +961,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     private static (GlassEditorChange Change, string? Button, string? Refused) ChangeOf(GlassAutomationInputs? inputs, string page)
     {
         var paintable = page == "comp";
-        var change = WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), paintable ? null : inputs)!;
+        var change = WithPaint(
+            WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), paintable ? null : inputs),
+            paintable ? inputs : null)!;
         var button = !paintable ? null
             : inputs?.Button switch
             {
@@ -969,7 +973,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 _ => null,
             };
         var refused = paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
-            : !paintable && inputs?.Button is not null and not GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
+            : !paintable && (inputs?.Button is not null and not GlassAutomationButton.Part || inputs?.Paint is not null)
+                ? GlassAutomationPositionPolicy.NotPaintableCode
             : null;
         return (change, button, refused);
     }
@@ -1150,11 +1155,25 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
     /// <summary>The figures the dialog served for the operation it sends, before anything typed (R1206); a zero kept.</summary>
     internal static GlassAutomationFigures ServedOf(GlassEditorSummary summary) =>
-        new(Figure(summary.ServedPrice ?? summary.Price), Figure(summary.ServedHours ?? summary.Hours), Figure(summary.ServedOverlapHours));
+        new(Figure(summary.ServedPrice ?? summary.Price), Figure(summary.ServedHours ?? summary.Hours), Figure(summary.ServedOverlapHours))
+        {
+            PaintCoats = summary.ServedPaintType,
+            PaintLevel = summary.ServedPaintLevel,
+            PaintPrice = Figure(summary.ServedPaintPrice),
+            PaintHours = Figure(summary.ServedPaintHours),
+            Surcharge = summary.ServedSurcharge,
+        };
 
     /// <summary>The figures the post sends (R1206); a zero kept.</summary>
     internal static GlassAutomationFigures SentOf(GlassEditorSummary summary) =>
-        new(Figure(summary.Price), Figure(summary.Hours), Figure(summary.OverlapHours));
+        new(Figure(summary.Price), Figure(summary.Hours), Figure(summary.OverlapHours))
+        {
+            PaintCoats = summary.PaintType,
+            PaintLevel = summary.PaintLevel,
+            PaintPrice = Figure(summary.PaintPrice),
+            PaintHours = Figure(summary.PaintHours),
+            Surcharge = summary.Surcharge,
+        };
 
     private static decimal? Figure(string? text) =>
         decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
@@ -1168,7 +1187,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         code is GlassFailure.EditorDialog or GlassFailure.EditorRefused
             or GlassAutomationPositionPolicy.ReasonRequiredCode
             or GlassAutomationPositionPolicy.ReasonNotAskedCode
-            or GlassAutomationPositionPolicy.OverlapAboveHoursCode;
+            or GlassAutomationPositionPolicy.OverlapAboveHoursCode
+            or GlassAutomationPositionPolicy.PaintNotReadBackCode;
 
     /// <summary>
     /// The change with the act's typed figures and reason set as the dialog
@@ -1188,6 +1208,15 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
     private static string? TypedOf(decimal? value) =>
         value is { } given ? GlassAutomationPositionPolicy.TypedText(given) : null;
+
+    /// <summary>The change with the act's paint choices (R1206), paint hours as typed text; the change as it was when none is given.</summary>
+    private static GlassEditorChange? WithPaint(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
+        inputs?.Paint is not { } paint
+            ? change
+            : (change ?? new GlassEditorChange()) with
+            {
+                Paint = new GlassEditorPaint(paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, TypedOf(paint.Hours)),
+            };
 
     private static decimal? Amount(string? served) =>
         decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value != 0m

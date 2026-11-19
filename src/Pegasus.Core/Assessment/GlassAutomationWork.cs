@@ -153,6 +153,7 @@ public enum GlassAutomationButton
 /// types it in Glass's reason window: given only with <c>Hours</c>,
 /// and sent only when the dialog asks for it.
 /// </param>
+/// <param name="Paint">The paint choices in the dialog of a part that can be painted (R1206).</param>
 public sealed record GlassAutomationInputs(
     IReadOnlyList<string>? Equipment = null,
     string? Operation = null,
@@ -163,23 +164,53 @@ public sealed record GlassAutomationInputs(
     decimal? Hours = null,
     decimal? Price = null,
     decimal? OverlapHours = null,
-    string? Reason = null)
+    string? Reason = null,
+    GlassAutomationPaint? Paint = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null && !Typed;
+        && ConfirmNoFigures is null && !Typed && Paint is null;
 
     /// <summary>Whether a typed figure or a reason is given (R1206).</summary>
     public bool Typed => Hours is not null || Price is not null || OverlapHours is not null || Reason is not null;
 }
 
 /// <summary>
-/// The figures of one dialog (R1206): the price, labour hours and overlap
-/// hours, as Glass's served them or as the post sent them. A figure the
-/// dialog does not give is null; a zero is kept.
+/// The paint choices a person makes in the dialog of a part that can be
+/// painted (19 November 2026, R1206), in the order the dialog's own script
+/// gives every captured post whatever order they are made in: the paint
+/// type, then the level, then Surcharge, then typed paint hours.
 /// </summary>
-public sealed record GlassAutomationFigures(decimal? Price, decimal? Hours, decimal? OverlapHours);
+/// <param name="Coats">The paint type, by Glass's own value as its list offers it (<c>2</c> for 2 Coat, <c>3</c> for 3 Coat).</param>
+/// <param name="Level">The paint level, by Glass's own value as the list offers it for that paint type (<c>1</c> to <c>4</c>, <c>B</c>, <c>S</c>).</param>
+/// <param name="Surcharge">Ticks or unticks Surcharge where the paint type lets it be changed.</param>
+/// <param name="Hours">The paint labour hours typed in place of Glass's own; no reason is asked for them.</param>
+public sealed record GlassAutomationPaint(
+    string? Coats = null, string? Level = null, bool? Surcharge = null, decimal? Hours = null)
+{
+    /// <summary>Whether no choice is given.</summary>
+    public bool IsEmpty => Coats is null && Level is null && Surcharge is null && Hours is null;
+}
+
+/// <summary>
+/// The figures of one dialog (R1206): the price, labour hours and overlap
+/// hours, as Glass's served them or as the post sent them, and on a part
+/// that can be painted its paint type, level, price, labour hours and
+/// Surcharge. A figure the dialog does not give is null; a zero is kept.
+/// </summary>
+public sealed record GlassAutomationFigures(decimal? Price, decimal? Hours, decimal? OverlapHours)
+{
+    public string? PaintCoats { get; init; }
+
+    public string? PaintLevel { get; init; }
+
+    public decimal? PaintPrice { get; init; }
+
+    public decimal? PaintHours { get; init; }
+
+    public bool? Surcharge { get; init; }
+}
 
 /// <summary>One option of Glass's equipment question for a part, as Glass's own dialog shows it.</summary>
 /// <param name="Code">Glass's code for the option: the value an answer names.</param>
@@ -571,6 +602,15 @@ public static class GlassAutomationPositionPolicy
             // A special operation takes typed figures and a reason alone.
             return FirstGiven(inputs with { Hours = null, Price = null, OverlapHours = null, Reason = null });
         }
+        if (inputs.Paint is not null
+            && (inputs.BothSides == true
+                || !(operation is GlassAutomationPartOperation.Paint or GlassAutomationPartOperation.PartAndPaint
+                    || (operation == GlassAutomationPartOperation.Part
+                        && inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint))))
+        {
+            // Paint is chosen where Paint or Part and Paint is pressed.
+            return "inputs.paint";
+        }
         if (inputs.Typed
             && (operation is GlassAutomationPartOperation.Paint or GlassAutomationPartOperation.PartAndPaint
                 || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint
@@ -616,12 +656,14 @@ public static class GlassAutomationPositionPolicy
         : inputs.BothSides is not null ? "inputs.side"
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
         : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
+        : inputs.Paint is not null ? "inputs.paint"
         : FirstTyped(inputs);
 
     /// <summary>
     /// The input a change of a position already on the estimate does not
     /// take (R1206), or null: its equipment, its operation and Both stay as
-    /// the position has them; optional parts are codes, none blank or repeated.
+    /// the position has them; optional parts are codes, none blank or
+    /// repeated. Its paint may be chosen.
     /// </summary>
     private static string? ChangeRefused(GlassAutomationInputs inputs) =>
         inputs.Equipment is not null ? "inputs.equipment"
@@ -654,7 +696,26 @@ public static class GlassAutomationPositionPolicy
         : inputs.Reason is { } reason
             && (inputs.Hours is null || reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength)
             ? "inputs.reason"
+        : inputs.Paint is { } paint
+            && (paint.IsEmpty || paint.Coats is { } coats && string.IsNullOrWhiteSpace(coats)
+                || paint.Level is { } level && string.IsNullOrWhiteSpace(level)
+                || paint.Hours is { } paintHours && (TypedText(paintHours) is null || paintHours > MaximumTypedHours))
+            ? "inputs.paint"
         : null;
+
+    /// <summary>
+    /// A paint choice the return cannot read back (R1206): a paint type or
+    /// level changed on a part that is not metal, or a level whose code the
+    /// return's paint table (<c>GlassPaintLevels</c>) does not print. The
+    /// dialog's metal levels 1 to 4, B and S are printed I, II, III, IV, B
+    /// and SP, each of which the table holds; no plastic part's levels have
+    /// been captured. Nothing is posted.
+    /// </summary>
+    public const string PaintNotReadBackCode = "glass.build.paint_not_read_back";
+
+    /// <summary>The dialog's own codes of the paint levels of a metal part, each printed as a level the return reads.</summary>
+    public static IReadOnlySet<string> ReadBackPaintLevels { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { "1", "2", "3", "4", "B", "S" };
 
     /// <summary>
     /// A figure as the Automation types it in a dialog (R1206): two decimal
@@ -1058,7 +1119,35 @@ public sealed record GlassDialogField(
 /// paint price and labour time.
 /// </summary>
 public sealed record GlassDialogPaint(
-    GlassDialogChoice? Area, GlassDialogChoice? Coats, GlassDialogChoice? Level, decimal? Price, decimal? Hours);
+    GlassDialogChoice? Area, GlassDialogChoice? Coats, GlassDialogChoice? Level, decimal? Price, decimal? Hours)
+{
+    /// <summary>
+    /// Each paint type and level the dialog lets a person choose in its paint
+    /// area (R1206), with the price and labour hours its script sets for them;
+    /// empty where the dialog gives none.
+    /// </summary>
+    public IReadOnlyList<GlassDialogPaintChoice> Choices { get; init; } = [];
+
+    /// <summary>
+    /// The dialog is of a position on the estimate: its paint figures are the
+    /// position's own, and Glass's own are not shown (19 November 2026, #848
+    /// served 4.10 hours where a new bonnet's dialog served 3.60).
+    /// </summary>
+    public bool PositionsOwn { get; init; }
+
+    /// <summary>Whether Surcharge is ticked as served; null where the dialog has none.</summary>
+    public bool? Surcharge { get; init; }
+
+    /// <summary>Whether the paint type served fixes Surcharge, so it cannot be changed.</summary>
+    public bool SurchargeFixed { get; init; }
+}
+
+/// <summary>
+/// One paint type and level a dialog offers (R1206): the values
+/// <c>inputs.paint</c> names, Glass's own text for the level, and the price
+/// and labour hours the dialog's script sets for them, null where it has none.
+/// </summary>
+public sealed record GlassDialogPaintChoice(string Coats, string Level, string? LevelText, decimal? Price, decimal? Hours);
 
 /// <summary>
 /// What an add with a preview's inputs would send, and each question the
@@ -1082,6 +1171,12 @@ public sealed record GlassDialogSend(
 {
     /// <summary>The overlap hours the post would send (R1206); null where the dialog has none.</summary>
     public decimal? OverlapHours { get; init; }
+
+    /// <summary>The paint type the post would send (R1206), on a part that can be painted.</summary>
+    public string? PaintCoats { get; init; }
+
+    /// <summary>Whether the post would send Surcharge ticked (R1206), on a part that can be painted.</summary>
+    public bool? Surcharge { get; init; }
 }
 
 /// <summary>

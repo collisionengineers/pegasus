@@ -735,6 +735,11 @@
       "windscreen": "C421260.10.C1100400.2205",
       "bonnet": "C421280.12.C1060000.2102",
       "bonnetPaint": "L421281.12.Lxx1640.Lxx1640"
+    },
+    "positionBonnetChanged": {
+      "file": "position_bonnet_changed.json",
+      "id": "C421280.12.C1060000.2102",
+      "capture": "#890, the bonnet read after its change (#867, #873)"
     }
   },
   "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up. On 19 November 2026 (R1206) every other operation each captured dialog offers was driven the same way (scratch-2026-11-19/unlock/drive-unlock.mjs: 13 dialogs, each operation with Part and with Part and Paint on comp.php, 200 posts equal to the reference builder's), and Renew (AN) on each part.php dialog with its old-for-new window run as well (drive-renew.mjs); the left door's and the left mirror's posts, two of the rear quarter's (V and UN) and the right-hand reinforcement's Renew are kept here, cut by make-fixtures-unlock.mjs.",
@@ -2333,6 +2338,159 @@
       "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&partid=C421260.10.C1100400.2205",
       "confirm": "windscreen_change_hours.confirm.txt",
       "confirmAnswer": "windscreen_change_hours.confirm_answer.html"
+    },
+    {
+      "name": "bonnet_paint_choices",
+      "dialog": "comp.php",
+      "capture": "#745, post #766, confirm #772",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "3",
+          "level": "3",
+          "surcharge": true,
+          "hours": "4.1"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 40,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "3",
+        "paintLevel": "3",
+        "paintPrice": "691.15",
+        "paintHours": "4.1",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "bonnet_paint_choices.post.txt",
+      "answer": "bonnet_paint_choices.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1061200.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation"
+        },
+        {
+          "code": "1061210.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation Repair/Fastening Kit"
+        },
+        {
+          "code": "1069800.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Clip"
+        },
+        {
+          "code": "1061210.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation Repair/Fastening Kit"
+        },
+        {
+          "code": "1066600.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Badge"
+        }
+      ],
+      "ticks": [],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&mcode=477|478",
+      "confirm": "bonnet_paint_choices.confirm.txt",
+      "confirmAnswer": "bonnet_paint_choices.confirm_answer.html"
+    },
+    {
+      "name": "bonnet_change_paint",
+      "dialog": "comp.php",
+      "capture": "#848 (the bonnet on the estimate), post #867, confirm #873",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "2",
+          "level": "2"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&partid=C421280.12.C1060000.2102",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C421280.12.C1060000.2102|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "393.90",
+        "paintHours": "1.40",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_change_paint.dialog.html",
+      "post": "bonnet_change_paint.post.txt",
+      "answer": "bonnet_change_paint.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1061200.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation"
+        },
+        {
+          "code": "1061210.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation Repair/Fastening Kit"
+        },
+        {
+          "code": "1069800.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Clip"
+        },
+        {
+          "code": "1061210.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Insulation Repair/Fastening Kit"
+        },
+        {
+          "code": "1066600.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Bonnet Badge"
+        }
+      ],
+      "ticks": [],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&partid=C421280.12.C1060000.2102",
+      "confirm": "bonnet_change_paint.confirm.txt",
+      "confirmAnswer": "bonnet_change_paint.confirm_answer.html",
+      "positionId": "C421280.12.C1060000.2102"
     }
   ]
 }

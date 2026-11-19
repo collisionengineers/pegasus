@@ -142,13 +142,13 @@ public sealed class GlassEditorDialogTests
     }
 
     [Fact]
-    public void OnAPaintablePartsDialogOnlyTheOperationMayBeChanged()
+    public void OnAPaintablePartsDialogOnlyTheOperationAndThePaintMayBeChanged()
     {
         var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
 
         var typed = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "AE", Hours: "0.30"));
 
-        Assert.Contains("This dialog is built with no change but the operation.", typed.Problems);
+        Assert.Contains("This dialog is built with no change but the operation and the paint.", typed.Problems);
     }
 
     [Theory]
@@ -524,11 +524,79 @@ public sealed class GlassEditorDialogTests
         Assert.Equal("comp", GlassEditorPages.DialogPage("C1.2.C1.1", PaintOnlyGroups));
     }
 
-    /// <summary>A new part's comp.php dialog shows all three buttons, so none is pressed by itself: a change names one.</summary>
+    /// <summary>
+    /// A new part's comp.php dialog shows all three buttons, so none is
+    /// pressed by itself; the reopened bonnet's shows Part and Paint alone
+    /// (#848), and a hidden button is not pressed (R1206).
+    /// </summary>
     [Fact]
-    public void ADialogShowingEveryButtonHasNoneToPressByItself()
+    public void ADialogShowingEveryButtonHasNoneToPressByItselfAndAHiddenOneIsRefused()
     {
+        var reopened = GlassEditorFixture.Text("bonnet_change_paint.dialog.html");
+
+        var hidden = GlassEditorDialogs.PartPost(reopened, "BSS", new GlassEditorChange(Paint: new GlassEditorPaint(Coats: "2")));
+
         Assert.Null(GlassEditorDialogs.VisibleButton(GlassEditorFixture.Text("bumper_part.dialog.html")));
+        Assert.Equal("BSL", GlassEditorDialogs.VisibleButton(reopened));
+        Assert.Contains("The dialog hides the button BSS.", hidden.Problems);
+    }
+
+    /// <summary>
+    /// The paint choices a dialog's own script would not take are problems
+    /// (R1206): Surcharge where the paint type fixes it, a level the type does
+    /// not offer, and on a part that is not metal a level the return cannot
+    /// read back, refused with its code. Unticking Surcharge where it may be
+    /// changed is posted without it.
+    /// </summary>
+    [Fact]
+    public void PaintChoicesTheDialogWouldNotTakeAreRefused()
+    {
+        var page = GlassEditorFixture.Text("bonnet_paint_choices.dialog.html");
+        var plastic = page.Replace("var Mater = \"B\";", "var Mater = \"K\";", StringComparison.Ordinal);
+
+        var fixedSurcharge = GlassEditorDialogs.PartPost(page, "BSL", new GlassEditorChange(Paint: new GlassEditorPaint(Coats: "1", Surcharge: true)));
+        var unoffered = GlassEditorDialogs.PartPost(page, "BSL", new GlassEditorChange(Paint: new GlassEditorPaint(Level: "Z")));
+        var unread = GlassEditorDialogs.PartPost(plastic, "BSL", new GlassEditorChange(Paint: new GlassEditorPaint(Level: "3")));
+        var unticked = GlassEditorDialogs.PartPost(page, "BSL", new GlassEditorChange(Paint: new GlassEditorPaint(Coats: "3", Surcharge: false)));
+
+        Assert.Contains("The dialog fixes Surcharge here.", fixedSurcharge.Problems);
+        Assert.Contains("The paint type 2 does not offer the paint level Z.", unoffered.Problems);
+        Assert.Equal(GlassAutomationPositionPolicy.PaintNotReadBackCode, unread.RefusalCode);
+        Assert.Empty(unticked.Problems);
+        Assert.DoesNotContain(unticked.Fields, pair => pair.Key == "Zuschlag");
+        Assert.Contains(unticked.Fields, pair => pair.Key == "Klarlack" && pair.Value == "1");
+        Assert.False(unticked.Summary!.Surcharge);
+        Assert.Equal("2", unticked.Summary.ServedPaintType);
+        Assert.Equal("3", unticked.Summary.PaintType);
+    }
+
+    /// <summary>
+    /// A preview of a part that can be painted gives each paint type and
+    /// level it offers with Glass's figures for them and the input that
+    /// changes each paint box; the reopened bonnet's says its figures are the
+    /// position's own (R1206).
+    /// </summary>
+    [Fact]
+    public void APreviewGivesThePaintChoices()
+    {
+        var (preview, _) = GlassEditorDialogs.Preview(
+            GlassEditorFixture.Text("bonnet_paint_choices.dialog.html"), "BSL",
+            new GlassEditorChange(Paint: new GlassEditorPaint(Coats: "3", Level: "3")));
+        var (reopened, _) = GlassEditorDialogs.Preview(GlassEditorFixture.Text("bonnet_change_paint.dialog.html"));
+
+        Assert.NotNull(preview?.Paint);
+        var threeCoat = Assert.Single(preview.Paint.Choices, choice => choice is { Coats: "3", Level: "3" });
+        Assert.Equal(691.15m, threeCoat.Price);
+        Assert.Equal(3.60m, threeCoat.Hours);
+        Assert.False(preview.Paint.PositionsOwn);
+        Assert.Equal("inputs.paint.coats", Assert.Single(preview.Fields, field => field.Name == "Lackart").Input);
+        Assert.Equal("inputs.paint.hours", Assert.Single(preview.Fields, field => field.Name == "LTime").Input);
+        Assert.NotNull(preview.Sends);
+        Assert.Equal("3", preview.Sends.PaintCoats);
+        Assert.Equal("3", preview.Sends.PaintLevel);
+        Assert.Equal(691.15m, preview.Sends.PaintPrice);
+        Assert.Null(preview.Sends.Code);
+        Assert.True(reopened?.Paint?.PositionsOwn);
     }
 
     private static JsonElement Typed(string name) =>
@@ -540,8 +608,19 @@ public sealed class GlassEditorDialogTests
         var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
         var change = item.GetProperty("change");
         string? Given(string name) => change.TryGetProperty(name, out var value) ? value.GetString() : null;
+        GlassEditorPaint? paint = null;
+        if (change.TryGetProperty("paint", out var chosen))
+        {
+            string? Chosen(string name) => chosen.TryGetProperty(name, out var value) ? value.GetString() : null;
+            paint = new GlassEditorPaint(
+                Chosen("coats"), Chosen("level"),
+                chosen.TryGetProperty("surcharge", out var surcharge) ? surcharge.GetBoolean() : null,
+                Chosen("hours"));
+        }
+
         var typed = new GlassEditorChange(
-            Price: Given("price"), Hours: Given("hours"), Reason: Given("reason"), OverlapHours: Given("overlapHours"));
+            Price: Given("price"), Hours: Given("hours"), Reason: Given("reason"), OverlapHours: Given("overlapHours"),
+            Paint: paint);
         return item.GetProperty("dialog").GetString() == "comp.php"
             ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed)
             : GlassEditorDialogs.PlainPost(page, typed);

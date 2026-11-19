@@ -1787,6 +1787,12 @@ it stopped.
   can be painted are `glass.build.not_built`. Each act records the figures
   the dialog served and those sent, just before the post, as `served` and
   `sent`.
+  Paint choices (`inputs.paint`, R1206) are refused with
+  `glass.build.paint_not_read_back` when a paint type or level is chosen
+  on a part that is not metal, and with `glass.editor.refused` when the
+  dialog would not take them: a paint type or level it does not offer,
+  Surcharge where the paint type fixes it, or a button the page hides. The
+  warning line names which.
   A change (`pegasus_glass_position_act` with `change`, R1206) logs
   `EditorRead`, then `EditorChange` for the position's own dialog, its post,
   its "Mandatory parts:" confirm, the estimate and the position's record.
