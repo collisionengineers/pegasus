@@ -18,7 +18,7 @@ public sealed record GlassSessionHelpOutcome(
 /// The Automation's help in a member of staff's open Glass's session
 /// (operator, 18 November 2026; R1170, R1182, R1185; design 08 sections 5
 /// and 6): it reads the estimate, searches its lists, previews a dialog,
-/// adds a position and removes one, on the editor key the Pegasus helper handed over
+/// adds a position, changes one (R1206) and removes one, on the editor key the Pegasus helper handed over
 /// (<see cref="GlassHelpKeys"/>), and nothing else.
 /// </summary>
 /// <remarks>
@@ -100,6 +100,11 @@ public sealed partial class GlassSessionHelp(
         GlassAutomationPositionRequest request, GlassRepairEstimateSession session, CancellationToken cancellationToken) =>
         ActAsync(request, session, GlassAutomationActAction.Remove, cancellationToken);
 
+    /// <summary>Changes any position of the estimate through its own dialog, as in the Automation's own session (R1206).</summary>
+    public Task<GlassSessionHelpOutcome> ChangeAsync(
+        GlassAutomationPositionRequest request, GlassRepairEstimateSession session, CancellationToken cancellationToken) =>
+        ActAsync(request, session, GlassAutomationActAction.Change, cancellationToken);
+
     private async Task<GlassSessionHelpOutcome> ActAsync(
         GlassAutomationPositionRequest request, GlassRepairEstimateSession session, GlassAutomationActAction action,
         CancellationToken cancellationToken)
@@ -173,16 +178,19 @@ public sealed partial class GlassSessionHelp(
             return Task.CompletedTask;
         }
 
-        var done = action == GlassAutomationActAction.Remove
-            ? await Work.RemovePositionAsync(session, editor, opened, act, before, Record, cancellationToken)
-            : await Work.AddPositionAsync(session, editor, opened, act, before, Record, cancellationToken);
+        var done = action switch
+        {
+            GlassAutomationActAction.Remove => await Work.RemovePositionAsync(session, editor, opened, act, before, Record, cancellationToken),
+            GlassAutomationActAction.Change => await Work.ChangePositionAsync(session, editor, opened, act, before, Record, cancellationToken),
+            _ => await Work.AddPositionAsync(session, editor, opened, act, before, Record, cancellationToken),
+        };
         var (settled, alsoNew) = Split(done, before);
 
         // The window is asked to show its selected list again whenever the
         // estimate may have changed, a change not confirmed included.
         var shown = false;
         if (settled.Outcome is GlassAutomationActOutcome.Added or GlassAutomationActOutcome.Removed
-            or GlassAutomationActOutcome.NotConfirmed)
+            or GlassAutomationActOutcome.Changed or GlassAutomationActOutcome.NotConfirmed)
         {
             shown = await keys.ShownAsync(session.Id, keys.Refresh(session.Id), CancellationToken.None);
         }

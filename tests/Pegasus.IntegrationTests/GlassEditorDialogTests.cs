@@ -498,6 +498,39 @@ public sealed class GlassEditorDialogTests
         Assert.True(Assert.Single(preview.Sends.Questions, question => question.Kind == "reason").Answered);
     }
 
+    private static readonly string[] PaintOnlyGroups = ["", "L", "CL"];
+
+    /// <summary>
+    /// The editor's own rule for which dialog opens a position on the
+    /// estimate (selected.php's LoadGraph, 19 November 2026; R1206): a part
+    /// with no paint opens part.php, a part with its paint and its paint
+    /// position comp.php, a paint position of its own lack.php, and a group
+    /// the list does not hold none.
+    /// </summary>
+    [Fact]
+    public void TheEditorsOwnRuleChoosesAPositionsDialog()
+    {
+        var estimate = GlassEditorPages.Selected(GlassEditorFixture.Text("selected_before_change.html"));
+
+        Assert.NotNull(estimate.Groups);
+        Assert.Equal("part", GlassEditorPages.DialogPage("C421260.10.C1100400.2205", estimate.Groups));
+        Assert.Equal("comp", GlassEditorPages.DialogPage("C421280.12.C1060000.2102", estimate.Groups));
+        Assert.Equal("comp", GlassEditorPages.DialogPage("L421281.12.Lxx1640.Lxx1640", estimate.Groups));
+        Assert.Null(GlassEditorPages.DialogPage("C1.5.C1.1", estimate.Groups));
+        Assert.Null(GlassEditorPages.DialogPage("C1.99.C1.1", estimate.Groups));
+        Assert.Equal("lack", GlassEditorPages.DialogPage("L1.1.Lxx1.Lxx1", PaintOnlyGroups));
+        Assert.Equal("lack", GlassEditorPages.DialogPage("L1.2.Lxx1.Lxx1", PaintOnlyGroups));
+        Assert.Equal("part", GlassEditorPages.DialogPage("S1.2.S1.1", PaintOnlyGroups));
+        Assert.Equal("comp", GlassEditorPages.DialogPage("C1.2.C1.1", PaintOnlyGroups));
+    }
+
+    /// <summary>A new part's comp.php dialog shows all three buttons, so none is pressed by itself: a change names one.</summary>
+    [Fact]
+    public void ADialogShowingEveryButtonHasNoneToPressByItself()
+    {
+        Assert.Null(GlassEditorDialogs.VisibleButton(GlassEditorFixture.Text("bumper_part.dialog.html")));
+    }
+
     private static JsonElement Typed(string name) =>
         GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == name);

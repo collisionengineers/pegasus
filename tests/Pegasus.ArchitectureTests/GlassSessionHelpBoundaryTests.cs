@@ -10,7 +10,7 @@ namespace Pegasus.ArchitectureTests;
 /// <summary>
 /// What acts in an Engineer's open Glass's session (<see cref="GlassSessionHelp"/>,
 /// design 08 section 5; R1170, R1184) can do: read, search, preview (R1206),
-/// add and remove, and nothing else. It holds no gateway, session store, login or import,
+/// add, change (R1206) and remove, and nothing else. It holds no gateway, session store, login or import,
 /// and nothing it calls, followed through every method of this assembly it
 /// reaches (async state machines, lambdas and local functions included),
 /// reaches the editor's Save and Exit, the gateway, the session store, a
@@ -30,7 +30,7 @@ public sealed class GlassSessionHelpBoundaryTests
 
     private static readonly string[] ForbiddenEditorMethods = ["SaveAndExitAsync", "OpenAsync"];
 
-    private static readonly string[] HelpActs = ["AddAsync", "PreviewAsync", "ReadAsync", "RemoveAsync", "SearchAsync"];
+    private static readonly string[] HelpActs = ["AddAsync", "ChangeAsync", "PreviewAsync", "ReadAsync", "RemoveAsync", "SearchAsync"];
 
     private static readonly Assembly Infrastructure = typeof(GlassSessionHelp).Assembly;
 
@@ -57,7 +57,7 @@ public sealed class GlassSessionHelpBoundaryTests
     }
 
     [Fact]
-    public void HelpOffersOnlyReadSearchPreviewAddAndRemove()
+    public void HelpOffersOnlyReadSearchPreviewAddChangeAndRemove()
     {
         var offered = typeof(GlassSessionHelp)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
@@ -72,9 +72,10 @@ public sealed class GlassSessionHelpBoundaryTests
     {
         var reached = Reached(typeof(GlassSessionHelp));
 
-        // The walk itself works: it reaches the editor's add and remove
-        // through the shared position work.
+        // The walk itself works: it reaches the editor's add, change and
+        // remove through the shared position work.
         Assert.Contains(reached, method => method.DeclaringType == EditorClient && method.Name == "AddAsync");
+        Assert.Contains(reached, method => method.DeclaringType == EditorClient && method.Name == "ChangeAsync");
         Assert.Contains(reached, method => method.DeclaringType == EditorClient && method.Name == "RemoveAsync");
         var forbidden = reached
             .Where(method => method.DeclaringType is { } declaring

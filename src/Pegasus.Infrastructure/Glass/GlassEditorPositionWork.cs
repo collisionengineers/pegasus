@@ -835,7 +835,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// "Both" on a part that can) still shows the dialog, with the refusal as
     /// <see cref="GlassDialogSend.Code"/>. Requests: a part, the part list,
     /// its equipment map and the dialog; a special operation, the special
-    /// list and the dialog; a position, its dialog.
+    /// list and the dialog; a position, the estimate (whose groups say which
+    /// dialog the editor opens for it, R1206) and its dialog, with what a
+    /// change with the inputs would send.
     /// </summary>
     internal async Task<(GlassDialogPreview? Dialog, string? Code, GlassEditorSession Opened)> PreviewAsync(
         GlassRepairEstimateSession session,
@@ -849,11 +851,26 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             if (draft.Kind is null)
             {
+                // A position on the estimate: its dialog as the editor's list opens it, with the
+                // change the inputs would make (R1206).
                 var positionId = draft.PositionId
                     ?? throw new ArgumentException("A preview of a position names it.", nameof(draft));
+                var read = await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(opened, cancellationToken));
+                opened = read.Session;
+                var (found, unshown) = PageOf(read.Value, positionId);
+                if (found is null)
+                {
+                    return (null, unshown, opened);
+                }
+
+                string page = found;
+                var (change, button, refusedChange) = ChangeOf(draft.Inputs, page);
                 var shown = await StageAsync(session, "EditorPreview", () => editor.PreviewPositionAsync(
-                    opened, positionId, cancellationToken));
-                return (shown.Value, null, shown.Session);
+                    opened, positionId, page, button, draft.Inputs is null ? null : change, cancellationToken));
+                var shownDialog = refusedChange is not null && shown.Value.Sends is { } changeSends
+                    ? shown.Value with { Sends = changeSends with { Code = refusedChange } }
+                    : shown.Value;
+                return (shownDialog, null, shown.Session);
             }
 
             GlassEditorAddRequest? request = null;
@@ -905,6 +922,150 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             // Reading a list, a map or a dialog changes nothing: no dialog, and the code.
             return (null, CodeOf(failure), opened);
         }
+    }
+
+    /// <summary>
+    /// The dialog page of a position on the estimate, by the editor's own
+    /// rule (<see cref="GlassEditorPages.DialogPage"/>), or why there is none
+    /// to change: a position the estimate does not hold
+    /// (<see cref="GlassAutomationPositionPolicy.RowUnknownCode"/>), a group
+    /// the list does not hold (<see cref="GlassFailure.EditorAnswer"/>), or a
+    /// paint position's own dialog (<c>lack.php</c>), not built
+    /// (<see cref="GlassEstimateBuildPolicy.NotBuiltCode"/>: the return's
+    /// reader does not know its free paint rows).
+    /// </summary>
+    private static (string? Page, string? Code) PageOf(GlassEditorEstimate estimate, string positionId)
+    {
+        if (!estimate.Positions.Contains(positionId, StringComparer.Ordinal))
+        {
+            return (null, GlassAutomationPositionPolicy.RowUnknownCode);
+        }
+
+        return GlassEditorPages.DialogPage(positionId, estimate.Groups) switch
+        {
+            null => (null, GlassFailure.EditorAnswer),
+            "lack" => (null, GlassEstimateBuildPolicy.NotBuiltCode),
+            { } page => (page, null),
+        };
+    }
+
+    /// <summary>
+    /// What a change gives a position's dialog (R1206): the typed figures and
+    /// reason on a <c>part.php</c> dialog, the OK to no figures, the button on
+    /// a <c>comp.php</c> one (null: the one the page shows); and the code that
+    /// refuses it before anything is posted: typed figures on a part with its
+    /// paint have no capture, and a paint button has no place on <c>part.php</c>.
+    /// </summary>
+    private static (GlassEditorChange Change, string? Button, string? Refused) ChangeOf(GlassAutomationInputs? inputs, string page)
+    {
+        var paintable = page == "comp";
+        var change = WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), paintable ? null : inputs)!;
+        var button = !paintable ? null
+            : inputs?.Button switch
+            {
+                GlassAutomationButton.Part => PartButton,
+                GlassAutomationButton.Paint => PaintButton,
+                GlassAutomationButton.PartAndPaint => PartAndPaintButton,
+                _ => null,
+            };
+        var refused = paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
+            : !paintable && inputs?.Button is not null and not GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
+            : null;
+        return (change, button, refused);
+    }
+
+    /// <summary>
+    /// A claimed change's work (R1206): it must name a position the estimate
+    /// holds, any position of it (as a remove may, R1185), or it is refused
+    /// and nothing is sent. Its dialog is the one the editor's list opens for
+    /// it (<see cref="PageOf"/>), built with the inputs (<see cref="ChangeOf"/>);
+    /// just before the post the code it carries and the figures served and
+    /// sent are handed to <paramref name="record"/>, so a lost answer is not
+    /// confirmed. The "Mandatory parts:" page is confirmed as an add's is, the
+    /// estimate read back and the position's own record read. The outcome is
+    /// handed to <paramref name="record"/> with the editor session as it stands.
+    /// </summary>
+    internal async Task<GlassEditorPositionDone> ChangePositionAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationAct act,
+        GlassEditorEstimate before,
+        Func<GlassAutomationAct, GlassEditorSession, Task> record,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(act);
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(record);
+        var positionId = act.PositionId ?? string.Empty;
+        var (found, unfound) = PageOf(before, positionId);
+        if (found is null)
+        {
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = unfound };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        string page = found;
+        var (change, button, refusedBy) = ChangeOf(act.Inputs, page);
+        if (refusedBy is not null)
+        {
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refusedBy };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        // Just before the post: the code the position carries, and the figures served and sent.
+        async Task PostingAsync(GlassEditorSummary summary)
+        {
+            act = act with
+            {
+                ExpectedCode = GlassAutomationPositionPolicy.CodeOf(positionId),
+                DialogServed = ServedOf(summary),
+                Sent = SentOf(summary),
+            };
+            await record(act, opened);
+        }
+
+        GlassEditorEstimate? after = null;
+        try
+        {
+            var changed = await StageAsync(session, "EditorChange", () => editor.ChangeAsync(
+                opened, positionId, page, button, change, act.Inputs?.OptionalParts, PostingAsync, cancellationToken));
+            opened = changed.Session;
+            after = changed.Value.Estimate;
+            act = act with
+            {
+                Outcome = GlassAutomationActOutcome.Changed,
+                Code = null,
+                Description = changed.Value.Summary.Description?.Trim(),
+                Served = FiguresOf(changed.Value.Summary),
+                DialogServed = ServedOf(changed.Value.Summary),
+                Sent = SentOf(changed.Value.Summary),
+                Listed = ListedOf(changed.Value.Listed, act.Inputs?.OptionalParts),
+                Position = changed.Value.Position,
+            };
+        }
+        catch (GlassMvaStageException refused) when (RefusedBeforePost(refused.FailureCode))
+        {
+            // Refused before anything was posted.
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
+        }
+        catch (Exception lost)
+            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+        {
+            // Posted, or perhaps posted: the position's own read settles it. Before the post
+            // began (no code recorded), nothing was sent and the change is refused.
+            var failure = AsFailure(lost);
+            var outcome = act.ExpectedCode is null ? GlassAutomationActOutcome.Refused : GlassAutomationActOutcome.NotConfirmed;
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action, outcome, failure.FailureCode, failure.Detail ?? string.Empty);
+            act = act with { Outcome = outcome, Code = failure.FailureCode };
+        }
+
+        await record(act, opened);
+        return new(act, opened, after);
     }
 
     /// <summary>

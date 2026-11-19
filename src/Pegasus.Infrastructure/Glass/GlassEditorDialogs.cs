@@ -909,6 +909,29 @@ internal static partial class GlassEditorDialogs
     private const string ZeroAsked = "Price and hours are both zero; the dialog would ask before sending.";
 
     /// <summary>
+    /// The one button of a <c>comp.php</c> dialog that the page shows, of
+    /// Part (<c>BSS</c>), Paint (<c>BLL</c>) and Part and Paint (<c>BSL</c>):
+    /// the dialog of a position with its paint on the estimate shows Part and
+    /// Paint alone (19 November 2026, #848). Null when the page shows none of
+    /// them, or more than one.
+    /// </summary>
+    public static string? VisibleButton(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var form = GlassEditorForm.Read(html, "Part");
+        var shown = form?.Controls
+            .Where(control => control.Type == "submit" && control.Name is "BSS" or "BLL" or "BSL" && !Hidden(control))
+            .Select(control => control.Name!)
+            .ToList();
+        return shown is { Count: 1 } ? shown[0] : null;
+    }
+
+    /// <summary>Whether the page serves a control hidden (<c>style="display:none"</c>), as a person never sees it.</summary>
+    private static bool Hidden(GlassEditorControl control) =>
+        control.Attributes.TryGetValue("style", out var style)
+        && WhiteSpace().Replace(style, string.Empty).Contains("display:none", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// The answer's call to the list's <c>BothNext</c>, as the list runs it:
     /// the dialog it opens is the right-hand rows when the first side was
     /// left, else the left-hand ones, with the answer's <c>Params</c>. Null

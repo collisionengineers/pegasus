@@ -77,6 +77,19 @@ internal sealed record GlassEditorAdded(
 }
 
 /// <summary>
+/// What a change of a position on the estimate did (R1206): the dialog's
+/// summary and notes, the parts the "Mandatory parts:" page listed (none
+/// when it did not appear), the estimate read afterwards, and the position's
+/// own record read after it, or null when Glass's answered it empty.
+/// </summary>
+internal sealed record GlassEditorChanged(
+    GlassEditorSummary Summary,
+    IReadOnlyList<string> Notes,
+    IReadOnlyList<GlassEditorListed> Listed,
+    GlassEditorEstimate Estimate,
+    GlassPositionFigures? Position);
+
+/// <summary>
 /// Drives Glass's editor from the server with the same requests the editor's
 /// own pages send: opens a session from the launch address, reads the
 /// estimate and its lists, adds a position by fetching its dialog and posting
@@ -462,10 +475,15 @@ internal sealed class GlassEditorClient(
 
     /// <summary>
     /// A preview of a position already on the estimate (R1206): its dialog,
-    /// asked for as a remove asks for it, read as a form. Nothing is posted.
+    /// asked for as the editor's list opens it (<paramref name="page"/>,
+    /// <c>part</c> or <c>comp</c>, by <see cref="GlassEditorPages.DialogPage"/>),
+    /// read as a form. With <paramref name="change"/>, also what a change
+    /// with it would send, pressing <paramref name="button"/> or the one
+    /// button the page shows. Nothing is posted.
     /// </summary>
     public async Task<GlassEditorReply<GlassDialogPreview>> PreviewPositionAsync(
-        GlassEditorSession session, string positionId, CancellationToken cancellationToken)
+        GlassEditorSession session, string positionId, string page, string? button, GlassEditorChange? change,
+        CancellationToken cancellationToken)
     {
         if (!GlassAutomationRead.IsPositionId(positionId))
         {
@@ -473,10 +491,144 @@ internal sealed class GlassEditorClient(
         }
 
         var (jar, at) = Begin(session);
-        var shown = await GetAsync(at.OpenPosition(positionId), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
-        var preview = GlassMvaClient.Matched(() => GlassEditorDialogs.Preview(shown).Preview, GlassFailure.EditorDialog)
-            ?? throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
+        var address = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var shown = await GetAsync(address, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var (preview, build) = GlassMvaClient.Matched(
+            () => change is null
+                ? GlassEditorDialogs.Preview(shown)
+                : GlassEditorDialogs.Preview(shown, page == "comp" ? button ?? GlassEditorDialogs.VisibleButton(shown) ?? "BSS" : null, change),
+            GlassFailure.EditorDialog);
+        if (preview is null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
+        }
+        if (change is not null && build is not null && ChangeRefusal(build, positionId)?.FailureCode is { } code
+            && preview.Sends is { Code: null } sends)
+        {
+            preview = preview with { Sends = sends with { Code = code } };
+        }
+
         return new(preview, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// Changes one position already on the estimate as the editor does
+    /// (R1206): its dialog asked for as the list opens it (<paramref name="page"/>,
+    /// <c>part</c> or <c>comp</c>), the post built with the change, refused
+    /// without posting when the builder found any problem or the dialog's
+    /// record is not the position's; <paramref name="posting"/> is handed the
+    /// summary just before the post. The post goes to the dialog's own form
+    /// action, the "Mandatory parts:" page is confirmed with the ticks asked
+    /// for, the estimate is read back and must still list the position, and
+    /// then the position's own record is read. An empty record (#946) is not
+    /// read, and leaves the change confirmed.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassEditorChanged>> ChangeAsync(
+        GlassEditorSession session, string positionId, string page, string? button, GlassEditorChange change,
+        IReadOnlyCollection<string>? ticks, Func<GlassEditorSummary, Task>? posting, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        if (!GlassAutomationRead.IsPositionId(positionId))
+        {
+            throw new ArgumentException("A position id is letters, digits and dots.", nameof(positionId));
+        }
+
+        var (jar, at) = Begin(session);
+        var dialogAddress = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var pressed = page == "comp" ? button ?? GlassEditorDialogs.VisibleButton(dialog) : null;
+        if (page == "comp" && pressed is null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog does not show one button to press.");
+        }
+
+        var build = GlassMvaClient.Matched(
+            () => page == "comp" ? GlassEditorDialogs.PartPost(dialog, pressed!, change) : GlassEditorDialogs.PlainPost(dialog, change),
+            GlassFailure.EditorDialog);
+        if (ChangeRefusal(build, positionId) is { } refusal)
+        {
+            throw refusal;
+        }
+        if (posting is not null)
+        {
+            await posting(build.Summary!);
+        }
+
+        // From the post on, a lost or unexpected answer may still have changed the position.
+        var postAddress = session.BaseAddress + build.Action;
+        var posted = await PostAsync(postAddress, GlassEditorText.EncodeForm(build.Fields), dialogAddress, jar, cancellationToken);
+        var answer = GlassMvaClient.Matched(
+            () => GlassEditorDialogs.AfterPost(posted, ticks), GlassFailure.EditorAnswer, outcomeUnknown: true);
+        IReadOnlyList<GlassEditorListed> listed = [];
+        if (answer.Kind == GlassEditorAnswerKind.Confirm)
+        {
+            listed = answer.Listed;
+            var confirmAction = answer.Action
+                ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, outcomeUnknown: true, detail: "kind=confirm action=absent");
+            var confirmed = await PostAsync(
+                session.BaseAddress + confirmAction, GlassEditorText.EncodeForm(answer.Fields), postAddress, jar, cancellationToken);
+            answer = GlassMvaClient.Matched(
+                () => GlassEditorDialogs.AfterPost(confirmed), GlassFailure.EditorAnswer, outcomeUnknown: true);
+        }
+        if (answer.Kind != GlassEditorAnswerKind.Done)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorAnswer, outcomeUnknown: true, detail: $"kind={answer.Kind}");
+        }
+
+        var after = await SelectedAsync(at, jar, cancellationToken);
+        if (!after.Positions.Contains(positionId))
+        {
+            throw new GlassMvaStageException(
+                GlassFailure.EditorAnswer, outcomeUnknown: true, detail: "The position is no longer on the estimate.");
+        }
+
+        var figures = await RecordAsync(at, jar, positionId, cancellationToken);
+        return new(
+            new GlassEditorChanged(build.Summary!, build.Notes, listed, after, figures),
+            session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>A changed position's own record, or null when it was not read: the change is confirmed either way.</summary>
+    private async Task<GlassPositionFigures?> RecordAsync(
+        GlassEditorAddresses at, Dictionary<string, string> jar, string positionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var record = await GetAsync(at.Position(positionId), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+            return GlassMvaClient.Matched(() => GlassEditorPages.PositionFigures(record, positionId), GlassFailure.EditorAnswer);
+        }
+        catch (Exception unread) when (unread is GlassMvaStageException or HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Why a change's built dialog is not posted (R1206), or null: a page that
+    /// is not the dialog, any problem the builder found, a record whose first
+    /// line names another position (a reopened dialog's names its own,
+    /// <c>C421260.10.C1100400.2205|64</c>), or no form action.
+    /// </summary>
+    private static GlassMvaStageException? ChangeRefusal(GlassEditorBuild build, string positionId)
+    {
+        if (build.Error is not null)
+        {
+            return new GlassMvaStageException(GlassFailure.EditorDialog, detail: build.Error);
+        }
+        if (build.Problems.Count > 0)
+        {
+            return new GlassMvaStageException(
+                build.RefusalCode ?? GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
+        }
+        if (build.Summary is null
+            || !string.Equals((build.Summary.Position ?? string.Empty).Split('|')[0], positionId, StringComparison.Ordinal))
+        {
+            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record is not the position's.");
+        }
+
+        return build.Action is null
+            ? new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The form has no action.")
+            : null;
     }
 
     /// <summary>

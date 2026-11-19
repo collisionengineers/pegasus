@@ -1430,8 +1430,8 @@ public sealed partial class GlassRepairEstimateGateway(
     /// and whichever of the Case's Automation sessions recorded it.
     /// Every kind and operation is claimed and owed (R1206), with the inputs
     /// <see cref="GlassAutomationPositionPolicy.InputRefused"/> allows. Null
-    /// when the session's editor is not open. A remove may name any position
-    /// of the estimate (R1185).
+    /// when the session's editor is not open. A remove or a change may name
+    /// any position of the estimate (R1185, R1206).
     /// </summary>
     public async Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
         GlassAutomationPositionRequest request, CancellationToken cancellationToken)
@@ -1554,19 +1554,23 @@ public sealed partial class GlassRepairEstimateGateway(
             return WriteActAsync(position, recorded);
         }
 
-        var done = act.Action == GlassAutomationActAction.Remove
-            ? await Positions.RemovePositionAsync(
-                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken)
-            : await Positions.AddPositionAsync(
-                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken);
+        var done = act.Action switch
+        {
+            GlassAutomationActAction.Remove => await Positions.RemovePositionAsync(
+                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken),
+            GlassAutomationActAction.Change => await Positions.ChangePositionAsync(
+                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken),
+            _ => await Positions.AddPositionAsync(
+                position.Session, position.Editor, position.Opened, act, before, Record, cancellationToken),
+        };
         return new(position.Session, done.Act, Owed: false);
     }
 
     /// <summary>
     /// Writes the act as it now stands, with the editor's cookies and pace.
     /// The write is made whatever the time cap does, so what was sent is
-    /// never forgotten. A position added or removed clears the session's
-    /// last code; any other outcome leaves it.
+    /// never forgotten. A position added, removed or changed clears the
+    /// session's last code; any other outcome leaves it.
     /// </summary>
     private async Task WriteActAsync(PositionWork position, GlassAutomationAct act)
     {
@@ -1576,7 +1580,8 @@ public sealed partial class GlassRepairEstimateGateway(
         position.Session = await WriteAsync(
             session with { Automation = GlassAutomationPositionPolicy.Record(session.Automation, act) },
             GlassRepairEstimateSessionState.Active,
-            act.Outcome is GlassAutomationActOutcome.Added or GlassAutomationActOutcome.Removed ? null : session.FailureCode,
+            act.Outcome is GlassAutomationActOutcome.Added or GlassAutomationActOutcome.Removed
+                or GlassAutomationActOutcome.Changed ? null : session.FailureCode,
             position.Provider, position.Digest, position.Kept, CancellationToken.None);
     }
 

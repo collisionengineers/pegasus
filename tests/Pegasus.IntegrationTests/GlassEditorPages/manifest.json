@@ -728,6 +728,13 @@
       "file": "report.html",
       "address": "report.php?ksid=Q0TESTKEY000000000000000000001&cml=C&calcid=0&dummy=",
       "totalsAtReport": "selectedAtReport"
+    },
+    "selectedBeforeChange": {
+      "file": "selected_before_change.html",
+      "capture": "#776",
+      "windscreen": "C421260.10.C1100400.2205",
+      "bonnet": "C421280.12.C1060000.2102",
+      "bonnetPaint": "L421281.12.Lxx1640.Lxx1640"
     }
   },
   "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up. On 19 November 2026 (R1206) every other operation each captured dialog offers was driven the same way (scratch-2026-11-19/unlock/drive-unlock.mjs: 13 dialogs, each operation with Part and with Part and Paint on comp.php, 200 posts equal to the reference builder's), and Renew (AN) on each part.php dialog with its old-for-new window run as well (drive-renew.mjs); the left door's and the left mirror's posts, two of the rear quarter's (V and UN) and the right-hand reinforcement's Renew are kept here, cut by make-fixtures-unlock.mjs.",
@@ -2258,6 +2265,74 @@
       "post": "bulb_price.post.txt",
       "answer": "bulb_price.answer.html",
       "answerKind": "done"
+    },
+    {
+      "name": "windscreen_change_hours",
+      "dialog": "part.php",
+      "capture": "#795 (the windscreen on the estimate), reason window #814, post #822, confirm #828",
+      "positionId": "C421260.10.C1100400.2205",
+      "change": {
+        "hours": "2.80",
+        "reason": "test"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&partid=C421260.10.C1100400.2205",
+      "fields": 22,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C421260.10.C1100400.2205|64",
+        "partCode": "1100400",
+        "description": "Windscreen (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|IT|AD|P|AN|E",
+        "price": "461.25",
+        "hours": "2.80",
+        "partNumber": "51317399023",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "windscreen_change_hours.dialog.html",
+      "post": "windscreen_change_hours.post.txt",
+      "answer": "windscreen_change_hours.answer.html",
+      "answerKind": "confirm",
+      "listed": [
+        {
+          "code": "1102410.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Primer"
+        },
+        {
+          "code": "1102440.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Cleaner"
+        },
+        {
+          "code": "1104200.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Upper Moulding"
+        },
+        {
+          "code": "1102410.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Primer"
+        },
+        {
+          "code": "1102440.ER.",
+          "ticked": false,
+          "optional": true,
+          "text": "RP Windscreen Cleaner"
+        }
+      ],
+      "ticks": [],
+      "confirmAction": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&BX=1&partid=C421260.10.C1100400.2205",
+      "confirm": "windscreen_change_hours.confirm.txt",
+      "confirmAnswer": "windscreen_change_hours.confirm_answer.html"
     }
   ]
 }

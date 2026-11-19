@@ -14,7 +14,16 @@ namespace Pegasus.Infrastructure.Glass;
 /// <param name="Totals">Glass's running totals in the page's order, or null when the page holds none it can be read by.</param>
 internal sealed record GlassEditorEstimate(
     bool Found, IReadOnlyList<string> Positions, IReadOnlyList<string> Codes,
-    IReadOnlyList<GlassEstimateTotal>? Totals = null);
+    IReadOnlyList<GlassEstimateTotal>? Totals = null)
+{
+    /// <summary>
+    /// The page's <c>Groups</c>, by the number a position's id carries second
+    /// (<c>C421280.12.C1060000.2102</c> is group 12), as the editor's own
+    /// <c>LoadGraph</c> reads them to choose a position's dialog (R1206); null
+    /// when the page has none.
+    /// </summary>
+    public IReadOnlyList<string>? Groups { get; init; }
+}
 
 /// <summary>One group of the special-operation list and its rows, each row as the page lists it.</summary>
 internal sealed record GlassEditorSpecialGroup(string Code, string Name, IReadOnlyList<IReadOnlyList<string>> Rows);
@@ -257,8 +266,51 @@ internal static partial class GlassEditorPages
             ids is not null,
             (ids ?? []).Where(id => id.Length > 0).ToList(),
             (codes ?? []).Where(code => code.Length > 0).ToList(),
-            Totals(html));
+            Totals(html))
+        {
+            Groups = StringArray(html, "Groups"),
+        };
     }
+
+    /// <summary>
+    /// The dialog the editor opens for a position on the estimate, by its
+    /// list's own <c>LoadGraph</c> (<c>selected.php</c>, 19 November 2026):
+    /// the position's group is <c>Groups</c> at the number its id carries
+    /// second. A group with C, I, A, H or M opens <c>part</c>. One with L as
+    /// well opens <c>comp</c> (a part with its paint), unless the position
+    /// is a paint position (an id beginning L) or a special row (S) of a group
+    /// without c, which open <c>lack</c> and <c>part</c>; one with L alone
+    /// opens <c>lack</c>. Null for a group the page does not hold or names
+    /// none of these, where the editor itself says "Illegal group".
+    /// </summary>
+    public static string? DialogPage(string positionId, IReadOnlyList<string>? groups)
+    {
+        ArgumentNullException.ThrowIfNull(positionId);
+        var tags = positionId.Split('.');
+        if (groups is null || tags.Length < 2
+            || !int.TryParse(tags[1], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+            || index >= groups.Count)
+        {
+            return null;
+        }
+
+        var group = groups[index];
+        var page = group.IndexOfAny(PartGroups) >= 0 ? "part" : string.Empty;
+        if (group.Contains('L', StringComparison.Ordinal))
+        {
+            var ownPaint = !group.Contains('c', StringComparison.Ordinal);
+            if (page.Length == 0 || (positionId.StartsWith('L') && ownPaint))
+            {
+                return "lack";
+            }
+
+            return positionId.StartsWith('S') && ownPaint ? "part" : "comp";
+        }
+
+        return page.Length == 0 ? null : page;
+    }
+
+    private static readonly char[] PartGroups = ['C', 'I', 'A', 'H', 'M'];
 
     /// <summary>
     /// Glass's running totals as the estimate's page holds them for the

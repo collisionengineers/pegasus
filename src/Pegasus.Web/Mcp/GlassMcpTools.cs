@@ -197,7 +197,8 @@ internal sealed record GlassActToolItem(
     [property: Description(AutomationToolText.GlassActEquipmentChanged)] IReadOnlyList<GlassEquipmentChangeToolItem>? EquipmentChanged = null,
     [property: Description(AutomationToolText.GlassActEquipmentStored)] bool? EquipmentStored = null,
     [property: Description(AutomationToolText.GlassActServed)] GlassFiguresToolItem? Served = null,
-    [property: Description(AutomationToolText.GlassActSent)] GlassFiguresToolItem? Sent = null);
+    [property: Description(AutomationToolText.GlassActSent)] GlassFiguresToolItem? Sent = null,
+    [property: Description(AutomationToolText.GlassActPosition)] GlassPositionToolItem? Position = null);
 
 internal sealed record GlassSessionGetToolResult(
     Guid CaseId,
@@ -527,7 +528,7 @@ internal sealed class GlassMcpTools(
 
     [McpServerTool(
         Name = "pegasus_glass_position_act",
-        Title = "Add, remove or preview a position on the Automation's Glass's estimate",
+        Title = "Add, change, remove or preview a position on the Automation's Glass's estimate",
         ReadOnly = false,
         Destructive = true,
         Idempotent = true,
@@ -590,9 +591,12 @@ internal sealed class GlassMcpTools(
                     var helpedSession = session;
                     var request = asked with { SessionId = helpedSession.Id };
                     using var cap = new CancellationTokenSource(ProviderWorkService.TimeCap, timeProvider);
-                    var outcome = await HelpAsync(() => request.Action == GlassAutomationActAction.Remove
-                        ? Help.RemoveAsync(request, helpedSession, cap.Token)
-                        : Help.AddAsync(request, helpedSession, cap.Token));
+                    var outcome = await HelpAsync(() => request.Action switch
+                    {
+                        GlassAutomationActAction.Remove => Help.RemoveAsync(request, helpedSession, cap.Token),
+                        GlassAutomationActAction.Change => Help.ChangeAsync(request, helpedSession, cap.Token),
+                        _ => Help.AddAsync(request, helpedSession, cap.Token),
+                    });
                     return new GlassPositionActToolResult(
                         caseId, Map(helpedSession), MapAct(outcome.Act), key, outcome.AlsoNew, outcome.ShownInWindow);
                 }
@@ -728,20 +732,35 @@ internal sealed class GlassMcpTools(
     {
         var given = InputsOf(inputs);
         var verb = action?.Trim();
-        if (verb == "preview" && !string.IsNullOrWhiteSpace(positionId))
+        if ((verb == "preview" && !string.IsNullOrWhiteSpace(positionId)) || verb == "change")
         {
-            if (kind is not null || row is not null || operation is not null || side is not null || given is not null)
+            // A position already on the estimate (R1206): change takes what its dialog lets a
+            // person change, and preview shows it with what that change would send.
+            if (kind is not null || row is not null || operation is not null || side is not null)
             {
-                throw new McpException(AutomationToolText.GlassPreviewPositionAlone);
+                throw new McpException(verb == "change"
+                    ? AutomationToolText.GlassChangePositionAndInputs
+                    : AutomationToolText.GlassPreviewPositionAlone);
             }
-            if (!GlassAutomationRead.IsPositionId(positionId.Trim()))
+            if (verb == "change" && (string.IsNullOrWhiteSpace(positionId) || given is null))
+            {
+                throw new McpException(AutomationToolText.GlassChangePositionAndInputs);
+            }
+            if (!GlassAutomationRead.IsPositionId(positionId!.Trim()))
             {
                 throw new McpException(AutomationToolText.GlassReadPositionIdRefused);
             }
 
-            return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Preview)
+            var onPosition = verb == "change" ? GlassAutomationActAction.Change : GlassAutomationActAction.Preview;
+            if (GlassAutomationPositionPolicy.InputRefused(onPosition, null, null, given) is { } notChanged)
+            {
+                throw new McpException(InputRefusal(notChanged));
+            }
+
+            return new(actor, Guid.Empty, expectedSessionVersion, key, onPosition)
             {
                 PositionId = positionId.Trim(),
+                Inputs = given,
             };
         }
 
@@ -909,20 +928,7 @@ internal sealed class GlassMcpTools(
                         read.Codes ?? [],
                         read.Totals?.Select(total => new GlassTotalToolItem(total.Label, total.Amount)).ToList())
                     : null,
-                read.Position is { } position
-                    ? new GlassPositionToolItem(
-                        position.PositionId,
-                        position.PartCode,
-                        position.Description,
-                        position.Operation,
-                        position.Price,
-                        position.Hours,
-                        position.Side,
-                        position.PartNumber,
-                        position.Paint is { } paint
-                            ? new GlassPositionPaintToolItem(paint.PositionId, paint.Description, paint.Price, paint.LabourTime)
-                            : null)
-                    : null,
+                read.Position is { } position ? MapPosition(position) : null,
                 read.Calculation is { } calculation
                     ? new GlassCalculationToolItem(
                         calculation.Trades
@@ -939,6 +945,21 @@ internal sealed class GlassMcpTools(
                     : null,
                 read.Code);
     }
+
+    /// <summary>One position's figures as Glass's record holds them, as the tools answer them.</summary>
+    private static GlassPositionToolItem MapPosition(GlassPositionFigures position) =>
+        new(
+            position.PositionId,
+            position.PartCode,
+            position.Description,
+            position.Operation,
+            position.Price,
+            position.Hours,
+            position.Side,
+            position.PartNumber,
+            position.Paint is { } paint
+                ? new GlassPositionPaintToolItem(paint.PositionId, paint.Description, paint.Price, paint.LabourTime)
+                : null);
 
     /// <summary>A side as a tool takes it: L or R, or none when omitted.</summary>
     private static string? SideOf(string? side) => side?.Trim() switch
@@ -964,6 +985,7 @@ internal sealed class GlassMcpTools(
     private static string OutcomeName(GlassAutomationActOutcome outcome) => outcome switch
     {
         GlassAutomationActOutcome.Added => "added",
+        GlassAutomationActOutcome.Changed => "changed",
         GlassAutomationActOutcome.Removed => "removed",
         GlassAutomationActOutcome.NotConfirmed => "not_confirmed",
         GlassAutomationActOutcome.Refused => "refused",
@@ -973,7 +995,12 @@ internal sealed class GlassMcpTools(
     private static GlassActToolItem MapAct(GlassAutomationAct act) =>
         new(
             act.OperationKey,
-            act.Action == GlassAutomationActAction.Remove ? "remove" : "add",
+            act.Action switch
+            {
+                GlassAutomationActAction.Remove => "remove",
+                GlassAutomationActAction.Change => "change",
+                _ => "add",
+            },
             OutcomeName(act.Outcome),
             act.Code,
             act.Kind is { } kind ? KindName(kind) : null,
@@ -1013,7 +1040,8 @@ internal sealed class GlassMcpTools(
                 : null,
             act.EquipmentStored ? true : null,
             MapFigures(act.DialogServed),
-            MapFigures(act.Sent));
+            MapFigures(act.Sent),
+            act.Position is { } position ? MapPosition(position) : null);
 
     private static GlassFiguresToolItem? MapFigures(GlassAutomationFigures? figures) =>
         figures is null ? null : new GlassFiguresToolItem(figures.Price, figures.Hours, figures.OverlapHours);

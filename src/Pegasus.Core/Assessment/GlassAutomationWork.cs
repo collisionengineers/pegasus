@@ -28,15 +28,17 @@ public sealed record GlassAutomationWork
 }
 
 /// <summary>
-/// Whether a position act adds a position or removes one. A preview asks
-/// Glass's for the dialog an add would post, or a position is shown by, and
-/// is never an act: it posts nothing and is never recorded (R1206).
+/// Whether a position act adds a position, removes one or changes one
+/// already on the estimate (R1206). A preview asks Glass's for the dialog an
+/// add would post, or a position is shown by, and is never an act: it posts
+/// nothing and is never recorded (R1206).
 /// </summary>
 public enum GlassAutomationActAction
 {
     Add,
     Remove,
     Preview,
+    Change,
 }
 
 /// <summary>What became of a position act.</summary>
@@ -50,6 +52,9 @@ public enum GlassAutomationActOutcome
 
     /// <summary>Removed, and the estimate read afterwards no longer lists it.</summary>
     Removed,
+
+    /// <summary>A change posted, the editor answered that it took it, and the estimate read afterwards still lists the position (R1206).</summary>
+    Changed,
 
     /// <summary>
     /// Posted, and the answer was lost or was not the one expected: the
@@ -244,8 +249,15 @@ public sealed record GlassAutomationAct(
     /// <summary>The side an add asked for, when it named one.</summary>
     public string? Side { get; init; }
 
-    /// <summary>A remove's position id.</summary>
+    /// <summary>A remove's or a change's position id.</summary>
     public string? PositionId { get; init; }
+
+    /// <summary>
+    /// A change's position as Glass's record holds it once changed
+    /// (<c>mcode.php</c>, R1206); null when the record was not read, or Glass's
+    /// answered it empty.
+    /// </summary>
+    public GlassPositionFigures? Position { get; init; }
 
     /// <summary>
     /// The code an add's position carries on the estimate (<c>A73</c>,
@@ -462,6 +474,14 @@ public static class GlassAutomationPositionPolicy
     {
         // An interrupted claim keeps its own code only when it has none.
         var code = act.Code ?? InterruptedCode;
+        if (act.Action == GlassAutomationActAction.Change)
+        {
+            // A change keeps its position's id, so the list cannot say whether it took: one whose
+            // post may have begun stays not confirmed, and the position's own read settles it.
+            return act.ExpectedCode is null
+                ? act with { Outcome = GlassAutomationActOutcome.Refused, Code = code }
+                : act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = code };
+        }
         if (act.Action == GlassAutomationActAction.Remove)
         {
             return act.PositionId is { } removed && !positions.Contains(removed, StringComparer.Ordinal)
@@ -540,6 +560,12 @@ public static class GlassAutomationPositionPolicy
         {
             return typed;
         }
+        if (action == GlassAutomationActAction.Change
+            || (action == GlassAutomationActAction.Preview && kind is null))
+        {
+            // A position already on the estimate: what its dialog lets a person change (R1206).
+            return ChangeRefused(inputs);
+        }
         if (kind != GlassAutomationPositionKind.Part)
         {
             // A special operation takes typed figures and a reason alone.
@@ -591,6 +617,20 @@ public static class GlassAutomationPositionPolicy
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
         : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
         : FirstTyped(inputs);
+
+    /// <summary>
+    /// The input a change of a position already on the estimate does not
+    /// take (R1206), or null: its equipment, its operation and Both stay as
+    /// the position has them; optional parts are codes, none blank or repeated.
+    /// </summary>
+    private static string? ChangeRefused(GlassAutomationInputs inputs) =>
+        inputs.Equipment is not null ? "inputs.equipment"
+        : inputs.Operation is not null ? "inputs.operation"
+        : inputs.BothSides is not null ? "inputs.side"
+        : inputs.OptionalParts is { } codes
+            && (codes.Any(string.IsNullOrWhiteSpace) || codes.Distinct(StringComparer.Ordinal).Count() != codes.Count)
+            ? "inputs.optionalParts"
+        : null;
 
     private static string? FirstTyped(GlassAutomationInputs inputs) =>
         inputs.Hours is not null ? "inputs.hours"
@@ -664,8 +704,9 @@ public static class GlassAutomationPositionPolicy
     /// make: a remove names its position; an add or a preview of a new
     /// position names its kind and row, and an operation for a part and only
     /// for a part; a preview of a position on the estimate names that
-    /// position alone; and no input is given that the kind and operation do
-    /// not take (<see cref="InputRefused"/>).
+    /// position alone, or with the inputs a change would give; a change names
+    /// its position and the inputs it gives (R1206); and no input is given
+    /// that the kind and operation do not take (<see cref="InputRefused"/>).
     /// </summary>
     public static GlassAutomationAct Draft(GlassAutomationPositionRequest request, DateTimeOffset requestedAtUtc)
     {
@@ -677,16 +718,28 @@ public static class GlassAutomationPositionPolicy
         {
             throw new ArgumentException("The act gives " + refused + ", which it does not take.", nameof(request));
         }
+        if (request.Action == GlassAutomationActAction.Change)
+        {
+            // A change names its position and what it changes (R1206).
+            if (string.IsNullOrWhiteSpace(request.PositionId) || request.Kind is not null || request.Row is not null
+                || request.Operation is not null || request.Inputs is null || request.Inputs.IsEmpty)
+            {
+                throw new ArgumentException("A change names its position and what it changes, and nothing else.", nameof(request));
+            }
+
+            return act with { PositionId = request.PositionId.Trim(), Inputs = Kept(request.Inputs) };
+        }
         if (request.Action == GlassAutomationActAction.Remove
             || (request.Action == GlassAutomationActAction.Preview && request.Kind is null))
         {
             if (string.IsNullOrWhiteSpace(request.PositionId)
-                || (request.Action == GlassAutomationActAction.Preview && request.Inputs is not null && !request.Inputs.IsEmpty))
+                || (request.Action == GlassAutomationActAction.Remove && request.Inputs is not null && !request.Inputs.IsEmpty))
             {
-                throw new ArgumentException("A remove or a preview of a position names the position alone.", nameof(request));
+                throw new ArgumentException("A remove names its position alone, and a preview of a position its position and any change.", nameof(request));
             }
 
-            return act with { PositionId = request.PositionId.Trim() };
+            // A preview of a position may give what a change would (R1206).
+            return act with { PositionId = request.PositionId.Trim(), Inputs = Kept(request.Inputs) };
         }
 
         var kind = request.Kind ?? throw new ArgumentException("An add names its kind of position.", nameof(request));
@@ -751,8 +804,9 @@ public static class GlassAutomationPositionPolicy
 /// A position act of the Automation on its own session (design 07 section
 /// 3.4): the session version it read and its operation key, and for an add
 /// the kind, the row the catalogue search returned, a part's operation and
-/// the side asked for; for a remove the position id. A preview (R1206) names
-/// a new position as an add does, or a position on the estimate by its id,
+/// the side asked for; for a remove the position id; for a change (R1206)
+/// the position id and the inputs. A preview (R1206) names a new position
+/// as an add does, or a position on the estimate by its id with any change,
 /// and is never recorded.
 /// </summary>
 public sealed record GlassAutomationPositionRequest(

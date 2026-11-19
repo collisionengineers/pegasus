@@ -351,6 +351,53 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// A change in the Engineer's session as in the Automation's own (R1206):
+    /// the walk's windscreen, a position the Engineer added, changed through
+    /// its own dialog with the Automation's reason and posted as the browser
+    /// posted it; the window is asked to show its list again, and the history
+    /// row keeps the inputs and the figures served and sent.
+    /// </summary>
+    [Fact]
+    public async Task APositionTheEngineerAddedIsChangedThroughItsOwnDialog()
+    {
+        var help = Help.Create();
+        help.Glass.Respond("GET /ere/aco/selected.php", _ => EditorPage("selected_before_change.html", null));
+        help.Glass.Respond("GET /ere/aco/part.php", _ => EditorPage("windscreen_change_hours.dialog.html", null));
+        help.Glass.Respond("POST /ere/aco/compproc.php", request => EditorPage(
+            request.Query.Contains("BX=1", StringComparison.Ordinal)
+                ? "windscreen_change_hours.confirm_answer.html"
+                : "windscreen_change_hours.answer.html",
+            null));
+        help.Glass.Respond("GET /ere/aco/mcode.php", _ => Editor(string.Empty));
+        using var window = help.Window();
+
+        var outcome = await help.Sessions.ChangeAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-change",
+                GlassAutomationActAction.Change)
+            {
+                PositionId = Windscreen,
+                Inputs = new GlassAutomationInputs(Hours: 2.8m, Reason: "test"),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Changed, outcome.Act.Outcome);
+        Assert.Empty(outcome.AlsoNew);
+        Assert.True(outcome.ShownInWindow);
+        Assert.Equal(
+            GlassEditorFixture.Text("windscreen_change_hours.post.txt"),
+            help.Glass.Requests.First(request => request.Method == "POST").Body);
+        var recorded = Assert.Single(help.Store.Acts);
+        Assert.Equal(GlassAutomationActAction.Change, recorded.Action);
+        Assert.Equal("test", recorded.Inputs?.Reason);
+        Assert.Equal(1.80m, recorded.DialogServed?.Hours);
+        Assert.Equal(2.80m, recorded.Sent?.Hours);
+    }
+
+    /// <summary>The windscreen on the estimate of the operator's walk of 19 November 2026 (#776).</summary>
+    private const string Windscreen = "C421260.10.C1100400.2205";
+
+    /// <summary>
     /// An operation the return cannot read back (R1206; issue 2155) is
     /// refused in the Engineer's session with its own code before anything
     /// is asked of Glass's, and the refusal is a history row.

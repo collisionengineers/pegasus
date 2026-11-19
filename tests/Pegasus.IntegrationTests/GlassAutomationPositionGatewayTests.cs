@@ -729,7 +729,8 @@ public sealed partial class GlassRepairEstimateGatewayTests
 
     /// <summary>
     /// A preview of a special operation reads its list and its dialog; one
-    /// of a position on the estimate reads only that position's dialog; a
+    /// of a position on the estimate reads the estimate, whose groups say
+    /// which dialog the editor opens for it (R1206), and that dialog; a
     /// part whose row asks its equipment question with no answer answers the
     /// code and no dialog. Nothing is posted.
     /// </summary>
@@ -738,6 +739,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
     {
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
+        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(CapturedWithGroups));
         var requests = harness.Mva.Requests.Count;
 
         var special = await harness.Gateway.PreviewAutomationPositionAsync(
@@ -763,7 +765,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal("part", position.Dialog.Kind);
         Assert.Null(position.Dialog.Sends);
         Assert.Contains("partid=" + CapturedPosition, Asked(harness, "GET", "part.php")[^1], StringComparison.Ordinal);
-        Assert.Equal(requests + 3, harness.Mva.Requests.Count);
+        Assert.Equal(requests + 4, harness.Mva.Requests.Count);
 
         var unanswered = await harness.Gateway.PreviewAutomationPositionAsync(
             Preview(harness, session, "0", GlassAutomationPartOperation.Part, null), CancellationToken.None);
@@ -773,6 +775,114 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
     }
+
+    /// <summary>The captured position on an estimate whose groups put it in a group of parts with no paint (made up).</summary>
+    private static readonly string CapturedWithGroups =
+        "<script>\nvar Partids = [ '', '" + CapturedPosition + "' ];\nvar CheckIds = [ 'C2027021' ];\nvar Groups = [ "
+        + string.Join(", ", Enumerable.Repeat("'C'", 28)) + " ];\n</script>\n";
+
+    /// <summary>The windscreen on the estimate of the operator's walk of 19 November 2026 (#776).</summary>
+    private const string Windscreen = "C421260.10.C1100400.2205";
+
+    /// <summary>The bonnet with its paint on the same estimate.</summary>
+    private const string Bonnet = "C421280.12.C1060000.2102";
+
+    /// <summary>The walk's estimate, its dialogs for the windscreen and the posts' answers, as the editor served them.</summary>
+    private static void ScriptWalk(ScriptedGlass glass)
+    {
+        glass.Respond("GET /ere/aco/selected.php", _ => EditorPage("selected_before_change.html", null));
+        glass.Respond("GET /ere/aco/part.php", _ => EditorPage("windscreen_change_hours.dialog.html", null));
+        glass.Respond("POST /ere/aco/compproc.php", request => EditorPage(
+            request.Query.Contains("BX=1", StringComparison.Ordinal)
+                ? "windscreen_change_hours.confirm_answer.html"
+                : "windscreen_change_hours.answer.html",
+            null));
+        // Glass's answered the record read after a change empty once (#946): it is not read.
+        glass.Respond("GET /ere/aco/mcode.php", _ => Editor(string.Empty));
+    }
+
+    /// <summary>The requests of a change of a position with no paint: the estimate, its dialog, the post, the confirm, the estimate, the record.</summary>
+    private static readonly string[] ChangeRequests =
+    [
+        "GET /ere/aco/selected.php",
+        "GET /ere/aco/part.php",
+        "POST /ere/aco/compproc.php",
+        "POST /ere/aco/compproc.php",
+        "GET /ere/aco/selected.php",
+        "GET /ere/aco/mcode.php",
+    ];
+
+    /// <summary>
+    /// A change of a position already on the estimate (R1206), the walk's
+    /// windscreen: its hours typed above Glass's own with no reason are
+    /// refused before anything is posted; with the Automation's reason its
+    /// own dialog, the one the editor's list opens for it, is posted as the
+    /// browser posted it, and its "Mandatory parts:" page confirmed as the
+    /// browser confirmed it. The position keeps its id; an empty record read
+    /// afterwards is not read. A position the estimate does not hold, and
+    /// typed figures on a part with its paint, are refused with only the
+    /// estimate read.
+    /// </summary>
+    [Fact]
+    public async Task APositionOnTheEstimateIsChangedThroughItsOwnDialog()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        ScriptWalk(harness.Mva);
+
+        var unreasoned = await PositionAsync(harness, Change(harness, session, "mcp:change-1", Windscreen,
+            new GlassAutomationInputs(Hours: 2.8m)));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, unreasoned.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.Act.Code);
+        Assert.Null(unreasoned.Act.ExpectedCode);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+        var before = harness.Mva.Requests.Count;
+
+        var changed = await PositionAsync(harness, Change(harness, unreasoned.Session, "mcp:change-2", Windscreen,
+            new GlassAutomationInputs(Hours: 2.8m, Reason: "test")));
+
+        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
+        Assert.Null(changed.Act.Code);
+        Assert.Equal(GlassAutomationActAction.Change, changed.Act.Action);
+        Assert.Equal(Windscreen, changed.Act.PositionId);
+        Assert.Equal("C1100400", changed.Act.ExpectedCode);
+        Assert.Equal(1.80m, changed.Act.DialogServed?.Hours);
+        Assert.Equal(2.80m, changed.Act.Sent?.Hours);
+        Assert.Null(changed.Act.Position);
+        Assert.Equal(5, changed.Act.Listed.Count);
+        Assert.Equal(
+            ChangeRequests,
+            harness.Mva.Requests.Skip(before).Select(request => request.Method + " " + request.Path));
+        Assert.Contains("cml=C&partid=" + Windscreen + "&dialogCodePage", Asked(harness, "GET", "part.php")[^1], StringComparison.Ordinal);
+        var posts = harness.Mva.Requests.Where(request => request.Method == "POST").ToList();
+        Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.post.txt"), posts[0].Body);
+        Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.confirm.txt"), posts[1].Body);
+        Assert.Contains("partid=" + Windscreen, Uri.UnescapeDataString(posts[0].Query), StringComparison.Ordinal);
+        var stored = GlassAutomationPositionPolicy.Find(harness.Store.Material(session.Id).Session.Automation, "mcp:change-2");
+        Assert.Equal(GlassAutomationActOutcome.Changed, stored?.Outcome);
+        var requests = harness.Mva.Requests.Count;
+
+        var unheld = await PositionAsync(harness, Change(harness, changed.Session, "mcp:change-3", CapturedPosition,
+            new GlassAutomationInputs(Price: 10m)));
+        var painted = await PositionAsync(harness, Change(harness, unheld.Session, "mcp:change-4", Bonnet,
+            new GlassAutomationInputs(Hours: 1m)));
+
+        Assert.Equal(GlassAutomationPositionPolicy.RowUnknownCode, unheld.Act.Code);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, painted.Act.Code);
+        Assert.Equal(GlassAutomationActOutcome.Refused, painted.Act.Outcome);
+        // Only the estimate was read for each.
+        Assert.Equal(requests + 2, harness.Mva.Requests.Count);
+    }
+
+    private static GlassAutomationPositionRequest Change(
+        Harness harness, GlassRepairEstimateSession session, string operationKey, string positionId,
+        GlassAutomationInputs inputs) =>
+        new(harness.Automation, session.Id, session.Version, operationKey, GlassAutomationActAction.Change)
+        {
+            PositionId = positionId,
+            Inputs = inputs,
+        };
 
     /// <summary>A dialog the editor refuses before anything is posted refuses the act with the editor's code.</summary>
     [Fact]

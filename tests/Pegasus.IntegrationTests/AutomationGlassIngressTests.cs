@@ -669,6 +669,96 @@ public sealed class AutomationGlassIngressTests
     }
 
     /// <summary>
+    /// change through the tools (R1206): a preview of the walk's windscreen
+    /// with typed hours shows its own dialog, Glass's own hours and the
+    /// reason it would ask for; a change with the Automation's reason posts
+    /// that dialog as the browser posted it, and the act says change and
+    /// changed. A change with no inputs, with a kind, or with an equipment
+    /// answer is refused before anything is asked of Glass's.
+    /// </summary>
+    [Fact]
+    public async Task APositionIsChangedThroughTheTools()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        glass.Respond("GET /ere/aco/selected.php", _ => GlassProviderFixture.EditorPage("selected_before_change.html", null));
+        glass.Respond("GET /ere/aco/part.php", _ => GlassProviderFixture.EditorPage("windscreen_change_hours.dialog.html", null));
+        glass.Respond("POST /ere/aco/compproc.php", request => GlassProviderFixture.EditorPage(
+            request.Query.Contains("BX=1", StringComparison.Ordinal)
+                ? "windscreen_change_hours.confirm_answer.html"
+                : "windscreen_change_hours.answer.html",
+            null));
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        long version;
+        using (var preview = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
+        {
+            caseId, action = "preview", operationKey = "mcp:change-preview", positionId = Windscreen, inputs = new { hours = 2.8m },
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(preview);
+            var dialog = structured.GetProperty("dialog");
+            Assert.Equal("part", dialog.GetProperty("kind").GetString());
+            var hours = dialog.GetProperty("fields").EnumerateArray().Single(field => field.GetProperty("name").GetString() == "Time");
+            Assert.Equal(1.80m, hours.GetProperty("reasonAbove").GetDecimal());
+            Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, dialog.GetProperty("sends").GetProperty("code").GetString());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+        Assert.Equal(0, glass.Count("POST /ere/aco/compproc.php"));
+
+        var requests = glass.Requests.Count;
+        using (var bare = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_position_act", new
+        {
+            caseId, action = "change", operationKey = "mcp:change-x", expectedSessionVersion = version, positionId = Windscreen,
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassChangePositionAndInputs, await RefusalAsync(bare), StringComparison.Ordinal);
+        }
+        using (var kinded = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
+        {
+            caseId, action = "change", operationKey = "mcp:change-y", expectedSessionVersion = version, positionId = Windscreen,
+            kind = "part", inputs = new { price = 10m },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassChangePositionAndInputs, await RefusalAsync(kinded), StringComparison.Ordinal);
+        }
+        using (var equipped = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_position_act", new
+        {
+            caseId, action = "change", operationKey = "mcp:change-z", expectedSessionVersion = version, positionId = Windscreen,
+            inputs = new { equipment = FogLamp },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsEquipmentRefused, await RefusalAsync(equipped), StringComparison.Ordinal);
+        }
+        Assert.Equal(requests, glass.Requests.Count);
+
+        using (var changed = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_glass_position_act", new
+        {
+            caseId, action = "change", operationKey = "mcp:change-1", expectedSessionVersion = version, positionId = Windscreen,
+            inputs = new { hours = 2.8m, reason = "test" },
+        })))
+        {
+            var act = (await ReadStructuredContentAsync(changed)).GetProperty("act");
+            Assert.Equal("change", act.GetProperty("action").GetString());
+            Assert.Equal("changed", act.GetProperty("outcome").GetString());
+            Assert.Equal(Windscreen, act.GetProperty("positionId").GetString());
+            Assert.Equal(2.80m, act.GetProperty("sent").GetProperty("hours").GetDecimal());
+            Assert.Equal("test", act.GetProperty("inputs").GetProperty("reason").GetString());
+        }
+        Assert.Equal(
+            GlassEditorFixture.Text("windscreen_change_hours.post.txt"),
+            glass.Requests.First(request => request.Method == "POST").Body);
+    }
+
+    /// <summary>The windscreen on the estimate of the operator's walk of 19 November 2026 (#776).</summary>
+    private const string Windscreen = "C421260.10.C1100400.2205";
+
+    /// <summary>
     /// session_get's read in the Automation's own session (R1206), one
     /// request to Glass's each and nothing posted: the positions with
     /// Glass's running totals, one position's figures with its paint, and

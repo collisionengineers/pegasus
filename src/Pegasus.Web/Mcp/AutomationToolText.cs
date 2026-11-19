@@ -56,7 +56,7 @@ internal static class AutomationToolText
     // preview and inputs sentences, are drafts for the operator under R1206
     // (19 November 2026).
     public const string GlassPositionAct =
-        "Add a position to the Automation's open Glass's estimate, remove one, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. It also types hours, a price and overlap hours as a person would, with the Automation's own reason when the hours are above Glass's own; Pegasus never writes a reason. No part number or description is typed, and nothing in the paint section is changed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. preview takes what add takes, or a position id alone, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
+        "Add a position to the Automation's open Glass's estimate, change or remove one already on it, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. It also types hours, a price and overlap hours as a person would, with the Automation's own reason when the hours are above Glass's own; Pegasus never writes a reason. No part number or description is typed, and nothing in the paint section is changed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. change takes the id of any position on the estimate and inputs, and posts the position's own dialog, the one Glass's opens for it, with the hours, price, overlap hours and reason inputs gives, the OK to no figures and the optional parts to tick; it reads the estimate before and after, and the position's own figures once changed. preview takes what add takes, or a position id with the inputs a change would give, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add, change and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again, or the position before changing it again.";
 
     // The parameter and field descriptions and the refusals of the catalogue
     // search and the position act that the ruled set (R1178) does not hold.
@@ -83,9 +83,9 @@ internal static class AutomationToolText
 
     public const string GlassCatalogueCode = "The glass.* code when Glass's did not answer a list, or the row asked for is not a part on it; no rows are then answered.";
 
-    public const string GlassExpectedSessionVersion = "add and remove: the session version from pegasus_glass_session_get or the last Glass's tool answer; a stale value fails closed. preview takes none.";
+    public const string GlassExpectedSessionVersion = "add, change and remove: the session version from pegasus_glass_session_get or the last Glass's tool answer; a stale value fails closed. preview takes none.";
 
-    public const string GlassPositionAction = "add, remove or preview.";
+    public const string GlassPositionAction = "add, change, remove or preview.";
 
     public const string GlassAddKind = "add and preview: part or special_operation.";
 
@@ -95,9 +95,9 @@ internal static class AutomationToolText
 
     public const string GlassAddSide = "add and preview, a part only: L or R, checked against the row before anything is sent. To add both sides, use inputs.side.";
 
-    public const string GlassRemovePositionId = "remove, or preview of a position on the estimate: a position id from the acts or the estimate.";
+    public const string GlassRemovePositionId = "remove, change, or preview of a position on the estimate: a position id from the acts or the estimate.";
 
-    public const string GlassPositionActionRefused = "The action must be one of: add, remove, preview.";
+    public const string GlassPositionActionRefused = "The action must be one of: add, change, remove, preview.";
 
     public const string GlassAddKindRefused = "kind must be one of: part, special_operation.";
 
@@ -113,7 +113,7 @@ internal static class AutomationToolText
 
     public const string GlassSessionWorking = "The Automation's Glass's session is working; read it with pegasus_glass_session_get and act again once it is not.";
 
-    public const string GlassActOutcome = "pending, added, removed, not_confirmed or refused.";
+    public const string GlassActOutcome = "pending, added, changed, removed, not_confirmed or refused.";
 
     public const string GlassActCode = "The glass.* code of a refusal, or of a change Glass's did not confirm.";
 
@@ -166,7 +166,7 @@ internal static class AutomationToolText
 
     public const string GlassEquipmentMapHours = "With row, when the answers are too many to list: the Replace hours rows Glass's equipment map holds, each with the options it needs.";
 
-    public const string GlassAddInputs = "add and preview: what to give Glass's dialog for the position, as a person would; omit it to give nothing and take the dialog as served.";
+    public const string GlassAddInputs = "add, change and preview: what to give Glass's dialog for the position, as a person would; omit it with add to give nothing and take the dialog as served. A change gives at least one.";
 
     public const string GlassInputsEquipment = "A part added as part whose row asks Glass's equipment question: the option codes to tick, from the row's equipment in pegasus_glass_catalogue_search; [] ticks none. It is the whole answer: an option not named is unticked, even one the vehicle has now. Glass's keeps the answer for the vehicle, as it keeps a person's. Omit it for a row that asks nothing.";
 
@@ -189,11 +189,11 @@ internal static class AutomationToolText
 
     public const string GlassInputsOperationRefused = "inputs.operation is Glass's own code for an operation the dialog offers, and is given with operation part only, and not with inputs.button paint.";
 
-    public const string GlassInputsButtonRefused = "inputs.button must be part, paint or part_and_paint, and is given with operation part only.";
+    public const string GlassInputsButtonRefused = "inputs.button must be part, paint or part_and_paint, and is given with operation part or with change only.";
 
     public const string GlassInputsSideRefused = "inputs.side must be both, and is given with operation part only, with no inputs.operation and with the Part button.";
 
-    public const string GlassInputsOptionalPartsRefused = "inputs.optionalParts holds part codes, none blank or repeated, and is given for a part only.";
+    public const string GlassInputsOptionalPartsRefused = "inputs.optionalParts holds part codes, none blank or repeated, and is given for a part or with change only.";
 
     public const string GlassInputsConfirmNoFiguresRefused = "A special operation takes only inputs.hours, inputs.price, inputs.overlapHours and inputs.reason, and a remove takes no inputs.";
 
@@ -224,9 +224,13 @@ internal static class AutomationToolText
 
     public const string GlassActSent = "The price, hours and overlap hours the post sent, typed ones included, recorded just before the post.";
 
-    public const string GlassPreviewPositionAlone = "A preview of a position on the estimate takes positionId alone.";
+    public const string GlassPreviewPositionAlone = "A preview of a position on the estimate takes positionId, and inputs to preview a change; not kind, row, operation or side.";
 
-    public const string GlassActOfAddOrRemove = "The act, for add and remove; absent for preview.";
+    public const string GlassChangePositionAndInputs = "change takes positionId and inputs, and not kind, row, operation or side.";
+
+    public const string GlassActPosition = "change: the position's figures as Glass's holds them once changed; absent when Glass's did not answer them.";
+
+    public const string GlassActOfAddOrRemove = "The act, for add, change and remove; absent for preview.";
 
     public const string GlassPreviewDialog = "preview: the dialog as a form, when Glass's served it. Nothing was posted.";
 
@@ -278,7 +282,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewQuestionAnswered = "Whether the inputs given answer it.";
 
-    public const string GlassActInputs = "What the add gave Glass's.";
+    public const string GlassActInputs = "What the add or change gave Glass's.";
 
     public const string GlassActEquipment = "An add refused on a part's equipment question: the question, as the search gives it.";
 

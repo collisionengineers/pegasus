@@ -73,7 +73,15 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
         session.BaseAddress + page + "?" + Q + "&mcode=" + rows + "&cml=" + mode
         + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
-    /// <summary>The dialog of a position already on the estimate.</summary>
+    /// <summary>
+    /// The dialog of a part with its paint already on the estimate, as the
+    /// editor's <c>OpenCompDialogWindow( 1, '', Partid )</c> asks for it
+    /// (19 November 2026, #848).
+    /// </summary>
+    public string OpenComposite(string id) =>
+        session.BaseAddress + "comp.php?" + Q + "&partid=" + id + "&cml=C&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>The dialog of a position already on the estimate (<c>part.php</c>, as its <c>OpenSimpleDialogWindow</c> asks for it, #795).</summary>
     public string OpenPosition(string id) =>
         session.BaseAddress + "part.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 

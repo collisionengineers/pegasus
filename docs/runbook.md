@@ -1761,7 +1761,8 @@ it stopped.
   tidy up.
   A preview (`pegasus_glass_position_act` with `preview`, R1206) logs the
   list and map stages an add logs, then `EditorPreview` for the dialog; one
-  of a position on the estimate logs `EditorPreview` alone. It posts
+  of a position on the estimate logs `EditorRead`, then `EditorPreview`,
+  because the estimate's groups say which dialog the editor opens. It posts
   nothing and records no act or history row; a page Glass's does not answer
   gives its code as `previewCode`. An add's own inputs (R1206) are refused
   with `glass.row.not_paintable` when a paint button is asked for a part
@@ -1786,6 +1787,15 @@ it stopped.
   can be painted are `glass.build.not_built`. Each act records the figures
   the dialog served and those sent, just before the post, as `served` and
   `sent`.
+  A change (`pegasus_glass_position_act` with `change`, R1206) logs
+  `EditorRead`, then `EditorChange` for the position's own dialog, its post,
+  its "Mandatory parts:" confirm, the estimate and the position's record.
+  It is `changed` when Glass's took it and the estimate still holds the
+  position; `glass.row.unknown` names a position the estimate does not
+  hold, `glass.editor.answer` a group the estimate does not list, and
+  `glass.build.not_built` a paint position's own dialog. A `not_confirmed`
+  change carries the editor's code: read the position before changing it
+  again.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

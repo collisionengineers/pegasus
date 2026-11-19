@@ -792,8 +792,8 @@ compose Glass's, each tool is refused with "Glass's is not available."
   "Mandatory parts:" page. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
   input given is kept on the act, beside the figures Glass's served. A
-  typed part number or description, any change in the paint section, a
-  change to a position already on the estimate and free rows stay refused.
+  typed part number or description, any change in the paint section and
+  free rows stay refused.
   The server's rebuild of an outside estimate is unchanged (R1168, R1169,
   R1172).
 - **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
@@ -818,6 +818,24 @@ compose Glass's, each tool is refused with "Glass's is not available."
   can be painted have no capture and are refused with
   `glass.build.not_built`. The act keeps every input beside the figures the
   dialog served and the figures sent, recorded just before the post.
+- **19 November 2026; R1206.** `change` changes a position already on the
+  estimate, any position of it as `remove` takes any (R1185), in both kinds
+  of live session. It takes the position's id and `inputs`: the typed
+  figures and reason, the OK to no figures, the button and the optional
+  parts to tick. Its equipment answer, its operation and Both stay as the
+  position has them. It reads the estimate first and opens the dialog the
+  editor's own list opens for the position: `part.php` for a part with no
+  paint or a special row, `comp.php` for a part with its paint. A paint
+  position of its own (`lack.php`) is refused with `glass.build.not_built`,
+  and a position the estimate does not hold with `glass.row.unknown`. The
+  dialog must be the position's own. It is posted with the change, its
+  "Mandatory parts:" page is confirmed as an add's is, the estimate is read
+  back and must still hold the position, which keeps its id, and the
+  position's own figures are read. An empty answer to that read leaves them
+  unread. The act is `changed`, with the figures served and sent; a post
+  whose answer is lost is `not_confirmed`, and the position's own read
+  settles it. `preview` of a position takes the same inputs, reads the
+  estimate to choose the dialog, and says what the change would send.
 - **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
   `add` with the same row and inputs would post, chosen as the add chooses
   it, or for the dialog of a position on the estimate by its id, and
