@@ -51,10 +51,29 @@ internal sealed record GlassEditorAnswered(
     IReadOnlyList<GlassEquipmentChange> Changes,
     string? ReasonCode)
 {
-    /// <summary>The row pair the dialog is asked for (<c>0|5</c>).</summary>
-    public string? Rows => Part is null || Time is null ? null : Part.Id + "|" + Time.Id;
+    /// <summary>
+    /// The rows the dialog is asked for (<c>0|5</c>), or the part row alone
+    /// when its block has no time row, as the editor asks it (<c>51</c>).
+    /// </summary>
+    public string? Rows => Part is null ? null : Time is null ? Part.Id : Part.Id + "|" + Time.Id;
+
+    /// <summary>
+    /// The time row of each operation in the editor's selection, as its
+    /// repair view gives them (<c>createRepairViewItem</c>): the last time
+    /// row offering Replace, remove-and-refit and Repair; the last two fall
+    /// back to Replace's, and with none of the three Replace's is the first
+    /// time row. Empty when the selection holds no time row. A row pair of
+    /// one operation is the part row and its time row here (R1206).
+    /// </summary>
+    public GlassEditorOperationTimes Operations { get; init; } = GlassEditorOperationTimes.None;
 
     public static GlassEditorAnswered Refused(string reasonCode) => new(null, null, null, [], reasonCode);
+}
+
+/// <summary>The time row of each operation in the editor's selection: Replace, remove-and-refit and Repair.</summary>
+internal sealed record GlassEditorOperationTimes(string Replace, string Refit, string Repair)
+{
+    public static readonly GlassEditorOperationTimes None = new(string.Empty, string.Empty, string.Empty);
 }
 
 /// <summary>
@@ -401,7 +420,10 @@ internal static class GlassEditorRows
     /// rows with no criteria; when it offers remove-and-refit, likewise from
     /// the map's remove-and-refit group; then the time rows of other
     /// operations whose rule is the answer's. The dialog is asked with the
-    /// first Replace time row of these, else the first. When the map names
+    /// first Replace time row of these, else the first; a part whose block
+    /// has no time row is asked for alone, as the editor asks it. A head
+    /// marked both left and right is one row serving both sides, decided as
+    /// any other whichever side is set. When the map names
     /// no part row, the part row is the block's whose own criteria are
     /// exactly the part criteria, with the time rows after it whose own are
     /// exactly the time criteria; failing a part, the fixed criteria are
@@ -416,7 +438,13 @@ internal static class GlassEditorRows
     /// for all 1,752 and 2,675 answers where the editor gives a part (the 20
     /// wheel heads, the 48 heads that offer no Replace and the 1,529 that ask
     /// nothing included), both refusing the other 202 and 225, and the same
-    /// stored value for all 1,077 and 1,821 answers that store one.
+    /// stored value for all 1,077 and 1,821 answers that store one. On a third
+    /// list of 19 November 2026 (glasss2missing.har #373): all 1,205 pairs,
+    /// both refusing the other 28, all 271 stored values and all 4 wheels.
+    /// Each operation's time row (<see cref="GlassEditorAnswered.Operations"/>)
+    /// was the repair view's for every one of those answers. A row serving
+    /// both sides and a block with no time row, which no captured list holds,
+    /// were judged on real blocks altered to have them (shape-dump.mjs).
     /// </remarks>
     public static GlassEditorAnswered Answer(
         GlassEditorPartList list, int head, GlassEditorQuestion question,
@@ -448,7 +476,6 @@ internal static class GlassEditorRows
 
         // The editor's first way: the served map (getCritResPartByCritMap).
         var part = InBlock(block, parts.Count > 0 ? Find(partCriteria, parts) : rows[head].Id);
-        GlassEditorPartRow? time;
         if (part is not null && part.Has('p'))
         {
             var replaceId = FindTime(timeCriteria, Entries(Group(map, Replace)));
@@ -486,40 +513,28 @@ internal static class GlassEditorRows
             var ruleText = string.Join('_', rule);
             selected.AddRange(block.Where(row => row.Has('t')
                 && row.Operations != Replace && row.Operations != RemoveAndRefit && Own(row) == ruleText));
-            time = TimeOf(selected);
+            return Chosen(list, question, rule, part, TimeOf(selected), selected);
         }
-        else
+
+        // Its second way, when the map names no row (getCritResPartByCrit).
+        while (true)
         {
-            // Its second way, when the map names no row (getCritResPartByCrit).
-            part = null;
-            time = null;
-            while (true)
+            (partCriteria, timeCriteria) = Split(question, rule);
+            var at = IndexOf(block, row => row.Has('p') && Own(row) == partCriteria);
+            if (at >= 0)
             {
-                (partCriteria, timeCriteria) = Split(question, rule);
-                var at = IndexOf(block, row => row.Has('p') && Own(row) == partCriteria);
-                if (at >= 0)
-                {
-                    part = block[at];
-                    time = TimeOf(block.Skip(at + 1).Where(row => row.Has('t') && Own(row) == timeCriteria).ToList());
-                    break;
-                }
-
-                var fixedAt = FixedAt(list, rule);
-                if (fixedAt < 0)
-                {
-                    break;
-                }
-
-                rule.RemoveAt(fixedAt);
+                var after = block.Skip(at + 1).Where(row => row.Has('t') && Own(row) == timeCriteria).ToList();
+                return Chosen(list, question, rule, block[at], TimeOf(after), after);
             }
 
-            if (part is null)
+            var fixedAt = FixedAt(list, rule);
+            if (fixedAt < 0)
             {
                 return GlassEditorAnswered.Refused(NoPart(question));
             }
-        }
 
-        return Chosen(list, question, rule, part, time);
+            rule.RemoveAt(fixedAt);
+        }
     }
 
     /// <summary>
@@ -558,7 +573,7 @@ internal static class GlassEditorRows
 
             if (found == 1)
             {
-                return Chosen(list, question, rule, selected[0], TimeOf(selected));
+                return Chosen(list, question, rule, selected[0], TimeOf(selected), selected);
             }
 
             var fixedAt = FixedAt(list, rule);
@@ -571,23 +586,44 @@ internal static class GlassEditorRows
         }
     }
 
-    /// <summary>The click's outcome for the rows chosen: refused when no time row was chosen, as no captured part's is.</summary>
+    /// <summary>
+    /// The click's outcome for the rows chosen: the part row, its time row
+    /// (none when its block has none: the editor then asks the dialog with
+    /// the part row alone), each operation's time row from the selection, and
+    /// the value stored.
+    /// </summary>
     private static GlassEditorAnswered Chosen(
         GlassEditorPartList list, GlassEditorQuestion question, List<string> rule, GlassEditorPartRow part,
-        GlassEditorPartRow? time)
+        GlassEditorPartRow? time, List<GlassEditorPartRow> selected)
     {
-        if (time is null)
-        {
-            return GlassEditorAnswered.Refused(NoPart(question));
-        }
-
         var kept = question.All.Where(code => list.Criteria[code].Has('g')).ToList();
         var store = string.Join('|', kept.Select(code => code + "|" + (rule.Contains(code) ? "1" : "0") + "|1"));
         var changes = kept
             .Where(code => rule.Contains(code) != list.Criteria[code].IsSet)
             .Select(code => new GlassEquipmentChange(code, rule.Contains(code)))
             .ToList();
-        return new GlassEditorAnswered(part, time, store.Length > 0 ? store : null, changes, null);
+        return new GlassEditorAnswered(part, time, store.Length > 0 ? store : null, changes, null)
+        {
+            Operations = OperationTimesOf(selected),
+        };
+    }
+
+    /// <summary>The repair view's time row for each operation (<c>createRepairViewItem</c>), from the selection's time rows.</summary>
+    private static GlassEditorOperationTimes OperationTimesOf(List<GlassEditorPartRow> selected)
+    {
+        string replace = string.Empty, refit = string.Empty, repair = string.Empty, first = string.Empty;
+        foreach (var row in selected.Where(item => item.Has('t')))
+        {
+            first = first.Length == 0 ? row.Id : first;
+            replace = row.Operations.Contains(Replace, StringComparison.Ordinal) ? row.Id : replace;
+            refit = row.Operations.Contains(RemoveAndRefit, StringComparison.Ordinal) ? row.Id : refit;
+            repair = row.Operations.Contains(Repair + " ", StringComparison.Ordinal) ? row.Id : repair;
+        }
+
+        refit = refit.Length == 0 ? replace : refit;
+        repair = repair.Length == 0 ? replace : repair;
+        replace = replace.Length == 0 && refit.Length == 0 && repair.Length == 0 ? first : replace;
+        return new GlassEditorOperationTimes(replace, refit, repair);
     }
 
     /// <summary>An answer that leads to no part, or a head that asks nothing and has no time row.</summary>
@@ -620,10 +656,10 @@ internal static class GlassEditorRows
         void Try(List<string> ticked)
         {
             var answered = Answer(list, head, question, map, ticked);
-            if (answered is { Part: { } part, Time: { } time, Rows: { } pair }
+            if (answered is { Part: { } part, Rows: { } pair }
                 && !answers.Exists(answer => answer.Ticked.SequenceEqual(ticked)))
             {
-                answers.Add(new GlassEquipmentAnswer(ticked, pair, Present(part.Number), Amount(part.Price), Amount(time.Price)));
+                answers.Add(new GlassEquipmentAnswer(ticked, pair, Present(part.Number), Amount(part.Price), Amount(answered.Time?.Price)));
             }
         }
 
@@ -778,8 +814,10 @@ internal static class GlassEditorRows
     private static List<GlassEditorPartRow> AskedBlock(
         IReadOnlyList<GlassEditorPartRow> list, int head, IReadOnlySet<string> vehicle)
     {
+        // A head serving both sides is clicked on the right, as the editor's
+        // click sets the side from its marks (clickitem); its rows carry both.
         var first = list[head];
-        var side = first.Has('l') ? 'l' : first.Has('r') ? 'r' : '\0';
+        var side = first.Has('r') ? 'r' : first.Has('l') ? 'l' : '\0';
         var block = new List<GlassEditorPartRow> { first };
         var hidden = false;
         for (var index = head + 1; index < list.Count && !list[index].Has('b'); index++)

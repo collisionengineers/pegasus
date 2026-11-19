@@ -462,6 +462,40 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// A row serving both sides is added on either side asked for, by the
+    /// rows the editor's click gives on both (<c>177|178</c>), and a part
+    /// whose block has no time row is asked for alone (<c>51</c>), as the
+    /// editor asks them (R1206). No dialog of either is captured, so the
+    /// scripted editor serves the mirror's, whose part code refuses it
+    /// before anything is posted.
+    /// </summary>
+    [Fact]
+    public async Task ARowServingBothSidesAndAPartWithNoTimeRowAreAskedFor()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        harness.Mva.Enqueue("GET /ere/aco/part.php",
+            EditorPage("mirror_left.dialog.html", null), EditorPage("mirror_left.dialog.html", null), EditorPage("mirror_left.dialog.html", null));
+
+        var left = await PositionAsync(harness, Add(harness, session, "mcp:seal-l",
+            GlassAutomationPositionKind.Part, "177", GlassAutomationPartOperation.Part, side: "L"));
+        var right = await PositionAsync(harness, Add(harness, left.Session, "mcp:seal-r",
+            GlassAutomationPositionKind.Part, "177", GlassAutomationPartOperation.Part, side: "R"));
+        var guide = await PositionAsync(harness, Add(harness, right.Session, "mcp:guide",
+            GlassAutomationPositionKind.Part, "51", GlassAutomationPartOperation.Part));
+
+        var asked = Asked(harness, "GET", "part.php");
+        Assert.Equal(3, asked.Count);
+        Assert.Contains("mcode=177|178&", asked[0], StringComparison.Ordinal);
+        Assert.Contains("mcode=177|178&", asked[1], StringComparison.Ordinal);
+        Assert.Contains("mcode=51&", asked[2], StringComparison.Ordinal);
+        Assert.All(new[] { left, right, guide }, step => Assert.Equal(GlassFailure.EditorRefused, step.Act.Code));
+        Assert.Equal("177|178", left.Act.RowPair);
+        Assert.Equal("51", guide.Act.RowPair);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
     /// A variant row's own part number finds its head, with the variant
     /// named, from the list alone; asked for by the variant's row, the
     /// search answers the head with each answer that leads to that variant

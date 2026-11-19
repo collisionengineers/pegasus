@@ -335,7 +335,7 @@ internal static class GlassProviderFixture
     public static string BuildPartList() =>
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Concat(RoofRows).Select(row => "partlist.addPart(\"" + row + "\");"))
+            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Concat(RoofRows).Concat(ShapeRows).Select(row => "partlist.addPart(\"" + row + "\");"))
             + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
             StringComparison.Ordinal);
 
@@ -401,6 +401,26 @@ internal static class GlassProviderFixture
         "2697|pbcdLg|STA5-201_204||2|2010000||41007494007|1179.04|ERAEI ||20011|||||Roof Panel|Part made of steel||||||||||ST|E2341BSI2341BS|||272|525||0.3.0.3",
         "2698|t|||||||12.50|ER|||||||||||||||||||||||526||0.3.0.3",
         "2699|t|||||||12.50|AE|||||||||||||||||||||||527||0.3.0.3",
+    ];
+
+    /// <summary>
+    /// The two shapes no captured list holds, made by altering real blocks of
+    /// the list of 19 November 2026 (glasss2missing.har #373), as the offline
+    /// run of the editor's own code altered them (shape-dump.mjs): the front
+    /// door lower seal (row 177, code 2021981) marked both left and right
+    /// (<c>pbclTId</c> to <c>pbclrTId</c>, its time rows 178 and 179
+    /// <c>tlTI</c> to <c>tlrTI</c>, its right twin's rows 180 to 182 left
+    /// out), one row serving both sides, which the editor clicks to
+    /// <c>177|178</c> on either side; and the front bumper lower air guide
+    /// (row 51, code 1017150) with its two time rows (52 and 53) left out,
+    /// which the editor asks its dialog for alone (<c>51</c>).
+    /// </summary>
+    internal static readonly string[] ShapeRows =
+    [
+        "177|pbclrTId|HTB3-202_809||51|2021981||72328TV0E01|103.77|ERAEI |||||||Front Door Lower Seal|Part made of plastic||||||||||KS|||||1911|180|0.0.0.36",
+        "178|tlrTI|||||||0.10|ER|||||||||||||||||||||||1912|181|0.0.0.36",
+        "179|tlrTI|||||||0.10|AE|||||||||||||||||||||||1913|182|0.0.0.36",
+        "51|pbcd|HTB3-107_108_109||82|1017150||71181TV0E10|72.70|ERAEI |||||||Front Bumper Lower Air Guide|Part made of plastic||||||||||KS|||||633||0.0.0.9",
     ];
 
     /// <summary>The panoramic roof as that list served it: the vehicle does not have it, so the roof panel is shown.</summary>

@@ -416,6 +416,8 @@ public sealed class GlassEditorPagesTests
     [InlineData("C2020001_701300250101_2G_771_772_|64", "771|772", true)]
     [InlineData("C1012402_701300250203_2G_1783_0_|64", "1783|1786", false)]
     [InlineData(null, "0|5", false)]
+    [InlineData("C1017150_702810400101_2G_51_0_|64", "51", true)]
+    [InlineData("C1017150_702810400101_2G_52_0_|64", "51", false)]
     public void ADialogsRecordNamesTheRowsItWasAskedFor(string? position, string rows, bool named) =>
         Assert.Equal(named, GlassEditorClient.NamesRows(position, rows));
 

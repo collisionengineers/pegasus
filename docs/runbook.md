@@ -1721,7 +1721,8 @@ it stopped.
     R1206). Its other adds are decided as a person's click on the row named
     decides them, so `glass.build.ambiguous_row` and the rebuild's
     `glass.build.equipment` for wheels, parts that offer no Replace and
-    parts with unasked variants do not come back to it. An
+    parts with unasked variants do not come back to it, and neither does
+    `glass.row.both_sides`, which is retired. An
     act whose `equipmentStored` is true sent the answer to Glass's, which
     keeps it for the vehicle even when the add was then refused.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so

@@ -777,6 +777,38 @@ public sealed class GlassEditorRowsTests
     }
 
     /// <summary>
+    /// The two shapes no captured list holds, made from real blocks
+    /// (<see cref="GlassProviderFixture.ShapeRows"/>), decided as the
+    /// editor's own code decided them offline (shape-dump.mjs, 19 November
+    /// 2026; R1206): a row serving both sides to <c>177|178</c>, its refit
+    /// time row 179 and Repair falling back to 178; a part whose block has no
+    /// time row asked for alone, with no operation's time row.
+    /// </summary>
+    [Fact]
+    public void ARowServingBothSidesAndAPartWithNoTimeRowAreAskedForAsTheEditorAsksThem()
+    {
+        var page = "<script>\n"
+            + string.Join('\n', GlassProviderFixture.ShapeRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>\n";
+        var list = new GlassEditorPartList(
+            GlassEditorPages.PartList(page) ?? throw new InvalidOperationException("The shapes' list holds no row."),
+            GlassEditorPages.Criteria(page),
+            null);
+        var seal = Index(list.Rows, "177");
+        var guide = Index(list.Rows, "51");
+
+        var both = Click(list, seal);
+        var alone = Click(list, guide);
+
+        Assert.False(GlassEditorRows.Build(list, seal).Asks);
+        Assert.Empty(GlassEditorRows.HiddenBy(list, seal));
+        Assert.Equal("177|178", both.Rows);
+        Assert.Equal(new GlassEditorOperationTimes("178", "179", "178"), both.Operations);
+        Assert.Equal("51", alone.Rows);
+        Assert.Null(alone.ReasonCode);
+        Assert.Equal(GlassEditorOperationTimes.None, alone.Operations);
+    }
+
+    /// <summary>
     /// Every head of the cut list, in both vehicle states, and of the made-up
     /// blocks, that the vehicle's equipment does not hide is added by a click
     /// (R1206): a head that asks nothing leads to its rows with no answer.

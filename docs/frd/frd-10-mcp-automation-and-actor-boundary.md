@@ -924,7 +924,16 @@ compose Glass's, each tool is refused with "Glass's is not available."
   those that ask: the same row pair for all 1,752 answers on the SEAT's
   list and all 2,675 on the BMW's where the editor gives a part, both
   refusing the rest, the same stored answer for all 1,077 and 1,821, and
-  the same question for all 20 wheels.
+  the same question for all 20 wheels; on a third list (the operator's
+  recording of 19 November 2026) all 1,205 pairs, 271 stored answers and
+  4 wheels. A head marked both left and right is one row serving both
+  sides: the editor clicks it to the same rows on either side, so either
+  side may be asked for and the side is chosen in the dialog. A part whose
+  block has no time row is asked for alone, as the editor asks it. Neither
+  shape is on a captured list; both were judged on real blocks altered to
+  have them. Each operation's time row is the one Glass's repair view
+  gives, as the recording's remove-and-refit on each side
+  (`171|173`, `174|176`) shows.
 - A part the vehicle's equipment hides on its drawing is not shown by
   Glass's editor, so a person cannot click it either. It is refused with
   `glass.build.equipment_hidden`, naming each stored value that hides it
