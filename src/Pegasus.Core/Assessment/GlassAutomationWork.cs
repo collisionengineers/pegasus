@@ -191,14 +191,25 @@ public sealed record GlassAutomationInputs(
 /// type, then the level, then Surcharge, then typed paint hours.
 /// </summary>
 /// <param name="Coats">The paint type, by Glass's own value as its list offers it (<c>2</c> for 2 Coat, <c>3</c> for 3 Coat).</param>
-/// <param name="Level">The paint level, by Glass's own value as the list offers it for that paint type (<c>1</c> to <c>4</c>, <c>B</c>, <c>S</c>).</param>
-/// <param name="Surcharge">Ticks or unticks Surcharge where the paint type lets it be changed.</param>
+/// <param name="Level">The paint level, by Glass's own value as the list offers it for that paint type (<c>1</c> to <c>4</c>, <c>B</c>, <c>S</c>, a plastic part's <c>R</c>, <c>N</c>, <c>G</c>).</param>
+/// <param name="Surcharge">Ticks or unticks Surcharge where the paint state lets it be changed.</param>
 /// <param name="Hours">The paint labour hours typed in place of Glass's own; no reason is asked for them.</param>
+/// <param name="Area">The paint area, by Glass's own value as the dialog's list offers it.</param>
+/// <param name="Procedure">The paint procedure (<c>Verf</c>), by Glass's own value, where the paint state offers one.</param>
+/// <param name="Method">The paint method (<c>Meth</c>), by Glass's own value, where the paint state offers one.</param>
+/// <param name="ColouredClear">Ticks or unticks Coloured clear paint where the paint state lets it be changed.</param>
+/// <param name="ScratchResistant">Ticks or unticks scratch-resistant clear where the area and paint type let it be ticked.</param>
+/// <param name="Price">The paint price typed in place of Glass's own.</param>
+/// <param name="Reason">The Automation's own paint reason, as a person types it in the paint reason window.</param>
 public sealed record GlassAutomationPaint(
-    string? Coats = null, string? Level = null, bool? Surcharge = null, decimal? Hours = null)
+    string? Coats = null, string? Level = null, bool? Surcharge = null, decimal? Hours = null,
+    string? Area = null, string? Procedure = null, string? Method = null, bool? ColouredClear = null,
+    bool? ScratchResistant = null, decimal? Price = null, string? Reason = null)
 {
     /// <summary>Whether no choice is given.</summary>
-    public bool IsEmpty => Coats is null && Level is null && Surcharge is null && Hours is null;
+    public bool IsEmpty =>
+        Coats is null && Level is null && Surcharge is null && Hours is null && Area is null && Procedure is null
+        && Method is null && ColouredClear is null && ScratchResistant is null && Price is null && Reason is null;
 }
 
 /// <summary>
@@ -600,9 +611,10 @@ public static class GlassAutomationPositionPolicy
     /// alone; <c>inputs.side</c> ("Both") with the operation Part, the dialog's
     /// own operation and the Part button; <c>inputs.optionalParts</c> as
     /// codes, none blank or repeated. A remove takes none. Typed figures and
-    /// a reason (R1206) are taken by a special operation and by a part
-    /// pressed with Part, one side at a time, as <see cref="TypedRefused"/>
-    /// allows them; a special operation takes nothing else.
+    /// a reason (R1206) are taken by a special operation and by any part, one
+    /// side at a time, as <see cref="TypedRefused"/> allows them; a special
+    /// operation takes nothing else. Paint choices are taken where Paint or
+    /// Part and Paint is pressed, and by a change.
     /// </summary>
     public static string? InputRefused(
         GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
@@ -640,12 +652,9 @@ public static class GlassAutomationPositionPolicy
             // Paint is chosen where Paint or Part and Paint is pressed.
             return "inputs.paint";
         }
-        if (inputs.Typed
-            && (operation is GlassAutomationPartOperation.Paint or GlassAutomationPartOperation.PartAndPaint
-                || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint
-                || inputs.BothSides == true))
+        if (inputs.Typed && inputs.BothSides == true)
         {
-            // Typed figures go on a dialog of a part that cannot be painted, one side at a time.
+            // Typed figures go on one side at a time: Both posts the other side as served.
             return FirstTyped(inputs);
         }
         if (inputs.Equipment is { } equipment
@@ -725,12 +734,20 @@ public static class GlassAutomationPositionPolicy
         : inputs.Reason is { } reason
             && (inputs.Hours is null || reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength)
             ? "inputs.reason"
-        : inputs.Paint is { } paint
-            && (paint.IsEmpty || paint.Coats is { } coats && string.IsNullOrWhiteSpace(coats)
-                || paint.Level is { } level && string.IsNullOrWhiteSpace(level)
-                || paint.Hours is { } paintHours && (TypedText(paintHours) is null || paintHours > MaximumTypedHours))
-            ? "inputs.paint"
+        : inputs.Paint is { } paint && PaintRefused(paint) ? "inputs.paint"
         : null;
+
+    /// <summary>
+    /// Whether a paint choice is not one Pegasus gives (R1206): none given, a
+    /// blank value, typed figures as <see cref="TypedRefused"/> refuses them,
+    /// or a blank or over-long paint reason.
+    /// </summary>
+    private static bool PaintRefused(GlassAutomationPaint paint) =>
+        paint.IsEmpty
+        || new[] { paint.Coats, paint.Level, paint.Area, paint.Procedure, paint.Method }.Any(value => value is not null && string.IsNullOrWhiteSpace(value))
+        || paint.Hours is { } hours && (TypedText(hours) is null || hours > MaximumTypedHours)
+        || paint.Price is { } price && (TypedText(price) is null || price > MaximumTypedPrice)
+        || paint.Reason is { } reason && (reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength);
 
     /// <summary>
     /// A figure as the Automation types it in a dialog (R1206): two decimal

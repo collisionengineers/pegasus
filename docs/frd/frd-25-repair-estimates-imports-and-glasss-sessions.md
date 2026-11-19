@@ -712,8 +712,7 @@ posted for a preview. A typed part number or text and free rows still wait.
 The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
 
 **Typed hours, price and overlap hours (19 November 2026; R1206).** In the
-dialog of a special operation, or of a part that cannot be painted, the
-Automation may type the labour hours, the price and the overlap hours, as a
+dialog of a special operation or of any part, the Automation may type the labour hours, the price and the overlap hours, as a
 person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
 They are its own input, never Pegasus's. Hours above Glass's own need the
 Automation's own reason, which Glass's keeps on the position; without one
@@ -731,10 +730,12 @@ figures afterwards. A paint position's own dialog is not changed.
 
 **Paint choices (19 November 2026; R1206).** On a part that can be painted,
 pressed with Paint or Part and Paint, and in a change, the Automation may
-choose the paint type, the level and Surcharge and type the paint hours, as
-a person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
-Glass's own script sets the paint price and hours for the type and level,
-a plastic part's levels as well as a metal one's.
+make every paint choice a person makes, as a person would
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): the
+area, paint type, procedure, method, level, Surcharge, Coloured clear and
+scratch-resistant clear, and the paint price, hours and reason it types.
+Glass's own script sets the paint price and hours each choice leads to, a
+plastic part's levels as well as a metal one's.
 
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may

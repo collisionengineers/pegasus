@@ -730,14 +730,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     operation is null && !confirm && !both
                         ? null
                         : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
-                    paintable ? null : inputs),
+                    inputs),
                 paintable ? inputs : null),
             Ticks = inputs?.OptionalParts,
         };
         // Typed figures on the dialog of a part that can be painted have no capture (R1206).
         var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
             : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
-            : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : null;
         return (chosen, refused);
     }
@@ -974,7 +973,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     {
         var paintable = page == "comp";
         var change = WithPaint(
-            WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), paintable ? null : inputs),
+            WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), inputs),
             paintable ? inputs : null)!;
         var button = !paintable ? null
             : inputs?.Button switch
@@ -985,7 +984,6 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 _ => null,
             };
         var refused = page == "lack" ? GlassEstimateBuildPolicy.NotBuiltCode
-            : paintable && inputs?.Typed == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : !paintable && (inputs?.Button is not null and not GlassAutomationButton.Part || inputs?.Paint is not null)
                 ? GlassAutomationPositionPolicy.NotPaintableCode
             : null;
@@ -1226,7 +1224,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             ? change
             : (change ?? new GlassEditorChange()) with
             {
-                Paint = new GlassEditorPaint(paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, TypedOf(paint.Hours)),
+                Paint = new GlassEditorPaint(
+                    paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, TypedOf(paint.Hours), paint.Area?.Trim(),
+                    paint.Procedure?.Trim(), paint.Method?.Trim(), paint.ColouredClear, paint.ScratchResistant,
+                    TypedOf(paint.Price), paint.Reason),
             };
 
     private static decimal? Amount(string? served) =>

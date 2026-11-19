@@ -721,23 +721,25 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// Typed figures on the dialog of a part that can be painted have no
-    /// capture: the add is refused as not built and nothing is asked for.
+    /// Typed figures on the dialog of a part that can be painted (R1206) are
+    /// posted as typed: the left front door's price and hours.
     /// </summary>
     [Fact]
-    public async Task TypedFiguresOnAPaintablePartAreRefusedAndNothingIsSent()
+    public async Task TypedFiguresOnAPaintablePartArePosted()
     {
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
 
         var step = await PositionAsync(harness, Add(harness, session, "mcp:typed-5",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Hours: 2m)));
+            inputs: new GlassAutomationInputs(Hours: 2m, Price: 500m)));
 
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, step.Act.Code);
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
+        var post = Assert.Single(DialogPosts(harness));
+        Assert.Contains("&Price=500.00&", post, StringComparison.Ordinal);
+        Assert.Contains("&Time=2.00&", post, StringComparison.Ordinal);
+        Assert.Equal(2.90m, step.Act.DialogServed?.Hours);
+        Assert.Equal(2.00m, step.Act.Sent?.Hours);
     }
 
     /// <summary>
@@ -898,7 +900,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
     /// browser posted it, and its "Mandatory parts:" page confirmed as the
     /// browser confirmed it. The position keeps its id; an empty record read
     /// afterwards is not read. A position the estimate does not hold, and
-    /// typed figures on a part with its paint, are refused with only the
+    /// a paint button on a part with no paint, are refused with only the
     /// estimate read.
     /// </summary>
     [Fact]
@@ -943,11 +945,11 @@ public sealed partial class GlassRepairEstimateGatewayTests
 
         var unheld = await PositionAsync(harness, Change(harness, changed.Session, "mcp:change-3", CapturedPosition,
             new GlassAutomationInputs(Price: 10m)));
-        var painted = await PositionAsync(harness, Change(harness, unheld.Session, "mcp:change-4", Bonnet,
-            new GlassAutomationInputs(Hours: 1m)));
+        var painted = await PositionAsync(harness, Change(harness, unheld.Session, "mcp:change-4", Windscreen,
+            new GlassAutomationInputs(Button: GlassAutomationButton.Paint)));
 
         Assert.Equal(GlassAutomationPositionPolicy.RowUnknownCode, unheld.Act.Code);
-        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, painted.Act.Code);
+        Assert.Equal(GlassAutomationPositionPolicy.NotPaintableCode, painted.Act.Code);
         Assert.Equal(GlassAutomationActOutcome.Refused, painted.Act.Outcome);
         // Only the estimate was read for each.
         Assert.Equal(requests + 2, harness.Mva.Requests.Count);

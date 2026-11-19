@@ -46,6 +46,20 @@ public sealed class GlassEditorDialogTests
         }
     }
 
+    public static TheoryData<string> InputNames
+    {
+        get
+        {
+            var names = new TheoryData<string>();
+            foreach (var item in GlassEditorFixture.Manifest.GetProperty("inputs").EnumerateArray())
+            {
+                names.Add(item.GetProperty("name").GetString()!);
+            }
+
+            return names;
+        }
+    }
+
     public static TheoryData<string> DialogNames
     {
         get
@@ -142,13 +156,13 @@ public sealed class GlassEditorDialogTests
     }
 
     [Fact]
-    public void OnAPaintablePartsDialogOnlyTheOperationAndThePaintMayBeChanged()
+    public void APaintablePartsDialogHasNoDescriptionAndNoBoth()
     {
         var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
 
-        var typed = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "AE", Hours: "0.30"));
+        var both = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Both: true));
 
-        Assert.Contains("This dialog is built with no change but the operation and the paint.", typed.Problems);
+        Assert.Contains("This dialog is built with no description and no Both.", both.Problems);
     }
 
     [Theory]
@@ -628,6 +642,31 @@ public sealed class GlassEditorDialogTests
         Assert.True(reopened?.Paint?.PositionsOwn);
     }
 
+    /// <summary>
+    /// Every input a person gives a position's dialog (R1206): each built
+    /// from the captured dialog page alone and posted byte for byte as the
+    /// dialog's own script posted it when driven offline with that input.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(InputNames))]
+    public void EachInputIsPostedExactlyAsTheDialogsOwnScriptPostedIt(string name)
+    {
+        var item = GlassEditorFixture.Manifest.GetProperty("inputs").EnumerateArray()
+            .Single(entry => entry.GetProperty("name").GetString() == name);
+
+        var build = BuildTyped(item);
+
+        Assert.Null(build.Error);
+        Assert.Equal(GlassEditorFixture.Strings(item, "problems"), build.Problems);
+        Assert.Equal(GlassEditorFixture.Strings(item, "notes"), build.Notes);
+        Assert.Equal(item.GetProperty("action").GetString(), build.Action);
+        Assert.Equal(item.GetProperty("fields").GetInt32(), build.Fields.Count);
+        Assert.Equal(
+            GlassEditorFixture.Text(item.GetProperty("post").GetString()!),
+            GlassEditorText.EncodeForm(build.Fields));
+        AssertSummary(item, build.Summary);
+    }
+
     private static JsonElement Typed(string name) =>
         GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == name);
@@ -635,24 +674,35 @@ public sealed class GlassEditorDialogTests
     private static GlassEditorBuild BuildTyped(JsonElement item)
     {
         var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
-        var change = item.GetProperty("change");
-        string? Given(string name) => change.TryGetProperty(name, out var value) ? value.GetString() : null;
-        GlassEditorPaint? paint = null;
-        if (change.TryGetProperty("paint", out var chosen))
-        {
-            string? Chosen(string name) => chosen.TryGetProperty(name, out var value) ? value.GetString() : null;
-            paint = new GlassEditorPaint(
-                Chosen("coats"), Chosen("level"),
-                chosen.TryGetProperty("surcharge", out var surcharge) ? surcharge.GetBoolean() : null,
-                Chosen("hours"));
-        }
-
-        var typed = new GlassEditorChange(
-            Price: Given("price"), Hours: Given("hours"), Reason: Given("reason"), OverlapHours: Given("overlapHours"),
-            Paint: paint);
+        var typed = ChangeOf(item.GetProperty("change"));
         return item.GetProperty("dialog").GetString() == "comp.php"
             ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed)
             : GlassEditorDialogs.PlainPost(page, typed);
+    }
+
+    /// <summary>A manifest entry's change, as a person gave it in the dialog.</summary>
+    private static GlassEditorChange ChangeOf(JsonElement change)
+    {
+        static string? Text(JsonElement from, string name) => from.TryGetProperty(name, out var value) ? value.GetString() : null;
+        static bool? Tick(JsonElement from, string name) => from.TryGetProperty(name, out var value) ? value.GetBoolean() : null;
+        GlassEditorPaint? paint = null;
+        if (change.TryGetProperty("paint", out var chosen))
+        {
+            paint = new GlassEditorPaint(
+                Text(chosen, "coats"), Text(chosen, "level"), Tick(chosen, "surcharge"), Text(chosen, "hours"),
+                Text(chosen, "area"), Text(chosen, "procedure"), Text(chosen, "method"), Tick(chosen, "colouredClear"),
+                Tick(chosen, "scratchResistant"), Text(chosen, "price"), Text(chosen, "reason"));
+        }
+
+        return new GlassEditorChange(
+            Operation: Text(change, "operation"),
+            Price: Text(change, "price"),
+            Hours: Text(change, "hours"),
+            Description: Text(change, "description"),
+            Reason: Text(change, "reason"),
+            ConfirmNoFigures: Tick(change, "confirm") == true,
+            OverlapHours: Text(change, "overlapHours"),
+            Paint: paint);
     }
 
     private static JsonElement Operation(string name) =>

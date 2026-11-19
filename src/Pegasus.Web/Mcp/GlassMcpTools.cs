@@ -96,7 +96,14 @@ internal sealed record GlassPaintInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsPaintCoats)] string? Coats = null,
     [property: Description(AutomationToolText.GlassInputsPaintLevel)] string? Level = null,
     [property: Description(AutomationToolText.GlassInputsPaintSurcharge)] bool? Surcharge = null,
-    [property: Description(AutomationToolText.GlassInputsPaintHours)] decimal? Hours = null);
+    [property: Description(AutomationToolText.GlassInputsPaintHours)] decimal? Hours = null,
+    [property: Description(AutomationToolText.GlassInputsPaintArea)] string? Area = null,
+    [property: Description(AutomationToolText.GlassInputsPaintProcedure)] string? Procedure = null,
+    [property: Description(AutomationToolText.GlassInputsPaintMethod)] string? Method = null,
+    [property: Description(AutomationToolText.GlassInputsPaintColouredClear)] bool? ColouredClear = null,
+    [property: Description(AutomationToolText.GlassInputsPaintScratchResistant)] bool? ScratchResistant = null,
+    [property: Description(AutomationToolText.GlassInputsPaintPrice)] decimal? Price = null,
+    [property: Description(AutomationToolText.GlassInputsPaintReason)] string? Reason = null);
 
 /// <summary>A dialog's figures as an act records them (R1206): served by Glass's, or sent by the post.</summary>
 internal sealed record GlassFiguresToolItem(
@@ -908,7 +915,10 @@ internal sealed class GlassMcpTools(
             inputs.OverlapHours,
             inputs.Reason,
             inputs.Paint is { } paint
-                ? new GlassAutomationPaint(paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, paint.Hours)
+                ? new GlassAutomationPaint(
+                    paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, paint.Hours, paint.Area?.Trim(),
+                    paint.Procedure?.Trim(), paint.Method?.Trim(), paint.ColouredClear, paint.ScratchResistant, paint.Price,
+                    paint.Reason)
                 : null));
     }
 
@@ -1076,7 +1086,9 @@ internal sealed class GlassMcpTools(
                     given.OverlapHours,
                     given.Reason,
                     given.Paint is { } paint
-                        ? new GlassPaintInputsToolInput(paint.Coats, paint.Level, paint.Surcharge, paint.Hours)
+                        ? new GlassPaintInputsToolInput(
+                            paint.Coats, paint.Level, paint.Surcharge, paint.Hours, paint.Area, paint.Procedure, paint.Method,
+                            paint.ColouredClear, paint.ScratchResistant, paint.Price, paint.Reason)
                         : null)
                 : null,
             MapEquipment(act.Equipment),

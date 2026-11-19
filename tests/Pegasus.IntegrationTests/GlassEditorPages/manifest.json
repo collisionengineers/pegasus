@@ -2497,5 +2497,458 @@
       "confirmAnswer": "bonnet_change_paint.confirm_answer.html",
       "positionId": "C421280.12.C1060000.2102"
     }
+  ],
+  "inputsNote": "Every input a person gives a position's dialog (R1206, R1208), each judged on 19 November 2026 by the dialog's own script run offline in headless Chromium on its captured page (scratch-2026-11-19/full/drive.mjs and cases-*.json): the input typed, chosen or ticked as a person does, the button pressed, and the post the script sent recorded here. Pages are cut as make-fixtures.mjs cuts them, with every table the paint and side handlers read kept as well; every session key is the made-up one. Captures: operatorwalkglass.har (#), repairestimate.autovistagroup.com.har (r #) and NEWHAR.har (n #).",
+  "inputs": [
+    {
+      "name": "c1_bonnet_part_typed_bss",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSS",
+      "change": {
+        "price": "600.00",
+        "hours": "1.50",
+        "overlapHours": "0.20",
+        "reason": "Seized bolts"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "600.00",
+        "hours": "1.50",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "841.50",
+        "paintHours": "3.00",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_part_typed_bss.post.txt"
+    },
+    {
+      "name": "c1_bonnet_part_typed_bsl",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "hours": "1.50",
+        "reason": "Seized bolts"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.50",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "841.50",
+        "paintHours": "3.00",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_part_typed_bsl.post.txt"
+    },
+    {
+      "name": "c1_bonnet_paint_typed",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "price": "900.00",
+          "hours": "3.50",
+          "reason": "Extra masking\nfor trim"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "900.00",
+        "paintHours": "3.50",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_paint_typed.post.txt"
+    },
+    {
+      "name": "c1_bonnet_paint_only_typed",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BLL",
+      "change": {
+        "paint": {
+          "hours": "3.50",
+          "reason": "Extra masking"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 36,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "841.50",
+        "paintHours": "3.50",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_paint_only_typed.post.txt"
+    },
+    {
+      "name": "c1_bonnet_verf",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "3",
+          "procedure": "31"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 39,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "3",
+        "paintLevel": "1",
+        "paintPrice": "1048.15",
+        "paintHours": "3.60",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_verf.post.txt"
+    },
+    {
+      "name": "c1_bonnet_meth_klarlack",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "3",
+          "procedure": "31",
+          "method": "61",
+          "colouredClear": true
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 39,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "3",
+        "paintLevel": "1",
+        "paintPrice": "1254.80",
+        "paintHours": "4.20",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_meth_klarlack.post.txt"
+    },
+    {
+      "name": "c1_bonnet_meth_only",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "3",
+          "method": "51"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 39,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "3",
+        "paintLevel": "1",
+        "paintPrice": "1254.80",
+        "paintHours": "4.20",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_meth_only.post.txt"
+    },
+    {
+      "name": "c1_bonnet_scratch",
+      "dialog": "comp.php",
+      "capture": "#745",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "scratchResistant": true
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=477|478",
+      "fields": 37,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1060000_701311050101_2G_477_478_|64",
+        "partCode": "1060000",
+        "description": "Bonnet",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD|NL",
+        "price": "637.70",
+        "hours": "1.00",
+        "partNumber": "41002459937",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "841.50",
+        "paintHours": "3.00",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "477|478"
+      },
+      "page": "bonnet_paint_choices.dialog.html",
+      "post": "c1_bonnet_scratch.post.txt"
+    },
+    {
+      "name": "c1_door_area",
+      "dialog": "comp.php",
+      "capture": "#894",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "area": "89"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=568|569",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C2020001_701311050101_2G_568_569_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "568.86",
+        "hours": "3.50",
+        "partNumber": "41007465527",
+        "trade": "C",
+        "area": "89",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "168.00",
+        "paintHours": "0.80",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "568|569"
+      },
+      "page": "door_shell.dialog.html",
+      "post": "c1_door_area.post.txt"
+    },
+    {
+      "name": "c1_bumper_area_level",
+      "dialog": "comp.php",
+      "capture": "#552",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "area": "114",
+          "level": "2"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1|7",
+      "fields": 36,
+      "problems": [],
+      "notes": [
+        "The part record has 165 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C1010800_701311050101_2G_1_7_|64",
+        "partCode": "1010800",
+        "description": "Front Bumper Lining",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|P|AN|E|Z|KM|KS",
+        "price": "692.52",
+        "hours": "2.30",
+        "partNumber": "51117484780",
+        "trade": "C",
+        "area": "114",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "243.10",
+        "paintHours": "1.00",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "1|7"
+      },
+      "page": "front_bumper.dialog.html",
+      "post": "c1_bumper_area_level.post.txt"
+    },
+    {
+      "name": "c1_bumper_level",
+      "dialog": "comp.php",
+      "capture": "#552",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "level": "N"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1|7",
+      "fields": 36,
+      "problems": [],
+      "notes": [
+        "The part record has 165 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C1010800_701311050101_2G_1_7_|64",
+        "partCode": "1010800",
+        "description": "Front Bumper Lining",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|P|AN|E|Z|KM|KS",
+        "price": "692.52",
+        "hours": "2.30",
+        "partNumber": "51117484780",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "N",
+        "paintPrice": "393.20",
+        "paintHours": "1.30",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "1|7"
+      },
+      "page": "front_bumper.dialog.html",
+      "post": "c1_bumper_level.post.txt"
+    },
+    {
+      "name": "c1_bumper_coats_level",
+      "dialog": "comp.php",
+      "capture": "#552",
+      "button": "BSL",
+      "change": {
+        "paint": {
+          "coats": "3",
+          "level": "G"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1|7",
+      "fields": 39,
+      "problems": [],
+      "notes": [
+        "The part record has 165 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C1010800_701311050101_2G_1_7_|64",
+        "partCode": "1010800",
+        "description": "Front Bumper Lining",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|P|AN|E|Z|KM|KS",
+        "price": "692.52",
+        "hours": "2.30",
+        "partNumber": "51117484780",
+        "trade": "C",
+        "area": "64",
+        "paintType": "3",
+        "paintLevel": "G",
+        "paintPrice": "497.90",
+        "paintHours": "2.30",
+        "side": " ",
+        "sidesOffered": " ",
+        "rowPair": "1|7"
+      },
+      "page": "front_bumper.dialog.html",
+      "post": "c1_bumper_coats_level.post.txt"
+    }
   ]
 }

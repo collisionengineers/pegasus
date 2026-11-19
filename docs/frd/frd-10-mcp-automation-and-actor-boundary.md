@@ -794,9 +794,8 @@ compose Glass's, each tool is refused with "Glass's is not available."
   R1172).
 - **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
   `inputs.overlapHours` type the labour hours, the price and the overlap
-  hours in the dialog of a special operation, or of a part that cannot be
-  painted pressed with Part, one side at a time, in both kinds of live
-  session. A value the Automation types is its own input, as a person's
+  hours in the dialog of a special operation or of a part, whether it can
+  be painted or not, one side at a time, in both kinds of live session. A value the Automation types is its own input, as a person's
   would be. Pegasus sends each with two decimal places after a full stop
   (`2.80`, `1234.00`), as a person types it; the dialog posts the text
   typed unchanged. A negative figure, one with more than two decimal
@@ -810,15 +809,15 @@ compose Glass's, each tool is refused with "Glass's is not available."
   given where the dialog asks for none with `glass.build.reason_not_asked`.
   Overlap hours above the hours sent are refused with
   `glass.build.overlap_above_hours`, because the return refuses a whole
-  export with such a position. Typed figures on the dialog of a part that
-  can be painted have no capture and are refused with
-  `glass.build.not_built`. The act keeps every input beside the figures the
+  export with such a position. On a part that can be painted the reason
+  rule runs for Part and for Part and Paint, as its CheckSubmit runs it.
+  The act keeps every input beside the figures the
   dialog served and the figures sent, recorded just before the post.
 - **19 November 2026; R1206.** `change` changes a position already on the
   estimate, any position of it as `remove` takes any (R1185), in both kinds
   of live session. It takes the position's id and `inputs`: the typed
-  figures and reason, the OK to no figures, the button and the optional
-  parts to tick. Its equipment answer, its operation and Both stay as the
+  figures and reason, the paint choices, the OK to no figures, the button
+  and the optional parts to tick. Its equipment answer, its operation and Both stay as the
   position has them. It reads the estimate first and opens the dialog the
   editor's own list opens for the position: `part.php` for a part with no
   paint or a special row, `comp.php` for a part with its paint. A paint
@@ -834,23 +833,29 @@ compose Glass's, each tool is refused with "Glass's is not available."
   estimate to choose the dialog, and says what the change would send.
   `remove` opens the dialog the editor's own list opens for the position,
   `part.php`, `comp.php` or `lack.php`, before its Delete.
-- **19 November 2026; R1206.** `inputs.paint` chooses a part's paint where
-  Paint or Part and Paint is pressed, or in a `change`: the paint type
-  (`coats`), the level, Surcharge and typed paint hours. Pegasus makes the
-  choices in the order the dialog's own script gives one post whatever
-  order a person makes them in: the paint type, which sets the paint state,
-  its tick boxes and, where the state enables them, the procedure and
-  method the script selects; then the level, which sets Glass's paint price
-  and hours; then Surcharge; then the paint hours, for which Glass's asks no
-  reason. Coloured clear is posted as the paint state sets it, greyed or
-  not, as the dialog posts it. A paint type the list does not offer, a level
-  the type does not offer, Surcharge where the type fixes it and a button
-  the page hides are refused before anything is posted. Every level the
-  type offers may be chosen, a plastic part's as well. A typed price or hours on a part that
-  can be painted, a paint reason, the procedure and method, scratch-resistant
-  clear and coloured clear stay refused, having no capture. `preview` gives
-  each paint type and level the paint area offers with Glass's price and
-  hours for it, and says when the figures are the position's own.
+- **19 November 2026; R1206.** `inputs.paint` makes every paint choice a
+  person makes in the dialog of a part that can be painted, where Paint or
+  Part and Paint is pressed, or in a `change`: the paint area, the paint
+  type (`coats`), the procedure, the method, the level (a plastic part's as
+  well as a metal one's), Surcharge, Coloured clear, scratch-resistant
+  clear, and the typed paint price, paint hours and paint reason. Pegasus
+  makes them in that order, each with the dialog's own handler as its
+  script runs it: the area rebuilds the paint types and levels, picks the
+  area's default level and sets the price and hours; the paint type sets
+  the paint state and its tick boxes; the procedure and the method each set
+  the paint state the script picks for them, its price, hours and tick
+  boxes. Glass's asks no reason for paint hours; the paint reason window
+  (`reason.php?lreason=`) only writes the box, so the Automation's reason is
+  sent as given, its line breaks as bars. Coloured clear is posted as the
+  paint state sets it, greyed or not, as the dialog posts it. A value the
+  dialog does not offer there, Surcharge or Coloured clear where the paint
+  state fixes it, scratch-resistant clear where the area or paint type greys
+  it, and a button the page hides are refused before anything is posted.
+  Each was judged offline on 19 November 2026 on the bonnet (#745), the left
+  front door shell (#894) and the front bumper (#552), the dialog's own
+  script's post pinned. `preview` names the input of every paint box, gives
+  each paint type and level the area offers with Glass's price and hours,
+  and says when the figures are the position's own.
 - **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
   `add` with the same row and inputs would post, chosen as the add chooses
   it, or for the dialog of a position on the estimate by its id, and

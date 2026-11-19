@@ -658,7 +658,7 @@ public sealed class AutomationGlassIngressTests
         using (var painted = await PostMcpAsync(client, token, ToolCallPayload(9, "pegasus_glass_position_act", new
         {
             caseId, action = "add", operationKey = "mcp:typed-8", expectedSessionVersion = 0,
-            kind = "part", row = "771", operation = "part_and_paint", inputs = new { hours = 2m },
+            kind = "part", row = "193", operation = "part", inputs = new { hours = 2m, side = "both" },
         })))
         {
             Assert.Contains(AutomationToolText.GlassInputsHoursRefused, await RefusalAsync(painted), StringComparison.Ordinal);
