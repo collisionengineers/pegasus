@@ -739,6 +739,15 @@ scratch-resistant clear, and the paint price, hours and reason it types.
 Glass's own script sets the paint price and hours each choice leads to, a
 plastic part's levels as well as a metal one's.
 
+**Renew and its old-for-new deductions (19 November 2026; R1206).** When
+the Automation chooses Renew, it answers the old-for-new window as a person
+would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
+a deduction from the original price and hours, each a percentage or an
+amount, and from the paint as a percentage. Glass's window works out the
+price and hours sent and writes its own reason. Deductions that would leave
+a negative price or hours are refused, because the return could not read
+that position back.
+
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may
 read back what Glass's shows a user, one request to Glass's each, and nothing

@@ -96,7 +96,16 @@ internal sealed record GlassPositionInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsLabourDescription)] string? LabourDescription = null,
     [property: Description(AutomationToolText.GlassInputsDescription)] string? Description = null,
     [property: Description(AutomationToolText.GlassInputsOutsideWork)] bool? OutsideWork = null,
-    [property: Description(AutomationToolText.GlassInputsOverlapFull)] bool? OverlapFull = null);
+    [property: Description(AutomationToolText.GlassInputsOverlapFull)] bool? OverlapFull = null,
+    [property: Description(AutomationToolText.GlassInputsRenew)] GlassRenewInputsToolInput? Renew = null);
+
+/// <summary>Renew's old-for-new window as a person answers it (R1206).</summary>
+internal sealed record GlassRenewInputsToolInput(
+    [property: Description(AutomationToolText.GlassInputsRenewPriceDeduction)] decimal? PriceDeduction = null,
+    [property: Description(AutomationToolText.GlassInputsRenewPriceAmount)] bool? PriceAmount = null,
+    [property: Description(AutomationToolText.GlassInputsRenewHoursDeduction)] decimal? HoursDeduction = null,
+    [property: Description(AutomationToolText.GlassInputsRenewHoursAmount)] bool? HoursAmount = null,
+    [property: Description(AutomationToolText.GlassInputsRenewPaintDeduction)] decimal? PaintDeduction = null);
 
 /// <summary>The paint choices of a part's dialog (R1206).</summary>
 internal sealed record GlassPaintInputsToolInput(
@@ -933,7 +942,12 @@ internal sealed class GlassMcpTools(
             inputs.LabourDescription,
             inputs.Description,
             inputs.OutsideWork,
-            inputs.OverlapFull));
+            inputs.OverlapFull,
+            inputs.Renew is { } renew
+                ? new GlassAutomationRenew(
+                    renew.PriceDeduction, renew.PriceAmount == true, renew.HoursDeduction, renew.HoursAmount == true,
+                    renew.PaintDeduction)
+                : null));
     }
 
     /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
@@ -955,6 +969,7 @@ internal sealed class GlassMcpTools(
         "inputs.labourDescription" => AutomationToolText.GlassInputsLabourDescriptionRefused,
         "inputs.description" => AutomationToolText.GlassInputsDescriptionRefused,
         "inputs.outsideWork" or "inputs.overlapFull" => AutomationToolText.GlassInputsFieldRefused,
+        "inputs.renew" => AutomationToolText.GlassInputsRenewRefused,
         _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
     };
 
@@ -1116,7 +1131,12 @@ internal sealed class GlassMcpTools(
                     given.LabourDescription,
                     given.Description,
                     given.OutsideWork,
-                    given.OverlapFull)
+                    given.OverlapFull,
+                    given.Renew is { } renew
+                        ? new GlassRenewInputsToolInput(
+                            renew.PriceDeduction, renew.PriceAmount ? true : null, renew.HoursDeduction,
+                            renew.HoursAmount ? true : null, renew.PaintDeduction)
+                        : null)
                 : null,
             MapEquipment(act.Equipment),
             act.RowPair,

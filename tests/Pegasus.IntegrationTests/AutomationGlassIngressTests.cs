@@ -474,18 +474,27 @@ public sealed class AutomationGlassIngressTests
             GlassEditorFixture.Text("door_left_ad_part_and_paint.post.txt"),
             glass.Requests.First(request => request.Method == "POST").Body);
 
+        glass.Respond("GET /ere/aco/oldfrnew.php", _ => GlassProviderFixture.EditorPage("door_shell_oldfrnew.html", null));
         using (var renew = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_position_act", new
         {
             caseId, action = "add", operationKey = "mcp:add-renew", expectedSessionVersion = version,
-            kind = "part", row = "771", operation = "part", inputs = new { operation = "AN" },
+            kind = "part", row = "771", operation = "part",
+            inputs = new { operation = "AN", confirmNoFigures = true, renew = new { priceDeduction = 10m } },
         })))
         {
-            var act = (await ReadStructuredContentAsync(renew)).GetProperty("act");
-            Assert.Equal("refused", act.GetProperty("outcome").GetString());
-            Assert.Equal(GlassFailure.EditorRefused, act.GetProperty("code").GetString());
+            var structured = await ReadStructuredContentAsync(renew);
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+            var act = structured.GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
             Assert.Equal("AN", act.GetProperty("inputs").GetProperty("operation").GetString());
+            Assert.Equal(10m, act.GetProperty("inputs").GetProperty("renew").GetProperty("priceDeduction").GetDecimal());
         }
-        Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(1, glass.Count("GET /ere/aco/oldfrnew.php"));
+        Assert.Equal(3, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Contains(
+            "ANReason=Original+price+568.86+%5B%A3%5D+Less+10.00+%5B%25%5D",
+            glass.Requests.Last(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").Body,
+            StringComparison.Ordinal);
 
         var requests = glass.Requests.Count;
         using (var button = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new

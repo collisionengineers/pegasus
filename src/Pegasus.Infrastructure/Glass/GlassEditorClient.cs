@@ -349,6 +349,9 @@ internal sealed class GlassEditorClient(
             change = change with { Operation = null };
         }
 
+        change = await OldForNewAsync(
+            at, jar, dialog, dialogAddress, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button : null, change,
+            cancellationToken);
         var built = change;
         var build = GlassMvaClient.Matched(
             () => request.Dialog == GlassEditorDialog.PaintablePart
@@ -390,6 +393,30 @@ internal sealed class GlassEditorClient(
         return new(
             new GlassEditorAdded(build.Summary!, build.Notes, listed, after, added) { Next = answer.Next },
             session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// Renew's old-for-new window, asked for as the dialog asks for it when a
+    /// person chooses Renew (R1206): always on a part that can be painted
+    /// (<paramref name="button"/> given), and on <c>part.php</c> when a
+    /// deduction is given; a <c>part.php</c> Renew with none is posted as the
+    /// window serves it without asking. The change with the window's page, or
+    /// as it was. The window adds nothing to the estimate.
+    /// </summary>
+    private async Task<GlassEditorChange?> OldForNewAsync(
+        GlassEditorAddresses at, Dictionary<string, string> jar, string dialog, string dialogAddress, string? button,
+        GlassEditorChange? change, CancellationToken cancellationToken)
+    {
+        if (change?.Operation != "AN" || (button is null && change.OldForNew is null))
+        {
+            return change;
+        }
+
+        var parameters = GlassMvaClient.Matched(
+            () => GlassEditorDialogs.OldForNewParameters(dialog, button, change), GlassFailure.EditorDialog)
+            ?? throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog holds no old-for-new figures.");
+        var window = await GetAsync(at.OldForNew(parameters), dialogAddress, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        return change with { OldForNew = (change.OldForNew ?? new GlassEditorOldForNew(string.Empty)) with { Window = window } };
     }
 
     /// <summary>
@@ -502,11 +529,13 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var dialog = await GetAsync(at.Dialog(page, request.Rows, mode), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
 
-        // An operation that reloads the dialog (R1206) is not followed: a preview posts nothing.
-        // It shows the dialog as served, with the reload as a question on the way.
+        // An operation that reloads the dialog, and Renew on a part that can be painted (R1206),
+        // are not followed: a preview asks for nothing more. It shows the dialog as served, with
+        // the reload or the old-for-new window as a question on the way.
         var change = request.Change ?? new GlassEditorChange();
         var reloads = GlassEditorDialogs.Reloads(dialog, change.Operation);
-        var shown = reloads ? change with { Operation = null } : change;
+        var window = change.Operation == "AN" && request.Dialog == GlassEditorDialog.PaintablePart;
+        var shown = reloads || window ? change with { Operation = null } : change;
         var (preview, build) = GlassMvaClient.Matched(
             () => GlassEditorDialogs.Preview(
                 dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null, shown),
@@ -521,14 +550,14 @@ internal sealed class GlassEditorClient(
         {
             preview = preview with { Sends = sends with { Code = code } };
         }
-        if (reloads && preview.Sends is { } reloaded)
+        if ((reloads || window) && preview.Sends is { } reloaded)
         {
             preview = preview with
             {
                 Sends = reloaded with
                 {
                     Operation = change.Operation,
-                    Questions = [new GlassDialogQuestion("reload", null, true), .. reloaded.Questions],
+                    Questions = [new GlassDialogQuestion(reloads ? "reload" : "old_for_new", null, true), .. reloaded.Questions],
                 },
             };
         }
@@ -605,8 +634,9 @@ internal sealed class GlassEditorClient(
             throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog does not show one button to press.");
         }
 
+        var answered = await OldForNewAsync(at, jar, dialog, dialogAddress, page == "comp" ? pressed : null, change, cancellationToken);
         var build = GlassMvaClient.Matched(
-            () => page == "comp" ? GlassEditorDialogs.PartPost(dialog, pressed!, change) : GlassEditorDialogs.PlainPost(dialog, change),
+            () => page == "comp" ? GlassEditorDialogs.PartPost(dialog, pressed!, answered) : GlassEditorDialogs.PlainPost(dialog, answered),
             GlassFailure.EditorDialog);
         if (ChangeRefusal(build, positionId) is { } refusal)
         {

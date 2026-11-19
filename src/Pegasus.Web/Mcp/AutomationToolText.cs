@@ -188,7 +188,7 @@ internal static class AutomationToolText
     // labels, option texts and question texts pass through as Glass's gives
     // them.
 
-    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD, P or Z. The dialog then sends the price and hours its own script sets for that operation. Paintless dent repair (DD) reloads the dialog, as in the editor: Pegasus submits the form as its script does and posts the dialog Glass's answers, with the rest of inputs. An operation the script holds no figures for is sent with 0.00 once inputs.confirmNoFigures answers its question. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
+    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD, P or Z. The dialog then sends the price and hours its own script sets for that operation. Renew (AN) opens its old-for-new window, which Pegasus asks for as the dialog does and answers as inputs.renew says. Paintless dent repair (DD) reloads the dialog, as in the editor: Pegasus submits the form as its script does and posts the dialog Glass's answers, with the rest of inputs. An operation the script holds no figures for is sent with 0.00 once inputs.confirmNoFigures answers its question. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
 
     public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it, unless inputs.paint chooses it. With change, the button the position's dialog shows is pressed when none is given. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
 
@@ -262,6 +262,20 @@ internal static class AutomationToolText
     public const string GlassInputsDescription = "A special operation's own description, typed in place of the row's, 3 to 250 characters.";
 
     public const string GlassInputsOutsideWork = "true ticks outside work where the dialog has it (a special operation's): Glass's then chooses ZK and greys the hours, the overlap hours and the labour type, so inputs.hours and inputs.overlapHours are refused with it.";
+
+    public const string GlassInputsRenew = "Renew's old-for-new window, answered as a person answers it: with inputs.operation AN only. The window shows the original price, hours and, on a part with its paint, the paint figures; each deduction given is typed and the window's OK sends the price and hours less it, with its reason in Glass's own words. A deduction not given stays as the window serves it (none). Deductions that leave a negative price or hours are refused with glass.build.deduction_below_zero, because Pegasus could not read that position back when the estimate returns. Not on a change.";
+
+    public const string GlassInputsRenewPriceDeduction = "The deduction from the original price: a percentage, 0 to 100, unless priceAmount is true, then pounds. Two decimal places at most.";
+
+    public const string GlassInputsRenewPriceAmount = "true makes priceDeduction an amount in pounds (the window's £) instead of a percentage.";
+
+    public const string GlassInputsRenewHoursDeduction = "The deduction from the original labour hours: a percentage, 0 to 100, unless hoursAmount is true, then hours. Two decimal places at most.";
+
+    public const string GlassInputsRenewHoursAmount = "true makes hoursDeduction an amount in hours (the window's Hour) instead of a percentage.";
+
+    public const string GlassInputsRenewPaintDeduction = "The deduction from the original paint price and hours, a percentage, 0 to 100, on a part with its paint.";
+
+    public const string GlassInputsRenewRefused = "inputs.renew is given only with inputs.operation AN, with at least one deduction, each 0 or more with two decimal places at most, a percentage at most 100. Nothing was sent to Glass's.";
 
     public const string GlassInputsOverlapFull = "true presses the overlap hours' Full button where the dialog has it, which copies the hours sent into the overlap hours.";
 
@@ -358,7 +372,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewQuestions = "Each question the dialog or Glass's would ask on the way.";
 
-    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reload: the operation reloads the dialog, which add follows. reason: more hours than Glass's own, which inputs.reason answers. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
+    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reload: the operation reloads the dialog, which add follows. old_for_new: Renew opens its old-for-new window, which add asks for and answers as inputs.renew says. reason: more hours than Glass's own, which inputs.reason answers. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
 
     public const string GlassPreviewQuestionText = "Glass's own words, where the dialog holds them.";
 

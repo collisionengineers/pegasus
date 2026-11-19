@@ -3167,6 +3167,256 @@
       },
       "page": "bulb_price.dialog.html",
       "post": "c2_bulb_side_v.post.txt"
+    },
+    {
+      "name": "c4_cleaner_renew_served",
+      "dialog": "part.php",
+      "capture": "n #689, window n #731",
+      "button": "BS",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "cleaner_renew_oldfrnew.html"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=2981|2982",
+      "fields": 22,
+      "problems": [],
+      "notes": [
+        "Renew goes through the old-for-new window, answered with the deductions given.",
+        "The operation was changed from ER to AN; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2010040_701300250405_2G_2981_2982_|64",
+        "partCode": "2010040",
+        "description": "Roof Panel Cleaner",
+        "special": false,
+        "operation": "AN",
+        "offered": "ER|P|AN",
+        "price": "11.44",
+        "hours": "0.00",
+        "partNumber": "83192211217",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "cleaner_renew.dialog.html",
+      "post": "c4_cleaner_renew_served.post.txt"
+    },
+    {
+      "name": "c4_cleaner_renew_percent",
+      "dialog": "part.php",
+      "capture": "n #689, window n #731",
+      "button": "BS",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "cleaner_renew_oldfrnew.html",
+          "priceDeduction": "10.00",
+          "priceKind": "%",
+          "hoursDeduction": "20.00",
+          "hoursKind": "%"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=2981|2982",
+      "fields": 22,
+      "problems": [],
+      "notes": [
+        "Renew goes through the old-for-new window, answered with the deductions given.",
+        "The operation was changed from ER to AN; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2010040_701300250405_2G_2981_2982_|64",
+        "partCode": "2010040",
+        "description": "Roof Panel Cleaner",
+        "special": false,
+        "operation": "AN",
+        "offered": "ER|P|AN",
+        "price": "10.30",
+        "hours": "0.00",
+        "partNumber": "83192211217",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "cleaner_renew.dialog.html",
+      "post": "c4_cleaner_renew_percent.post.txt"
+    },
+    {
+      "name": "c4_cleaner_renew_amount",
+      "dialog": "part.php",
+      "capture": "n #689, window n #731",
+      "button": "BS",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "cleaner_renew_oldfrnew.html",
+          "priceDeduction": "5.00",
+          "priceKind": "*",
+          "hoursDeduction": "0.20",
+          "hoursKind": "*"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=2981|2982",
+      "fields": 22,
+      "problems": [
+        "The deductions leave a negative price or hours."
+      ],
+      "notes": [
+        "Renew goes through the old-for-new window, answered with the deductions given.",
+        "The operation was changed from ER to AN; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2010040_701300250405_2G_2981_2982_|64",
+        "partCode": "2010040",
+        "description": "Roof Panel Cleaner",
+        "special": false,
+        "operation": "AN",
+        "offered": "ER|P|AN",
+        "price": "6.44",
+        "hours": "-0.20",
+        "partNumber": "83192211217",
+        "trade": "C",
+        "side": " ",
+        "sidesOffered": " "
+      },
+      "page": "cleaner_renew.dialog.html",
+      "post": "c4_cleaner_renew_amount.post.txt"
+    },
+    {
+      "name": "c4_door_renew_served",
+      "dialog": "comp.php",
+      "capture": "#894, window #916",
+      "button": "BSS",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "door_shell_oldfrnew.html"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=568|569",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90.",
+        "The operation was changed from ER to AN; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Renew goes through the old-for-new window, answered with the deductions given."
+      ],
+      "summary": {
+        "position": "C2020001_701311050101_2G_568_569_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AN",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "568.86",
+        "hours": "3.50",
+        "partNumber": "41007465527",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "437.30",
+        "paintHours": "1.80",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "568|569"
+      },
+      "page": "door_shell.dialog.html",
+      "post": "c4_door_renew_served.post.txt"
+    },
+    {
+      "name": "c4_door_renew_percent",
+      "dialog": "comp.php",
+      "capture": "#894, window #916, post #929",
+      "button": "BSS",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "door_shell_oldfrnew.html",
+          "priceDeduction": "10.00",
+          "priceKind": "%",
+          "hoursDeduction": "10.00",
+          "hoursKind": "%"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=568|569",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90.",
+        "The operation was changed from ER to AN; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Renew goes through the old-for-new window, answered with the deductions given."
+      ],
+      "summary": {
+        "position": "C2020001_701311050101_2G_568_569_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AN",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "511.97",
+        "hours": "3.15",
+        "partNumber": "41007465527",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "437.30",
+        "paintHours": "1.80",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "568|569"
+      },
+      "page": "door_shell.dialog.html",
+      "post": "c4_door_renew_percent.post.txt"
+    },
+    {
+      "name": "c4_door_renew_amount_paint",
+      "dialog": "comp.php",
+      "capture": "#894, window #916",
+      "button": "BSL",
+      "change": {
+        "operation": "AN",
+        "oldForNew": {
+          "window": "door_shell_oldfrnew.html",
+          "priceDeduction": "50.00",
+          "priceKind": "*",
+          "hoursDeduction": "0.50",
+          "hoursKind": "*",
+          "paintDeduction": "20.00"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=568|569",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90.",
+        "The operation was changed from ER to AN; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Renew goes through the old-for-new window, answered with the deductions given."
+      ],
+      "summary": {
+        "position": "C2020001_701311050101_2G_568_569_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AN",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "518.86",
+        "hours": "3.00",
+        "partNumber": "41007465527",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "349.84",
+        "paintHours": "1.44",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "568|569"
+      },
+      "page": "door_shell.dialog.html",
+      "post": "c4_door_renew_amount_paint.post.txt"
     }
   ]
 }

@@ -74,6 +74,15 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
         + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
     /// <summary>
+    /// Renew's old-for-new window (R1206), as the dialog's OpenOldfrnewWindow
+    /// asks for it: <c>oldfrnew.php</c> with the parameters
+    /// <see cref="GlassEditorDialogs.OldForNewParameters"/> reads from the
+    /// dialog (walk #916, n #731).
+    /// </summary>
+    public string OldForNew(string parameters) =>
+        session.BaseAddress + "oldfrnew.php?" + Q + parameters + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>
     /// The dialog of a part with its paint already on the estimate, as the
     /// editor's <c>OpenCompDialogWindow( 1, '', Partid )</c> asks for it
     /// (19 November 2026, #848).

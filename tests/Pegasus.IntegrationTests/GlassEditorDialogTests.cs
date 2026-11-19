@@ -668,6 +668,22 @@ public sealed class GlassEditorDialogTests
     }
 
     /// <summary>
+    /// Renew's old-for-new window is asked for as the dialog's own
+    /// OpenOldfrnewWindow asks for it (R1206): the walk's door (#916) with its
+    /// paint, and the roof panel cleaner (n #731) without.
+    /// </summary>
+    [Fact]
+    public void RenewsWindowIsAskedForWithTheDialogsOwnFigures()
+    {
+        Assert.Equal(
+            "&cml=C&nprice=568.86&discount=0.00&disctype=%&ntime=3.50&discountt=0.00&disctypet=%&npricep=437.30&ntimep=1.80&discountp=0.00",
+            GlassEditorDialogs.OldForNewParameters(GlassEditorFixture.Text("door_shell.dialog.html"), "BSS"));
+        Assert.Equal(
+            "&cml=C&nprice=11.44&discount=0.00&disctype=%&ntime=0.00&discountt=0.00&disctypet=%",
+            GlassEditorDialogs.OldForNewParameters(GlassEditorFixture.Text("cleaner_renew.dialog.html"), null));
+    }
+
+    /// <summary>
     /// Paintless dent repair reloads the dialog (R1206): its ChangeRepart
     /// submits the form as the load script left it, with DD and the labour
     /// type D, to the address the script names, exactly as the bonnet's own
@@ -733,6 +749,14 @@ public sealed class GlassEditorDialogTests
                 Tick(chosen, "scratchResistant"), Text(chosen, "price"), Text(chosen, "reason"));
         }
 
+        GlassEditorOldForNew? window = null;
+        if (change.TryGetProperty("oldForNew", out var answered))
+        {
+            window = new GlassEditorOldForNew(
+                GlassEditorFixture.Text(Text(answered, "window")!), Text(answered, "priceDeduction"), Text(answered, "priceKind"),
+                Text(answered, "hoursDeduction"), Text(answered, "hoursKind"), Text(answered, "paintDeduction"));
+        }
+
         return new GlassEditorChange(
             Operation: Text(change, "operation"),
             Price: Text(change, "price"),
@@ -747,7 +771,8 @@ public sealed class GlassEditorDialogTests
             PartNumber: Text(change, "partNumber"),
             LabourDescription: Text(change, "labourDescription"),
             OutsideWork: Tick(change, "outsideWork") == true,
-            OverlapFull: Tick(change, "overlapFull") == true);
+            OverlapFull: Tick(change, "overlapFull") == true,
+            OldForNew: window);
     }
 
     private static JsonElement Operation(string name) =>

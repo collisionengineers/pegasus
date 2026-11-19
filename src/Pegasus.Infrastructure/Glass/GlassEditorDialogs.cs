@@ -33,7 +33,21 @@ internal sealed record GlassEditorChange(
     string? PartNumber = null,
     string? LabourDescription = null,
     bool OutsideWork = false,
-    bool OverlapFull = false);
+    bool OverlapFull = false,
+    GlassEditorOldForNew? OldForNew = null);
+
+/// <summary>
+/// Renew's old-for-new window as a person answers it (R1206): the window's
+/// page as Glass's served it, and the deductions typed (a null one is left
+/// as the window serves it), each <c>%</c> or <c>*</c> (an amount).
+/// </summary>
+internal sealed record GlassEditorOldForNew(
+    string Window,
+    string? PriceDeduction = null,
+    string? PriceKind = null,
+    string? HoursDeduction = null,
+    string? HoursKind = null,
+    string? PaintDeduction = null);
 
 /// <summary>
 /// The paint choices a person makes on a <c>comp.php</c> dialog (R1206):
@@ -360,7 +374,11 @@ internal static partial class GlassEditorDialogs
             List<string> offered = select is { IsSelect: true }
                 ? select.Options.Select(option => option.Value).ToList()
                 : [];
-            if (ChangeProblem(html, offered, chosen) is { } refused)
+            // Renew (AN) on a part that can be painted goes through its old-for-new window (R1206).
+            var refused = chosen == "AN" && change.OldForNew is not null
+                ? (offered.Contains("AN") ? null : "The dialog does not offer the operation AN.")
+                : ChangeProblem(html, offered, chosen);
+            if (refused is not null)
             {
                 problems.Add(refused);
             }
@@ -591,7 +609,6 @@ internal static partial class GlassEditorDialogs
         // with Part and Paint, the captured reason window answering.
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, button is "BSS" or "BSL", problems, ref coded);
         TypedTexts(form, data, change, problems);
-
         // The paint section as a person leaves it (R1206), in the order area, paint type,
         // procedure, method, level, Surcharge, coloured clear, scratch-resistant clear, typed
         // price, hours and reason. Judged offline on 19 November 2026: 14 posts of the bonnet,
@@ -638,6 +655,16 @@ internal static partial class GlassEditorDialogs
             paintPrice = plan.Price;
             paintTime = plan.Hours;
         }
+
+        // Renew's window is opened with the paint figures as the person left them, so it is
+        // answered after the paint section (R1206).
+        if (change.Operation == "AN" && change.OldForNew is { } window)
+        {
+            OldForNew(form, data, window, placeIndex, problems, ref coded);
+            notes.Add("Renew goes through the old-for-new window, answered with the deductions given.");
+            paintPrice = data.Get("LPrice") ?? paintPrice;
+            paintTime = data.Get("LTime") ?? paintTime;
+        }
         if (!PaintQuantityOff().IsMatch(html))
         {
             problems.Add("The dialog asks for a paint quantity.");
@@ -647,7 +674,8 @@ internal static partial class GlassEditorDialogs
         if ((changed || typed.Count > 0) && button is "BSS" or "BSL")
         {
             ZeroPrompt(html, data, change, problems, notes);
-            if (!typed.ContainsKey("Time") && !figureless && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
+            if (!typed.ContainsKey("Time") && !figureless && change.OldForNew is null
+                && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
             {
                 problems.Add(reason);
             }
@@ -703,6 +731,242 @@ internal static partial class GlassEditorDialogs
     private static T? ItemAt<T>(IReadOnlyList<T>? list, int index)
         where T : class =>
         list is not null && index >= 0 && index < list.Count ? list[index] : null;
+
+    /// <summary>
+    /// The address Renew's old-for-new window is asked for (R1206), as the
+    /// dialog's OpenOldfrnewWindow builds it: the side's gross price and hours
+    /// (<c>ANBruttos</c>), the deductions held (<c>ANSpecifiers</c>), and on a
+    /// part that can be painted the paint price and hours and the paint
+    /// deduction its part record holds for the area, as the paint section was
+    /// left by the rest of <paramref name="change"/>. Null when the dialog
+    /// holds none of them.
+    /// </summary>
+    public static string? OldForNewParameters(string html, string? button, GlassEditorChange? change = null)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var asked = (change ?? new GlassEditorChange()) with { Operation = null, OldForNew = null };
+        var form = GlassEditorForm.Read(html, "Part");
+        if (form?.Field("ANBruttos")?.Value is not { } grossText || form.Field("ANSpecifiers")?.Value is not { } heldText)
+        {
+            return null;
+        }
+
+        var placeIndex = PlaceIndex(form.Field("Place")?.Value ?? " ");
+        var gross = grossText.Split('|');
+        var held = heldText.Split('|');
+        var cml = CmlOf(form.Action);
+        var text = new StringBuilder("&cml=" + cml);
+        text.Append("&nprice=").Append(At(gross, placeIndex)).Append("&discount=").Append(At(held, 0))
+            .Append("&disctype=").Append(At(held, 1));
+        if (At(gross, placeIndex + 2) is { } hours)
+        {
+            text.Append("&ntime=").Append(hours).Append("&discountt=").Append(At(held, 2)).Append("&disctypet=").Append(At(held, 3));
+        }
+        if (form.Named("Lackart").Any())
+        {
+            // The paint figures as the paint section left them before Renew was chosen.
+            var paint = PartPost(html, button ?? VisibleButton(html) ?? "BSS", asked).Summary;
+            var record = (form.Field("Partx")?.Value ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+            var block = PaintBlock(record, form, placeIndex);
+            text.Append("&npricep=").Append(paint?.PaintPrice).Append("&ntimep=").Append(paint?.PaintHours)
+                .Append("&discountp=").Append(block is { } at ? (At(record, at) ?? string.Empty).Split('|')[0] : string.Empty);
+        }
+
+        return text.ToString();
+    }
+
+    /// <summary>The value of <c>cml</c> in a dialog's form action, the mode its windows are asked in.</summary>
+    private static string CmlOf(string? action)
+    {
+        var at = (action ?? string.Empty).IndexOf("cml=", StringComparison.Ordinal);
+        if (at < 0)
+        {
+            return "C";
+        }
+
+        var end = action!.IndexOf('&', at);
+        return end < 0 ? action[(at + 4)..] : action[(at + 4)..end];
+    }
+
+    /// <summary>
+    /// The line of a part record that holds the paint deduction of the area
+    /// a dialog serves, as its getANPaintRecordIndex finds it: the paint
+    /// blocks from the line the first line names, each 21 lines on from its
+    /// head, one per area or two (left and right) per area. Null when the
+    /// record holds neither shape.
+    /// </summary>
+    private static int? PaintBlock(string[] record, GlassEditorForm form, int placeIndex)
+    {
+        var start = Number(At((At(record, 0) ?? string.Empty).Split('|'), 1));
+        if (!IsInteger(start) || start < 0)
+        {
+            return null;
+        }
+
+        var heads = new List<int>();
+        var sides = new List<string>();
+        var index = (int)start;
+        while (index + 1 < record.Length)
+        {
+            var length = Number(At(record[index].Split('|'), 1));
+            sides.Add((At(record, index + 2) ?? string.Empty).Trim());
+            heads.Add(index + 21);
+            if (!IsInteger(length) || length <= 0)
+            {
+                break;
+            }
+
+            index += (int)length;
+        }
+
+        var areas = form.Field("Bereich") is { IsSelect: true } list ? list.Options.Count : 0;
+        var area = form.Field("Bereich") is { IsSelect: true, SelectedIndex: >= 0 } chosen ? chosen.SelectedIndex : 0;
+        if (heads.Count == areas)
+        {
+            return heads[area];
+        }
+        if (heads.Count == 2 * areas)
+        {
+            var wrong = (placeIndex == 0 && !sides[2 * area].Contains('L', StringComparison.Ordinal))
+                || (placeIndex == 1 && !sides[2 * area].Contains('R', StringComparison.Ordinal));
+            return heads[2 * area + (wrong ? 1 : 0)];
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Renew's old-for-new window answered as a person answers it (R1206):
+    /// the deductions typed, each a percentage or an amount (the window's
+    /// <c>%</c> or <c>*</c>, shown <c>£</c> and <c>Hour</c>), then its Submit.
+    /// The real price and hours are the window's own sums (rounded to the
+    /// penny, two places); SubmitOldfrnewPrice and SubmitOldfrnewTime write
+    /// the originals and the deductions back as typed, and the window writes
+    /// its reason in its own words. On a part that can be painted
+    /// SubmitOldfrnewPaint writes the paint deduction into the part record and
+    /// the paint price and hours. Judged offline on 19 November 2026: the roof
+    /// panel cleaner (n #689, window n #731) and the left front door shell
+    /// (#894, window #916), six posts, among them the walk's own #929.
+    /// </summary>
+    private static void OldForNew(
+        GlassEditorForm form, GlassEditorFields data, GlassEditorOldForNew answer, int placeIndex, List<string> problems,
+        ref string? coded)
+    {
+        var window = GlassEditorForm.Read(answer.Window, "Part");
+        if (window?.Field("Newp") is not { } originalPrice || window.Field("VmatS") is not { IsSelect: true } priceKinds
+            || !answer.Window.Contains("Original price ", StringComparison.Ordinal))
+        {
+            problems.Add("The old-for-new window is not the one known.");
+            return;
+        }
+
+        string? Text(GlassEditorControl? list, string? value) =>
+            list?.Options.FirstOrDefault(option => option.Value == (value ?? list.Value)) is { } option
+                ? GlassEditorForm.Collapse(option.Text).Trim()
+                : null;
+        string Real(string original, string deduction, string kind)
+        {
+            var value = kind == "%"
+                ? Number(original) * (100 - Number(deduction)) / 100
+                : Number(original) - Number(deduction);
+            return (Math.Floor(100 * value + 0.5) / 100).ToString("0.00", CultureInfo.InvariantCulture);
+        }
+
+        var gross = (data.Get("ANBruttos") ?? string.Empty).Split('|');
+        var held = (data.Get("ANSpecifiers") ?? string.Empty).Split('|');
+        var price = originalPrice.Value;
+        var discount = answer.PriceDeduction ?? window.Field("Disc")?.Value ?? string.Empty;
+        var kind = answer.PriceKind ?? priceKinds.Value;
+        if (Text(priceKinds, kind) is not { } kindText)
+        {
+            problems.Add("The old-for-new window does not offer the deduction " + kind + ".");
+            return;
+        }
+
+        SetAt(gross, placeIndex, price);
+        SetAt(held, 0, discount);
+        SetAt(held, 1, kind);
+        var realPrice = Real(price, discount, kind);
+        data.Set("Price", realPrice);
+        var reason = Number(discount) is var off && off != 0 && !double.IsNaN(off)
+            ? "Original price " + price + " [£] Less " + discount + " [" + kindText + "]"
+            : string.Empty;
+        string? realHours = null;
+        if (window.Field("Newt") is { } originalHours && window.Field("VmatSt") is { IsSelect: true } hourKinds)
+        {
+            var hoursDiscount = answer.HoursDeduction ?? window.Field("Disct")?.Value ?? string.Empty;
+            var hoursKind = answer.HoursKind ?? hourKinds.Value;
+            if (Text(hourKinds, hoursKind) is not { } hoursText)
+            {
+                problems.Add("The old-for-new window does not offer the deduction " + hoursKind + ".");
+                return;
+            }
+
+            SetAt(gross, placeIndex + 2, originalHours.Value);
+            SetAt(held, 2, hoursDiscount);
+            SetAt(held, 3, hoursKind);
+            realHours = Real(originalHours.Value, hoursDiscount, hoursKind);
+            data.Set("Time", realHours);
+            if (Number(hoursDiscount) is var hoursOff && hoursOff != 0 && !double.IsNaN(hoursOff))
+            {
+                reason += (reason.Length > 0 ? "; " : string.Empty)
+                    + "Original labour hours " + originalHours.Value + " [Hour] Less " + hoursDiscount + " [" + hoursText + "]";
+            }
+        }
+        else if (answer.HoursDeduction is not null)
+        {
+            problems.Add("The old-for-new window has no hours.");
+        }
+
+        data.Set("ANBruttos", string.Join('|', gross));
+        data.Set("ANSpecifiers", string.Join('|', held));
+        data.Set("ANReason", reason);
+        string? realPaintPrice = null;
+        string? realPaintHours = null;
+        if (form.Named("Lackart").Any() && window.Field("Newpl") is { } paintPrice && window.Field("Newtl") is { } paintHours)
+        {
+            var paintDiscount = answer.PaintDeduction ?? window.Field("Discl")?.Value ?? string.Empty;
+            var record = (data.Get("Partx") ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+            if (PaintBlock(record, form, placeIndex) is not { } block || block + 1 >= record.Length)
+            {
+                problems.Add("The part record holds no paint block for the area.");
+                return;
+            }
+
+            record[block] = paintDiscount + "|%";
+            record[block + 1] = paintPrice.Value + "|" + paintHours.Value;
+            data.Set("Partx", string.Join('\n', record));
+            data.Set("ANLSpecifiers", paintDiscount + "|%");
+            data.Set("ANLOriginals", paintPrice.Value + "|" + paintHours.Value);
+            realPaintPrice = Real(paintPrice.Value, paintDiscount, "%");
+            realPaintHours = Real(paintHours.Value, paintDiscount, "%");
+            data.Set("LPrice", realPaintPrice);
+            data.Set("LTime", realPaintHours);
+            data.Set("ANLReason", Number(paintDiscount) is var paintOff && paintOff != 0 && !double.IsNaN(paintOff)
+                ? "Original price " + paintPrice.Value + " [£] Original labour hours " + paintHours.Value
+                    + " [Hour] Less " + paintDiscount + " [%]"
+                : string.Empty);
+        }
+        else if (answer.PaintDeduction is not null)
+        {
+            problems.Add("The old-for-new window has no paint.");
+        }
+
+        // The return's reader refuses a whole export with a negative price or time.
+        if (new[] { realPrice, realHours, realPaintPrice, realPaintHours }.Any(value => value is not null && Number(value) < 0))
+        {
+            problems.Add("The deductions leave a negative price or hours.");
+            coded = GlassAutomationPositionPolicy.DeductionBelowZeroCode;
+        }
+    }
+
+    private static void SetAt(string[] list, int index, string value)
+    {
+        if (index >= 0 && index < list.Length)
+        {
+            list[index] = value;
+        }
+    }
 
     /// <summary>
     /// A side a person ticks (R1206), as click_v, click_h, click_l and click_r
@@ -1405,7 +1669,10 @@ internal static partial class GlassEditorDialogs
             var oldForNew = (form.Field("ANBruttos")?.Value ?? string.Empty).Split('|');
             price = At(oldForNew, placeIndex);
             time = At(oldForNew, 2 + placeIndex);
-            notes.Add("Renew goes through the old-for-new dialog, taken as served with no deduction.");
+            if (change.OldForNew is null)
+            {
+                notes.Add("Renew goes through the old-for-new dialog, taken as served with no deduction.");
+            }
         }
 
         (string Name, string? Value)[] filled =
@@ -1464,6 +1731,11 @@ internal static partial class GlassEditorDialogs
 
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, checkReason: true, problems, ref coded);
         TypedTexts(form, data, change, problems);
+        if (change.Operation == "AN" && change.OldForNew is { } window)
+        {
+            OldForNew(form, data, window, placeIndex, problems, ref coded);
+            notes.Add("Renew goes through the old-for-new window, answered with the deductions given.");
+        }
         if (change.Description is { } description)
         {
             if (!data.Has("Descr"))
@@ -1502,7 +1774,8 @@ internal static partial class GlassEditorDialogs
         {
             notes.Add("The operation was changed from " + ShowAt(record, 4) + " to " + Show(operation)
                 + "; the gross figures and the record are posted as served.");
-            if (!typed.ContainsKey("Time") && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
+            if (!typed.ContainsKey("Time") && change.OldForNew is null
+                && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
             {
                 problems.Add(reason);
             }
@@ -2067,11 +2340,11 @@ internal static partial class GlassEditorDialogs
     /// <summary>
     /// Whether a person may choose the operation: what
     /// <see cref="ChangeProblem"/> allows, an operation that reloads the
-    /// dialog (<see cref="Reloads"/>, R1206), and on a <c>part.php</c> dialog
-    /// Renew (<c>AN</c>), taken through the old-for-new window.
+    /// dialog (<see cref="Reloads"/>, R1206), and Renew (<c>AN</c>), taken
+    /// through the old-for-new window.
     /// </summary>
     private static bool Choosable(string html, List<string> offered, string operation, bool paintable) =>
-        (!paintable && operation == "AN") || Reloads(html, operation)
+        operation == "AN" || Reloads(html, operation)
             ? offered.Contains(operation)
             : ChangeProblem(html, offered, operation) is null;
 

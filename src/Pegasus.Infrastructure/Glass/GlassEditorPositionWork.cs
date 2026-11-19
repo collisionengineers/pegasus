@@ -1201,7 +1201,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         code is GlassFailure.EditorDialog or GlassFailure.EditorRefused
             or GlassAutomationPositionPolicy.ReasonRequiredCode
             or GlassAutomationPositionPolicy.ReasonNotAskedCode
-            or GlassAutomationPositionPolicy.OverlapAboveHoursCode;
+            or GlassAutomationPositionPolicy.OverlapAboveHoursCode
+            or GlassAutomationPositionPolicy.DeductionBelowZeroCode;
 
     /// <summary>
     /// The change with the act's typed figures and reason set as the dialog
@@ -1209,7 +1210,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// gives it, the reason as given. The change as it was when none is typed.
     /// </summary>
     private static GlassEditorChange? WithTyped(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
-        inputs is null || (!inputs.Typed && !inputs.Fields)
+        inputs is null || (!inputs.Typed && !inputs.Fields && inputs.Renew is null)
             ? change
             : (change ?? new GlassEditorChange()) with
             {
@@ -1224,7 +1225,16 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 Description = inputs.Description,
                 OutsideWork = inputs.OutsideWork == true,
                 OverlapFull = inputs.OverlapFull == true,
+                OldForNew = inputs.Renew is { } renew
+                    ? new GlassEditorOldForNew(
+                        string.Empty, TypedOf(renew.PriceDeduction), KindOf(renew.PriceDeduction, renew.PriceAmount),
+                        TypedOf(renew.HoursDeduction), KindOf(renew.HoursDeduction, renew.HoursAmount), TypedOf(renew.PaintDeduction))
+                    : null,
             };
+
+    /// <summary>The window's deduction kind: <c>*</c> for an amount, <c>%</c> for a percentage, or as served.</summary>
+    private static string? KindOf(decimal? deduction, bool amount) =>
+        deduction is null ? null : amount ? "*" : "%";
 
     private static string? TypedOf(decimal? value) =>
         value is { } given ? GlassAutomationPositionPolicy.TypedText(given) : null;

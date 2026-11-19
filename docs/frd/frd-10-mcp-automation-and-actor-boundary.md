@@ -780,7 +780,16 @@ compose Glass's, each tool is refused with "Glass's is not available."
   follow it. An operation the script holds no figures for (the bonnet's
   NL) is sent with 0.00 in each box, as CheckSubmit writes them, once the
   question before no figures is answered. Both were judged offline on 19
-  November 2026 on the bonnet (#745). Repair answers OK to the
+  November 2026 on the bonnet (#745). Renew (AN) opens its old-for-new
+  window, which Pegasus asks for as the dialog does and answers with
+  `inputs.renew`: a deduction from the original price and from the
+  original hours, each a percentage or an amount (pounds or hours), and on
+  a part with its paint a percentage from the paint. The window's own sums
+  and reason are sent. Deductions that leave a negative figure are refused
+  with `glass.build.deduction_below_zero`, because the return could not
+  read that position back. Six posts were judged offline on 19 November
+  2026: the walk's door (#894, window #916, the walk's own #929) and the
+  roof panel cleaner (n #689, window n #731). Repair answers OK to the
   dialog's question before a part with no price and no hours (R1188); any
   other operation does so only with `inputs.confirmNoFigures`, and is
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;

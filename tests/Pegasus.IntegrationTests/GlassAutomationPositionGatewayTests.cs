@@ -743,6 +743,45 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// Renew on a part with its paint (R1206): the old-for-new window is
+    /// asked for with the dialog's own figures and answered with the
+    /// deductions given; deductions that leave a negative figure are refused
+    /// with their code and nothing is posted. The scripted editor serves the
+    /// walk's window (#916).
+    /// </summary>
+    [Fact]
+    public async Task RenewIsAnsweredThroughItsOldForNewWindow()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        harness.Mva.Respond("GET /ere/aco/oldfrnew.php", _ => EditorPage("door_shell_oldfrnew.html", null));
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:renew-1",
+            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(Operation: "AN", Renew: new GlassAutomationRenew(PriceDeduction: 10m))));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
+        var window = Assert.Single(harness.Mva.Requests, request => request.Path == "/ere/aco/oldfrnew.php");
+        Assert.Contains("nprice=545.24", window.Query, StringComparison.Ordinal);
+        var post = Assert.Single(DialogPosts(harness));
+        Assert.Contains("&Repart=AN&", post, StringComparison.Ordinal);
+        Assert.Contains("&Price=511.97&", post, StringComparison.Ordinal);
+        Assert.Equal(511.97m, step.Act.Sent?.Price);
+
+        var other = Harness.Create();
+        var otherSession = await AutomationStartAsync(other);
+        other.Mva.Respond("GET /ere/aco/oldfrnew.php", _ => EditorPage("door_shell_oldfrnew.html", null));
+        var below = await PositionAsync(other, Add(other, otherSession, "mcp:renew-2",
+            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(
+                Operation: "AN", Renew: new GlassAutomationRenew(HoursDeduction: 5m, HoursAmount: true))));
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, below.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.DeductionBelowZeroCode, below.Act.Code);
+        Assert.Empty(DialogPosts(other));
+    }
+
+    /// <summary>
     /// Paintless dent repair reloads the dialog (R1206): the form its
     /// ChangeRepart submits is posted to the address its script names, and
     /// the dialog the editor answers is posted with the rest of the inputs.
@@ -837,7 +876,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.True(replace.Served);
         Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AD").Changeable);
         Assert.True(Assert.Single(dialog.Operations, item => item.Code == "Z").Changeable);
-        Assert.False(Assert.Single(dialog.Operations, item => item.Code == "AN").Changeable);
+        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AN").Changeable);
         var repairType = Assert.Single(dialog.Fields, field => field.Name == "Repart");
         Assert.Equal("Repair type", repairType.Label);
         Assert.True(repairType.Changeable);
@@ -861,7 +900,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var unread = await harness.Gateway.PreviewAutomationPositionAsync(
             Preview(harness, preview.Session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AN")),
             CancellationToken.None);
-        Assert.Equal(GlassFailure.EditorRefused, unread?.Dialog?.Sends?.Code);
+        Assert.Equal("AN", unread?.Dialog?.Sends?.Operation);
+        Assert.Contains(unread!.Dialog!.Sends!.Questions, item => item is { Kind: "old_for_new", Answered: true });
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/oldfrnew.php"));
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
     }
 

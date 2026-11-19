@@ -187,12 +187,13 @@ public sealed record GlassAutomationInputs(
     string? LabourDescription = null,
     string? Description = null,
     bool? OutsideWork = null,
-    bool? OverlapFull = null)
+    bool? OverlapFull = null,
+    GlassAutomationRenew? Renew = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields;
+        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields && Renew is null;
 
     /// <summary>Whether a field of the dialog's own is given: a side, labour type, part number, description, outside work or Full (R1206).</summary>
     public bool Fields =>
@@ -202,6 +203,20 @@ public sealed record GlassAutomationInputs(
     /// <summary>Whether a typed figure or a reason is given (R1206).</summary>
     public bool Typed => Hours is not null || Price is not null || OverlapHours is not null || Reason is not null;
 }
+
+/// <summary>
+/// Renew's old-for-new window as a person answers it (19 November 2026,
+/// R1206): a deduction from the original price, from the original hours and,
+/// on a part with its paint, from the paint, each a percentage unless the
+/// price or hours deduction is marked an amount (pounds or hours). A
+/// deduction not given stays as the window serves it.
+/// </summary>
+public sealed record GlassAutomationRenew(
+    decimal? PriceDeduction = null,
+    bool PriceAmount = false,
+    decimal? HoursDeduction = null,
+    bool HoursAmount = false,
+    decimal? PaintDeduction = null);
 
 /// <summary>
 /// The paint choices a person makes in the dialog of a part that can be
@@ -727,6 +742,7 @@ public static class GlassAutomationPositionPolicy
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
         : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
         : inputs.Paint is not null ? "inputs.paint"
+        : inputs.Renew is not null ? "inputs.renew"
         : FirstTyped(inputs) ?? FirstField(inputs);
 
     private static string? FirstField(GlassAutomationInputs inputs) =>
@@ -808,7 +824,22 @@ public static class GlassAutomationPositionPolicy
             && (inputs.Hours is null || reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength)
             ? "inputs.reason"
         : inputs.Paint is { } paint && PaintRefused(paint) ? "inputs.paint"
+        : inputs.Renew is { } renew && (inputs.Operation != "AN" || RenewRefused(renew)) ? "inputs.renew"
         : null;
+
+    /// <summary>
+    /// Whether Renew's deductions are not ones Pegasus gives (R1206): none
+    /// given, or a deduction <see cref="TypedText"/> refuses, a percentage
+    /// above 100, or an amount above the largest figure typed.
+    /// </summary>
+    private static bool RenewRefused(GlassAutomationRenew renew) =>
+        (renew.PriceDeduction, renew.HoursDeduction, renew.PaintDeduction) is (null, null, null)
+        || Deduction(renew.PriceDeduction, renew.PriceAmount, MaximumTypedPrice)
+        || Deduction(renew.HoursDeduction, renew.HoursAmount, MaximumTypedHours)
+        || Deduction(renew.PaintDeduction, false, MaximumTypedHours);
+
+    private static bool Deduction(decimal? value, bool amount, decimal largest) =>
+        value is { } given && (TypedText(given) is null || given > (amount ? largest : 100m));
 
     /// <summary>
     /// Whether a paint choice is not one Pegasus gives (R1206): none given, a
@@ -859,6 +890,13 @@ public static class GlassAutomationPositionPolicy
     /// refuses a whole export with such a position, so nothing is posted.
     /// </summary>
     public const string OverlapAboveHoursCode = "glass.build.overlap_above_hours";
+
+    /// <summary>
+    /// Renew's deductions leave a negative price or hours. The window would
+    /// send them, but the return's reader refuses a whole export with a
+    /// negative figure, so nothing is posted (R1206).
+    /// </summary>
+    public const string DeductionBelowZeroCode = "glass.build.deduction_below_zero";
 
     /// <summary>The inputs as an act keeps them: null when none is given.</summary>
     public static GlassAutomationInputs? Kept(GlassAutomationInputs? inputs) =>
