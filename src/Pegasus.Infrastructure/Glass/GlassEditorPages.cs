@@ -72,6 +72,19 @@ internal sealed record GlassEditorPartRow(
 {
     public bool Has(char mark) => Marks.Contains(mark, StringComparison.Ordinal);
 
+    /// <summary>
+    /// The paint levels the row's part offers by operation (the list's
+    /// <c>IPST</c>, field 28: <c>E2341BSI2341BS</c>), which the quick repair
+    /// panel chooses its paint level from (R1206).
+    /// </summary>
+    public string PaintStats { get; init; } = string.Empty;
+
+    /// <summary>The paint areas the row's part is painted in, by row id (<c>IPZID</c>, field 31: <c>80,88</c>).</summary>
+    public string PaintZones { get; init; } = string.Empty;
+
+    /// <summary>The same row on the other side (<c>IOSID</c>, field 33), which the panel's Both adds next.</summary>
+    public string OtherSide { get; init; } = string.Empty;
+
     /// <summary>Whether the row is shown or hidden on its drawing by some equipment.</summary>
     public bool ShownByEquipment =>
         Show.Length > 0 || Hide.Length > 0 || DrawingShow.Length > 0 || DrawingHide.Length > 0;
@@ -664,7 +677,12 @@ internal static partial class GlassEditorPages
                     Field(fields, 11),
                     Field(fields, 12),
                     Field(fields, 13),
-                    above[3]));
+                    above[3])
+                {
+                    PaintStats = Field(fields, 28),
+                    PaintZones = Field(fields, 31),
+                    OtherSide = Field(fields, 33),
+                });
             }
 
             at = index < html.Length ? html.IndexOf(Call, index, StringComparison.Ordinal) : -1;

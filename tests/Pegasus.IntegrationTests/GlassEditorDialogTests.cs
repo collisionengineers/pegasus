@@ -46,6 +46,20 @@ public sealed class GlassEditorDialogTests
         }
     }
 
+    public static TheoryData<string> InputNames
+    {
+        get
+        {
+            var names = new TheoryData<string>();
+            foreach (var item in GlassEditorFixture.Manifest.GetProperty("inputs").EnumerateArray())
+            {
+                names.Add(item.GetProperty("name").GetString()!);
+            }
+
+            return names;
+        }
+    }
+
     public static TheoryData<string> DialogNames
     {
         get
@@ -142,13 +156,30 @@ public sealed class GlassEditorDialogTests
     }
 
     [Fact]
-    public void OnAPaintablePartsDialogOnlyTheOperationAndThePaintMayBeChanged()
+    public void APaintablePartsDialogHasNoDescription()
     {
         var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
 
-        var typed = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "AE", Hours: "0.30"));
+        var described = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Description: "Front door"));
 
-        Assert.Contains("This dialog is built with no change but the operation and the paint.", typed.Problems);
+        Assert.Contains("This dialog is built with no description.", described.Problems);
+    }
+
+    /// <summary>
+    /// "Both" in the dialog of a part that can be painted (R1206): the
+    /// answer to the first side's post calls the list's BothNext with both
+    /// sides' rows, and the editor asks for the right-hand rows whole
+    /// (b #55, b #60), whose dialog is then pressed as the first was.
+    /// </summary>
+    [Fact]
+    public void BothOnAPaintedPartNamesTheOtherSidesDialog()
+    {
+        var next = GlassEditorDialogs.AfterPost(GlassEditorFixture.Text("skin_left_both.answer.html")).Next;
+
+        Assert.NotNull(next);
+        Assert.Equal("2222|ER|2223|AE|2224", next.Rows);
+        Assert.Equal("R", next.Side);
+        Assert.Equal(string.Empty, next.Parameters);
     }
 
     [Theory]
@@ -188,12 +219,12 @@ public sealed class GlassEditorDialogTests
             GlassEditorFixture.Text(dialog.GetProperty("confirm").GetString()!),
             GlassEditorText.EncodeForm(answer.Fields));
         Assert.Equal(
-            dialog.GetProperty("listed").EnumerateArray().Select(listed => new GlassEditorListed(
+            dialog.GetProperty("listed").EnumerateArray().Select(listed => (
                 listed.GetProperty("code").GetString()!,
                 listed.GetProperty("ticked").GetBoolean(),
                 listed.GetProperty("optional").GetBoolean(),
                 listed.GetProperty("text").GetString()!)),
-            answer.Listed);
+            answer.Listed.Select(listed => (listed.Code, listed.Ticked, listed.Optional, listed.Text)));
         Assert.Equal(
             GlassEditorAnswerKind.Done,
             GlassEditorDialogs.AfterPost(GlassEditorFixture.Text(dialog.GetProperty("confirmAnswer").GetString()!)).Kind);
@@ -324,7 +355,7 @@ public sealed class GlassEditorDialogTests
     /// Glass's own text and the figures its script serves for the side,
     /// the fields with Glass's own
     /// labels, and its one button; with no inputs it says nothing of a send.
-    /// Renew is offered but not choosable: the return cannot read it back.
+    /// Renew is choosable: the return reads every repair kind (R1206).
     /// </summary>
     [Fact]
     public void APreviewReadsAPlainDialogAsAForm()
@@ -340,9 +371,7 @@ public sealed class GlassEditorDialogTests
         var refit = Assert.Single(preview.Operations, item => item.Code == "AE");
         Assert.Equal(0.60m, refit.Hours);
         Assert.True(refit.Changeable);
-        var renew = Assert.Single(preview.Operations, item => item.Code == "AN");
-        Assert.False(renew.Changeable);
-        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, renew.RefusedCode);
+        Assert.True(Assert.Single(preview.Operations, item => item.Code == "AN").Changeable);
         Assert.DoesNotContain(preview.Operations, item => item.Code == "-");
         Assert.Equal("Repair type", Assert.Single(preview.Fields, field => field.Name == "Repart").Label);
         Assert.Contains(preview.Buttons, button => button.Value == "BS");
@@ -500,6 +529,37 @@ public sealed class GlassEditorDialogTests
 
     private static readonly string[] PaintOnlyGroups = ["", "L", "CL"];
 
+    private static readonly string[] Cartridge = ["1102450.ER."];
+
+    private static readonly string[] SecondCartridge = ["1102450.ER.#2"];
+
+    private static readonly string[] CartridgeBoxes = ["1102450.ER.#1", "1102450.ER.#2"];
+
+    /// <summary>
+    /// A code the "Mandatory parts:" page lists twice (the windscreen's
+    /// Additional Cartridge, #717) is two boxes, each with its own id (R1206):
+    /// the second id ticks the second box alone, as the browser ticked it
+    /// (#723), and the bare code ticks the first optional one.
+    /// </summary>
+    [Fact]
+    public void ACodeListedTwiceIsTickedOneBoxAtATime()
+    {
+        var page = GlassEditorFixture.Text("windscreen_overlap.answer.html");
+
+        var second = GlassEditorDialogs.AfterPost(page, SecondCartridge);
+        var first = GlassEditorDialogs.AfterPost(page, Cartridge);
+
+        var boxes = second.Listed.Where(listed => listed.Code == "1102450.ER.").ToList();
+        Assert.Equal(CartridgeBoxes, boxes.Select(listed => listed.Id));
+        Assert.False(boxes[0].Chosen);
+        Assert.True(boxes[1].Chosen);
+        Assert.Equal(GlassEditorFixture.Text("windscreen_overlap.confirm.txt"), GlassEditorText.EncodeForm(second.Fields));
+        var firstBoxes = first.Listed.Where(listed => listed.Code == "1102450.ER.").ToList();
+        Assert.True(firstBoxes[0].Chosen);
+        Assert.False(firstBoxes[1].Chosen);
+        Assert.Equal("1102410.ER.#1", first.Listed[1].Id);
+    }
+
     /// <summary>
     /// The editor's own rule for which dialog opens a position on the
     /// estimate (selected.php's LoadGraph, 19 November 2026; R1206): a part
@@ -544,9 +604,8 @@ public sealed class GlassEditorDialogTests
     /// <summary>
     /// The paint choices a dialog's own script would not take are problems
     /// (R1206): Surcharge where the paint type fixes it, a level the type does
-    /// not offer, and on a part that is not metal a level the return cannot
-    /// read back, refused with its code. Unticking Surcharge where it may be
-    /// changed is posted without it.
+    /// not offer. A plastic part's level goes through (R1206). Unticking
+    /// Surcharge where it may be changed is posted without it.
     /// </summary>
     [Fact]
     public void PaintChoicesTheDialogWouldNotTakeAreRefused()
@@ -561,7 +620,8 @@ public sealed class GlassEditorDialogTests
 
         Assert.Contains("The dialog fixes Surcharge here.", fixedSurcharge.Problems);
         Assert.Contains("The paint type 2 does not offer the paint level Z.", unoffered.Problems);
-        Assert.Equal(GlassAutomationPositionPolicy.PaintNotReadBackCode, unread.RefusalCode);
+        Assert.Empty(unread.Problems);
+        Assert.Contains(unread.Fields, pair => pair.Key == "Lackstufe" && pair.Value == "3");
         Assert.Empty(unticked.Problems);
         Assert.DoesNotContain(unticked.Fields, pair => pair.Key == "Zuschlag");
         Assert.Contains(unticked.Fields, pair => pair.Key == "Klarlack" && pair.Value == "1");
@@ -599,6 +659,86 @@ public sealed class GlassEditorDialogTests
         Assert.True(reopened?.Paint?.PositionsOwn);
     }
 
+    /// <summary>
+    /// Every input a person gives a position's dialog (R1206): each built
+    /// from the captured dialog page alone and posted byte for byte as the
+    /// dialog's own script posted it when driven offline with that input.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(InputNames))]
+    public void EachInputIsPostedExactlyAsTheDialogsOwnScriptPostedIt(string name)
+    {
+        var item = GlassEditorFixture.Manifest.GetProperty("inputs").EnumerateArray()
+            .Single(entry => entry.GetProperty("name").GetString() == name);
+
+        var build = BuildTyped(item);
+
+        Assert.Null(build.Error);
+        Assert.Equal(GlassEditorFixture.Strings(item, "problems"), build.Problems);
+        Assert.Equal(GlassEditorFixture.Strings(item, "notes"), build.Notes);
+        Assert.Equal(item.GetProperty("action").GetString(), build.Action);
+        Assert.Equal(item.GetProperty("fields").GetInt32(), build.Fields.Count);
+        Assert.Equal(
+            GlassEditorFixture.Text(item.GetProperty("post").GetString()!),
+            GlassEditorText.EncodeForm(build.Fields));
+        AssertSummary(item, build.Summary);
+    }
+
+    /// <summary>
+    /// Renew's old-for-new window is asked for as the dialog's own
+    /// OpenOldfrnewWindow asks for it (R1206): the walk's door (#916) with its
+    /// paint, and the roof panel cleaner (n #731) without.
+    /// </summary>
+    [Fact]
+    public void RenewsWindowIsAskedForWithTheDialogsOwnFigures()
+    {
+        Assert.Equal(
+            "&cml=C&nprice=568.86&discount=0.00&disctype=%&ntime=3.50&discountt=0.00&disctypet=%&npricep=437.30&ntimep=1.80&discountp=0.00",
+            GlassEditorDialogs.OldForNewParameters(GlassEditorFixture.Text("door_shell.dialog.html"), "BSS"));
+        Assert.Equal(
+            "&cml=C&nprice=11.44&discount=0.00&disctype=%&ntime=0.00&discountt=0.00&disctypet=%",
+            GlassEditorDialogs.OldForNewParameters(GlassEditorFixture.Text("cleaner_renew.dialog.html"), null));
+    }
+
+    /// <summary>
+    /// Paintless dent repair reloads the dialog (R1206): its ChangeRepart
+    /// submits the form as the load script left it, with DD and the labour
+    /// type D, to the address the script names, exactly as the bonnet's own
+    /// script sent it when driven offline (#745).
+    /// </summary>
+    [Fact]
+    public void AnOperationThatReloadsTheDialogSubmitsItAsItsScriptDoes()
+    {
+        var page = GlassEditorFixture.Text("bonnet_paint_choices.dialog.html");
+
+        var reload = GlassEditorDialogs.ReloadPost(page, "DD");
+
+        Assert.True(GlassEditorDialogs.Reloads(page, "DD"));
+        Assert.False(GlassEditorDialogs.Reloads(page, "AE"));
+        Assert.Null(reload.Error);
+        Assert.Empty(reload.Problems);
+        Assert.Equal("comp.php?ksid=" + GlassEditorFixture.Key + "&cml=C&mcode=477|478&frl=1", reload.Action);
+        Assert.Equal(GlassEditorFixture.Text("bonnet_dd_reload.post.txt"), GlassEditorText.EncodeForm(reload.Fields));
+    }
+
+    /// <summary>
+    /// An operation the script holds no figures for (the bonnet's NL): its
+    /// own script alerts, CheckSubmit writes 0.00 in each box and asks before
+    /// sending no figures; answered OK, the post is the script's own (#745).
+    /// </summary>
+    [Fact]
+    public void AnOperationWithNoFiguresIsPostedWithZeroesOnceTheQuestionIsAnswered()
+    {
+        var page = GlassEditorFixture.Text("bonnet_paint_choices.dialog.html");
+
+        var unanswered = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "NL"));
+        var answered = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "NL", ConfirmNoFigures: true));
+
+        Assert.NotEmpty(unanswered.Problems);
+        Assert.Empty(answered.Problems);
+        Assert.Equal(GlassEditorFixture.Text("c3_bonnet_nl.post.txt"), GlassEditorText.EncodeForm(answered.Fields));
+    }
+
     private static JsonElement Typed(string name) =>
         GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == name);
@@ -606,24 +746,54 @@ public sealed class GlassEditorDialogTests
     private static GlassEditorBuild BuildTyped(JsonElement item)
     {
         var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
-        var change = item.GetProperty("change");
-        string? Given(string name) => change.TryGetProperty(name, out var value) ? value.GetString() : null;
+        var typed = ChangeOf(item.GetProperty("change"));
+        return item.GetProperty("dialog").GetString() switch
+        {
+            "comp.php" => GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed),
+            "lack.php" => GlassEditorDialogs.LackPost(page, typed),
+            _ => GlassEditorDialogs.PlainPost(page, typed),
+        };
+    }
+
+    /// <summary>A manifest entry's change, as a person gave it in the dialog.</summary>
+    private static GlassEditorChange ChangeOf(JsonElement change)
+    {
+        static string? Text(JsonElement from, string name) => from.TryGetProperty(name, out var value) ? value.GetString() : null;
+        static bool? Tick(JsonElement from, string name) => from.TryGetProperty(name, out var value) ? value.GetBoolean() : null;
         GlassEditorPaint? paint = null;
         if (change.TryGetProperty("paint", out var chosen))
         {
-            string? Chosen(string name) => chosen.TryGetProperty(name, out var value) ? value.GetString() : null;
             paint = new GlassEditorPaint(
-                Chosen("coats"), Chosen("level"),
-                chosen.TryGetProperty("surcharge", out var surcharge) ? surcharge.GetBoolean() : null,
-                Chosen("hours"));
+                Text(chosen, "coats"), Text(chosen, "level"), Tick(chosen, "surcharge"), Text(chosen, "hours"),
+                Text(chosen, "area"), Text(chosen, "procedure"), Text(chosen, "method"), Tick(chosen, "colouredClear"),
+                Tick(chosen, "scratchResistant"), Text(chosen, "price"), Text(chosen, "reason"));
         }
 
-        var typed = new GlassEditorChange(
-            Price: Given("price"), Hours: Given("hours"), Reason: Given("reason"), OverlapHours: Given("overlapHours"),
-            Paint: paint);
-        return item.GetProperty("dialog").GetString() == "comp.php"
-            ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed)
-            : GlassEditorDialogs.PlainPost(page, typed);
+        GlassEditorOldForNew? window = null;
+        if (change.TryGetProperty("oldForNew", out var answered))
+        {
+            window = new GlassEditorOldForNew(
+                GlassEditorFixture.Text(Text(answered, "window")!), Text(answered, "priceDeduction"), Text(answered, "priceKind"),
+                Text(answered, "hoursDeduction"), Text(answered, "hoursKind"), Text(answered, "paintDeduction"));
+        }
+
+        return new GlassEditorChange(
+            Operation: Text(change, "operation"),
+            Price: Text(change, "price"),
+            Hours: Text(change, "hours"),
+            Description: Text(change, "description"),
+            Reason: Text(change, "reason"),
+            ConfirmNoFigures: Tick(change, "confirm") == true,
+            OverlapHours: Text(change, "overlapHours"),
+            Paint: paint,
+            Place: Text(change, "place"),
+            Trade: Text(change, "trade"),
+            PartNumber: Text(change, "partNumber"),
+            LabourDescription: Text(change, "labourDescription"),
+            OutsideWork: Tick(change, "outsideWork") == true,
+            OverlapFull: Tick(change, "overlapFull") == true,
+            OldForNew: window,
+            Both: Tick(change, "both") == true);
     }
 
     private static JsonElement Operation(string name) =>

@@ -74,6 +74,15 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
         + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
     /// <summary>
+    /// Renew's old-for-new window (R1206), as the dialog's OpenOldfrnewWindow
+    /// asks for it: <c>oldfrnew.php</c> with the parameters
+    /// <see cref="GlassEditorDialogs.OldForNewParameters"/> reads from the
+    /// dialog (walk #916, n #731).
+    /// </summary>
+    public string OldForNew(string parameters) =>
+        session.BaseAddress + "oldfrnew.php?" + Q + parameters + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>
     /// The dialog of a part with its paint already on the estimate, as the
     /// editor's <c>OpenCompDialogWindow( 1, '', Partid )</c> asks for it
     /// (19 November 2026, #848).
@@ -81,9 +90,39 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     public string OpenComposite(string id) =>
         session.BaseAddress + "comp.php?" + Q + "&partid=" + id + "&cml=C&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
+    /// <summary>
+    /// The dialog of a paint position of its own already on the estimate
+    /// (<c>lack.php</c>), as the list's <c>OpenSimpleDialogWindow( "lack", Partid )</c>
+    /// asks for it (R1206).
+    /// </summary>
+    public string OpenPaint(string id) =>
+        session.BaseAddress + "lack.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>The dialog of a position by the page the editor's list opens for it: <c>part</c>, <c>comp</c> or <c>lack</c>.</summary>
+    public string OpenOnEstimate(string page, string id) => page switch
+    {
+        "comp" => OpenComposite(id),
+        "lack" => OpenPaint(id),
+        _ => OpenPosition(id),
+    };
+
     /// <summary>The dialog of a position already on the estimate (<c>part.php</c>, as its <c>OpenSimpleDialogWindow</c> asks for it, #795).</summary>
     public string OpenPosition(string id) =>
         session.BaseAddress + "part.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
+
+    /// <summary>
+    /// The paint list (<c>list_paint.php</c>), as the editor loads it (#412):
+    /// its paint areas' levels, which the quick repair panel reads (R1206).
+    /// </summary>
+    public string PaintList() => session.BaseAddress + "list_paint.php?" + Q + "&cml=L&html5svg=1&win7=1";
+
+    /// <summary>
+    /// A quick repair panel command (R1206), as the editor's AcoCommand sends
+    /// it: <c>service.php</c> with the command and <c>=1</c>
+    /// (<c>…&amp;addpart2g=1</c>); a space is sent as <c>%20</c>, as a
+    /// browser sends it.
+    /// </summary>
+    public string Panel(string command) => Service(command.Replace(" ", "%20", StringComparison.Ordinal) + "=1");
 
     /// <summary>The removal of a position already on the estimate.</summary>
     public string Remove(string id) =>

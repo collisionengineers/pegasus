@@ -450,9 +450,7 @@ public sealed class AutomationGlassIngressTests
             Assert.Equal("S (Sealing)", sealing.GetProperty("text").GetString());
             Assert.True(sealing.GetProperty("changeable").GetBoolean());
             var dismantle = operations.Single(item => item.GetProperty("code").GetString() == "Z");
-            Assert.False(dismantle.GetProperty("changeable").GetBoolean());
-            Assert.Equal(
-                GlassAutomationPositionPolicy.OperationNotReadBackCode, dismantle.GetProperty("refusedCode").GetString());
+            Assert.True(dismantle.GetProperty("changeable").GetBoolean());
             var sends = dialog.GetProperty("sends");
             Assert.Equal(GlassFailure.EditorRefused, sends.GetProperty("code").GetString());
             var question = sends.GetProperty("questions").EnumerateArray()
@@ -488,18 +486,27 @@ public sealed class AutomationGlassIngressTests
             GlassEditorFixture.Text("door_left_ad_part_and_paint.post.txt"),
             glass.Requests.First(request => request.Method == "POST").Body);
 
+        glass.Respond("GET /ere/aco/oldfrnew.php", _ => GlassProviderFixture.EditorPage("door_shell_oldfrnew.html", null));
         using (var renew = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_position_act", new
         {
             caseId, action = "add", operationKey = "mcp:add-renew", expectedSessionVersion = version,
-            kind = "part", row = "771", operation = "part", inputs = new { operation = "AN" },
+            kind = "part", row = "771", operation = "part",
+            inputs = new { operation = "AN", confirmNoFigures = true, renew = new { priceDeduction = 10m } },
         })))
         {
-            var act = (await ReadStructuredContentAsync(renew)).GetProperty("act");
-            Assert.Equal("refused", act.GetProperty("outcome").GetString());
-            Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, act.GetProperty("code").GetString());
+            var structured = await ReadStructuredContentAsync(renew);
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+            var act = structured.GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
             Assert.Equal("AN", act.GetProperty("inputs").GetProperty("operation").GetString());
+            Assert.Equal(10m, act.GetProperty("inputs").GetProperty("renew").GetProperty("priceDeduction").GetDecimal());
         }
-        Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(1, glass.Count("GET /ere/aco/oldfrnew.php"));
+        Assert.Equal(3, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Contains(
+            "ANReason=Original+price+568.86+%5B%A3%5D+Less+10.00+%5B%25%5D",
+            glass.Requests.Last(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").Body,
+            StringComparison.Ordinal);
 
         var requests = glass.Requests.Count;
         using (var button = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
@@ -672,7 +679,7 @@ public sealed class AutomationGlassIngressTests
         using (var painted = await PostMcpAsync(client, token, ToolCallPayload(9, "pegasus_glass_position_act", new
         {
             caseId, action = "add", operationKey = "mcp:typed-8", expectedSessionVersion = 0,
-            kind = "part", row = "771", operation = "part_and_paint", inputs = new { hours = 2m },
+            kind = "part", row = "193", operation = "part", inputs = new { hours = 2m, side = "both" },
         })))
         {
             Assert.Contains(AutomationToolText.GlassInputsHoursRefused, await RefusalAsync(painted), StringComparison.Ordinal);

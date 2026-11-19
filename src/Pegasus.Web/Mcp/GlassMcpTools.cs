@@ -74,7 +74,8 @@ internal sealed record GlassListedPartToolItem(
     string Code,
     string Text,
     [property: Description(AutomationToolText.GlassActMandatoryPartTicked)] bool Ticked,
-    [property: Description(AutomationToolText.GlassActMandatoryPartOptional)] bool Optional);
+    [property: Description(AutomationToolText.GlassActMandatoryPartOptional)] bool Optional,
+    [property: Description(AutomationToolText.GlassActMandatoryPartId)] string? Id = null);
 
 /// <summary>What an add or a preview gives Glass's dialog (R1206): later versions add members.</summary>
 internal sealed record GlassPositionInputsToolInput(
@@ -88,14 +89,38 @@ internal sealed record GlassPositionInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsPrice)] decimal? Price = null,
     [property: Description(AutomationToolText.GlassInputsOverlapHours)] decimal? OverlapHours = null,
     [property: Description(AutomationToolText.GlassInputsReason)] string? Reason = null,
-    [property: Description(AutomationToolText.GlassInputsPaint)] GlassPaintInputsToolInput? Paint = null);
+    [property: Description(AutomationToolText.GlassInputsPaint)] GlassPaintInputsToolInput? Paint = null,
+    [property: Description(AutomationToolText.GlassInputsPlace)] string? Place = null,
+    [property: Description(AutomationToolText.GlassInputsTrade)] string? Trade = null,
+    [property: Description(AutomationToolText.GlassInputsPartNumber)] string? PartNumber = null,
+    [property: Description(AutomationToolText.GlassInputsLabourDescription)] string? LabourDescription = null,
+    [property: Description(AutomationToolText.GlassInputsDescription)] string? Description = null,
+    [property: Description(AutomationToolText.GlassInputsOutsideWork)] bool? OutsideWork = null,
+    [property: Description(AutomationToolText.GlassInputsOverlapFull)] bool? OverlapFull = null,
+    [property: Description(AutomationToolText.GlassInputsRenew)] GlassRenewInputsToolInput? Renew = null,
+    [property: Description(AutomationToolText.GlassInputsPanel)] bool? Panel = null);
+
+/// <summary>Renew's old-for-new window as a person answers it (R1206).</summary>
+internal sealed record GlassRenewInputsToolInput(
+    [property: Description(AutomationToolText.GlassInputsRenewPriceDeduction)] decimal? PriceDeduction = null,
+    [property: Description(AutomationToolText.GlassInputsRenewPriceAmount)] bool? PriceAmount = null,
+    [property: Description(AutomationToolText.GlassInputsRenewHoursDeduction)] decimal? HoursDeduction = null,
+    [property: Description(AutomationToolText.GlassInputsRenewHoursAmount)] bool? HoursAmount = null,
+    [property: Description(AutomationToolText.GlassInputsRenewPaintDeduction)] decimal? PaintDeduction = null);
 
 /// <summary>The paint choices of a part's dialog (R1206).</summary>
 internal sealed record GlassPaintInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsPaintCoats)] string? Coats = null,
     [property: Description(AutomationToolText.GlassInputsPaintLevel)] string? Level = null,
     [property: Description(AutomationToolText.GlassInputsPaintSurcharge)] bool? Surcharge = null,
-    [property: Description(AutomationToolText.GlassInputsPaintHours)] decimal? Hours = null);
+    [property: Description(AutomationToolText.GlassInputsPaintHours)] decimal? Hours = null,
+    [property: Description(AutomationToolText.GlassInputsPaintArea)] string? Area = null,
+    [property: Description(AutomationToolText.GlassInputsPaintProcedure)] string? Procedure = null,
+    [property: Description(AutomationToolText.GlassInputsPaintMethod)] string? Method = null,
+    [property: Description(AutomationToolText.GlassInputsPaintColouredClear)] bool? ColouredClear = null,
+    [property: Description(AutomationToolText.GlassInputsPaintScratchResistant)] bool? ScratchResistant = null,
+    [property: Description(AutomationToolText.GlassInputsPaintPrice)] decimal? Price = null,
+    [property: Description(AutomationToolText.GlassInputsPaintReason)] string? Reason = null);
 
 /// <summary>A dialog's figures as an act records them (R1206): served by Glass's, or sent by the post.</summary>
 internal sealed record GlassFiguresToolItem(
@@ -128,8 +153,7 @@ internal sealed record GlassDialogOperationToolItem(
     [property: Description(AutomationToolText.GlassPreviewOperationFigures)] decimal? Hours,
     [property: Description(AutomationToolText.GlassPreviewGlassHours)] decimal? GlassHours,
     [property: Description(AutomationToolText.GlassPreviewServed)] bool Served,
-    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable,
-    [property: Description(AutomationToolText.GlassPreviewOperationRefusedCode)] string? RefusedCode = null);
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
 
 internal sealed record GlassDialogChoiceToolItem(string Value, [property: Description(AutomationToolText.GlassPreviewText)] string Text);
 
@@ -736,8 +760,7 @@ internal sealed class GlassMcpTools(
                 dialog.Side,
                 dialog.Operations
                     .Select(item => new GlassDialogOperationToolItem(
-                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable,
-                        item.RefusedCode))
+                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable))
                     .ToList(),
                 dialog.Fields
                     .Select(field => new GlassDialogFieldToolItem(
@@ -926,8 +949,24 @@ internal sealed class GlassMcpTools(
             inputs.OverlapHours,
             inputs.Reason,
             inputs.Paint is { } paint
-                ? new GlassAutomationPaint(paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, paint.Hours)
-                : null));
+                ? new GlassAutomationPaint(
+                    paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, paint.Hours, paint.Area?.Trim(),
+                    paint.Procedure?.Trim(), paint.Method?.Trim(), paint.ColouredClear, paint.ScratchResistant, paint.Price,
+                    paint.Reason)
+                : null,
+            inputs.Place?.Trim(),
+            inputs.Trade?.Trim(),
+            inputs.PartNumber,
+            inputs.LabourDescription,
+            inputs.Description,
+            inputs.OutsideWork,
+            inputs.OverlapFull,
+            inputs.Renew is { } renew
+                ? new GlassAutomationRenew(
+                    renew.PriceDeduction, renew.PriceAmount == true, renew.HoursDeduction, renew.HoursAmount == true,
+                    renew.PaintDeduction)
+                : null,
+            inputs.Panel));
     }
 
     /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
@@ -943,6 +982,14 @@ internal sealed class GlassMcpTools(
         "inputs.overlapHours" => AutomationToolText.GlassInputsOverlapHoursRefused,
         "inputs.reason" => AutomationToolText.GlassInputsReasonRefused,
         "inputs.paint" => AutomationToolText.GlassInputsPaintRefused,
+        "inputs.place" => AutomationToolText.GlassInputsPlaceRefused,
+        "inputs.trade" => AutomationToolText.GlassInputsTradeRefused,
+        "inputs.partNumber" => AutomationToolText.GlassInputsPartNumberRefused,
+        "inputs.labourDescription" => AutomationToolText.GlassInputsLabourDescriptionRefused,
+        "inputs.description" => AutomationToolText.GlassInputsDescriptionRefused,
+        "inputs.outsideWork" or "inputs.overlapFull" => AutomationToolText.GlassInputsFieldRefused,
+        "inputs.renew" => AutomationToolText.GlassInputsRenewRefused,
+        "inputs.panel" => AutomationToolText.GlassInputsPanelRefused,
         _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
     };
 
@@ -1073,7 +1120,7 @@ internal sealed class GlassMcpTools(
             act.Description,
             act.Served?.Price,
             act.Served?.Hours,
-            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked, listed.Optional)).ToList(),
+            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked, listed.Optional, listed.Id)).ToList(),
             act.RequestedAtUtc,
             act.Inputs is { } given
                 ? new GlassPositionInputsToolInput(
@@ -1094,8 +1141,23 @@ internal sealed class GlassMcpTools(
                     given.OverlapHours,
                     given.Reason,
                     given.Paint is { } paint
-                        ? new GlassPaintInputsToolInput(paint.Coats, paint.Level, paint.Surcharge, paint.Hours)
-                        : null)
+                        ? new GlassPaintInputsToolInput(
+                            paint.Coats, paint.Level, paint.Surcharge, paint.Hours, paint.Area, paint.Procedure, paint.Method,
+                            paint.ColouredClear, paint.ScratchResistant, paint.Price, paint.Reason)
+                        : null,
+                    given.Place,
+                    given.Trade,
+                    given.PartNumber,
+                    given.LabourDescription,
+                    given.Description,
+                    given.OutsideWork,
+                    given.OverlapFull,
+                    given.Renew is { } renew
+                        ? new GlassRenewInputsToolInput(
+                            renew.PriceDeduction, renew.PriceAmount ? true : null, renew.HoursDeduction,
+                            renew.HoursAmount ? true : null, renew.PaintDeduction)
+                        : null,
+                    given.Panel)
                 : null,
             MapEquipment(act.Equipment),
             act.RowPair,

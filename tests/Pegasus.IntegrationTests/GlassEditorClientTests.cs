@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.IntegrationTests;
@@ -106,8 +107,14 @@ public sealed class GlassEditorClientTests
             "https://" + editor.Requests[9].Host + editor.Requests[9].Path + editor.Requests[9].Query);
     }
 
+    /// <summary>
+    /// Typed hours above Glass's own with no reason (R1206): the dialog would
+    /// ask for one, so nothing is posted, with the code that tells the
+    /// Automation to give its reason. Only typed hours meet this; a rebuild
+    /// types none.
+    /// </summary>
     [Fact]
-    public async Task ADialogWithAProblemIsNeverPosted()
+    public async Task TypedHoursThatNeedAReasonAreNeverPostedWithoutOne()
     {
         using var editor = new ScriptedEditor();
         editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
@@ -119,9 +126,60 @@ public sealed class GlassEditorClientTests
             new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Hours: "0.80")),
             default));
 
-        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, refused.FailureCode);
         Assert.False(refused.OutcomeUnknown);
         Assert.Contains("the dialog asks for a reason", refused.Detail, StringComparison.Ordinal);
+        var only = Assert.Single(editor.Requests);
+        Assert.Equal("GET", only.Method);
+    }
+
+    /// <summary>
+    /// The quick repair panel's Both (R1206): one command per side, in order,
+    /// exactly as glasss2missing.har #536 and #537 asked for them, then the
+    /// estimate read again for the positions added.
+    /// </summary>
+    [Fact]
+    public async Task ThePanelsCommandsAreSentInOrderAndTheEstimateReadAgain()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+
+        var added = await client.PanelAddAsync(
+            GlassEditorFixture.Session(), NoPositions(),
+            GlassEditorPanel.Commands(PanelValues), "Front Door Skin", default);
+
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=171|173|AE||III|80||&nofresh3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[0].Query));
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=174|176|AE||III|80||&actFrame3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[1].Query));
+        Assert.Equal("/ere/aco/selected.php", editor.Requests[2].Path);
+        Assert.Equal(GlassEditorFixture.Strings(GlassEditorFixture.Page("selected"), "positions"), added.Value.Added);
+    }
+
+    private static readonly string[] PanelValues = ["171|173|AE||III|80||", "174|176|AE||III|80||"];
+
+    /// <summary>Any other problem the builder finds refuses the dialog with the editor's own code, and nothing is posted.</summary>
+    [Fact]
+    public async Task ADialogWithAProblemIsNeverPosted()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET part.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("special_hours.dialog.html")));
+        var client = Client(editor);
+
+        var refused = await Assert.ThrowsAsync<GlassMvaStageException>(() => client.AddAsync(
+            GlassEditorFixture.Session(),
+            NoPositions(),
+            new GlassEditorAddRequest(GlassEditorDialog.SpecialOperation, "AC0000075", "75", Change: new GlassEditorChange(Operation: "XX")),
+            default));
+
+        Assert.Equal(GlassFailure.EditorRefused, refused.FailureCode);
+        Assert.False(refused.OutcomeUnknown);
+        Assert.Contains("The dialog does not offer the operation XX.", refused.Detail, StringComparison.Ordinal);
         var only = Assert.Single(editor.Requests);
         Assert.Equal("GET", only.Method);
     }

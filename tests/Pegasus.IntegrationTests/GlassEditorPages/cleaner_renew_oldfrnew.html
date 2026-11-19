@@ -1,0 +1,140 @@
+<html><head><title>oldfrnew</title></head><body>
+<form name="Part" method="post" enctype="application/x-www-form-urlencoded">
+  <table class="dialogoutervhspace" border="0" cellspacing="0" cellpadding="0">
+  <tr style="vertical-align:top;" valign="top"><td nowrap>
+    <table class="frame" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;">
+    <tr><td nowrap>
+      <table class="dialogvhspace" width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;">
+
+      <tr>
+	<td rowspan="2" width="54%" style="width:54%;">
+		<table width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;">
+	<tr>
+	  <td style="font-weight:bold;font-size:10pt;color:#005288;vertical-align:top;" valign="top">Part</td>
+	  <td width="40" style="width:40px;"><img id="carpic" src="img/bt_ball_car2.png" border="0"></td>
+	  <td width="8" style="width:8px;">&nbsp;</td>
+	</tr>
+	</table
+		</td>
+	<td nowrap align="right" zzzwidth="46%">
+	<span id="ID_Newp" class="ControllName">Original&nbsp;[£]&nbsp;</span>
+	</td>
+	<td align="right">
+	<input type="text" name="Newp" value="11.44" zzzsize="17" width="140" style="width:140px;" onkeyup="ChangeEffPrice();" onpaste="ChangeEffPrice();" oncut="ChangeEffPrice();" onpropertychange="ChangeEffPrice();" onchange="ChangeEffPrice();">
+	</td>
+      </tr>
+      <tr>
+	<td nowrap align="right">
+	<span id="ID_Disc" class="ControllName">Discount&nbsp;</span>
+	</td>
+	<td align="right">
+	<table width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;">
+	<tr>
+	  <td width="100%" style="width:100%;">
+	  <input type="text" name="Disc" value="0.00" zzzsize="10" width="100%" style="width:100%;"  onkeyup="ChangeEffPrice();" onpaste="ChangeEffPrice();" oncut="ChangeEffPrice();" onpropertychange="ChangeEffPrice();" onchange="ChangeEffPrice();">
+	  </td><td nowrap>
+	  &nbsp;<select name="VmatS" size="1" width="50" style="width:50px;" onchange="ChangeEffPrice();">
+	  <option value="%" selected>%
+	  <option value="*">£	  	  </select>
+	  </td>
+	</tr>
+	</table>
+	</td>
+      </tr>
+      <tr>
+	<td></td>
+	<td nowrap align="right">
+	<span id="ID_Effp" class="ControllNameDisabled">Real price&nbsp;[£]&nbsp;</span>
+	</td>
+	<td align="right">
+	<input type="text" name="Effp" value="11.44" zzzsize="17" width="140" style="width:140px;" disabled>
+	</td>
+      </tr>
+
+            <tr>
+	<td></td>
+	<td nowrap align="right" width="100%" style="width:100%;">
+	<span id="ID_Newt" class="ControllName">Original labour hours&nbsp;[Hour]&nbsp;</span>
+	</td>
+	<td align="right">
+	<input type="text" name="Newt" value="0.00" zzzsize="17" width="140" style="width:140px;" onkeyup="ChangeEffTime();" onpaste="ChangeEffTime();" oncut="ChangeEffTime();" onpropertychange="ChangeEffTime();" onchange="ChangeEffTime();">
+	</td>
+      </tr>
+      <tr>
+	<td rowspan="2">
+		<img src="img/calculat.png" border="0" onclick="openTastatura();">
+		</td>
+	<td nowrap align="right">
+	<span id="ID_Disct" class="ControllName">Discount&nbsp;</span>
+	</td>
+	<td align="right">
+	<table width="100%" border="0" cellspacing="0" cellpadding="0" style="width:100%;">
+	<tr>
+	  <td width="100%" style="width:100%;">
+	  <input type="text" name="Disct" value="0.00" zzzsize="10" width="100%" style="width:100%;" onkeyup="ChangeEffTime();" onpaste="ChangeEffTime();" oncut="ChangeEffTime();" onpropertychange="ChangeEffTime();" onchange="ChangeEffTime();">
+	  </td><td nowrap>
+	  &nbsp;<select name="VmatSt" size="1" width="50" style="width:50px;" onchange="ChangeEffTime();">
+	  <option value="%" selected>%
+	  <option value="*">Hour	  	  </select>
+	  </td>
+	</tr>
+	</table>
+	</td>
+      </tr>
+      <tr>
+	<td nowrap align="right">
+	<span id="ID_Efft" class="ControllNameDisabled">Real Labour time&nbsp;[Hour]&nbsp;</span>
+	</td>
+	<td align="right">
+	<input type="text" name="Efft" value="0.00" zzzsize="17" width="140" style="width:140px;" disabled>
+	</td>
+      </tr>
+      
+
+      
+      </table>
+    </td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td align="right"><input class="bigbutton" type="button" value="Cancel" onclick="window.close()">
+			<input class="bigbutton" type="button" value="OK" onclick="Submit()">
+  </td></tr>
+  </table>
+  <img id="bottomposition" src="img/blank.png" border="0">
+</form>
+<script language="JavaScript">
+function Submit() {
+    var Newp = document.Part.Newp.value;
+  var Disc = document.Part.Disc.value;
+  var VmatS = document.Part.VmatS[ document.Part.VmatS.selectedIndex ].value;
+    window.opener.SubmitOldfrnewPrice( Newp, Disc, VmatS );
+  window.opener.document.Part.Price.value = document.Part.Effp.value;
+  window.opener.document.Part.ANReason.value = '';
+  var nDisc = Number( typeof( dDisc ) !== "undefined" ? dDisc : Disc );
+  if ( ! isNaN( nDisc ) && nDisc )
+    window.opener.document.Part.ANReason.value = 'Original price '+Newp
+						 +' [£] Less '+Disc
+						 +' ['+document.Part.VmatS[ document.Part.VmatS.selectedIndex ].text+']';
+  
+    var Newt = document.Part.Newt.value;
+  var Disct = document.Part.Disct.value;
+  var VmatSt = document.Part.VmatSt[ document.Part.VmatSt.selectedIndex ].value;
+    window.opener.SubmitOldfrnewTime( Newt, Disct, VmatSt );
+  window.opener.document.Part.Time.value = document.Part.Efft.value;
+  var nDisct = Number( typeof( dDisct ) !== "undefined" ? dDisct : Disct );
+  if ( ! isNaN( nDisct ) && nDisct ) {
+    if ( window.opener.document.Part.ANReason.value != "" )
+      window.opener.document.Part.ANReason.value += "; ";
+    window.opener.document.Part.ANReason.value += 'Original labour hours '+Newt
+						  +' [Hour] Less '+Disct
+						  +' ['+document.Part.VmatSt[ document.Part.VmatSt.selectedIndex ].text+']';
+  }
+  
+  
+  window.close();
+}
+
+
+</script>
+</body></html>

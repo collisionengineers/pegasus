@@ -768,38 +768,53 @@ compose Glass's, each tool is refused with "Glass's is not available."
   part's dialog what a person gives it without typing, in both kinds of
   live session. Paint on its own and Part and Paint are sent: the button is
   pressed on the dialog of a part that can be painted, and the paint section
-  is sent as Glass's serves it. `inputs.operation` chooses another
-  operation the dialog offers, by Glass's own code, only where Pegasus can
-  read its position back when the estimate returns: I (Repair), AE
-  (Uninstall and install), AD (Sealing) and P (Control and adjustment),
-  whose positions Glass's exports as repair kinds the return reads. Any
-  other operation, Renew (AN) among them, is refused with
-  `glass.build.operation_not_read_back` before anything is sent, because
-  the return refuses the whole export on a repair kind it does not read
-  (issue 2155), and which line each becomes is the operator's decision
-  there. Pegasus can build more of them, as Glass's own script was seen
-  offline to post them; they wait on that decision. An operation that
-  reloads the dialog or opens any other window stays refused. Repair answers OK to the
+  is sent as Glass's serves it. `inputs.operation` chooses any other
+  operation the dialog offers, by Glass's own code, with the price and
+  hours its own script sets for it. No operation is refused for the
+  return's sake: the return reads every repair kind Glass's exports (issue
+  2155). An operation that reloads the dialog, Paintless dent repair (DD)
+  and any the script's `SubClassMap` marks `WS`, is followed as the editor
+  follows it: the form its ChangeRepart submits is posted to the address
+  the script names, and the dialog Glass's answers is posted with the rest
+  of the inputs; `preview` shows the reload as a question and does not
+  follow it. An operation the script holds no figures for (the bonnet's
+  NL) is sent with 0.00 in each box, as CheckSubmit writes them, once the
+  question before no figures is answered. Both were judged offline on 19
+  November 2026 on the bonnet (#745). Renew (AN) opens its old-for-new
+  window, which Pegasus asks for as the dialog does and answers with
+  `inputs.renew`: a deduction from the original price and from the
+  original hours, each a percentage or an amount (pounds or hours), and on
+  a part with its paint a percentage from the paint. The window's own sums
+  and reason are sent. Deductions that leave a negative figure are refused
+  with `glass.build.deduction_below_zero`, because the return could not
+  read that position back. Six posts were judged offline on 19 November
+  2026: the walk's door (#894, window #916, the walk's own #929) and the
+  roof panel cleaner (n #689, window n #731). Repair answers OK to the
   dialog's question before a part with no price and no hours (R1188); any
   other operation does so only with `inputs.confirmNoFigures`, and is
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;
   a part that cannot be painted has no paint button and is refused with
   `glass.row.not_paintable`. `inputs.side` `both` ticks Both where the
-  dialog offers it; the other side's own dialog, which the editor opens
-  next, is then posted as served, and if it does not come as expected the
-  first side stays added with `glass.row.other_side_not_added`.
+  dialog offers it, on a part that can be painted as well (19 November
+  2026, b #55 and b #96, the browser's own pair of posts); the other
+  side's own dialog, which the editor opens next, is pressed with the same
+  button and given the same operation, and is otherwise posted as served.
+  Typed figures, the dialog's fields and paint choices go on one side at a
+  time. If the other dialog does not come as expected the first side stays
+  added with `glass.row.other_side_not_added`.
   `inputs.optionalParts` names the optional parts to tick on the
-  "Mandatory parts:" page. The top-level `operation` keeps its meaning;
+  "Mandatory parts:" page, one box each as a person ticks them: by the id
+  its listing carries on an earlier act, a code the page lists twice being
+  two boxes (`1102450.ER.#2` is the second), or by its code, which ticks
+  the first optional box of that code. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
-  input given is kept on the act, beside the figures Glass's served. A
-  typed part number or description and free rows stay refused.
+  input given is kept on the act, beside the figures Glass's served.
   The server's rebuild of an outside estimate is unchanged (R1168, R1169,
   R1172).
 - **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
   `inputs.overlapHours` type the labour hours, the price and the overlap
-  hours in the dialog of a special operation, or of a part that cannot be
-  painted pressed with Part, one side at a time, in both kinds of live
-  session. A value the Automation types is its own input, as a person's
+  hours in the dialog of a special operation or of a part, whether it can
+  be painted or not, one side at a time, in both kinds of live session. A value the Automation types is its own input, as a person's
   would be. Pegasus sends each with two decimal places after a full stop
   (`2.80`, `1234.00`), as a person types it; the dialog posts the text
   typed unchanged. A negative figure, one with more than two decimal
@@ -813,20 +828,58 @@ compose Glass's, each tool is refused with "Glass's is not available."
   given where the dialog asks for none with `glass.build.reason_not_asked`.
   Overlap hours above the hours sent are refused with
   `glass.build.overlap_above_hours`, because the return refuses a whole
-  export with such a position. Typed figures on the dialog of a part that
-  can be painted have no capture and are refused with
-  `glass.build.not_built`. The act keeps every input beside the figures the
+  export with such a position. On a part that can be painted the reason
+  rule runs for Part and for Part and Paint, as its CheckSubmit runs it.
+  The act keeps every input beside the figures the
   dialog served and the figures sent, recorded just before the post.
+- **19 November 2026; R1206.** `inputs.panel` adds a part through the
+  quick repair panel under the editor's drawing instead of its dialog, as
+  a person does with one press: New for `part`, Remove and Install for
+  `remove_and_refit`, Repair for `repair` with `inputs.hours` as its repair
+  hours (one decimal place). With `inputs.side` `both` it adds each side in
+  turn, one command each, as the panel's own Both does. On a part that can
+  be painted the panel adds the paint too, at the level it chooses itself;
+  `inputs.paint.area` chooses the paint area where its paint box offers
+  more than one, and the paint list is then read for that area's levels.
+  The panel sets no price, typed figures, reason, labour type, part number,
+  overlap hours, optional parts, paint type, Surcharge or clear coats; the
+  dialog route does. A part already on the estimate (the panel would delete
+  its positions first), a button the panel greys, an area it does not offer
+  and Both on a part with no other side are refused with
+  `glass.panel.refused` before anything is sent. Judged offline on 19
+  November 2026: the panel's own script (glasss2missing.har #295, #296)
+  sent #536 and #537 byte for byte, and 16 commands over seven parts.
+- **19 November 2026; R1206.** The dialog's own fields are given as a
+  person gives them, in both kinds of live session: `inputs.place` ticks the
+  side boxes where the dialog lets its side be changed (left or right, and
+  on a special row front or rear), and the dialog then reads its figures and
+  part number for that side; `inputs.trade` chooses the labour type;
+  `inputs.partNumber` and `inputs.labourDescription` are typed, the labour
+  description as a person types it or picks it in Glass's picker
+  (`freetxt.php`, which only writes the box); `inputs.description` types a
+  special operation's own description, 3 to 250 characters as its dialog
+  wants at least 3; `inputs.outsideWork` ticks outside work on a special
+  operation's dialog, which then chooses ZK and greys the hours and overlap
+  hours; `inputs.overlapFull` presses Full, which copies the hours into the
+  overlap hours. Each was judged offline on 19 November 2026 on the walk's
+  door glass (#643), door shell (#894), yard charge (#1109) and bulb row
+  (#1257), seven posts identical to the dialog's own script's and pinned.
+  No captured dialog offers a quantity box, so none is built.
 - **19 November 2026; R1206.** `change` changes a position already on the
   estimate, any position of it as `remove` takes any (R1185), in both kinds
   of live session. It takes the position's id and `inputs`: the typed
-  figures and reason, the OK to no figures, the button and the optional
-  parts to tick. Its equipment answer, its operation and Both stay as the
+  figures and reason, the paint choices, the OK to no figures, the button
+  and the optional parts to tick. Its equipment answer, its operation and Both stay as the
   position has them. It reads the estimate first and opens the dialog the
   editor's own list opens for the position: `part.php` for a part with no
-  paint or a special row, `comp.php` for a part with its paint. A paint
-  position of its own (`lack.php`) is refused with `glass.build.not_built`,
-  and a position the estimate does not hold with `glass.row.unknown`. The
+  paint or a special row, `comp.php` for a part with its paint, and
+  `lack.php` for a paint position of its own, whose paint choices, typed
+  paint figures and reason and side boxes are given as on `comp.php` and
+  posted with its OK (19 November 2026: eleven posts of the walk's two
+  paint dialogs, #1310 and #1488, identical to their own script's, the
+  served two the browser's #1326 and #1504; `preview` answers its kind as
+  `paint`). A position the estimate does not hold is refused with
+  `glass.row.unknown`. The
   dialog must be the position's own. It is posted with the change, its
   "Mandatory parts:" page is confirmed as an add's is, the estimate is read
   back and must still hold the position, which keeps its id, and the
@@ -835,25 +888,31 @@ compose Glass's, each tool is refused with "Glass's is not available."
   whose answer is lost is `not_confirmed`, and the position's own read
   settles it. `preview` of a position takes the same inputs, reads the
   estimate to choose the dialog, and says what the change would send.
-- **19 November 2026; R1206.** `inputs.paint` chooses a part's paint where
-  Paint or Part and Paint is pressed, or in a `change`: the paint type
-  (`coats`), the level, Surcharge and typed paint hours. Pegasus makes the
-  choices in the order the dialog's own script gives one post whatever
-  order a person makes them in: the paint type, which sets the paint state,
-  its tick boxes and, where the state enables them, the procedure and
-  method the script selects; then the level, which sets Glass's paint price
-  and hours; then Surcharge; then the paint hours, for which Glass's asks no
-  reason. Coloured clear is posted as the paint state sets it, greyed or
-  not, as the dialog posts it. A paint type the list does not offer, a level
-  the type does not offer, Surcharge where the type fixes it and a button
-  the page hides are refused before anything is posted. The type and level
-  are chosen only on a metal part, whose levels come back as levels the
-  return reads; on any other part the act is refused with
-  `glass.build.paint_not_read_back`. A typed price or hours on a part that
-  can be painted, a paint reason, the procedure and method, scratch-resistant
-  clear and coloured clear stay refused, having no capture. `preview` gives
-  each paint type and level the paint area offers with Glass's price and
-  hours for it, and says when the figures are the position's own.
+  `remove` opens the dialog the editor's own list opens for the position,
+  `part.php`, `comp.php` or `lack.php`, before its Delete.
+- **19 November 2026; R1206.** `inputs.paint` makes every paint choice a
+  person makes in the dialog of a part that can be painted, where Paint or
+  Part and Paint is pressed, or in a `change`: the paint area, the paint
+  type (`coats`), the procedure, the method, the level (a plastic part's as
+  well as a metal one's), Surcharge, Coloured clear, scratch-resistant
+  clear, and the typed paint price, paint hours and paint reason. Pegasus
+  makes them in that order, each with the dialog's own handler as its
+  script runs it: the area rebuilds the paint types and levels, picks the
+  area's default level and sets the price and hours; the paint type sets
+  the paint state and its tick boxes; the procedure and the method each set
+  the paint state the script picks for them, its price, hours and tick
+  boxes. Glass's asks no reason for paint hours; the paint reason window
+  (`reason.php?lreason=`) only writes the box, so the Automation's reason is
+  sent as given, its line breaks as bars. Coloured clear is posted as the
+  paint state sets it, greyed or not, as the dialog posts it. A value the
+  dialog does not offer there, Surcharge or Coloured clear where the paint
+  state fixes it, scratch-resistant clear where the area or paint type greys
+  it, and a button the page hides are refused before anything is posted.
+  Each was judged offline on 19 November 2026 on the bonnet (#745), the left
+  front door shell (#894) and the front bumper (#552), the dialog's own
+  script's post pinned. `preview` names the input of every paint box, gives
+  each paint type and level the area offers with Glass's price and hours,
+  and says when the figures are the position's own.
 - **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
   `add` with the same row and inputs would post, chosen as the add chooses
   it, or for the dialog of a position on the estimate by its id, and
@@ -865,9 +924,7 @@ compose Glass's, each tool is refused with "Glass's is not available."
   its served value, its choices and whether Pegasus may change it; the
   paint section; the buttons; and, for the inputs given, what the add would
   send, each question on the way, and the code the add would be refused
-  with. An operation the dialog offers that the return cannot read back
-  is shown as not choosable, with `glass.build.operation_not_read_back`.
-  Each box the Automation may type in names the input that changes it, and
+  with. Each box the Automation may type in names the input that changes it, and
   the hours box gives Glass's own hours, above which a reason is needed.
   Glass's own labels and texts pass through unchanged. Which
   mandatory parts Glass's lists after a post cannot be known before it.

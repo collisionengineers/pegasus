@@ -733,22 +733,20 @@ In its own session and in an Engineer's with help on, the Automation gives
 a dialog what a person gives it without typing
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
 Paint on its own and Part and Paint, in place of R1182's refusal, with the
-paint section as Glass's serves it; another operation the dialog offers,
-only Repair, Uninstall and install, Sealing and Control and adjustment,
-whose positions the return reads back from Glass's export, with Glass's
-question before no figures answered OK for Repair by itself (R1188) and
-for anything else only when the Automation says so (any other operation,
-Renew among them, waits on the operator's decision under issue 2155,
-because the return refuses a whole export on a repair kind it does not
-read); Both, with the other
-side's own dialog posted as served; and the optional parts to tick on the
+paint section as Glass's serves it; any other operation the dialog offers,
+with Glass's question before no figures answered OK for Repair by itself
+(R1188) and for anything else only when the Automation says so (the return
+reads every repair kind Glass's exports, issue 2155); Both, on a part that
+can be painted as well, with the other side's own dialog pressed with the
+same button and operation and otherwise posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
-posted for a preview. A typed part number or text and free rows still wait.
-The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
+posted for a preview. It also types a part number, a labour description and
+a special operation's own description, chooses the labour type and the side
+boxes, ticks outside work and presses the overlap hours' Full, as a person
+would. Free rows still wait. The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
 
 **Typed hours, price and overlap hours (19 November 2026; R1206).** In the
-dialog of a special operation, or of a part that cannot be painted, the
-Automation may type the labour hours, the price and the overlap hours, as a
+dialog of a special operation or of any part, the Automation may type the labour hours, the price and the overlap hours, as a
 person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
 They are its own input, never Pegasus's. Hours above Glass's own need the
 Automation's own reason, which Glass's keeps on the position; without one
@@ -762,15 +760,36 @@ the editor opens for it, in its own session and in an Engineer's with help
 on ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)),
 with what that dialog lets a person change. The position keeps its id. The
 act records what Glass's served and what was sent, and the position's own
-figures afterwards. A paint position's own dialog is not changed.
+figures afterwards. A paint position's own dialog is changed as a person
+changes it: its paint choices, typed paint price, hours and reason, and its
+side boxes.
 
 **Paint choices (19 November 2026; R1206).** On a part that can be painted,
 pressed with Paint or Part and Paint, and in a change, the Automation may
-choose the paint type, the level and Surcharge and type the paint hours, as
-a person would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)).
-Glass's own script sets the paint price and hours for the type and level.
-The type and level are chosen on a metal part only, whose levels the return
-reads back.
+make every paint choice a person makes, as a person would
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): the
+area, paint type, procedure, method, level, Surcharge, Coloured clear and
+scratch-resistant clear, and the paint price, hours and reason it types.
+Glass's own script sets the paint price and hours each choice leads to, a
+plastic part's levels as well as a metal one's.
+
+**The quick repair panel (19 November 2026; R1206).** The Automation may
+also add a part as a person does with the panel under the editor's drawing
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): New,
+Remove and Install or Repair with its hours, for one side or both, with the
+paint the panel adds itself and the paint area it offers. It is quicker and
+sets less than the dialog: no price, typed figures, labour type, part
+number or paint choices. A part already on the estimate is not added this
+way, because the panel would first delete its positions.
+
+**Renew and its old-for-new deductions (19 November 2026; R1206).** When
+the Automation chooses Renew, it answers the old-for-new window as a person
+would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
+a deduction from the original price and hours, each a percentage or an
+amount, and from the paint as a percentage. Glass's window works out the
+price and hours sent and writes its own reason. Deductions that would leave
+a negative price or hours are refused, because the return could not read
+that position back.
 
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may

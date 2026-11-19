@@ -1476,11 +1476,6 @@ public sealed partial class GlassRepairEstimateGateway(
 
         // Every kind and operation is sent, with the inputs the policy allows (R1206).
         var act = GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
-        if (act.Outcome == GlassAutomationActOutcome.Refused)
-        {
-            // An operation the return cannot read back: refused before anything is asked of Glass's.
-            LogActRefusedBeforeSending(logger, session.Id, session.CaseId, act.Code ?? string.Empty, act.Inputs?.Operation ?? string.Empty);
-        }
 
         session = await WriteAsync(
             session with { Automation = GlassAutomationPositionPolicy.Record(session.Automation, act) },
@@ -2722,12 +2717,6 @@ public sealed partial class GlassRepairEstimateGateway(
 
     private Task<T> StageAsync<T>(GlassRepairEstimateSession session, string stage, Func<Task<T>> action) =>
         Positions.StageAsync(session, stage, action);
-
-    [LoggerMessage(
-        Level = LogLevel.Warning,
-        Message = "Glass's session {SessionId} for case {CaseId} add refused before sending at {Code} for operation {Operation}")]
-    private static partial void LogActRefusedBeforeSending(
-        ILogger logger, Guid sessionId, Guid caseId, string code, string operation);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message = "Glass's session {SessionId}/{Version} case {CaseId} state {State} code {FailureCode}")]

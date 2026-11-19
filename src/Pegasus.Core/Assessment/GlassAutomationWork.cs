@@ -103,6 +103,14 @@ public sealed record GlassAutomationListedPart(string Code, string Text, bool Ti
 {
     /// <summary>Whether the page let the part be ticked or left: an optional part.</summary>
     public bool Optional { get; init; }
+
+    /// <summary>
+    /// The value <see cref="GlassAutomationInputs.OptionalParts"/> names this
+    /// one box by (R1206): the code, or for a code the page lists more than
+    /// once the code and its listing's number, such as <c>1102450.ER.#2</c>.
+    /// Null on an act recorded before boxes had ids.
+    /// </summary>
+    public string? Id { get; init; }
 }
 
 /// <summary>The button an add presses on the dialog of a part that can be painted (Glass's <c>comp.php</c>).</summary>
@@ -154,6 +162,13 @@ public enum GlassAutomationButton
 /// and sent only when the dialog asks for it.
 /// </param>
 /// <param name="Paint">The paint choices in the dialog of a part that can be painted (R1206).</param>
+/// <param name="Place">The side boxes a person ticks (R1206): one of the sides the dialog offers, <c>L</c>, <c>R</c>, <c>V</c>, <c>H</c> or front or rear with left or right (<c>VL</c>).</param>
+/// <param name="Trade">The labour type (<c>Craft</c>) by Glass's own value, such as <c>M</c> for Mechanical.</param>
+/// <param name="PartNumber">The part number typed in the dialog's part number box.</param>
+/// <param name="LabourDescription">The labour description typed in, or picked into, the dialog's labour description box.</param>
+/// <param name="Description">A special operation's own description, typed in place of the row's.</param>
+/// <param name="OutsideWork">Ticks outside work where the dialog has it; Glass's then greys the hours.</param>
+/// <param name="OverlapFull">Presses the overlap hours' Full button, which copies the hours.</param>
 public sealed record GlassAutomationInputs(
     IReadOnlyList<string>? Equipment = null,
     string? Operation = null,
@@ -165,16 +180,44 @@ public sealed record GlassAutomationInputs(
     decimal? Price = null,
     decimal? OverlapHours = null,
     string? Reason = null,
-    GlassAutomationPaint? Paint = null)
+    GlassAutomationPaint? Paint = null,
+    string? Place = null,
+    string? Trade = null,
+    string? PartNumber = null,
+    string? LabourDescription = null,
+    string? Description = null,
+    bool? OutsideWork = null,
+    bool? OverlapFull = null,
+    GlassAutomationRenew? Renew = null,
+    bool? Panel = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null && !Typed && Paint is null;
+        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields && Renew is null && Panel is null;
+
+    /// <summary>Whether a field of the dialog's own is given: a side, labour type, part number, description, outside work or Full (R1206).</summary>
+    public bool Fields =>
+        Place is not null || Trade is not null || PartNumber is not null || LabourDescription is not null
+        || Description is not null || OutsideWork is not null || OverlapFull is not null;
 
     /// <summary>Whether a typed figure or a reason is given (R1206).</summary>
     public bool Typed => Hours is not null || Price is not null || OverlapHours is not null || Reason is not null;
 }
+
+/// <summary>
+/// Renew's old-for-new window as a person answers it (19 November 2026,
+/// R1206): a deduction from the original price, from the original hours and,
+/// on a part with its paint, from the paint, each a percentage unless the
+/// price or hours deduction is marked an amount (pounds or hours). A
+/// deduction not given stays as the window serves it.
+/// </summary>
+public sealed record GlassAutomationRenew(
+    decimal? PriceDeduction = null,
+    bool PriceAmount = false,
+    decimal? HoursDeduction = null,
+    bool HoursAmount = false,
+    decimal? PaintDeduction = null);
 
 /// <summary>
 /// The paint choices a person makes in the dialog of a part that can be
@@ -183,14 +226,25 @@ public sealed record GlassAutomationInputs(
 /// type, then the level, then Surcharge, then typed paint hours.
 /// </summary>
 /// <param name="Coats">The paint type, by Glass's own value as its list offers it (<c>2</c> for 2 Coat, <c>3</c> for 3 Coat).</param>
-/// <param name="Level">The paint level, by Glass's own value as the list offers it for that paint type (<c>1</c> to <c>4</c>, <c>B</c>, <c>S</c>).</param>
-/// <param name="Surcharge">Ticks or unticks Surcharge where the paint type lets it be changed.</param>
+/// <param name="Level">The paint level, by Glass's own value as the list offers it for that paint type (<c>1</c> to <c>4</c>, <c>B</c>, <c>S</c>, a plastic part's <c>R</c>, <c>N</c>, <c>G</c>).</param>
+/// <param name="Surcharge">Ticks or unticks Surcharge where the paint state lets it be changed.</param>
 /// <param name="Hours">The paint labour hours typed in place of Glass's own; no reason is asked for them.</param>
+/// <param name="Area">The paint area, by Glass's own value as the dialog's list offers it.</param>
+/// <param name="Procedure">The paint procedure (<c>Verf</c>), by Glass's own value, where the paint state offers one.</param>
+/// <param name="Method">The paint method (<c>Meth</c>), by Glass's own value, where the paint state offers one.</param>
+/// <param name="ColouredClear">Ticks or unticks Coloured clear paint where the paint state lets it be changed.</param>
+/// <param name="ScratchResistant">Ticks or unticks scratch-resistant clear where the area and paint type let it be ticked.</param>
+/// <param name="Price">The paint price typed in place of Glass's own.</param>
+/// <param name="Reason">The Automation's own paint reason, as a person types it in the paint reason window.</param>
 public sealed record GlassAutomationPaint(
-    string? Coats = null, string? Level = null, bool? Surcharge = null, decimal? Hours = null)
+    string? Coats = null, string? Level = null, bool? Surcharge = null, decimal? Hours = null,
+    string? Area = null, string? Procedure = null, string? Method = null, bool? ColouredClear = null,
+    bool? ScratchResistant = null, decimal? Price = null, string? Reason = null)
 {
     /// <summary>Whether no choice is given.</summary>
-    public bool IsEmpty => Coats is null && Level is null && Surcharge is null && Hours is null;
+    public bool IsEmpty =>
+        Coats is null && Level is null && Surcharge is null && Hours is null && Area is null && Procedure is null
+        && Method is null && ColouredClear is null && ScratchResistant is null && Price is null && Reason is null;
 }
 
 /// <summary>
@@ -599,9 +653,10 @@ public static class GlassAutomationPositionPolicy
     /// alone; <c>inputs.side</c> ("Both") with the operation Part, the dialog's
     /// own operation and the Part button; <c>inputs.optionalParts</c> as
     /// codes, none blank or repeated. A remove takes none. Typed figures and
-    /// a reason (R1206) are taken by a special operation and by a part
-    /// pressed with Part, one side at a time, as <see cref="TypedRefused"/>
-    /// allows them; a special operation takes nothing else.
+    /// a reason (R1206) are taken by a special operation and by any part, one
+    /// side at a time, as <see cref="TypedRefused"/> allows them; a special
+    /// operation takes nothing else. Paint choices are taken where Paint or
+    /// Part and Paint is pressed, and by a change.
     /// </summary>
     public static string? InputRefused(
         GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
@@ -615,7 +670,11 @@ public static class GlassAutomationPositionPolicy
         {
             return FirstGiven(inputs);
         }
-        if (TypedRefused(inputs) is { } typed)
+        if (inputs.Panel is not null)
+        {
+            return PanelRefused(action, kind, operation, inputs);
+        }
+        if ((TypedRefused(inputs) ?? FieldRefused(inputs)) is { } typed)
         {
             return typed;
         }
@@ -627,8 +686,21 @@ public static class GlassAutomationPositionPolicy
         }
         if (kind != GlassAutomationPositionKind.Part)
         {
-            // A special operation takes typed figures and a reason alone.
-            return FirstGiven(inputs with { Hours = null, Price = null, OverlapHours = null, Reason = null });
+            // A special operation takes typed figures, a reason and its dialog's own fields.
+            return FirstGiven(inputs with
+            {
+                Hours = null, Price = null, OverlapHours = null, Reason = null, Place = null, Trade = null,
+                PartNumber = null, LabourDescription = null, Description = null, OutsideWork = null, OverlapFull = null,
+            });
+        }
+        if (inputs.Description is not null)
+        {
+            // A part's dialog has no description box of its own.
+            return "inputs.description";
+        }
+        if (inputs.Place is not null && inputs.BothSides == true)
+        {
+            return "inputs.place";
         }
         if (inputs.Paint is not null
             && (inputs.BothSides == true
@@ -639,12 +711,9 @@ public static class GlassAutomationPositionPolicy
             // Paint is chosen where Paint or Part and Paint is pressed.
             return "inputs.paint";
         }
-        if (inputs.Typed
-            && (operation is GlassAutomationPartOperation.Paint or GlassAutomationPartOperation.PartAndPaint
-                || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint
-                || inputs.BothSides == true))
+        if (inputs.Typed && inputs.BothSides == true)
         {
-            // Typed figures go on a dialog of a part that cannot be painted, one side at a time.
+            // Typed figures go on one side at a time: Both posts the other side as served.
             return FirstTyped(inputs);
         }
         if (inputs.Equipment is { } equipment
@@ -663,11 +732,6 @@ public static class GlassAutomationPositionPolicy
         {
             return "inputs.button";
         }
-        if (inputs.BothSides == true
-            && (!asServed || inputs.Operation is not null || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint))
-        {
-            return "inputs.side";
-        }
         if (inputs.OptionalParts is { } codes
             && (codes.Any(string.IsNullOrWhiteSpace) || codes.Distinct(StringComparer.Ordinal).Count() != codes.Count))
         {
@@ -675,6 +739,44 @@ public static class GlassAutomationPositionPolicy
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// What an add through the quick repair panel does not take (R1206): it
+    /// adds a part, never a special operation or a position already on the
+    /// estimate, by one of the panel's three buttons (New for Part, Remove and
+    /// Install, Repair); with Repair the hours its spinner holds, to one
+    /// decimal place; Both; and of the paint, only the area its paint box
+    /// offers. The panel chooses the paint level itself and has no other box.
+    /// </summary>
+    private static string? PanelRefused(
+        GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
+        GlassAutomationInputs inputs)
+    {
+        if (inputs.Panel != true || action != GlassAutomationActAction.Add
+            || kind != GlassAutomationPositionKind.Part
+            || operation is not (GlassAutomationPartOperation.Part or GlassAutomationPartOperation.RemoveAndRefit
+                or GlassAutomationPartOperation.Repair))
+        {
+            return "inputs.panel";
+        }
+        if (inputs.Hours is { } hours
+            && (operation != GlassAutomationPartOperation.Repair || hours < 0 || hours > MaximumTypedHours
+                || decimal.Round(hours, 1) != hours))
+        {
+            return "inputs.hours";
+        }
+        if (inputs.Paint is { } paint
+            && (!(paint with { Area = null }).IsEmpty || string.IsNullOrWhiteSpace(paint.Area)))
+        {
+            return "inputs.paint";
+        }
+        if (inputs.Equipment is { } equipment && equipment.Any(string.IsNullOrWhiteSpace))
+        {
+            return "inputs.equipment";
+        }
+
+        return FirstGiven(inputs with { Panel = null, Hours = null, Paint = null, BothSides = null, Equipment = null });
     }
 
     private static string? FirstGiven(GlassAutomationInputs inputs) =>
@@ -685,7 +787,49 @@ public static class GlassAutomationPositionPolicy
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
         : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
         : inputs.Paint is not null ? "inputs.paint"
-        : FirstTyped(inputs);
+        : inputs.Renew is not null ? "inputs.renew"
+        : FirstTyped(inputs) ?? FirstField(inputs);
+
+    private static string? FirstField(GlassAutomationInputs inputs) =>
+        inputs.Place is not null ? "inputs.place"
+        : inputs.Trade is not null ? "inputs.trade"
+        : inputs.PartNumber is not null ? "inputs.partNumber"
+        : inputs.LabourDescription is not null ? "inputs.labourDescription"
+        : inputs.Description is not null ? "inputs.description"
+        : inputs.OutsideWork is not null ? "inputs.outsideWork"
+        : inputs.OverlapFull is not null ? "inputs.overlapFull"
+        : null;
+
+    /// <summary>
+    /// A field of the dialog's own that is not one Pegasus gives (R1206), by
+    /// its tool name: a side that no dialog has; a blank labour type; a part
+    /// number blank or longer than the dialog's box (20 characters); a blank
+    /// labour description or one longer than <see cref="MaximumReasonLength"/>;
+    /// a description of fewer than 3 characters (the dialog's own CheckEmpty)
+    /// or longer than <see cref="MaximumDescriptionLength"/>.
+    /// </summary>
+    private static string? FieldRefused(GlassAutomationInputs inputs) =>
+        inputs.Place is { } place && !Places.Contains(place) ? "inputs.place"
+        : inputs.Trade is { } trade && string.IsNullOrWhiteSpace(trade) ? "inputs.trade"
+        : inputs.PartNumber is { } number && (string.IsNullOrWhiteSpace(number) || number.Length > MaximumPartNumberLength) ? "inputs.partNumber"
+        : inputs.LabourDescription is { } labour && (string.IsNullOrWhiteSpace(labour) || labour.Length > MaximumReasonLength) ? "inputs.labourDescription"
+        : inputs.Description is { } description
+            && (description.Trim().Length < 3 || description.Length > MaximumDescriptionLength) ? "inputs.description"
+        : null;
+
+    /// <summary>The sides a dialog's boxes can name (<c>PosPlaces</c>): left, right, front, rear, and front or rear with left or right.</summary>
+    public static IReadOnlySet<string> Places { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { "L", "R", "V", "H", "VL", "VR", "HL", "HR" };
+
+    /// <summary>The longest part number typed: the dialog's box takes 20 characters.</summary>
+    public const int MaximumPartNumberLength = 20;
+
+    /// <summary>
+    /// The longest description typed: the return's reader refuses a whole
+    /// export with a description above 300 characters, Glass's printing the
+    /// side after it.
+    /// </summary>
+    public const int MaximumDescriptionLength = 250;
 
     /// <summary>
     /// The input a change of a position already on the estimate does not
@@ -724,26 +868,35 @@ public static class GlassAutomationPositionPolicy
         : inputs.Reason is { } reason
             && (inputs.Hours is null || reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength)
             ? "inputs.reason"
-        : inputs.Paint is { } paint
-            && (paint.IsEmpty || paint.Coats is { } coats && string.IsNullOrWhiteSpace(coats)
-                || paint.Level is { } level && string.IsNullOrWhiteSpace(level)
-                || paint.Hours is { } paintHours && (TypedText(paintHours) is null || paintHours > MaximumTypedHours))
-            ? "inputs.paint"
+        : inputs.Paint is { } paint && PaintRefused(paint) ? "inputs.paint"
+        : inputs.Renew is { } renew && (inputs.Operation != "AN" || RenewRefused(renew)) ? "inputs.renew"
         : null;
 
     /// <summary>
-    /// A paint choice the return cannot read back (R1206): a paint type or
-    /// level changed on a part that is not metal, or a level whose code the
-    /// return's paint table (<c>GlassPaintLevels</c>) does not print. The
-    /// dialog's metal levels 1 to 4, B and S are printed I, II, III, IV, B
-    /// and SP, each of which the table holds; no plastic part's levels have
-    /// been captured. Nothing is posted.
+    /// Whether Renew's deductions are not ones Pegasus gives (R1206): none
+    /// given, or a deduction <see cref="TypedText"/> refuses, a percentage
+    /// above 100, or an amount above the largest figure typed.
     /// </summary>
-    public const string PaintNotReadBackCode = "glass.build.paint_not_read_back";
+    private static bool RenewRefused(GlassAutomationRenew renew) =>
+        (renew.PriceDeduction, renew.HoursDeduction, renew.PaintDeduction) is (null, null, null)
+        || Deduction(renew.PriceDeduction, renew.PriceAmount, MaximumTypedPrice)
+        || Deduction(renew.HoursDeduction, renew.HoursAmount, MaximumTypedHours)
+        || Deduction(renew.PaintDeduction, false, MaximumTypedHours);
 
-    /// <summary>The dialog's own codes of the paint levels of a metal part, each printed as a level the return reads.</summary>
-    public static IReadOnlySet<string> ReadBackPaintLevels { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "1", "2", "3", "4", "B", "S" };
+    private static bool Deduction(decimal? value, bool amount, decimal largest) =>
+        value is { } given && (TypedText(given) is null || given > (amount ? largest : 100m));
+
+    /// <summary>
+    /// Whether a paint choice is not one Pegasus gives (R1206): none given, a
+    /// blank value, typed figures as <see cref="TypedRefused"/> refuses them,
+    /// or a blank or over-long paint reason.
+    /// </summary>
+    private static bool PaintRefused(GlassAutomationPaint paint) =>
+        paint.IsEmpty
+        || new[] { paint.Coats, paint.Level, paint.Area, paint.Procedure, paint.Method }.Any(value => value is not null && string.IsNullOrWhiteSpace(value))
+        || paint.Hours is { } hours && (TypedText(hours) is null || hours > MaximumTypedHours)
+        || paint.Price is { } price && (TypedText(price) is null || price > MaximumTypedPrice)
+        || paint.Reason is { } reason && (reason.Trim(' ').Length == 0 || reason.Length > MaximumReasonLength);
 
     /// <summary>
     /// A figure as the Automation types it in a dialog (R1206): two decimal
@@ -782,6 +935,22 @@ public static class GlassAutomationPositionPolicy
     /// refuses a whole export with such a position, so nothing is posted.
     /// </summary>
     public const string OverlapAboveHoursCode = "glass.build.overlap_above_hours";
+
+    /// <summary>
+    /// Renew's deductions leave a negative price or hours. The window would
+    /// send them, but the return's reader refuses a whole export with a
+    /// negative figure, so nothing is posted (R1206).
+    /// </summary>
+    public const string DeductionBelowZeroCode = "glass.build.deduction_below_zero";
+
+    /// <summary>
+    /// The quick repair panel would not add the part as asked (R1206): its
+    /// button is greyed for the part, the paint area is not one its paint box
+    /// offers, the part has no other side for Both, or the estimate holds the
+    /// part already, whose positions the panel would delete first. Nothing
+    /// was sent.
+    /// </summary>
+    public const string PanelRefusedCode = "glass.panel.refused";
 
     /// <summary>The inputs as an act keeps them: null when none is given.</summary>
     public static GlassAutomationInputs? Kept(GlassAutomationInputs? inputs) =>
@@ -848,45 +1017,10 @@ public static class GlassAutomationPositionPolicy
             Inputs = Kept(request.Inputs),
         };
 
-        // An add of an operation the return cannot read back is refused
-        // before anything is asked of Glass's; a preview still shows its dialog.
-        return request.Action == GlassAutomationActAction.Add && OperationRefusal(act.Inputs?.Operation) is { } unread
-            ? act with { Outcome = GlassAutomationActOutcome.Refused, Code = unread }
-            : act;
+        // Every operation the dialog offers goes through (R1206): the return reads every repair
+        // kind Glass's exports (issue 2155).
+        return act;
     }
-
-    /// <summary>
-    /// The operation chosen in a part's dialog names a position the return
-    /// cannot read back: the add is refused before anything is sent (R1206,
-    /// R1208; issue 2155).
-    /// </summary>
-    public const string OperationNotReadBackCode = "glass.build.operation_not_read_back";
-
-    /// <summary>
-    /// The operations the Automation may choose in a part's dialog, by Glass's
-    /// own code: those whose position comes back in Glass's export with a
-    /// repair kind the return's reader reads
-    /// (<c>GlassEstimateXmlParser.Operation</c>; change the two together).
-    /// ER, I and AE are Replace, Repair and Uninstall and install. AD
-    /// ("S (Sealing)") and P ("CA (Control and adjustment)") are Sealing and
-    /// Control: the MP23KTV sheet of 5 September 2026 prints S beside the
-    /// position its export calls Sealing and CA beside the one it calls
-    /// Control, and lists "S Sealing" and "CA Control and adjustment". Every
-    /// other operation (AN Renew, ET, HO, IT, KM, KS, UN, V, Z, E, H and any
-    /// not judged) would make the Engineer's Save &amp; Exit fail to import, or
-    /// is not shown to come back as a kind the reader reads; which line each
-    /// becomes is the operator's decision under issue 2155.
-    /// </summary>
-    public static IReadOnlySet<string> ReadBackOperations { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "ER", "I", "AE", "AD", "P" };
-
-    /// <summary>
-    /// <see cref="OperationNotReadBackCode"/> when the operation chosen is not
-    /// one of <see cref="ReadBackOperations"/>; null when none is chosen or
-    /// the return reads it back.
-    /// </summary>
-    public static string? OperationRefusal(string? operation) =>
-        operation is null || ReadBackOperations.Contains(operation.Trim()) ? null : OperationNotReadBackCode;
 }
 
 /// <summary>
@@ -1111,15 +1245,7 @@ public sealed record GlassDialogPreview(
 /// selected, and whether Pegasus may choose it.
 /// </summary>
 public sealed record GlassDialogOperation(
-    string Code, string Text, decimal? Price, decimal? Hours, decimal? GlassHours, bool Served, bool Changeable)
-{
-    /// <summary>
-    /// The <c>glass.*</c> code an add choosing it is refused with although
-    /// the dialog offers it: <see cref="GlassAutomationPositionPolicy.OperationNotReadBackCode"/>
-    /// for one the return cannot read back; null otherwise.
-    /// </summary>
-    public string? RefusedCode { get; init; }
-}
+    string Code, string Text, decimal? Price, decimal? Hours, decimal? GlassHours, bool Served, bool Changeable);
 
 /// <summary>A value of a dialog's list or a button: the value Glass's posts and Glass's own text for it.</summary>
 public sealed record GlassDialogChoice(string Value, string Text);

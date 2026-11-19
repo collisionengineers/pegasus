@@ -58,7 +58,11 @@ internal sealed record GlassEditorAddRequest(
     IReadOnlyCollection<string>? Ticks = null,
     string? ExpectedSide = null,
     bool CheckRows = false,
-    string? ExpectedPartNumber = null);
+    string? ExpectedPartNumber = null)
+{
+    /// <summary>The side was chosen in the dialog (R1206): the part code may be either code line the record carries.</summary>
+    public bool EitherSideCode { get; init; }
+}
 
 /// <summary>
 /// What an add did: the dialog's summary and notes, the parts the
@@ -193,6 +197,50 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var estimate = await SelectedAsync(at, jar, cancellationToken);
         return new(estimate, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// Each paint area's paint levels from the paint list (R1206), which the
+    /// quick repair panel chooses its paint level from for a part painted in
+    /// more than one area.
+    /// </summary>
+    public async Task<GlassEditorReply<Dictionary<string, string>>> ReadPaintAreasAsync(
+        GlassEditorSession session, CancellationToken cancellationToken)
+    {
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.PaintList(), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var areas = GlassMvaClient.Matched(() => GlassEditorPanel.ZoneLevels(text), GlassFailure.EditorAnswer);
+        if (areas.Count == 0)
+        {
+            throw Unread("list_paint", text);
+        }
+
+        return new(areas, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// The quick repair panel's commands sent in order (R1206), each as the
+    /// editor's AcoCommand sends it, then the estimate read again: the
+    /// positions it holds now that it did not before. From the first command
+    /// on, a lost answer may still have added a position.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassEditorAdded>> PanelAddAsync(
+        GlassEditorSession session, GlassEditorEstimate before, IReadOnlyList<string> commands, string description,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(commands);
+        var (jar, at) = Begin(session);
+        foreach (var command in commands)
+        {
+            await GetAsync(at.Panel(command), at.Frame, jar, GlassFailure.EditorAnswer, true, cancellationToken);
+        }
+
+        var after = await SelectedAsync(at, jar, cancellationToken);
+        var added = after.Positions.Where(id => !before.Positions.Contains(id)).ToList();
+        return new(
+            new GlassEditorAdded(new GlassEditorSummary { Description = description }, [], [], after, added),
+            session with { Cookies = Snapshot(jar) });
     }
 
     /// <summary>
@@ -336,10 +384,23 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var dialogAddress = at.Dialog(page, request.Rows, mode);
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var change = request.Change;
+        if (change?.Operation is { } reloading && GlassEditorDialogs.Reloads(dialog, reloading))
+        {
+            // An operation that reloads the dialog (R1206): the form its ChangeRepart submits, then
+            // the dialog the editor answers for that operation, built with the rest of the inputs.
+            (dialog, dialogAddress) = await ReloadAsync(session, jar, dialog, dialogAddress, reloading, cancellationToken);
+            change = change with { Operation = null };
+        }
+
+        change = await OldForNewAsync(
+            at, jar, dialog, dialogAddress, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button : null, change,
+            cancellationToken);
+        var built = change;
         var build = GlassMvaClient.Matched(
             () => request.Dialog == GlassEditorDialog.PaintablePart
-                ? GlassEditorDialogs.PartPost(dialog, request.Button!, request.Change)
-                : GlassEditorDialogs.PlainPost(dialog, request.Change),
+                ? GlassEditorDialogs.PartPost(dialog, request.Button!, built)
+                : GlassEditorDialogs.PlainPost(dialog, built),
             GlassFailure.EditorDialog);
         if (Refusal(build, request) is { } refusal)
         {
@@ -379,6 +440,58 @@ internal sealed class GlassEditorClient(
     }
 
     /// <summary>
+    /// Renew's old-for-new window, asked for as the dialog asks for it when a
+    /// person chooses Renew (R1206): always on a part that can be painted
+    /// (<paramref name="button"/> given), and on <c>part.php</c> when a
+    /// deduction is given; a <c>part.php</c> Renew with none is posted as the
+    /// window serves it without asking. The change with the window's page, or
+    /// as it was. The window adds nothing to the estimate.
+    /// </summary>
+    private async Task<GlassEditorChange?> OldForNewAsync(
+        GlassEditorAddresses at, Dictionary<string, string> jar, string dialog, string dialogAddress, string? button,
+        GlassEditorChange? change, CancellationToken cancellationToken)
+    {
+        if (change?.Operation != "AN" || (button is null && change.OldForNew is null))
+        {
+            return change;
+        }
+
+        var parameters = GlassMvaClient.Matched(
+            () => GlassEditorDialogs.OldForNewParameters(dialog, button, change), GlassFailure.EditorDialog)
+            ?? throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog holds no old-for-new figures.");
+        var window = await GetAsync(at.OldForNew(parameters), dialogAddress, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        return change with { OldForNew = (change.OldForNew ?? new GlassEditorOldForNew(string.Empty)) with { Window = window } };
+    }
+
+    /// <summary>
+    /// The dialog again after an operation that reloads it (R1206): the form
+    /// its ChangeRepart submits (<see cref="GlassEditorDialogs.ReloadPost"/>),
+    /// refused before anything is sent when it cannot be built, posted to the
+    /// address the script names, and the editor's answer read as the dialog
+    /// with that address. The reload adds nothing to the estimate.
+    /// </summary>
+    private async Task<(string Dialog, string Address)> ReloadAsync(
+        GlassEditorSession session, Dictionary<string, string> jar, string dialog, string dialogAddress, string operation,
+        CancellationToken cancellationToken)
+    {
+        var reload = GlassMvaClient.Matched(() => GlassEditorDialogs.ReloadPost(dialog, operation), GlassFailure.EditorDialog);
+        if (reload.Error is not null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: reload.Error);
+        }
+        if (reload.Problems.Count > 0)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', reload.Problems));
+        }
+
+        var address = session.BaseAddress + reload.Action;
+        var answer = await SendAsync(
+            HttpMethod.Post, address, GlassEditorText.EncodeForm(reload.Fields), dialogAddress, jar,
+            GlassFailure.EditorRequest, false, cancellationToken);
+        return (answer, address);
+    }
+
+    /// <summary>
     /// Why a built dialog is not posted, as the add's stage failure, or null:
     /// a page that is not the dialog, any problem the builder found, a side,
     /// a part code, rows or a part number other than the request's, or no
@@ -411,6 +524,11 @@ internal sealed class GlassEditorClient(
         }
 
         var servedCode = servedSide == "R" ? build.Summary.RightPartCode : build.Summary.PartCode;
+        if (request.EitherSideCode
+            && (build.Summary.PartCode == request.ExpectedPartCode || build.Summary.RightPartCode == request.ExpectedPartCode))
+        {
+            servedCode = request.ExpectedPartCode;
+        }
         if (servedCode != request.ExpectedPartCode)
         {
             return new GlassMvaStageException(
@@ -454,10 +572,17 @@ internal sealed class GlassEditorClient(
         };
         var (jar, at) = Begin(session);
         var dialog = await GetAsync(at.Dialog(page, request.Rows, mode), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+
+        // An operation that reloads the dialog, and Renew on a part that can be painted (R1206),
+        // are not followed: a preview asks for nothing more. It shows the dialog as served, with
+        // the reload or the old-for-new window as a question on the way.
+        var change = request.Change ?? new GlassEditorChange();
+        var reloads = GlassEditorDialogs.Reloads(dialog, change.Operation);
+        var window = change.Operation == "AN" && request.Dialog == GlassEditorDialog.PaintablePart;
+        var shown = reloads || window ? change with { Operation = null } : change;
         var (preview, build) = GlassMvaClient.Matched(
             () => GlassEditorDialogs.Preview(
-                dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null,
-                request.Change ?? new GlassEditorChange()),
+                dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null, shown),
             GlassFailure.EditorDialog);
         if (preview is null || build is null)
         {
@@ -468,6 +593,17 @@ internal sealed class GlassEditorClient(
         if (code is not null && preview.Sends is { Code: null } sends)
         {
             preview = preview with { Sends = sends with { Code = code } };
+        }
+        if ((reloads || window) && preview.Sends is { } reloaded)
+        {
+            preview = preview with
+            {
+                Sends = reloaded with
+                {
+                    Operation = change.Operation,
+                    Questions = [new GlassDialogQuestion(reloads ? "reload" : "old_for_new", null, true), .. reloaded.Questions],
+                },
+            };
         }
 
         return new(preview, session with { Cookies = Snapshot(jar) });
@@ -491,7 +627,7 @@ internal sealed class GlassEditorClient(
         }
 
         var (jar, at) = Begin(session);
-        var address = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var address = at.OpenOnEstimate(page, positionId);
         var shown = await GetAsync(address, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var (preview, build) = GlassMvaClient.Matched(
             () => change is null
@@ -534,7 +670,7 @@ internal sealed class GlassEditorClient(
         }
 
         var (jar, at) = Begin(session);
-        var dialogAddress = page == "comp" ? at.OpenComposite(positionId) : at.OpenPosition(positionId);
+        var dialogAddress = at.OpenOnEstimate(page, positionId);
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var pressed = page == "comp" ? button ?? GlassEditorDialogs.VisibleButton(dialog) : null;
         if (page == "comp" && pressed is null)
@@ -542,8 +678,14 @@ internal sealed class GlassEditorClient(
             throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog does not show one button to press.");
         }
 
+        var answered = await OldForNewAsync(at, jar, dialog, dialogAddress, page == "comp" ? pressed : null, change, cancellationToken);
         var build = GlassMvaClient.Matched(
-            () => page == "comp" ? GlassEditorDialogs.PartPost(dialog, pressed!, change) : GlassEditorDialogs.PlainPost(dialog, change),
+            () => page switch
+            {
+                "comp" => GlassEditorDialogs.PartPost(dialog, pressed!, answered),
+                "lack" => GlassEditorDialogs.LackPost(dialog, answered),
+                _ => GlassEditorDialogs.PlainPost(dialog, answered),
+            },
             GlassFailure.EditorDialog);
         if (ChangeRefusal(build, positionId) is { } refusal)
         {
@@ -635,17 +777,27 @@ internal sealed class GlassEditorClient(
     /// Removes one position as the editor does: its dialog first, then the
     /// removal, then the estimate is read back and must no longer list it.
     /// </summary>
+    public Task<GlassEditorReply<GlassEditorEstimate>> RemoveAsync(
+        GlassEditorSession session, string positionId, CancellationToken cancellationToken) =>
+        RemoveAsync(session, positionId, "part", cancellationToken);
+
+    /// <summary>
+    /// Removes one position as the editor does, from the dialog the editor's
+    /// list opens for it (<paramref name="page"/>: <c>part</c>, <c>comp</c> or
+    /// <c>lack</c>, by <see cref="GlassEditorPages.DialogPage"/>; R1206): the
+    /// dialog first, which must be a dialog form, then the removal its Delete
+    /// sends, then the estimate is read back and must no longer list it.
+    /// </summary>
     public async Task<GlassEditorReply<GlassEditorEstimate>> RemoveAsync(
-        GlassEditorSession session, string positionId, CancellationToken cancellationToken)
+        GlassEditorSession session, string positionId, string page, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(positionId);
         var (jar, at) = Begin(session);
-        var openAddress = at.OpenPosition(positionId);
+        var openAddress = at.OpenOnEstimate(page, positionId);
         var shown = await GetAsync(openAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
-        var dialog = GlassMvaClient.Matched(() => GlassEditorDialogs.PlainPost(shown), GlassFailure.EditorDialog);
-        if (dialog.Error is not null)
+        if (GlassMvaClient.Matched(() => GlassEditorForm.Read(shown, "Part"), GlassFailure.EditorDialog) is null)
         {
-            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: dialog.Error);
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
         }
 
         var removed = await GetAsync(at.Remove(positionId), openAddress, jar, GlassFailure.EditorAnswer, true, cancellationToken);

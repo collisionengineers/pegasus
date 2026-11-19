@@ -1778,10 +1778,18 @@ it stopped.
   gives its code as `previewCode`. An add's own inputs (R1206) are refused
   with `glass.row.not_paintable` when a paint button is asked for a part
   that cannot be painted, and with `glass.build.not_built` when Both is
-  asked for one that can, and with `glass.build.operation_not_read_back`,
-  before anything is sent and with a warning line naming the operation,
-  when `inputs.operation` is anything but I, AE, AD or P: the return could
-  not read the position back (issue 2155). An operation the dialog does
+  asked for one that can. An operation that reloads the dialog (DD, R1206)
+  posts the form to `comp.php` or `part.php` with `frl=1` inside stage
+  `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
+  answer is `glass.editor.request`. An add with `inputs.panel` sends
+  `service.php?…&partadd=…&addpart2g=1` once per side in stage
+  `EditorPanelAdd` (reading `list_paint.php` first in stage
+  `EditorPaintList` when the part is painted in more than one area), then
+  reads the estimate; `glass.panel.refused` means nothing was sent. Renew (AN) asks for `oldfrnew.php` before the
+  post on a part with its paint, or when a deduction is given; a window
+  Glass's does not answer is `glass.editor.request`, and deductions that
+  leave a negative figure are `glass.build.deduction_below_zero` with
+  nothing posted. An operation the dialog does
   not offer, or one served with no price and no hours without
   `inputs.confirmNoFigures` (Repair answers by itself), is
   `glass.editor.refused`. With Both, the other side's own dialog logs stage
@@ -1794,15 +1802,15 @@ it stopped.
   `inputs.reason`), `glass.build.reason_not_asked` (a reason where the
   dialog asks for none) and `glass.build.overlap_above_hours` (more overlap
   hours than hours, which the return could not read back); the act's
-  warning line names the dialog's own reason. Typed figures on a part that
-  can be painted are `glass.build.not_built`. Each act records the figures
+  warning line names the dialog's own reason. Each act records the figures
   the dialog served and those sent, just before the post, as `served` and
   `sent`.
   Paint choices (`inputs.paint`, R1206) are refused with
-  `glass.build.paint_not_read_back` when a paint type or level is chosen
-  on a part that is not metal, and with `glass.editor.refused` when the
-  dialog would not take them: a paint type or level it does not offer,
-  Surcharge where the paint type fixes it, or a button the page hides. The
+  `glass.editor.refused` when the
+  dialog would not take them: an area, paint type, procedure, method or
+  level it does not offer there, Surcharge or Coloured clear where the
+  paint state fixes it, scratch-resistant clear where it is greyed, or a
+  button the page hides. The
   warning line names which.
   A change (`pegasus_glass_position_act` with `change`, R1206) logs
   `EditorRead`, then `EditorChange` for the position's own dialog, its post,
