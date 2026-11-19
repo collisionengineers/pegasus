@@ -2469,8 +2469,8 @@ internal static partial class GlassEditorDialogs
     /// </summary>
     private static List<GlassDialogPaintChoice> PaintChoices(string html, GlassEditorForm form, int areaIndex)
     {
-        var areaPrices = Area(NestedSplits(html, "LPrices"), areaIndex);
-        var areaTimes = Area(NestedSplits(html, "LTimes"), areaIndex);
+        var areaPrices = Area(NestedSplits(html, "LPrices") is { Count: > 0 } nestedPrices ? nestedPrices : FlatSplits(html, "LPrices"), areaIndex);
+        var areaTimes = Area(NestedSplits(html, "LTimes") is { Count: > 0 } nestedTimes ? nestedTimes : FlatSplits(html, "LTimes"), areaIndex);
         var levelIds = GlassEditorPages.SplitArray(html, "Lackartids");
         var levelValues = GlassEditorPages.SplitArray(html, "LackStufeValues");
         var defaults = GlassEditorPages.SplitArray(html, "Defstates");
