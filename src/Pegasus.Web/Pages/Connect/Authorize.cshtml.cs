@@ -34,9 +34,7 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
             [AutomationMcp.AssessmentScope] = "Read and update assessment values, valuations and estimates under an edit lease.",
             [AutomationMcp.MailScope] = "List, read and search retained mail and the approved mailboxes; correct a message's classification; link, unlink, dismiss and restore messages; open a query on a message.",
             [AutomationMcp.JobsScope] = "List, create, take, progress, complete, fail, release, cancel and confirm AI jobs.",
-            [AutomationMcp.SendScope] = "Send a generated report to the Principal; send e-mail: chaser, reply, forward and the Triage reply; send a photo link by e-mail or text.",
-            // Operator, 18 November 2026: R1179
-            [AutomationMcp.GlassScope] = "Start, build, save and close Glass's estimates under the Automation's Glass's login; a saved estimate lands as a Draft repair spec."
+            [AutomationMcp.SendScope] = "Send a generated report to the Principal; send e-mail: chaser, reply, forward and the Triage reply; send a photo link by e-mail or text."
         };
 
     public string ClientDisplayName { get; private set; } = string.Empty;

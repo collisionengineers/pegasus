@@ -8,26 +8,10 @@ namespace Pegasus.IntegrationTests;
 /// captures and compared byte for byte with what the browser posted
 /// (<c>GlassEditorPages/manifest.json</c>), and the answers that came back:
 /// the page that tells the editor to redraw, or the "Mandatory parts:" page
-/// and its own confirm post. The manifest's <c>operations</c> are Repair and
-/// Uninstall and install chosen in four captured dialogs, each compared with
-/// the post the dialog's own script sent when driven offline (R1172).
+/// and its own confirm post.
 /// </summary>
 public sealed class GlassEditorDialogTests
 {
-    public static TheoryData<string> OperationNames
-    {
-        get
-        {
-            var names = new TheoryData<string>();
-            foreach (var item in GlassEditorFixture.Manifest.GetProperty("operations").EnumerateArray())
-            {
-                names.Add(item.GetProperty("name").GetString()!);
-            }
-
-            return names;
-        }
-    }
-
     public static TheoryData<string> DialogNames
     {
         get
@@ -68,82 +52,18 @@ public sealed class GlassEditorDialogTests
 
         var summary = Build(dialog).Summary;
 
-        AssertSummary(dialog, summary);
-    }
-
-    /// <summary>
-    /// Repair (with its question before a part with no figures answered OK)
-    /// and Uninstall and install, each built from the dialog page alone as
-    /// its ChangeRepart and CheckSubmit would, and posted byte for byte as
-    /// the dialog's own script posted it.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(OperationNames))]
-    public void EachOperationIsPostedExactlyAsTheDialogsOwnScriptPostedIt(string name)
-    {
-        var item = Operation(name);
-
-        var build = BuildOperation(item, Confirmed(item));
-
-        Assert.Null(build.Error);
-        Assert.Equal(GlassEditorFixture.Strings(item, "problems"), build.Problems);
-        Assert.Equal(GlassEditorFixture.Strings(item, "notes"), build.Notes);
-        Assert.Equal(item.GetProperty("action").GetString(), build.Action);
-        Assert.Equal(item.GetProperty("fields").GetInt32(), build.Fields.Count);
-        Assert.Equal(
-            GlassEditorFixture.Text(item.GetProperty("post").GetString()!),
-            GlassEditorText.EncodeForm(build.Fields));
-        AssertSummary(item, build.Summary);
-    }
-
-    /// <summary>
-    /// The question the dialog's script asks before it sends a part whose
-    /// price and hours are both zero is a problem until it is answered, in
-    /// the script's own words; the answer changes nothing in the post. An
-    /// operation with a figure is not asked about.
-    /// </summary>
-    [Theory]
-    [MemberData(nameof(OperationNames))]
-    public void APartWithNoFiguresIsNotPostedUntilTheQuestionIsAnswered(string name)
-    {
-        var item = Operation(name);
-
-        var unanswered = BuildOperation(item, confirm: false);
-        var answered = BuildOperation(item, confirm: true);
-
-        if (!item.TryGetProperty("asked", out var asked))
+        Assert.NotNull(summary);
+        foreach (var value in dialog.GetProperty("summary").EnumerateObject())
         {
-            Assert.Empty(unanswered.Problems);
-            return;
+            var expected = value.Value.ValueKind switch
+            {
+                JsonValueKind.String => value.Value.GetString(),
+                JsonValueKind.True => "True",
+                JsonValueKind.False => "False",
+                _ => null,
+            };
+            Assert.Equal($"{value.Name}={expected}", $"{value.Name}={Summarised(summary, value.Name)}");
         }
-
-        Assert.Equal(GlassEditorFixture.Strings(item, "unanswered"), unanswered.Problems);
-        Assert.Contains(asked.GetString()!, Assert.Single(unanswered.Problems), StringComparison.Ordinal);
-        Assert.Empty(answered.Problems);
-        Assert.Equal(unanswered.Fields, answered.Fields);
-    }
-
-    [Fact]
-    public void OnAPaintablePartsDialogOnlyTheOperationMayBeChanged()
-    {
-        var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
-
-        var typed = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "AE", Hours: "0.30"));
-
-        Assert.Contains("This dialog is built with no change but the operation.", typed.Problems);
-    }
-
-    [Theory]
-    [InlineData("DD", "Choosing DD reloads the dialog.")]
-    [InlineData("AN", "Choosing AN opens the old-for-new dialog.")]
-    [InlineData("XX", "The dialog does not offer the operation XX.")]
-    public void AnOperationThatReloadsOrOpensAnotherDialogIsAProblem(string operation, string problem)
-    {
-        var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
-
-        var build = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: operation));
-
-        Assert.Contains(problem, build.Problems);
     }
 
     [Theory]
@@ -260,40 +180,6 @@ public sealed class GlassEditorDialogTests
 
         Assert.Equal("The form has no submit button named BS.", build.Error);
         Assert.Empty(build.Fields);
-    }
-
-    private static JsonElement Operation(string name) =>
-        GlassEditorFixture.Manifest.GetProperty("operations").EnumerateArray()
-            .Single(item => item.GetProperty("name").GetString() == name);
-
-    private static bool Confirmed(JsonElement item) =>
-        item.GetProperty("change").TryGetProperty("confirm", out var confirm) && confirm.GetBoolean();
-
-    private static GlassEditorBuild BuildOperation(JsonElement item, bool confirm)
-    {
-        var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
-        var change = new GlassEditorChange(
-            Operation: item.GetProperty("change").GetProperty("operation").GetString(),
-            ConfirmNoFigures: confirm);
-        return item.GetProperty("dialog").GetString() == "comp.php"
-            ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, change)
-            : GlassEditorDialogs.PlainPost(page, change);
-    }
-
-    private static void AssertSummary(JsonElement expected, GlassEditorSummary? summary)
-    {
-        Assert.NotNull(summary);
-        foreach (var value in expected.GetProperty("summary").EnumerateObject())
-        {
-            var wanted = value.Value.ValueKind switch
-            {
-                JsonValueKind.String => value.Value.GetString(),
-                JsonValueKind.True => "True",
-                JsonValueKind.False => "False",
-                _ => null,
-            };
-            Assert.Equal($"{value.Name}={wanted}", $"{value.Name}={Summarised(summary, value.Name)}");
-        }
     }
 
     private static GlassEditorBuild Build(JsonElement dialog)

@@ -190,8 +190,7 @@ public static class AutomationMcpExtensions
             .WithTools<AiJobMcpTools>()
             .WithTools<WorkCentreMcpTools>()
             .WithTools<PhotoCaptureMcpTools>()
-            .WithTools<SendMcpTools>()
-            .WithTools<GlassMcpTools>();
+            .WithTools<SendMcpTools>();
         return services;
     }
 

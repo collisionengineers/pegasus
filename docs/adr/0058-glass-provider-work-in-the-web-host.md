@@ -45,9 +45,7 @@ R1171, [ADR-0091](0091-pegasus-sends-the-glass-editor-its-own-requests.md))
 runs the launch, every line at a browser's pace, the save and the return as
 one item of up to 15 minutes, because splitting it would mean taking up an
 editor session again after a restart, where a lost post may already have
-added a line. The same item then reopens the estimate it landed, holding the
-reopen's new session busy from before its claim until it has run, so the
-build's window opens it with no second request.
+added a line.
 The Glass's window polls a small owner-only state answer and moves on when the
 work is done.
 

@@ -252,12 +252,7 @@ internal static class GlassProviderFixture
     /// from browser sessions (<c>GlassEditorPages/</c>): the launch page, the
     /// two opening pages, the estimate (empty until a position is posted),
     /// the special list, the dialogs and answers of two special operations
-    /// (<c>AC0000073</c> and <c>AC0000075</c>), the part list
-    /// (<see cref="BuildPartList"/>), an equipment map with no variants for
-    /// any row, the left front door's dialog for its rows <c>771|772</c> and
-    /// for the right door's <c>790|791</c> (so that one serves the wrong side),
-    /// cut with the script values a changed operation reads, its "Mandatory
-    /// parts:" page and answer, and Save and Exit's three
+    /// (<c>AC0000073</c> and <c>AC0000075</c>), and Save and Exit's three
     /// pages. One scripted editor for the editor client's own tests is
     /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
     /// provider as the portal, so a build runs end to end.
@@ -278,60 +273,10 @@ internal static class GlassProviderFixture
             ? Editor(EmptyEstimate)
             : EditorPage("selected.html", null));
         glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
-        glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
         glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
-        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") is "771|772" or "790|791"
-            ? EditorPage("door_left_operations.dialog.html", null)
-            : new Reply(HttpStatusCode.NotFound, string.Empty));
-        glass.Respond("POST /ere/aco/compproc.php", request => QueryValue(request.Query, "mcode") switch
-        {
-            "771|772" => EditorPage(
-                QueryValue(request.Query, "BX") is null ? "door_left_part.answer.html" : "door_left_part.confirm_answer.html", null),
-            _ => SpecialOperation(request.Query, "answer"),
-        });
-        glass.Respond("GET /ere/aco/service.php", request => QueryValue(request.Query, "rowid") is { } row
-            ? Editor(EquipmentMapWithNoVariants(row))
-            : EditorPage("save.answer.html", null));
+        glass.Respond("POST /ere/aco/compproc.php", request => SpecialOperation(request.Query, "answer"));
+        glass.Respond("GET /ere/aco/service.php", _ => EditorPage("save.answer.html", null));
         glass.Respond("GET /ere/aco/close.php", _ => EditorPage("close.html", callback));
-    }
-
-    /// <summary>
-    /// The part list the scripted editor serves: the blocks cut from the list
-    /// of 7 September 2026 (<c>part_list.html</c>), then two blocks made for
-    /// this script in the same row format, the left and right front door
-    /// shells, whose dialog the captures hold for the left one only (rows
-    /// <c>771|772</c>, code 2020001, 18 November 2026). Each door's block
-    /// needs no equipment, and the door can be painted (marked <c>L</c>), as
-    /// the browser's use of <c>comp.php</c> for it shows.
-    /// </summary>
-    public static string BuildPartList() =>
-        GlassEditorFixture.Text("part_list.html").Replace(
-            "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>",
-            StringComparison.Ordinal);
-
-    /// <summary>The two door blocks of <see cref="BuildPartList"/>: the head row, its Replace time row, its refit time row.</summary>
-    private static readonly string[] DoorRows =
-    [
-        "771|pbclTIdLg|HTB3-202_809|701300250101|36|2020001||41009628759|545.24|ERAEI |||||||Front Door Shell|||||||||||KS|||||790|0|0.0.0.9",
-        "772|tlTI|||||||2.90|ER|||||||||||||||||||||||791|0|0.0.0.9",
-        "773|tlTI|||||||2.40|AE|||||||||||||||||||||||792|0|0.0.0.9",
-        "790|pbcrTIdLg|HTB3-202_809|701300250101|36|2020002||41009628760|545.24|ERAEI |||||||Front Door Shell|||||||||||KS|||||771|0|0.0.0.9",
-        "791|trTI|||||||2.90|ER|||||||||||||||||||||||772|0|0.0.0.9",
-        "792|trTI|||||||2.40|AE|||||||||||||||||||||||773|0|0.0.0.9",
-    ];
-
-    /// <summary>
-    /// The equipment map Glass's serves for a row with no variants, for the
-    /// row's own code (the shape the program read for row 753 on 18 November
-    /// 2026: <c>[ ["I","2020001"],[],[],[] ]</c>).
-    /// </summary>
-    private static string EquipmentMapWithNoVariants(string row)
-    {
-        var code = BuildPartList().Split('\n')
-            .Select(line => line.Split('|'))
-            .FirstOrDefault(fields => fields.Length > 5 && fields[0] == "partlist.addPart(\"" + row)?[5] ?? string.Empty;
-        return "<script>\nvar aCritMap = [ [\"I\",\"" + code + "\"],[],[],[] ];\n</script>\n";
     }
 
     /// <summary>A captured editor page, its return address replaced by the session's own.</summary>
