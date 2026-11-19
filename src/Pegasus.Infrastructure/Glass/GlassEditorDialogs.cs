@@ -354,10 +354,27 @@ internal static partial class GlassEditorDialogs
         }
 
         // ChangeRepart and every input a person gives this dialog (R1206); it has no description
-        // of its own, and Both on it opens another part's comp.php, never captured.
-        if (change.Description is not null || change.Both)
+        // of its own.
+        if (change.Description is not null)
         {
-            problems.Add("This dialog is built with no description and no Both.");
+            problems.Add("This dialog is built with no description.");
+        }
+
+        // A person may tick "Both" (R1206): the editor's answer then opens the other side's own
+        // comp.php through its list's BothNext. Judged offline on 19 November 2026 on the front
+        // door skin, the browser's own pair of posts (b #55, b #96).
+        if (change.Both)
+        {
+            var box = form.Field("Both");
+            var descriptor = both.Success ? both.Groups[1].Value : null;
+            if (box is null || (descriptor is not null && (CharAt(descriptor, 1) == '1' || CharAt(descriptor, 2) == '1')))
+            {
+                problems.Add("The dialog does not offer \"Both\" sides.");
+            }
+            else
+            {
+                box.Checked = true;
+            }
         }
 
         // A button the page hides is not pressed: the dialog of a part with its paint on the
@@ -447,7 +464,11 @@ internal static partial class GlassEditorDialogs
         var remarkTime = GlassEditorPages.Lookup(At(record, 19 + placeIndex), operation) ?? string.Empty;
         if (!changed && (!SameAt(gross, placeIndex, price) || !SameAt(gross, 2 + placeIndex, time)))
         {
-            problems.Add("Price and time by operation do not match the record's gross figures (" + ShowAt(record, 52) + ").");
+            // The browser posted the painted front door skin's right-hand dialog, opened by Both,
+            // whose gross hours were 0.00 (19 November 2026, b #96): on the right side this is
+            // reported and not refused, as on part.php.
+            (placeIndex == 1 ? notes : problems).Add(
+                "Price and time by operation do not match the record's gross figures (" + ShowAt(record, 52) + ").");
         }
         var figureless = false;
         if (changed)
@@ -2097,7 +2118,7 @@ internal static partial class GlassEditorDialogs
 
         var both = BothDescriptor().Match(html);
         var descriptor = both.Success ? both.Groups[1].Value : null;
-        var bothOffered = !paintable && !special && form.Field("Both") is not null
+        var bothOffered = !special && form.Field("Both") is not null
             && (descriptor is null || (CharAt(descriptor, 1) != '1' && CharAt(descriptor, 2) != '1'));
         var fields = new List<GlassDialogField>();
         var seen = new HashSet<string>(StringComparer.Ordinal);

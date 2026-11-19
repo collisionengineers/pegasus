@@ -691,11 +691,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// The operation: <c>inputs.operation</c>, else Repair or remove-and-refit
     /// for those operations, else the dialog's own. The question before a
     /// part with no figures: <c>inputs.confirmNoFigures</c>, else answered OK
-    /// for Repair alone (R1188). "Both": only on a <c>part.php</c> dialog,
-    /// else refused as not built.
-    /// The optional parts to tick. The typed figures and reason (R1206), on
-    /// a <c>part.php</c> dialog only; on one that can be painted they are
-    /// refused as not built, having no capture. A rebuild never
+    /// for Repair alone (R1188). "Both" on either dialog (R1206). The
+    /// optional parts to tick. The typed figures, fields and paint choices
+    /// (R1206); paint on a part that cannot be painted is refused. A rebuild never
     /// comes here: its lines keep <see cref="ChoosePartAsync"/>'s own rule.
     /// The request is answered with the choices even when refused, so a
     /// preview still shows the dialog.
@@ -717,7 +715,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         };
         var confirm = inputs?.ConfirmNoFigures ?? operation == GlassEditorRows.Repair;
         var paintable = request.Dialog == GlassEditorDialog.PaintablePart;
-        var both = inputs?.BothSides == true && !paintable;
+        var both = inputs?.BothSides == true;
         var chosen = request with
         {
             Button = !paintable ? null
@@ -738,9 +736,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             ExpectedSide = inputs?.Place ?? request.ExpectedSide,
             EitherSideCode = inputs?.Place is not null,
         };
-        // Typed figures on the dialog of a part that can be painted have no capture (R1206).
-        var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
-            : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
+        var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null)
+            ? GlassAutomationPositionPolicy.NotPaintableCode
             : null;
         return (chosen, refused);
     }
@@ -762,11 +759,15 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// <summary>
     /// "Both" (R1206): after the first side's post, the other side's own
     /// dialog, as the editor's list opens it when the answer calls its
-    /// <c>BothNext</c>: its rows from the answer, a <c>part.php</c> dialog
-    /// (the list's row for them must be a part that cannot be painted), the
-    /// other side and the code the first dialog names for it. It is posted as
-    /// served, its "Both" ticked and greyed by the editor so not sent, as the
-    /// browser posted it on 18 November 2026. Before its post the code its
+    /// <c>BothNext</c>: its rows from the answer, the dialog the list's row
+    /// for them opens (<c>part.php</c>, or <c>comp.php</c> for a part that can
+    /// be painted, pressed with the first side's button), the other side and
+    /// the code the first dialog names for it. It is posted as served, its
+    /// "Both" ticked and greyed by the editor so not sent, as the browser
+    /// posted it on 18 November 2026 and, for a painted part, on 19 November
+    /// 2026 (b #55, b #96: the first answer calls
+    /// <c>BothNext( p, '254|ER|2220|AE|2221', '2222|ER|2223|AE|2224', 'L', Params )</c>,
+    /// and the right-hand rows are asked for whole). Before its post the code its
     /// position carries is recorded, so a lost answer is settled by the next
     /// read. An answer that names no other side, extra parameters, a row that
     /// is not such a part, or a dialog refused before its post leave the
@@ -791,7 +792,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         var head = next?.Rows.Split('|')[0];
         var row = parts?.Rows.FirstOrDefault(item => item.IsPart && string.Equals(item.Id, head, StringComparison.Ordinal));
         if (next is null || next.Parameters.Length > 0 || next.Side == servedSide || string.IsNullOrEmpty(otherCode)
-            || row is null || row.Paintable)
+            || row is null || row.Paintable != (first.Dialog == GlassEditorDialog.PaintablePart))
         {
             LogPositionAct(logger, session.Id, session.CaseId, act.Action, act.Outcome,
                 GlassAutomationPositionPolicy.OtherSideNotAddedCode, next is null ? "answer=no-other-side" : "other-side=not-a-part-dialog");
@@ -811,7 +812,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             var second = await StageAsync(session, "EditorAddOtherSide", () => editor.AddAsync(
                 opened, after,
-                new GlassEditorAddRequest(GlassEditorDialog.Part, next.Rows, otherCode, Ticks: first.Ticks, ExpectedSide: next.Side),
+                new GlassEditorAddRequest(
+                    first.Dialog, next.Rows, otherCode, first.Button, OtherSideChange(first.Change), first.Ticks, next.Side),
                 cancellationToken));
             act = act with
             {
@@ -838,6 +840,18 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             return (act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode }, opened, after);
         }
     }
+
+    /// <summary>
+    /// What the other side's dialog is given after "Both" (R1206): the
+    /// operation chosen on the first side and its answer to the question
+    /// before no figures, as a person gives them again; typed figures, fields
+    /// and paint choices go on one side at a time and are refused with Both.
+    /// Null, posting the dialog as served, when the first side chose none.
+    /// </summary>
+    private static GlassEditorChange? OtherSideChange(GlassEditorChange? first) =>
+        first is { Operation: null, ConfirmNoFigures: false } or null
+            ? null
+            : new GlassEditorChange(Operation: first.Operation, ConfirmNoFigures: first.ConfirmNoFigures);
 
     /// <summary>
     /// A preview (R1206): the dialog an add of <paramref name="draft"/>'s row

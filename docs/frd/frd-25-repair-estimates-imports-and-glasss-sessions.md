@@ -705,8 +705,9 @@ Paint on its own and Part and Paint, in place of R1182's refusal, with the
 paint section as Glass's serves it; any other operation the dialog offers,
 with Glass's question before no figures answered OK for Repair by itself
 (R1188) and for anything else only when the Automation says so (the return
-reads every repair kind Glass's exports, issue 2155); Both, with the other
-side's own dialog posted as served; and the optional parts to tick on the
+reads every repair kind Glass's exports, issue 2155); Both, on a part that
+can be painted as well, with the other side's own dialog pressed with the
+same button and operation and otherwise posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
 posted for a preview. It also types a part number, a labour description and
 a special operation's own description, chooses the labour type and the side

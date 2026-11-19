@@ -156,13 +156,30 @@ public sealed class GlassEditorDialogTests
     }
 
     [Fact]
-    public void APaintablePartsDialogHasNoDescriptionAndNoBoth()
+    public void APaintablePartsDialogHasNoDescription()
     {
         var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
 
-        var both = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Both: true));
+        var described = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Description: "Front door"));
 
-        Assert.Contains("This dialog is built with no description and no Both.", both.Problems);
+        Assert.Contains("This dialog is built with no description.", described.Problems);
+    }
+
+    /// <summary>
+    /// "Both" in the dialog of a part that can be painted (R1206): the
+    /// answer to the first side's post calls the list's BothNext with both
+    /// sides' rows, and the editor asks for the right-hand rows whole
+    /// (b #55, b #60), whose dialog is then pressed as the first was.
+    /// </summary>
+    [Fact]
+    public void BothOnAPaintedPartNamesTheOtherSidesDialog()
+    {
+        var next = GlassEditorDialogs.AfterPost(GlassEditorFixture.Text("skin_left_both.answer.html")).Next;
+
+        Assert.NotNull(next);
+        Assert.Equal("2222|ER|2223|AE|2224", next.Rows);
+        Assert.Equal("R", next.Side);
+        Assert.Equal(string.Empty, next.Parameters);
     }
 
     [Theory]
@@ -772,7 +789,8 @@ public sealed class GlassEditorDialogTests
             LabourDescription: Text(change, "labourDescription"),
             OutsideWork: Tick(change, "outsideWork") == true,
             OverlapFull: Tick(change, "overlapFull") == true,
-            OldForNew: window);
+            OldForNew: window,
+            Both: Tick(change, "both") == true);
     }
 
     private static JsonElement Operation(string name) =>

@@ -3417,6 +3417,77 @@
       },
       "page": "door_shell.dialog.html",
       "post": "c4_door_renew_amount_paint.post.txt"
+    },
+    {
+      "name": "c5_skin_both_first",
+      "dialog": "comp.php",
+      "capture": "b #36, post b #55",
+      "button": "BSL",
+      "change": {
+        "both": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=254|255",
+      "fields": 38,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C2020811_702800060101_2G_254_255_|64",
+        "partCode": "2020811",
+        "description": "Front Door Skin",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|AD|P|AN|E|Z|DD|HO",
+        "price": "427.59",
+        "hours": "4.90",
+        "partNumber": "67151TV0305ZZ",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "354.80",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "254|255"
+      },
+      "page": "skin_left.dialog.html",
+      "post": "c5_skin_both_first.post.txt"
+    },
+    {
+      "name": "c5_skin_both_second",
+      "dialog": "comp.php",
+      "capture": "b #60, post b #96",
+      "button": "BSL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=2222|ER|2223|AE|2224",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "Price and time by operation do not match the record's gross figures (427.59|427.59|4.90|0.00)."
+      ],
+      "summary": {
+        "position": "C2020812_702800060814_2G_2222_0_|64",
+        "partCode": "2020811",
+        "description": "Front Door Skin",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|AD|P|AN|E|Z|DD|HO",
+        "price": "427.59",
+        "hours": "4.90",
+        "partNumber": "67111TV0305ZZ",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "354.80",
+        "paintHours": "1.60",
+        "side": "R",
+        "sidesOffered": "L|R",
+        "rowPair": "2222|0"
+      },
+      "page": "skin_right_next.dialog.html",
+      "post": "c5_skin_both_second.post.txt"
     }
   ]
 }

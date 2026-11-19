@@ -192,7 +192,7 @@ internal static class AutomationToolText
 
     public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it, unless inputs.paint chooses it. With change, the button the position's dialog shows is pressed when none is given. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
 
-    public const string GlassInputsSide = "both: ticks Both on a part's dialog that offers it, with operation part, the dialog's own operation and the Part button. Glass's then opens the other side's own dialog, which is posted as served. If that dialog does not come or is not the one expected, the first side stays added and the act's code is glass.row.other_side_not_added.";
+    public const string GlassInputsSide = "both: ticks Both in the dialog of a part that offers it, with any button and operation, as a person ticks it there. Glass's then opens the other side's own dialog, which is pressed with the same button and given the same inputs.operation and inputs.confirmNoFigures, and otherwise posted as served. Typed figures, the dialog's fields and paint choices go on one side at a time: give them with no side, or change the other side afterwards. If the other dialog does not come or is not the one expected, the first side stays added and the act's code is glass.row.other_side_not_added.";
 
     public const string GlassInputsOptionalParts = "The optional parts to tick on Glass's Mandatory parts page when it comes after the post, one box each as a person ticks them: by its id from an earlier act's mandatoryParts, such as 1102450.ER.#2 for the second listing of a code the page lists twice, or by its code, such as 1017810.ER., which ticks the first optional listing of that code. A part the page does not list as optional is not ticked. Which parts the page lists cannot be known before the post.";
 
@@ -202,7 +202,7 @@ internal static class AutomationToolText
 
     public const string GlassInputsButtonRefused = "inputs.button must be part, paint or part_and_paint, and is given with operation part or with change only.";
 
-    public const string GlassInputsSideRefused = "inputs.side must be both, and is given with operation part only, with no inputs.operation and with the Part button.";
+    public const string GlassInputsSideRefused = "inputs.side must be both, and is not given with typed figures, inputs.place or inputs.paint.";
 
     public const string GlassInputsOptionalPartsRefused = "inputs.optionalParts holds part codes, none blank or repeated, and is given for a part or with change only.";
 

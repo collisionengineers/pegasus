@@ -720,11 +720,6 @@ public static class GlassAutomationPositionPolicy
         {
             return "inputs.button";
         }
-        if (inputs.BothSides == true
-            && (!asServed || inputs.Operation is not null || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint))
-        {
-            return "inputs.side";
-        }
         if (inputs.OptionalParts is { } codes
             && (codes.Any(string.IsNullOrWhiteSpace) || codes.Distinct(StringComparer.Ordinal).Count() != codes.Count))
         {

@@ -795,9 +795,13 @@ compose Glass's, each tool is refused with "Glass's is not available."
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;
   a part that cannot be painted has no paint button and is refused with
   `glass.row.not_paintable`. `inputs.side` `both` ticks Both where the
-  dialog offers it; the other side's own dialog, which the editor opens
-  next, is then posted as served, and if it does not come as expected the
-  first side stays added with `glass.row.other_side_not_added`.
+  dialog offers it, on a part that can be painted as well (19 November
+  2026, b #55 and b #96, the browser's own pair of posts); the other
+  side's own dialog, which the editor opens next, is pressed with the same
+  button and given the same operation, and is otherwise posted as served.
+  Typed figures, the dialog's fields and paint choices go on one side at a
+  time. If the other dialog does not come as expected the first side stays
+  added with `glass.row.other_side_not_added`.
   `inputs.optionalParts` names the optional parts to tick on the
   "Mandatory parts:" page, one box each as a person ticks them: by the id
   its listing carries on an earlier act, a code the page lists twice being
