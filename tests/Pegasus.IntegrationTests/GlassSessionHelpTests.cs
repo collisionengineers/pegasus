@@ -445,6 +445,12 @@ public sealed class GlassSessionHelpTests
     public async Task RenewIsAddedInTheEngineersSession()
     {
         var help = Help.Create();
+        // The estimate read after the post holds the left reinforcement the act added; an add whose
+        // code is on no new position is not confirmed.
+        help.Glass.Respond("GET /ere/aco/selected.php", _ => Editor(help.Glass.Count("POST /ere/aco/compproc.php") == 0
+            ? NoPositions
+            : "<script>\nvar Partids = [ '', 'C1.1.C1012401.1' ];\nvar CheckIds = [ 'C1012401' ];\n</script>\n"));
+        using var window = help.Window();
 
         var outcome = await help.Sessions.AddAsync(
             new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-renew",

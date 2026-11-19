@@ -313,15 +313,17 @@ public sealed class GlassEditorDialogTests
 
     /// <summary>
     /// An operation a dialog offers that no captured dialog's own script was
-    /// seen to post is refused (R1206): the bonnet's NL.
+    /// seen to post is refused (R1206): the special operation's W. The
+    /// bonnet's NL has been judged since (#745) and is posted once its
+    /// question before no figures is answered.
     /// </summary>
     [Fact]
     public void AnOperationNotJudgedAgainstAScriptIsAProblem()
     {
-        var build = GlassEditorDialogs.PartPost(
-            GlassEditorFixture.Text("bonnet_operations.dialog.html"), "BSS", new GlassEditorChange(Operation: "NL"));
+        var build = GlassEditorDialogs.PlainPost(
+            GlassEditorFixture.Text("special_fixed_price.dialog.html"), new GlassEditorChange(Operation: "W"));
 
-        Assert.Contains("Choosing NL has not been judged against a dialog's own script.", build.Problems);
+        Assert.Contains("Choosing W has not been judged against a dialog's own script.", build.Problems);
     }
 
     /// <summary>Choosing the operation the dialog already serves changes nothing, as in the editor.</summary>

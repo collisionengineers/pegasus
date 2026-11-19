@@ -501,11 +501,13 @@ public sealed class AutomationGlassIngressTests
             Assert.Equal("AN", act.GetProperty("inputs").GetProperty("operation").GetString());
             Assert.Equal(10m, act.GetProperty("inputs").GetProperty("renew").GetProperty("priceDeduction").GetDecimal());
         }
+        // The door's dialog post, then its "Mandatory parts:" page confirmed (BX), as for any add of it.
         Assert.Equal(1, glass.Count("GET /ere/aco/oldfrnew.php"));
-        Assert.Equal(3, glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(4, glass.Count("POST /ere/aco/compproc.php"));
         Assert.Contains(
             "ANReason=Original+price+568.86+%5B%A3%5D+Less+10.00+%5B%25%5D",
-            glass.Requests.Last(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").Body,
+            glass.Requests.Last(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php"
+                && !request.Query.Contains("BX=", StringComparison.Ordinal)).Body,
             StringComparison.Ordinal);
 
         var requests = glass.Requests.Count;

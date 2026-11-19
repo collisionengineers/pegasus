@@ -508,8 +508,9 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.DoesNotContain(Asked(harness, "GET", "service.php"), query => query.Contains("rowid=2697&", StringComparison.Ordinal));
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
 
+        // The preview wrote the session after the add, so the next act starts from its version.
         harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
-        await PositionAsync(harness, Add(harness, step.Session, "mcp:roof-2",
+        await PositionAsync(harness, Add(harness, preview.Session, "mcp:roof-2",
             GlassAutomationPositionKind.Part, "2697", GlassAutomationPartOperation.Part));
         Assert.Contains("mcode=2697|2698", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
     }
@@ -542,7 +543,12 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal("Panoramic Roof", panoramic.Name);
         Assert.True(panoramic.Has);
         Assert.NotNull(preview);
-        Assert.Equal(panoramic, Assert.Single(preview.HiddenBy));
+        // Member by member: the record's AnsweredOn list compares by reference.
+        var previewed = Assert.Single(preview.HiddenBy);
+        Assert.Equal(panoramic.Code, previewed.Code);
+        Assert.Equal(panoramic.Name, previewed.Name);
+        Assert.Equal(panoramic.Has, previewed.Has);
+        Assert.Equal(panoramic.AnsweredOn, previewed.AnsweredOn);
         Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, preview.Code);
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
@@ -1085,7 +1091,10 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var repairType = Assert.Single(dialog.Fields, field => field.Name == "Repart");
         Assert.Equal("Repair type", repairType.Label);
         Assert.True(repairType.Changeable);
-        Assert.False(Assert.Single(dialog.Fields, field => field.Name == "Price").Changeable);
+        // A painted part's price is typed in its dialog as on part.php (R1206).
+        var typedPrice = Assert.Single(dialog.Fields, field => field.Name == "Price");
+        Assert.True(typedPrice.Changeable);
+        Assert.Equal("inputs.price", typedPrice.Input);
         Assert.NotNull(dialog.Paint);
         Assert.Equal("Front Door, Complete K", dialog.Paint.Area?.Text);
         Assert.Contains(dialog.Buttons, button => button is { Value: "BSL", Text: "Part and Paint" });
