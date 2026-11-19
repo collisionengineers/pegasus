@@ -114,13 +114,23 @@ public sealed class ExperianCapValuationProviderTests
     /// Experian's message ids in the log.
     /// </summary>
     [Theory]
-    [InlineData("""{"vehicle":{"summary":{"vrm":"AB12CDE"}},"messages":[{"id":"100","title":"Permission"}]}""", "valuation=absent messages=100")]
-    [InlineData("""{"vehicle":{"valuations":{"cap":{"messages":["No valuation"]}}}}""", "valuation=absent")]
-    [InlineData("""{"vehicle":{"valuations":{"cap":{"valuation":{"retail":9450}}}}}""", "figures=absent")]
-    [InlineData("""{"vehicle":{"valuations":{"cap":{"valuation":{"retail":0,"clean":0}}}}}""", "figures=absent")]
-    [InlineData("""{"messages":[]}""", "vehicle=absent")]
-    public async Task AnAnswerWithoutCapsFiguresIsUnavailable(string answer, string detail)
+    [InlineData("permission-message", "valuation=absent messages=100")]
+    [InlineData("cap-without-valuation", "valuation=absent")]
+    [InlineData("retail-only", "figures=absent")]
+    [InlineData("zero-figures", "figures=absent")]
+    [InlineData("no-vehicle", "vehicle=absent")]
+    public async Task AnAnswerWithoutCapsFiguresIsUnavailable(string shape, string detail)
     {
+        // Named rows: the answers are too long to tell apart in a test name.
+        var answer = shape switch
+        {
+            "permission-message" =>
+                """{"vehicle":{"summary":{"vrm":"AB12CDE"}},"messages":[{"id":"100","title":"Permission"}]}""",
+            "cap-without-valuation" => """{"vehicle":{"valuations":{"cap":{"messages":["No valuation"]}}}}""",
+            "retail-only" => """{"vehicle":{"valuations":{"cap":{"valuation":{"retail":9450}}}}}""",
+            "zero-figures" => """{"vehicle":{"valuations":{"cap":{"valuation":{"retail":0,"clean":0}}}}}""",
+            _ => """{"messages":[]}""",
+        };
         var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, answer));
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
