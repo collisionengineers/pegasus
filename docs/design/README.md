@@ -904,8 +904,11 @@ operator, 2 November 2026; R640).
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch. Glass's, Brego and Cazana are the connected guide sources, so
-only their cards offer Get valuation; the other guide cards are filled in by hand
+repair-estimate launch. Glass's, Brego, Cazana and CAP (through Experian, 19
+November 2026, R1201) are the connected guide sources, so only their cards
+offer Get valuation; Super CAP's card is filled in by hand. CAP's Guide month
+is greyed, holds the current month and says "CAP can only do valuations for
+the current day." on hover (R1203)
 ([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay. Cazana (9 October 2026,

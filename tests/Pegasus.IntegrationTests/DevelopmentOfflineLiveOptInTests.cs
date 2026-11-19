@@ -195,6 +195,35 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
             provider => provider is Pegasus.Infrastructure.Brego.BregoGuideValuationProvider);
     }
 
+    /// <summary>
+    /// Features:LiveExperian composes Experian's two acts on an offline host
+    /// (the hosted test instance), as Production does: the vehicle history
+    /// check and CAP's guide valuation, on the one account (ADR-0089, R1201).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task LiveExperianComposesTheHistoryCheckAndTheCapValuation()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), $"pegasus-live-experian-{Guid.NewGuid():N}"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveExperian"] = "true"
+            });
+
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        Assert.IsType<Pegasus.Infrastructure.Experian.ExperianCapValuationProvider>(
+            Assert.Single(scope.ServiceProvider.GetServices<Pegasus.Core.Assessment.IGuideValuationProvider>()));
+        Assert.IsType<Pegasus.Infrastructure.Experian.ExperianVehicleHistoryProvider>(
+            Assert.Single(scope.ServiceProvider.GetServices<Pegasus.Core.Vehicle.IVehicleHistoryCheckProvider>()));
+    }
+
     [Fact]
     public void LiveGraphMailWithoutAClientSecretFailsAtStartNamingTheKey()
     {

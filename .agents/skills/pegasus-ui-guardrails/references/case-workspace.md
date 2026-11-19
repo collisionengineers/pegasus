@@ -236,6 +236,10 @@ from the start and has no Get valuation button (an unavailable action is omitted
 The Case's save is the writer (23 September 2026, saved as you go since 29 September 2026): it
 records every changed card with whatever was entered — any box may be left blank — and an
 untouched or blank card records nothing. A card opens holding only what is recorded, in both modes.
+CAP's guide month is the one exception (operator, 19 November 2026, R1203): CAP is valued only as it
+stands today, so while editing its month box is greyed and read-only, says "CAP can only do
+valuations for the current day." on hover, and holds the current month (a recorded card's own month
+until a figure is typed or fetched). Do not make it editable or hide it.
 
 A click anywhere on a card is the decision to use it (operator, 8 October 2026): its name, labels,
 figures, boxes and padding; only its own buttons and links do something else. The card takes the

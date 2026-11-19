@@ -46,7 +46,7 @@ internal sealed record GuideCardToolInput(
     [property: Description("The guide the figures come from: Glasses, Cazana, EngineersValue, Brego, SuperCap or Cap.")] string Source,
     [property: Description("Retail value in pounds.")] decimal? RetailValue = null,
     [property: Description("Trade value in pounds.")] decimal? TradeValue = null,
-    [property: Description("The guide month the figures are for, yyyy-MM.")] string? GuideMonth = null);
+    [property: Description("The guide month the figures are for, yyyy-MM. A Cap card is always recorded for the current month, whatever is sent.")] string? GuideMonth = null);
 
 internal sealed record ValuationAdditionToolInput(
     [property: Description("The valuation addition preset identifier; the empty identifier 00000000-0000-0000-0000-000000000000 is an Other increase, which counts only with a label and an amount above zero and is otherwise left out.")] Guid PresetId,
@@ -130,16 +130,22 @@ internal sealed class ValuationMcpTools(
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 var recordedAt = LondonCalendar.TimeAt(timeProvider.GetUtcNow());
                 var cards = (guideCards ?? [])
-                    .Select(card => new ValuationDetails(
-                        ParseSource(card.Source),
-                        DateOnly.FromDateTime(recordedAt),
-                        TimeOnly.FromDateTime(recordedAt),
-                        // A guide card carries no mileage: the Case's own is used
-                        // wherever a valuation needs one (operator, 24 September 2026).
-                        null,
-                        card.RetailValue,
-                        card.TradeValue,
-                        ParseGuideMonth(card.GuideMonth)))
+                    .Select(card =>
+                    {
+                        var cardSource = ParseSource(card.Source);
+                        return new ValuationDetails(
+                            cardSource,
+                            DateOnly.FromDateTime(recordedAt),
+                            TimeOnly.FromDateTime(recordedAt),
+                            // A guide card carries no mileage: the Case's own is used
+                            // wherever a valuation needs one (operator, 24 September 2026).
+                            null,
+                            card.RetailValue,
+                            card.TradeValue,
+                            // A CAP card is the current month's whatever was sent (R1203).
+                            ValuationPolicy.GuideMonthToRecord(
+                                cardSource, ParseGuideMonth(card.GuideMonth), DateOnly.FromDateTime(recordedAt)));
+                    })
                     .ToArray();
                 var selection = adoption is null
                     ? null
@@ -191,7 +197,7 @@ internal sealed class ValuationMcpTools(
         Idempotent = false,
         OpenWorld = true,
         UseStructuredContent = true)]
-    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego or Cazana) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both). Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age), NoVehicleData (the source holds no data for the registration) and AlreadyAsked (the source has already answered for this case and guide month at its current registration and mileage, so it is not asked or charged again) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. A source is asked once per case and guide month at its confirmed registration and mileage: only an answer with figures uses that ask, and a corrected registration or mileage allows one more. Needs the expected case version.")]
+    [Description("Runs the Valuation section's Get valuation for one guide source and records that source's card on the case with the figures it answers, as a member of staff pressing Get valuation and saving does. Pegasus asks the source's connected provider (Glass's, Brego, Cazana, or CAP through Experian) for the case's confirmed registration and mileage in the guide month, files the provider's own valuation report on the case afterwards and fills an empty case VIN the provider names (Glass's, Brego and Cazana offer both; CAP offers neither). CAP is valued only as it stands today, so its card is always the current month. Outcome Recorded carries the figures; Unavailable (no connected provider, or it could not answer), VehicleAge (the source does not value a vehicle of this age), NoVehicleData (the source holds no data for the registration) and AlreadyAsked (the source has already answered for this case and guide month at its current registration and mileage, so it is not asked or charged again) record nothing. Adopting a basis card, which writes the report's Retail and Trade values, stays with pegasus_valuation_save; the Engineer's Value stays with pegasus_assessment_update. A source is asked once per case and guide month at its confirmed registration and mileage: only an answer with figures uses that ask, and a corrected registration or mileage allows one more. Needs the expected case version.")]
     public async Task<ValuationGetToolResult> GetValuationAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,

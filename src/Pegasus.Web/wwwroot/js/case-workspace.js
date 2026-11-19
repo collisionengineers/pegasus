@@ -3777,6 +3777,14 @@
                     // A retail typed into a card answers its "enter the retail" sentence.
                     if (parseFloat(typed.value) > 0) { needsRetail(typed.closest('[data-valuation-card]'), false); }
                 }
+                // A figure typed on a card valued only as it stands today is
+                // the current month's (R1203): its greyed month box follows.
+                if (typed && typed.matches
+                    && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))) {
+                    var monthToday = typed.closest('[data-valuation-card]');
+                    monthToday = monthToday && monthToday.querySelector('[data-valuation-month-today]');
+                    if (monthToday) { monthToday.value = monthToday.getAttribute('data-valuation-month-today'); }
+                }
                 // A figure typed into the chosen card is the basis figure now.
                 if (typed && typed.matches
                     && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))

@@ -281,21 +281,22 @@ public sealed class ExperianVehicleHistoryProviderTests
             var logger = new CapturingLogger();
             return new(
                 new ExperianVehicleHistoryProvider(
-                    new ScriptedClientFactory(new CazanaGuideValuationProviderTests.Answering(async request =>
-                    {
-                        var body = request.Content is null ? null : await request.Content.ReadAsStringAsync();
-                        requests.Add(new(
-                            request.Method,
-                            request.RequestUri!,
-                            request.Headers.Authorization?.ToString(),
-                            request.Headers.ToDictionary(header => header.Key, header => header.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
-                            body));
-                        return request.RequestUri == new Uri(TokenUri)
-                            ? token?.Invoke() ?? Json(HttpStatusCode.OK, Token)
-                            : vehicle(request);
-                    })),
-                    account ?? (() => ExperianAccount.Create(Setting)),
-                    clock ?? new MovingClock(Now),
+                    new ExperianClient(
+                        new ScriptedClientFactory(new CazanaGuideValuationProviderTests.Answering(async request =>
+                        {
+                            var body = request.Content is null ? null : await request.Content.ReadAsStringAsync();
+                            requests.Add(new(
+                                request.Method,
+                                request.RequestUri!,
+                                request.Headers.Authorization?.ToString(),
+                                request.Headers.ToDictionary(header => header.Key, header => header.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
+                                body));
+                            return request.RequestUri == new Uri(TokenUri)
+                                ? token?.Invoke() ?? Json(HttpStatusCode.OK, Token)
+                                : vehicle(request);
+                        })),
+                        account ?? (() => ExperianAccount.Create(Setting)),
+                        clock ?? new MovingClock(Now)),
                     logger),
                 logger,
                 requests);

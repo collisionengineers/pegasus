@@ -33,6 +33,14 @@ public static class ValuationSources
             or ValuationSource.SuperCap
             or ValuationSource.Cap
             or ValuationSource.Cazana;
+
+    /// <summary>
+    /// The guides valued only as they stand today: the provider takes no
+    /// valuation date, so the card's guide month is never staff's to choose
+    /// and is always the current month (R1203). CAP, valued through Experian,
+    /// is the one.
+    /// </summary>
+    public static bool IsValuedTodayOnly(ValuationSource source) => source == ValuationSource.Cap;
 }
 
 /// <summary>
@@ -110,6 +118,14 @@ public static class ValuationPolicy
             [AssessmentVocabulary.ValueFromMarketResearch] = marketResearch ? "true" : null,
         };
     }
+
+    /// <summary>
+    /// The guide month a card is recorded for: the month entered, except on
+    /// a source valued only as it stands today, whose card is recorded for
+    /// the current month whatever was entered (R1203).
+    /// </summary>
+    public static DateOnly? GuideMonthToRecord(ValuationSource source, DateOnly? entered, DateOnly today) =>
+        ValuationSources.IsValuedTodayOnly(source) ? new DateOnly(today.Year, today.Month, 1) : entered;
 
     public static ValuationDetails ValidateDetails(ValuationDetails details)
     {
