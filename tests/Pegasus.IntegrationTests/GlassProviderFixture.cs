@@ -245,12 +245,12 @@ internal static class GlassProviderFixture
     private const string CapturedCallback =
         "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000";
 
-    private const string EmptyEstimate = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
-
     /// <summary>
     /// Glass's editor on the estimator's host, answering from the pages cut
     /// from browser sessions (<c>GlassEditorPages/</c>): the launch page, the
-    /// two opening pages, the estimate (empty until a position is posted),
+    /// two opening pages, the estimate with its totals (empty until a
+    /// position is posted), the records of the positions the fixtures hold
+    /// (<c>mcode.php</c>; any other is not found), the calculation report,
     /// the special list, the dialogs and answers of two special operations
     /// (<c>AC0000073</c> and <c>AC0000075</c>), the part list
     /// (<see cref="BuildPartList"/>), the captured equipment maps of rows 0,
@@ -280,8 +280,10 @@ internal static class GlassProviderFixture
         glass.Set("GET /ere/aco/aco.php", Editor("<html><body></body></html>"));
         glass.Respond("GET /ere/aco/aco2.php", _ => EditorPage("aco2.html", null));
         glass.Respond("GET /ere/aco/selected.php", _ => glass.Count("POST /ere/aco/compproc.php") == 0
-            ? Editor(EmptyEstimate)
+            ? EditorPage("selected_empty.html", null)
             : EditorPage("selected.html", null));
+        glass.Respond("GET /ere/aco/mcode.php", request => PositionRecord(QueryValue(request.Query, "partid")));
+        glass.Respond("GET /ere/aco/report.php", _ => EditorPage("report.html", null));
         glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
         glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
         glass.Respond("GET /ere/aco/part.php", request => QueryValue(request.Query, "mcode") is "822|829"
@@ -413,6 +415,20 @@ internal static class GlassProviderFixture
     /// <summary>An editor answer, sent as windows-1252 as the editor sends it.</summary>
     public static Reply Editor(string body) =>
         new(HttpStatusCode.OK, body, Bytes: GlassEditorText.Encode(body));
+
+    /// <summary>The fixtures' position records by their ids (<c>position</c>, <c>positionLeft</c>, …).</summary>
+    private static readonly string[] PositionPages = ["position", "positionLeft", "positionPaint", "positionSpecial"];
+
+    /// <summary>The record of a position the fixtures hold, as <c>mcode.php</c> answers it, or a 404 for any other.</summary>
+    private static Reply PositionRecord(string? positionId)
+    {
+        var page = PositionPages
+            .Select(GlassEditorFixture.Page)
+            .FirstOrDefault(candidate => candidate.GetProperty("id").GetString() == positionId);
+        return page.ValueKind == System.Text.Json.JsonValueKind.Object
+            ? new(HttpStatusCode.OK, GlassEditorFixture.Text(page.GetProperty("file").GetString()!), ContentType: "application/json")
+            : new(HttpStatusCode.NotFound, string.Empty);
+    }
 
     /// <summary>The dialog or the answer of the special operation a request names, or a 404 for any other.</summary>
     private static Reply SpecialOperation(string query, string page) =>

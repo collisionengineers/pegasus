@@ -447,6 +447,29 @@ public sealed class GlassEditorClientTests
         Assert.Null(Client(editor).LastRequestAtUtc);
     }
 
+    /// <summary>
+    /// The calculation is asked for as the editor's top bar asks for it, one
+    /// request; a position id that is not as Glass's lists them is refused
+    /// before anything is sent, so nothing can be added to the address.
+    /// </summary>
+    [Fact]
+    public async Task TheCalculationIsAskedForAsTheEditorAsksAndAnOddPositionIdIsNeverSent()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET report.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("report.html")));
+        var client = Client(editor);
+
+        var read = await client.ReadCalculationAsync(GlassEditorFixture.Session(), default);
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            client.ReadPositionAsync(GlassEditorFixture.Session(), "C1.2&cml=C", default));
+
+        var asked = Assert.Single(editor.Requests);
+        Assert.Equal("/ere/aco/report.php", asked.Path);
+        Assert.Equal("?ksid=" + GlassEditorFixture.Key + "&cml=C&calcid=0&dummy=1794979937000", asked.Query);
+        Assert.Equal(GlassEditorFixture.Page("opening").GetProperty("addresses").GetProperty("frame").GetString(), asked.Referer);
+        Assert.Equal(13209.89m, read.Value.RepairCostsInclVat);
+    }
+
     private static GlassEditorEstimate NoPositions() => new(true, Array.Empty<string>(), Array.Empty<string>());
 
     private static GlassEditorClient Client(ScriptedEditor editor) =>

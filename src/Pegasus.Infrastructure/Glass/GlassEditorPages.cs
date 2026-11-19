@@ -1,15 +1,20 @@
 using System.Globalization;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
 
-/// <summary>The estimate's positions as <c>selected.php</c> lists them.</summary>
+/// <summary>The estimate's positions as <c>selected.php</c> lists them, and Glass's running totals from the same page.</summary>
 /// <param name="Found">Whether the page carried the list at all.</param>
 /// <param name="Positions">Each position's id, such as <c>C350898.20.C1060000.2464</c>.</param>
 /// <param name="Codes">Each position's code, such as <c>C1060000</c> or <c>A73</c>.</param>
-internal sealed record GlassEditorEstimate(bool Found, IReadOnlyList<string> Positions, IReadOnlyList<string> Codes);
+/// <param name="Totals">Glass's running totals in the page's order, or null when the page holds none it can be read by.</param>
+internal sealed record GlassEditorEstimate(
+    bool Found, IReadOnlyList<string> Positions, IReadOnlyList<string> Codes,
+    IReadOnlyList<GlassEstimateTotal>? Totals = null);
 
 /// <summary>One group of the special-operation list and its rows, each row as the page lists it.</summary>
 internal sealed record GlassEditorSpecialGroup(string Code, string Name, IReadOnlyList<IReadOnlyList<string>> Rows);
@@ -240,8 +245,9 @@ internal static partial class GlassEditorPages
     }
 
     /// <summary>
-    /// The estimate's positions and codes (<c>selected.php</c>). The page's
-    /// lists begin with an empty entry, which is not a position.
+    /// The estimate's positions and codes (<c>selected.php</c>), and Glass's
+    /// running totals from the same page (R1206). The page's lists begin with
+    /// an empty entry, which is not a position.
     /// </summary>
     public static GlassEditorEstimate Selected(string html)
     {
@@ -250,27 +256,77 @@ internal static partial class GlassEditorPages
         return new(
             ids is not null,
             (ids ?? []).Where(id => id.Length > 0).ToList(),
-            (codes ?? []).Where(code => code.Length > 0).ToList());
+            (codes ?? []).Where(code => code.Length > 0).ToList(),
+            Totals(html));
     }
 
     /// <summary>
-    /// One position's record as <c>mcode.php</c> answers it
-    /// (<c>{"part":[…]}</c>), one entry per line of the record, or null when
-    /// the answer is not that.
+    /// Glass's running totals as the estimate's page holds them for the
+    /// editor's top bar: its labels (<c>CalcToolTipTexts</c>, such as
+    /// <c>'Parts '</c> or <c>'Total (£) '</c>) beside its figures
+    /// (<c>CalcToolTipNums</c>, such as <c>'4932.87'</c>), in the page's
+    /// order. The page lists only the totals the estimate has; an empty
+    /// estimate lists the amount due alone. Null when either list is missing,
+    /// the two differ in length, or a figure is not a number: no total is
+    /// guessed.
     /// </summary>
-    public static IReadOnlyList<string>? Position(string text)
+    public static IReadOnlyList<GlassEstimateTotal>? Totals(string html)
     {
+        var labels = StringArray(html, "CalcToolTipTexts");
+        var figures = StringArray(html, "CalcToolTipNums");
+        if (labels is null || figures is null || labels.Count != figures.Count)
+        {
+            return null;
+        }
+
+        var totals = new List<GlassEstimateTotal>(labels.Count);
+        for (var index = 0; index < labels.Count; index++)
+        {
+            if (Amount(figures[index]) is not { } amount || labels[index].Trim().Length == 0)
+            {
+                return null;
+            }
+
+            totals.Add(new(labels[index].Trim(), amount));
+        }
+
+        return totals;
+    }
+
+    /// <summary>
+    /// One position's figures from its record as <c>mcode.php</c> answers it
+    /// (<c>{"mcode":"…","part":[…]}</c>, one entry per line of the record),
+    /// read by the lines the part's own dialog reads (<see cref="GlassEditorDialogs"/>):
+    /// line 1 the part code (line 2 for the right-hand side), line 3 the
+    /// description, line 4 the operation, lines 6 and 8 the price and hours
+    /// by operation (7 and 9 for the right-hand side), line 13 the part
+    /// number (14 for the right-hand side), line 15 the side. A part with
+    /// paint carries its paint position from line 64; a paint position on its
+    /// own (an id beginning <c>L</c>) is that block alone. In both, the paint
+    /// block's line 0 is its id, line 2 its description and line 22 its
+    /// price and labour time. Null when the answer is not a record of the
+    /// position asked for, or is too short to hold the lines read.
+    /// </summary>
+    public static GlassPositionFigures? PositionFigures(string text, string positionId)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentException.ThrowIfNullOrEmpty(positionId);
+        List<string> record;
         try
         {
             using var document = JsonDocument.Parse(text.Trim('\uFEFF', ' ', '\t', '\r', '\n'));
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("part", out var part)
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("mcode", out var asked)
+                || asked.ValueKind != JsonValueKind.String
+                || !string.Equals(asked.GetString(), positionId, StringComparison.Ordinal)
+                || !root.TryGetProperty("part", out var part)
                 || part.ValueKind != JsonValueKind.Array)
             {
                 return null;
             }
 
-            return part.EnumerateArray()
+            record = part.EnumerateArray()
                 .Select(entry => entry.ValueKind == JsonValueKind.String ? entry.GetString()! : entry.GetRawText())
                 .ToList();
         }
@@ -278,7 +334,209 @@ internal static partial class GlassEditorPages
         {
             return null;
         }
+
+        if (positionId.StartsWith(PaintPositionPrefix))
+        {
+            return record.Count < PaintBlockLines
+                ? null
+                : new(positionId, Line(record, 1), Text(Line(record, 2)), null, null, null, null, null, Paint(record, 0));
+        }
+        if (record.Count < PartLines)
+        {
+            return null;
+        }
+
+        var side = (Line(record, 15) ?? string.Empty).Trim();
+        var right = SideIndex(side);
+        var operation = Line(record, 4)?.Trim();
+        operation = string.IsNullOrEmpty(operation) ? null : operation;
+        var paint = record.Count >= PaintStart + PaintBlockLines
+            && (Line(record, PaintStart) ?? string.Empty).StartsWith(PaintPositionPrefix)
+                ? Paint(record, PaintStart)
+                : null;
+        return new(
+            positionId,
+            Line(record, 1 + right),
+            Text(Line(record, 3)),
+            operation,
+            operation is null ? null : Amount(Lookup(Line(record, 6 + right), operation)),
+            operation is null ? null : Amount(Lookup(Line(record, 8 + right), operation)),
+            side.Length == 0 ? null : side,
+            Text(Line(record, 13 + right)),
+            paint);
     }
+
+    /// <summary>A paint position's id begins with this letter (<c>L350899.20.Lxx1640.Lxx1640</c>).</summary>
+    private const char PaintPositionPrefix = 'L';
+
+    /// <summary>The lines a part's or special operation's record must hold for the lines read (0 to 15).</summary>
+    private const int PartLines = 16;
+
+    /// <summary>Where a part's record carries its paint block.</summary>
+    private const int PaintStart = 64;
+
+    /// <summary>The lines a paint block must hold for the lines read (0 to 22).</summary>
+    private const int PaintBlockLines = 23;
+
+    private static GlassPositionPaint Paint(List<string> record, int start)
+    {
+        var figures = (Line(record, start + 22) ?? string.Empty).Split('|');
+        return new(
+            (Line(record, start) ?? string.Empty).Split('|')[0],
+            Text(Line(record, start + 2)),
+            Amount(figures[0]),
+            figures.Length > 1 ? Amount(figures[1]) : null);
+    }
+
+    /// <summary>
+    /// The side's index into the record's left and right lines, as the
+    /// part's dialog takes it: 1 for a right-hand side (<c>R</c>, or a front
+    /// or rear one, <c>VR</c> or <c>HR</c>), otherwise 0.
+    /// </summary>
+    private static int SideIndex(string side)
+    {
+        var lead = side.Length > 0 ? side[..1] : string.Empty;
+        var place = lead is "V" or "H" ? (side.Length > 1 ? side.Substring(1, 1) : string.Empty) : lead;
+        return place == "R" ? 1 : 0;
+    }
+
+    private static string? Line(List<string> record, int index) => index < record.Count ? record[index] : null;
+
+    /// <summary>A record's text field: the text before its bar, trimmed; null when empty.</summary>
+    private static string? Text(string? line)
+    {
+        var text = (line ?? string.Empty).Split('|')[0].Trim();
+        return text.Length == 0 ? null : text;
+    }
+
+    /// <summary>
+    /// Glass's calculation (<c>report.php?calcid=0</c>), read from the table
+    /// its report heads "Summary" and the line "Repair costs incl. VAT" after
+    /// it (captures of 7 September and 18 November 2026). The columns are
+    /// found by Glass's own headers: "Labour rate", "Labour time", "Labour
+    /// costs", "Material costs". The rows above the summary's first rule are
+    /// the trades; after it, "Total Labour" gives its labour time and costs,
+    /// and "Total Material", "Repair costs excl. VAT", the VAT line and
+    /// "Repair costs incl. VAT" give their one figure each. A row's figure
+    /// is read with the thousands separator the editor's frame asks for
+    /// (<c>thsep=,</c>) and an optional leading <c>£</c>. Null when the page
+    /// has no such summary or names no trade.
+    /// </summary>
+    public static GlassCalculation? Calculation(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var rows = TableRow().Matches(html)
+            .Select(row => new ReportRow(
+                CellOf().Matches(row.Groups[1].Value).Select(cell => CellText(cell.Groups[1].Value)).ToList(),
+                row.Groups[1].Value.Contains("<hr", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var header = rows.FindIndex(row => row.Cells.Count > 0 && row.Cells[0] == SummaryHeader);
+        if (header < 0)
+        {
+            return null;
+        }
+
+        var columns = rows[header].Cells;
+        var rate = columns.IndexOf("Labour rate");
+        var time = columns.IndexOf("Labour time");
+        var costs = columns.IndexOf("Labour costs");
+        var material = columns.IndexOf("Material costs");
+        if (rate < 1 || time < 1 || costs < 1 || material < 1)
+        {
+            return null;
+        }
+
+        var trades = new List<GlassCalculationTrade>();
+        var calculation = new GlassCalculation(trades, null, null, null, null, null, null, null);
+        var ruled = false;
+        foreach (var row in rows.Skip(header + 1))
+        {
+            if (row.Ruled)
+            {
+                ruled = true;
+                continue;
+            }
+            if (row.Cells.Count == 0 || row.Cells[0].Length == 0)
+            {
+                continue;
+            }
+
+            var label = row.Cells[0];
+            if (!ruled)
+            {
+                trades.Add(new(label, Cell(row, rate), Cell(row, time), Cell(row, costs), Cell(row, material)));
+                continue;
+            }
+
+            switch (label)
+            {
+                case "Total Labour":
+                    calculation = calculation with { TotalLabourTime = Cell(row, time), TotalLabourCosts = Cell(row, costs) };
+                    break;
+                case "Total Material":
+                    calculation = calculation with { TotalMaterial = OneFigure(row) };
+                    break;
+                case "Repair costs excl. VAT":
+                    calculation = calculation with { RepairCostsExclVat = OneFigure(row) };
+                    break;
+                case "Repair costs incl. VAT":
+                    calculation = calculation with { RepairCostsInclVat = OneFigure(row) };
+                    return trades.Count == 0 ? null : calculation;
+                default:
+                    if (label.StartsWith("VAT", StringComparison.Ordinal))
+                    {
+                        calculation = calculation with { VatLabel = label, Vat = OneFigure(row) };
+                    }
+
+                    break;
+            }
+        }
+
+        return trades.Count == 0 ? null : calculation;
+    }
+
+    /// <summary>The first header of the report's summary table.</summary>
+    private const string SummaryHeader = "Summary";
+
+    /// <summary>One row of a report table: each cell's text, and whether the row is a rule.</summary>
+    private sealed record ReportRow(List<string> Cells, bool Ruled);
+
+    private static decimal? Cell(ReportRow row, int column) =>
+        column < row.Cells.Count ? Figure(row.Cells[column]) : null;
+
+    /// <summary>A row's one figure after its label; null when it has none or more than one.</summary>
+    private static decimal? OneFigure(ReportRow row)
+    {
+        var given = row.Cells.Skip(1).Where(cell => cell.Length > 0).ToList();
+        return given.Count == 1 ? Figure(given[0]) : null;
+    }
+
+    /// <summary>A report cell's figure: an optional <c>£</c>, then the number with its thousands separators.</summary>
+    private static decimal? Figure(string cell)
+    {
+        var text = cell.StartsWith('£') ? cell[1..].Trim() : cell;
+        return text.Length == 0 ? null : Amount(text);
+    }
+
+    /// <summary>A cell's text: its tags dropped, its entities decoded, its spaces (non-breaking ones too) trimmed.</summary>
+    private static string CellText(string cell) =>
+        WebUtility.HtmlDecode(Tag().Replace(cell, string.Empty)).Trim();
+
+    /// <summary>
+    /// A figure as Glass's pages write it, read whatever the host's culture:
+    /// digits with a decimal point, a leading minus and the thousands
+    /// separator the editor's frame asks for (<c>,</c>). Null when it is
+    /// anything else.
+    /// </summary>
+    public static decimal? Amount(string? text) =>
+        decimal.TryParse(
+            text,
+            NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.AllowLeadingSign
+                | NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands,
+            CultureInfo.InvariantCulture,
+            out var value)
+            ? value
+            : null;
 
     /// <summary>
     /// A row's equipment map (<c>var aCritMap = [ […], … ];</c>) as the nested
@@ -791,6 +1049,15 @@ internal static partial class GlassEditorPages
 
     [GeneratedRegex(@"""([^""]*)""\.split\(\s*""\|""\s*\)", Patterns, 1000)]
     private static partial Regex SplitList();
+
+    [GeneratedRegex(@"<tr\b[^>]*>(.*?)</tr>", Patterns | RegexOptions.Singleline | RegexOptions.IgnoreCase, 1000)]
+    private static partial Regex TableRow();
+
+    [GeneratedRegex(@"<td\b[^>]*>(.*?)</td>", Patterns | RegexOptions.Singleline | RegexOptions.IgnoreCase, 1000)]
+    private static partial Regex CellOf();
+
+    [GeneratedRegex(@"<[^>]*>", Patterns, 1000)]
+    private static partial Regex Tag();
 
     [GeneratedRegex(@"document\.location\.replace\(\s*'blocked\.html", Patterns, 1000)]
     private static partial Regex BlockedReplace();

@@ -740,10 +740,24 @@ compose Glass's, each tool is refused with "Glass's is not available."
 - `pegasus_glass_session_get` answers the session (state, version, failure
   code, whether work is running, and the Draft spec a finish landed as),
   and whether the Glass's login is free or which Case holds it, by staff or
-  by the Automation, naming no member of staff. With `readEstimate`, Glass's
-  is asked once for the positions the open estimate holds. A session left
-  waiting on work that nothing runs is settled first, as the Glass's
-  window's poll settles it.
+  by the Automation, naming no member of staff. A session left waiting on
+  work that nothing runs is settled first, as the Glass's window's poll
+  settles it.
+- **19 November 2026; R1206.** With `read`, `pegasus_glass_session_get` asks
+  Glass's once for what its editor shows a user, and nothing changes at
+  Glass's. `positions` answers the positions the open estimate holds and
+  Glass's running totals from the same page, each with Glass's own label
+  (such as Parts, Paint material, Body, Paint, Total (£), VAT (20.00 %) and
+  Amount due (£)); Glass's lists only the totals the estimate has.
+  `position`, with a `positionId` from that list, answers the position's
+  repair type, price, hours, side, part number and, when it has paint, its
+  paint price and labour time. `calculation` answers the Summary of Glass's
+  calculation: each trade's labour rate, labour time, labour costs and
+  material costs, then Total Labour, Total Material, Repair costs excl. VAT,
+  VAT and Repair costs incl. VAT. A figure Glass's does not give is absent,
+  never zero. A read Glass's does not answer gives its `glass.*` code as
+  `readCode` and nothing read, and leaves the session as it was. This
+  replaces `readEstimate`.
 - `pegasus_glass_catalogue_search` reads the open session's part list and
   special operations, and changes nothing. `pegasus_glass_position_act`
   `add` adds a position by a row the search returned, posted as Glass's
@@ -798,7 +812,8 @@ session with help on. With more than one, the call names one by
 `sessionId`, which `pegasus_glass_session_get` lists; no member of staff is
 named.
 
-- In an Engineer's session the Actor reads the estimate, searches its lists,
+- In an Engineer's session the Actor reads the estimate as in its own
+  session (R1206), searches its lists,
   adds the same positions as a rebuild, posted as Glass's dialog serves them
   with nothing typed (R1182), adds a part whose equipment question it
   answers as in its own session, the answer stored for the vehicle and any
@@ -914,7 +929,7 @@ its one command when none is given.
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
-| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `readEstimate` the positions the open estimate holds ([Glass's sessions](#glasss-sessions)) | none |
+| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `read` the open estimate's positions and Glass's running totals, one position's figures, or Glass's calculation (R1206; [Glass's sessions](#glasss-sessions)) | none |
 | `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
 | `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
 | `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment` (R1206); `remove` one by its id (R1185); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key |

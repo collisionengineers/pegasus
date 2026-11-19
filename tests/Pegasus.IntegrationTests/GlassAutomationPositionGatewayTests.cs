@@ -491,7 +491,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
     /// <summary>
     /// A lost answer the estimate does not bear out is settled as refused,
     /// with its code, by the next read, here the one pegasus_glass_session_get
-    /// makes with readEstimate.
+    /// makes with read positions.
     /// </summary>
     [Fact]
     public async Task ALostAnswerTheEstimateDoesNotBearOutIsSettledAsRefused()
@@ -504,7 +504,8 @@ public sealed partial class GlassRepairEstimateGatewayTests
             GlassAutomationPositionKind.SpecialOperation, "AC0000073"));
         Assert.Equal(GlassAutomationActOutcome.NotConfirmed, lost.Act.Outcome);
 
-        var read = await harness.Gateway.ReadAutomationEstimateAsync(harness.Automation, session.Id, CancellationToken.None);
+        var read = await harness.Gateway.ReadAutomationEstimateAsync(
+            harness.Automation, session.Id, GlassAutomationRead.Positions, CancellationToken.None);
 
         Assert.NotNull(read);
         var settled = GlassAutomationPositionPolicy.Find(read.Session.Automation, "mcp:add-1");

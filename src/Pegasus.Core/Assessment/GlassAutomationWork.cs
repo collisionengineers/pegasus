@@ -472,3 +472,104 @@ public sealed record GlassAutomationCatalogueRow(
 /// </summary>
 public sealed record GlassAutomationCatalogue(
     GlassRepairEstimateSession Session, IReadOnlyList<GlassAutomationCatalogueRow> Rows, string? Code);
+
+/// <summary>What the Automation reads of an open Glass's estimate (R1206).</summary>
+public enum GlassAutomationReadKind
+{
+    /// <summary>The estimate's positions and Glass's running totals, from one <c>selected.php</c>.</summary>
+    Positions,
+
+    /// <summary>One position's figures, from one <c>mcode.php</c>.</summary>
+    Position,
+
+    /// <summary>Glass's calculation, from one <c>report.php?calcid=0</c>.</summary>
+    Calculation,
+}
+
+/// <summary>
+/// One read of an open Glass's estimate (R1206): its kind and, for
+/// <see cref="GlassAutomationReadKind.Position"/>, the position's id as
+/// Glass's lists it (such as <c>C350898.20.C1060000.2464</c>). Reading
+/// changes nothing at Glass's.
+/// </summary>
+public sealed record GlassAutomationRead(GlassAutomationReadKind Kind, string? PositionId = null)
+{
+    /// <summary>The longest position id read; Glass's own are a few dozen characters.</summary>
+    public const int MaximumPositionIdLength = 100;
+
+    public static GlassAutomationRead Positions { get; } = new(GlassAutomationReadKind.Positions);
+
+    public static GlassAutomationRead Calculation { get; } = new(GlassAutomationReadKind.Calculation);
+
+    public static GlassAutomationRead Position(string positionId) => new(GlassAutomationReadKind.Position, positionId);
+
+    /// <summary>
+    /// Whether the text can be a position id as Glass's lists them: letters,
+    /// digits and dots, nothing else, so it goes into Glass's address as it is.
+    /// </summary>
+    public static bool IsPositionId(string? text) =>
+        !string.IsNullOrEmpty(text)
+        && text.Length <= MaximumPositionIdLength
+        && text.All(character => char.IsAsciiLetterOrDigit(character) || character == '.');
+}
+
+/// <summary>
+/// One of Glass's running totals as the estimate's list holds them
+/// (<c>selected.php</c>, <c>CalcToolTipTexts</c> and <c>CalcToolTipNums</c>):
+/// Glass's own label, such as <c>Parts</c>, <c>Paint material</c>,
+/// <c>Body</c>, <c>Total (£)</c>, <c>VAT (20.00 %)</c> or <c>Amount due (£)</c>,
+/// and its amount. Glass's lists only the totals the estimate has.
+/// </summary>
+public sealed record GlassEstimateTotal(string Label, decimal Amount);
+
+/// <summary>
+/// One position's figures as Glass's own record of it holds them
+/// (<c>mcode.php</c>): its part code, description, operation (Glass's code,
+/// such as <c>ER</c>), and the price, hours and part number for that
+/// operation and its side (<c>L</c> or <c>R</c>, or none). A paint position
+/// on its own (an id beginning <c>L</c>) has no operation, price or hours of
+/// its own, only <see cref="Paint"/>. A figure the record does not give is
+/// null, never zero.
+/// </summary>
+public sealed record GlassPositionFigures(
+    string PositionId,
+    string? PartCode,
+    string? Description,
+    string? Operation,
+    decimal? Price,
+    decimal? Hours,
+    string? Side,
+    string? PartNumber,
+    GlassPositionPaint? Paint);
+
+/// <summary>
+/// The paint of a position as Glass's record holds it: the paint position's
+/// id, its description, and its price and labour time, the figures the
+/// part's dialog shows under "Price" and "Labour time" in its paint section.
+/// </summary>
+public sealed record GlassPositionPaint(string PositionId, string? Description, decimal? Price, decimal? LabourTime);
+
+/// <summary>
+/// One trade's line of Glass's calculation summary (<c>report.php?calcid=0</c>,
+/// the table headed "Summary"): Glass's own name for the trade (such as
+/// <c>Body</c>, <c>Mechanical</c>, <c>Auxiliary work</c>, <c>Paint</c>) and
+/// its labour rate, labour time, labour costs and material costs.
+/// </summary>
+public sealed record GlassCalculationTrade(
+    string Trade, decimal? LabourRate, decimal? LabourTime, decimal? LabourCosts, decimal? MaterialCosts);
+
+/// <summary>
+/// Glass's calculation as its summary states it: each trade's line, then
+/// "Total Labour" (time and costs), "Total Material", "Repair costs excl.
+/// VAT", the VAT line with Glass's own label (such as <c>VAT (20.00 %)</c>)
+/// and "Repair costs incl. VAT". A figure the page does not give is null.
+/// </summary>
+public sealed record GlassCalculation(
+    IReadOnlyList<GlassCalculationTrade> Trades,
+    decimal? TotalLabourTime,
+    decimal? TotalLabourCosts,
+    decimal? TotalMaterial,
+    decimal? RepairCostsExclVat,
+    string? VatLabel,
+    decimal? Vat,
+    decimal? RepairCostsInclVat);

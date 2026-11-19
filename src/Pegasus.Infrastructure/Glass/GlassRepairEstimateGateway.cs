@@ -1299,15 +1299,19 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
-    /// The positions the Automation's open estimate holds, read with one
-    /// request (design 07 section 3.1); null when the session's editor is not
-    /// open. The editor's cookies and the time of the request are kept, so
-    /// the session's version moves. A read Glass's does not answer keeps the
-    /// session open with the code and answers no positions.
+    /// One read of the Automation's open estimate with one request (design
+    /// 07 section 3.1; R1206): its positions and Glass's running totals, one
+    /// position's figures, or Glass's calculation. Null when the session's
+    /// editor is not open. Nothing changes at Glass's; the editor's cookies
+    /// and the time of the request are kept, so the session's version moves.
+    /// A positions read settles an act whose answer was lost. A read Glass's
+    /// does not answer answers nothing read and its code, as a catalogue
+    /// search does, and leaves the session as it stands.
     /// </summary>
     public async Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
-        ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
+        ActionActor actor, Guid sessionId, GlassAutomationRead read, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(read);
         RequireAutomation(actor);
         var material = await store.GetAsync(sessionId, cancellationToken)
             ?? throw new KeyNotFoundException($"There is no Glass's session {sessionId}.");
@@ -1320,30 +1324,20 @@ public sealed partial class GlassRepairEstimateGateway(
         }
 
         var editor = NewEditorClient(provider.EditorLastRequestAtUtc);
-        try
-        {
-            var read = await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(
-                open.Session(), cancellationToken));
-            provider.Editor = EditorState.Of(read.Session);
-            provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
-            // An act whose answer was lost is settled by what the estimate holds (design 07 section 3.4).
-            session = await WriteAsync(
-                session with
+        var done = await Positions.ReadAsync(session, editor, open.Session(), read, cancellationToken);
+        provider.Editor = EditorState.Of(done.Opened);
+        provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
+        // An act whose answer was lost is settled by what the estimate holds (design 07 section 3.4).
+        session = await WriteAsync(
+            done.Estimate is { } estimate
+                ? session with
                 {
-                    Automation = GlassAutomationPositionPolicy.Settle(session.Automation, read.Value.Positions),
-                },
-                GlassRepairEstimateSessionState.Active, session.FailureCode,
-                provider, material.CallbackDigest, Kept(material), cancellationToken);
-            return new(session, read.Value.Positions, read.Value.Codes);
-        }
-        catch (Exception failure)
-            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
-        {
-            provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
-            session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, CodeOf(failure),
-                provider, material.CallbackDigest, Kept(material), cancellationToken);
-            return new(session, null, null);
-        }
+                    Automation = GlassAutomationPositionPolicy.Settle(session.Automation, estimate.Positions),
+                }
+                : session,
+            GlassRepairEstimateSessionState.Active, session.FailureCode,
+            provider, material.CallbackDigest, Kept(material), cancellationToken);
+        return done.For(session);
     }
 
     /// <summary>

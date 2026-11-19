@@ -24,9 +24,10 @@ internal static class AutomationToolText
     // option a): each tool's description and the sentences a refused call
     // answers with, in one place.
 
-    // Operator, 18 November 2026: R1178
+    // Operator, 18 November 2026: R1178; its last sentence, on read, is a
+    // draft of 19 November 2026 (R1206) for the operator to approve.
     public const string GlassSessionGet =
-        "The Automation's own Glass's session on a Case: its state and version, whether the Glass's account is free or which Case holds it, each position it added or removed with Glass's own figures, and the Draft repair spec a finished session landed as. With readEstimate, Glass's is asked once for the positions the estimate now holds.";
+        "The Automation's own Glass's session on a Case: its state and version, whether the Glass's account is free or which Case holds it, each position it added or removed with Glass's own figures, and the Draft repair spec a finished session landed as. With read, Glass's is asked once and nothing changes there: positions answers the positions the estimate holds and Glass's running totals, position answers one position's figures, and calculation answers Glass's calculation.";
 
     // Operator, 18 November 2026: R1178
     public const string GlassSessionAct =
@@ -175,6 +176,45 @@ internal static class AutomationToolText
     public const string GlassActEquipmentChanged = "The options whose value Glass's held for the vehicle the answer changed, each with its new tick.";
 
     public const string GlassActEquipmentStored = "The answer was sent to Glass's, which keeps it for the vehicle even when the add was then refused.";
+
+    // The read of the open estimate (R1206, 19 November 2026): drafts for
+    // the operator to approve. Glass's own labels are passed through.
+
+    public const string GlassRead = "Optional: positions, position or calculation. Glass's is asked once; nothing changes there.";
+
+    public const string GlassReadPositionId = "read position: a position id from the estimate's positionIds.";
+
+    public const string GlassReadRefused = "read must be one of: positions, position, calculation.";
+
+    public const string GlassReadPositionIdRefused = "positionId is required for read position, as the estimate's positionIds list it.";
+
+    public const string GlassReadPositionIdNotForRead = "positionId is given with read position only.";
+
+    public const string GlassReadEstimate = "Present when read was positions and Glass's answered.";
+
+    public const string GlassReadTotals = "Glass's running totals as its editor shows them, in its order, each with Glass's own label. Glass's lists only the totals the estimate has.";
+
+    public const string GlassReadTotalLabel = "Glass's own label, such as Parts, Paint material, Body, Mechanical, Auxiliary work, Paint, Total (£), VAT (20.00 %) or Amount due (£).";
+
+    public const string GlassReadPosition = "Present when read was position and Glass's answered: the position's figures as Glass's holds them. A figure Glass's does not give is absent.";
+
+    public const string GlassReadOperation = "Glass's code for the position's repair type, such as ER.";
+
+    public const string GlassReadPrice = "The price Glass's holds for the position's repair type and side.";
+
+    public const string GlassReadHours = "The labour hours Glass's holds for the position's repair type and side.";
+
+    public const string GlassReadSide = "L or R; absent for a position with no side.";
+
+    public const string GlassReadPaint = "The position's paint, when it has any: its paint position, its price and its labour time.";
+
+    public const string GlassReadCalculation = "Present when read was calculation and Glass's answered: the Summary of Glass's calculation. Each trade's labour rate, labour time, labour costs and material costs, then Total Labour, Total Material, Repair costs excl. VAT, VAT and Repair costs incl. VAT. A figure Glass's does not give is absent.";
+
+    public const string GlassReadTrade = "Glass's own name for the trade, such as Body, Mechanical, Auxiliary work or Paint.";
+
+    public const string GlassReadVatLabel = "Glass's own label for the VAT line, such as VAT (20.00 %).";
+
+    public const string GlassReadCode = "The glass.* code when Glass's did not answer the read; nothing read is then answered.";
 
     // The Automation's help in an Engineer's own open Glass's session
     // (R1170, R1182, R1185; design 08 section 5). Not ruled: the sentences

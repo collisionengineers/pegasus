@@ -53,28 +53,22 @@ public sealed class GlassSessionHelp(
 
     private GlassEditorPositionWork? work;
 
-    /// <summary>The positions the estimate holds, asked of Glass's with one request; none when it did not answer.</summary>
+    /// <summary>
+    /// One read of the estimate, asked of Glass's with one request, as the
+    /// Automation's own session has it (R1206): its positions and Glass's
+    /// running totals, one position's figures, or Glass's calculation.
+    /// Nothing changes at Glass's; a read it did not answer answers its code.
+    /// </summary>
     public async Task<GlassAutomationEstimate> ReadAsync(
-        ActionActor actor, GlassRepairEstimateSession session, CancellationToken cancellationToken)
+        ActionActor actor, GlassRepairEstimateSession session, GlassAutomationRead read,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(read);
         Require(actor, session);
         using var turn = Enter(session);
-        try
-        {
-            var read = await Work.StageAsync(session, "EditorRead", () => turn.Editor.ReadEstimateAsync(
-                turn.Opened, cancellationToken));
-            Keep(session, turn.Editor, read.Session);
-            return read.Value.Found
-                ? new(session, read.Value.Positions, read.Value.Codes)
-                : new(session, null, null);
-        }
-        catch (Exception failure)
-            when (failure is GlassMvaStageException
-                || GlassEditorPositionWork.IsTransportFailure(failure, cancellationToken))
-        {
-            Keep(session, turn.Editor, turn.Opened);
-            return new(session, null, null);
-        }
+        var done = await Work.ReadAsync(session, turn.Editor, turn.Opened, read, cancellationToken);
+        Keep(session, turn.Editor, done.Opened);
+        return done.For(session);
     }
 
     /// <summary>The catalogue search of the estimate's lists, as the Automation's own session has it; nothing changes at Glass's.</summary>

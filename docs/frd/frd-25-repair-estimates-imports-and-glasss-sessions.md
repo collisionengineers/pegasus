@@ -453,7 +453,8 @@ session. Other staff on the Case see nothing of it.
 
 While help is on, the Automation's Glass's tools find the session by its
 Case ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#help-in-an-engineers-open-session)).
-They may read the estimate, search its lists, add the same positions as a
+They may read the estimate as in the Automation's own session (R1206),
+search its lists, add the same positions as a
 rebuild, posted as Glass's dialog serves them with nothing typed (R1182),
 and remove any position of the estimate, because the Engineer asked for the
 help and watches the window (R1185). They may also add a part whose block
@@ -687,6 +688,18 @@ staff whose own stored login the Automation's session holds sees, on every
 other Case, "The Glass's account is in use by the Automation" and "Open on
 {reference}" instead of a launch. A session the Automation owns has no
 lifetime either.
+
+**What the Automation reads of an open estimate (19 November 2026; R1206).**
+In its own session, and in an Engineer's with help on, the Automation may
+read back what Glass's shows a user, one request to Glass's each, and nothing
+changes at Glass's
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): the
+estimate's positions with Glass's running totals, each with Glass's own
+label; one position's repair type, price, hours, side, part number and paint
+price and labour time; and the Summary of Glass's calculation, by trade, with
+its labour and material totals, VAT and repair costs. A figure Glass's does
+not give is absent, never zero. A read Glass's does
+not answer gives its code and leaves the session as it was.
 
 ### Inspection location and estimate sources
 

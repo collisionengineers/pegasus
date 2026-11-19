@@ -32,7 +32,43 @@ internal sealed record GlassAccountToolItem(
 
 internal sealed record GlassEstimateToolItem(
     [property: Description("Each position's id on the estimate.")] IReadOnlyList<string> PositionIds,
-    [property: Description("The codes on the estimate, as Glass's lists them.")] IReadOnlyList<string> Codes);
+    [property: Description("The codes on the estimate, as Glass's lists them.")] IReadOnlyList<string> Codes,
+    [property: Description(AutomationToolText.GlassReadTotals)] IReadOnlyList<GlassTotalToolItem>? Totals);
+
+internal sealed record GlassTotalToolItem(
+    [property: Description(AutomationToolText.GlassReadTotalLabel)] string Label,
+    decimal Amount);
+
+internal sealed record GlassPositionToolItem(
+    string PositionId,
+    string? PartCode,
+    string? Description,
+    [property: Description(AutomationToolText.GlassReadOperation)] string? Operation,
+    [property: Description(AutomationToolText.GlassReadPrice)] decimal? Price,
+    [property: Description(AutomationToolText.GlassReadHours)] decimal? Hours,
+    [property: Description(AutomationToolText.GlassReadSide)] string? Side,
+    string? PartNumber,
+    [property: Description(AutomationToolText.GlassReadPaint)] GlassPositionPaintToolItem? Paint);
+
+internal sealed record GlassPositionPaintToolItem(
+    string PositionId, string? Description, decimal? Price, decimal? LabourTime);
+
+internal sealed record GlassCalculationTradeToolItem(
+    [property: Description(AutomationToolText.GlassReadTrade)] string Trade,
+    decimal? LabourRate,
+    decimal? LabourTime,
+    decimal? LabourCosts,
+    decimal? MaterialCosts);
+
+internal sealed record GlassCalculationToolItem(
+    IReadOnlyList<GlassCalculationTradeToolItem> Trades,
+    decimal? TotalLabourTime,
+    decimal? TotalLabourCosts,
+    decimal? TotalMaterial,
+    decimal? RepairCostsExclVat,
+    [property: Description(AutomationToolText.GlassReadVatLabel)] string? VatLabel,
+    decimal? Vat,
+    decimal? RepairCostsInclVat);
 
 internal sealed record GlassListedPartToolItem(string Code, string Text, bool Ticked);
 
@@ -89,7 +125,10 @@ internal sealed record GlassSessionGetToolResult(
     Guid CaseId,
     GlassSessionToolItem? Session,
     GlassAccountToolItem Account,
-    [property: Description("Present only when readEstimate was asked and Glass's answered.")] GlassEstimateToolItem? Estimate,
+    [property: Description(AutomationToolText.GlassReadEstimate)] GlassEstimateToolItem? Estimate,
+    [property: Description(AutomationToolText.GlassReadPosition)] GlassPositionToolItem? Position,
+    [property: Description(AutomationToolText.GlassReadCalculation)] GlassCalculationToolItem? Calculation,
+    [property: Description(AutomationToolText.GlassReadCode)] string? ReadCode,
     [property: Description(AutomationToolText.GlassActs)] IReadOnlyList<GlassActToolItem> Acts,
     string CorrelationId,
     [property: Description(AutomationToolText.GlassHelpCode)] string? Code,
@@ -178,7 +217,8 @@ internal sealed class GlassMcpTools(
     [Description(AutomationToolText.GlassSessionGet + " " + AutomationToolText.GlassHelpWorksIn)]
     public async Task<GlassSessionGetToolResult> GetSessionAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
-        [Description("Ask Glass's once for the positions the open estimate holds.")] bool readEstimate = false,
+        [Description(AutomationToolText.GlassRead)] string? read = null,
+        [Description(AutomationToolText.GlassReadPositionId)] string? positionId = null,
         [Description(AutomationToolText.GlassSessionId)] Guid? sessionId = null,
         CancellationToken cancellationToken = default)
     {
@@ -188,25 +228,23 @@ internal sealed class GlassMcpTools(
             async context =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
+                var wanted = ReadOf(read, positionId);
                 RequireAvailable();
                 var candidates = await sessions.FindHelpableForCaseAsync(caseId, cancellationToken);
                 var target = Found(candidates, sessionId);
                 var session = target.Session;
                 var code = target.Code;
-                GlassEstimateToolItem? estimate = null;
+                var answered = GlassReadAnswer.None;
                 if (target.IsStaff && session is not null)
                 {
                     // An Engineer's session is read through help alone, and
                     // only while it may be acted in.
-                    if (readEstimate && code is null)
+                    if (wanted is not null && code is null)
                     {
                         try
                         {
                             RequireIdle(session);
-                            var read = await Help.ReadAsync(context.Actor, session, cancellationToken);
-                            estimate = read.PositionIds is { } positions
-                                ? new GlassEstimateToolItem(positions, read.Codes ?? [])
-                                : null;
+                            answered = GlassReadAnswer.Of(await Help.ReadAsync(context.Actor, session, wanted, cancellationToken));
                         }
                         catch (GlassSessionHelpRefusalException refused)
                         {
@@ -215,7 +253,8 @@ internal sealed class GlassMcpTools(
                     }
 
                     return new GlassSessionGetToolResult(
-                        caseId, Map(session), await AccountAsync(context.Actor, cancellationToken), estimate, [],
+                        caseId, Map(session), await AccountAsync(context.Actor, cancellationToken),
+                        answered.Estimate, answered.Position, answered.Calculation, answered.Code, [],
                         context.TraceIdentifier, code, []);
                 }
 
@@ -228,22 +267,20 @@ internal sealed class GlassMcpTools(
                     session = await gateway.SettleInterruptedAsync(context.Actor, session.Id, cancellationToken);
                 }
 
-                if (readEstimate
+                if (wanted is { } toRead
                     && session is { State: GlassRepairEstimateSessionState.Active }
                     && !queue.IsInFlight(session.Id))
                 {
                     var readId = session.Id;
-                    var read = await RunHereAsync(
+                    var done = await RunHereAsync(
                         readId,
                         "GlassAutomationRead",
-                        token => gateway.ReadAutomationEstimateAsync(context.Actor, readId, token),
+                        token => gateway.ReadAutomationEstimateAsync(context.Actor, readId, toRead, token),
                         cancellationToken);
-                    if (read is not null)
+                    if (done is not null)
                     {
-                        session = read.Session;
-                        estimate = read.PositionIds is { } positions
-                            ? new GlassEstimateToolItem(positions, read.Codes ?? [])
-                            : null;
+                        session = done.Session;
+                        answered = GlassReadAnswer.Of(done);
                     }
                 }
 
@@ -251,7 +288,10 @@ internal sealed class GlassMcpTools(
                     caseId,
                     Map(session),
                     await AccountAsync(context.Actor, cancellationToken),
-                    estimate,
+                    answered.Estimate,
+                    answered.Position,
+                    answered.Calculation,
+                    answered.Code,
                     session?.Automation?.Acts.Select(MapAct).ToList() ?? [],
                     context.TraceIdentifier,
                     code,
@@ -582,6 +622,80 @@ internal sealed class GlassMcpTools(
             default:
                 throw new McpException(AutomationToolText.GlassPositionActionRefused);
         }
+    }
+
+    /// <summary>
+    /// What session_get is asked to read of the open estimate (R1206), or
+    /// null for none; refused before anything is read when the kind is not
+    /// one the tool takes, a position read names no position id as Glass's
+    /// lists them, or a position id is given for another read.
+    /// </summary>
+    private static GlassAutomationRead? ReadOf(string? read, string? positionId)
+    {
+        GlassAutomationRead? wanted = read?.Trim() switch
+        {
+            null or "" => null,
+            "positions" => GlassAutomationRead.Positions,
+            "calculation" => GlassAutomationRead.Calculation,
+            "position" => GlassAutomationRead.IsPositionId(positionId?.Trim())
+                ? GlassAutomationRead.Position(positionId!.Trim())
+                : throw new McpException(AutomationToolText.GlassReadPositionIdRefused),
+            _ => throw new McpException(AutomationToolText.GlassReadRefused),
+        };
+        if (wanted?.Kind != GlassAutomationReadKind.Position && !string.IsNullOrWhiteSpace(positionId))
+        {
+            throw new McpException(AutomationToolText.GlassReadPositionIdNotForRead);
+        }
+
+        return wanted;
+    }
+
+    /// <summary>A read's answer as session_get gives it: what was read, or the code of a read Glass's did not answer.</summary>
+    private sealed record GlassReadAnswer(
+        GlassEstimateToolItem? Estimate,
+        GlassPositionToolItem? Position,
+        GlassCalculationToolItem? Calculation,
+        string? Code)
+    {
+        public static GlassReadAnswer None { get; } = new(null, null, null, null);
+
+        public static GlassReadAnswer Of(GlassAutomationEstimate read) =>
+            new(
+                read.PositionIds is { } positions
+                    ? new GlassEstimateToolItem(
+                        positions,
+                        read.Codes ?? [],
+                        read.Totals?.Select(total => new GlassTotalToolItem(total.Label, total.Amount)).ToList())
+                    : null,
+                read.Position is { } position
+                    ? new GlassPositionToolItem(
+                        position.PositionId,
+                        position.PartCode,
+                        position.Description,
+                        position.Operation,
+                        position.Price,
+                        position.Hours,
+                        position.Side,
+                        position.PartNumber,
+                        position.Paint is { } paint
+                            ? new GlassPositionPaintToolItem(paint.PositionId, paint.Description, paint.Price, paint.LabourTime)
+                            : null)
+                    : null,
+                read.Calculation is { } calculation
+                    ? new GlassCalculationToolItem(
+                        calculation.Trades
+                            .Select(trade => new GlassCalculationTradeToolItem(
+                                trade.Trade, trade.LabourRate, trade.LabourTime, trade.LabourCosts, trade.MaterialCosts))
+                            .ToList(),
+                        calculation.TotalLabourTime,
+                        calculation.TotalLabourCosts,
+                        calculation.TotalMaterial,
+                        calculation.RepairCostsExclVat,
+                        calculation.VatLabel,
+                        calculation.Vat,
+                        calculation.RepairCostsInclVat)
+                    : null,
+                read.Code);
     }
 
     /// <summary>A side as a tool takes it: L or R, or none when omitted.</summary>
