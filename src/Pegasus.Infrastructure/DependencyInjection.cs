@@ -1096,19 +1096,20 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(accountFactory);
 
-        AddExperianClient(services, accountFactory);
+        AddExperianClient(services, nameof(ExperianVehicleHistoryProvider), accountFactory);
         services.AddSingleton<IVehicleHistoryCheckProvider>(provider => new ExperianVehicleHistoryProvider(
-            provider.GetRequiredService<ExperianClient>(),
+            provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianVehicleHistoryProvider)),
             provider.GetRequiredService<ILogger<ExperianVehicleHistoryProvider>>()));
         return services;
     }
 
     /// <summary>
-    /// Connects CAP as a guide valuation source, valued through Experian on
-    /// the vehicle history check's account (ADR-0089, R1201). A host that does
-    /// not call this has no CAP provider, so the Case's CAP card says it is
-    /// unavailable and offers no Get valuation. The account comes through a
-    /// factory and is read on each valuation, for the history check's reason.
+    /// Connects CAP as a guide valuation source, valued through Experian
+    /// (ADR-0089, R1201) with the Experian account that holds CAP valuations
+    /// (R1207). A host that does not call this has no CAP provider, so the
+    /// Case's CAP card says it is unavailable and offers no Get valuation. The
+    /// account comes through a factory and is read on each valuation, for the
+    /// history check's reason.
     /// </summary>
     public static IServiceCollection AddExperianCapValuation(
         this IServiceCollection services,
@@ -1117,27 +1118,29 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(accountFactory);
 
-        AddExperianClient(services, accountFactory);
+        AddExperianClient(services, nameof(ExperianCapValuationProvider), accountFactory);
         services.AddSingleton<IGuideValuationProvider>(provider => new ExperianCapValuationProvider(
-            provider.GetRequiredService<ExperianClient>(),
+            provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianCapValuationProvider)),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<ExperianCapValuationProvider>>()));
         return services;
     }
 
     /// <summary>
-    /// The one Experian client a host has, whichever of its two acts composes
-    /// it first, so the history check and the CAP valuation share one sign-in.
+    /// One Experian act's own client, keyed by the act. Experian issues its
+    /// permissions per account (R1207), so each act signs in with the account
+    /// its host hands it and keeps its own token; neither reads the other's.
     /// </summary>
     private static void AddExperianClient(
         IServiceCollection services,
+        string act,
         Func<IServiceProvider, ExperianAccount> accountFactory)
     {
         // Each call is bounded once by ExperianClient.CallTimeout.
         services.AddHttpClient(
             ExperianClient.HttpClientName,
             client => client.Timeout = Timeout.InfiniteTimeSpan);
-        services.TryAddSingleton(provider => new ExperianClient(
+        services.AddKeyedSingleton<ExperianClient>(act, (provider, _) => new ExperianClient(
             provider.GetRequiredService<IHttpClientFactory>(),
             () => accountFactory(provider),
             provider.GetRequiredService<TimeProvider>()));

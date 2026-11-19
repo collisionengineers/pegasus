@@ -317,9 +317,11 @@ automatic Glass's request is that month's Glass's ask, and it is settled
 unasked when Glass's has already answered. Get valuation stays on the card;
 a press for a month already answered asks nothing and the card says
 `{Source} has already been asked for this Case.`
-CAP's Get valuation asks Experian, on the account and API of the vehicle
-history check ([ADR-0089](../adr/0089-experian-vehicle-history-check.md);
-operator, 19 November 2026, [R1201](../rulings.md)). It sends the Case's
+CAP's Get valuation asks Experian, on the API of the vehicle history check
+and with the Experian account that holds CAP valuations
+([ADR-0089](../adr/0089-experian-vehicle-history-check.md); operator, 19
+November 2026, [R1201](../rulings.md) and [R1207](../rulings.md)). It sends
+the Case's
 accepted registration and its accepted mileage in whole miles, and fills the
 card with CAP's `retail` as its retail and CAP's `clean` as its trade
 ([R1202](../rulings.md)). Experian's request takes no valuation date, so CAP

@@ -891,8 +891,10 @@ if (productionProfile || liveGuideValuation)
 // Experian's vehicle history check and CAP valuation (ADR-0089, R1201):
 // Production, and an offline host (the hosted test instance) under
 // Features:LiveExperian; any other offline host says Experian is not
-// connected and its CAP card is unavailable. The one account is read on each
-// call for the same unresolved-Key-Vault-reference reason as Box's.
+// connected and its CAP card is unavailable. Each act is handed its account,
+// read on each call for the same unresolved-Key-Vault-reference reason as
+// Box's. Experian:Account:* is the account with CAP valuations (R1207), and
+// the history check reads it too until its own account's entries exist.
 if (productionProfile || liveExperian)
 {
     builder.Services.AddExperianVehicleHistoryCheck(

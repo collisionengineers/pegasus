@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Experian;
 
 /// <summary>
 /// Experian as the connected vehicle history check (ADR-0089). Run Experian
-/// check asks <c>POST /v2/vehicle/</c>, through the shared
+/// check asks <c>POST /v2/vehicle/</c>, through its own
 /// <see cref="ExperianClient"/>, for the registration's condition (write-off)
 /// markers only (R741), and answers the markers the insurer has not removed
 /// (R743).

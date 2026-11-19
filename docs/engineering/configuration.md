@@ -174,7 +174,11 @@ source is unavailable.
 token endpoint, and `Experian:Account:ClientId`, `Experian:Account:ClientSecret`,
 `Experian:Account:Username` and `Experian:Account:Password` the account Run
 Experian check and CAP's Get valuation sign in with
-([ADR-0089](../adr/0089-experian-vehicle-history-check.md), R1201). All six are
+([ADR-0089](../adr/0089-experian-vehicle-history-check.md), R1201). It is the
+Experian account that holds CAP valuations, `merceraapi` in production and
+`merceraapiuat` on UAT; Experian's second account, which holds condition
+records, has no entries yet, and each act is composed with its own account so
+that one can be given to the history check alone (R1207). All six are
 Production required settings (R749). Both addresses must be HTTPS on an
 `experian.com` host; the sandbox is
 `https://sandbox-uk-api.experian.com/ukci/automotive` and

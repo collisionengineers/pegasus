@@ -7,9 +7,10 @@ namespace Pegasus.Infrastructure.Experian;
 
 /// <summary>
 /// The one way Pegasus calls Experian's Velocity API (ADR-0089): the sign-in
-/// with the Experian account (OAuth2 password grant), the bearer token it
+/// with an Experian account (OAuth2 password grant), the bearer token it
 /// keeps, and <c>POST /v2/vehicle/</c>. Run Experian check and CAP's Get
-/// valuation share it, so both use one token.
+/// valuation each have a client of their own, because Experian issues its
+/// permissions per account (R1207): one client is one account and its token.
 ///
 /// <para>
 /// The account is read on each query, never when the client is built; neither

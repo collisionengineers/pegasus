@@ -21,9 +21,9 @@ total losses, recorded as the Vehicle history text the report prints
 owns what staff see and what the text says. This record owns how Experian is
 called and where its account lives.
 
-Amended 19 November 2026 (R1201 to R1205): the same account and API also
-value CAP for the Case's CAP guide card; see "CAP valuation is the account's
-second act".
+Amended 19 November 2026 (R1201 to R1205, R1207): the same API also values
+CAP for the Case's CAP guide card, with the Experian account that holds CAP
+valuations; see "CAP valuation is Experian's second act".
 [FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)
 owns what staff see.
 
@@ -64,8 +64,8 @@ The answer replaces the text (R744). A vehicle Experian does not hold
 (its own 404 body with an `errors` object) writes nothing (R748). No schema
 or data migration is involved: the field already exists.
 
-**Sign in once per token.** `ExperianClient`, the one caller of Experian
-that both acts share, holds the bearer token in process
+**Sign in once per token.** `ExperianClient`, the one way either act calls
+Experian, holds its account's bearer token in process
 until a minute before `expires_in` and renews it once when Experian answers
 `401`. The token request is a JSON body (`username`, `password`,
 `client_id`, `client_secret`) with a `Grant_type: password` header, as
@@ -94,7 +94,15 @@ answer, the network or a missing setting all answer the approved
 `configuration`, with `stage=token|vehicle`. Experian's own not-found answer
 is logged as `experian.history.not_found`.
 
-**CAP valuation is the account's second act** (19 November 2026, R1201).
+**CAP valuation is Experian's second act** (19 November 2026, R1201).
+Experian issues its permissions per account, and has set up two (R1207):
+`merceraapi` (production) and `merceraapiuat` (UAT) hold CAP valuations, and
+a second account holds condition records. `Experian:Account:*` is the first,
+so CAP signs in with it. Each act is composed with a client and an account of
+its own (`AddExperianCapValuation`, `AddExperianVehicleHistoryCheck`), each
+keeping its own token, so handing the history check the second account is a
+change to its account alone. Until that account's Key Vault entries and
+settings exist, the history check still reads `Experian:Account:*`.
 `ExperianCapValuationProvider` is the CAP guide source's provider behind
 `FetchGuideValuation`, as Glass's, Cazana and Brego have theirs. It sends a
 Custom Search, `{"vrm":…,"currentmileage":…,"data":{"cap":{"valuation":true}}}`,
@@ -110,7 +118,8 @@ missing setting is the card's unavailable notice (R1204), logged as
 `provider_failed`, `unreadable`, `transport`, `configuration` or
 `mileage_unit`, with Experian's message ids where it sent any. It needs no
 setting, secret or grant beyond the six above, and no migration: `Cap` has
-been a stored valuation source since the baseline.
+been a stored valuation source since the baseline. The second account's
+entries are the history check's, not CAP's.
 
 ## Consequences
 

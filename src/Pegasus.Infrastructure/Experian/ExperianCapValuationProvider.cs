@@ -10,10 +10,10 @@ namespace Pegasus.Infrastructure.Experian;
 
 /// <summary>
 /// CAP as a connected guide source, valued through Experian (ADR-0089, R1201).
-/// Get valuation asks <c>POST /v2/vehicle/</c>, through the shared
-/// <see cref="ExperianClient"/> and so on the vehicle history check's account
-/// and token, for the registration's CAP valuation at the Case's accepted
-/// mileage in whole miles. CAP's <c>retail</c> is the card's retail and its
+/// Get valuation asks <c>POST /v2/vehicle/</c>, through its own
+/// <see cref="ExperianClient"/> and so with the Experian account that holds
+/// CAP valuations (R1207), for the registration's CAP valuation at the Case's
+/// accepted mileage in whole miles. CAP's <c>retail</c> is the card's retail and its
 /// <c>clean</c> the card's trade (R1202). Experian publishes no report of the
 /// valuation and the quote names no VIN: the figures are the whole answer
 /// (R1205).
