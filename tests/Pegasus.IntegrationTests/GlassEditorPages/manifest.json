@@ -4070,6 +4070,94 @@
       "commands": [
         "partadd=16|18|AE|||||&addpart2g"
       ]
+    },
+    {
+      "name": "p_skin_ae_over_er",
+      "heads": [
+        "171"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "estimate": [
+        {
+          "id": "C1.1.C2020811.1869",
+          "code": "2020811",
+          "operation": "ER"
+        }
+      ],
+      "commands": [
+        "partadd=171|173|AE||III|80||&deletepartid=C1.1.C2020811.1869&addpart2g"
+      ]
+    },
+    {
+      "name": "p_skin_er_over_ae_and_paint",
+      "heads": [
+        "171"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "estimate": [
+        {
+          "id": "C1.1.C2020811.1869",
+          "code": "2020811",
+          "operation": "AE"
+        },
+        {
+          "id": "L1.2.Lxx2010.Lxx2010",
+          "code": "2020811",
+          "operation": "ER"
+        }
+      ],
+      "commands": [
+        "partadd=171|172|ER||I|80||&deletepartid=C1.1.C2020811.1869&addpart2g"
+      ]
+    },
+    {
+      "name": "p_skin_repair_over_er_and_ae",
+      "heads": [
+        "171"
+      ],
+      "operation": "I ",
+      "hours": "2.0",
+      "zone": null,
+      "estimate": [
+        {
+          "id": "C1.1.C2020811.1869",
+          "code": "2020811",
+          "operation": "AE"
+        },
+        {
+          "id": "C1.1.C2020811.1871",
+          "code": "2020811",
+          "operation": "ER"
+        }
+      ],
+      "commands": [
+        "partadd=171|172|I |2.0|III|80||&deletepartid=C1.1.C2020811.1871&addpart2g"
+      ]
+    },
+    {
+      "name": "p_skin_both_ae_over_left_er",
+      "heads": [
+        "171",
+        "174"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "estimate": [
+        {
+          "id": "C1.1.C2020811.1869",
+          "code": "2020811",
+          "operation": "ER"
+        }
+      ],
+      "commands": [
+        "partadd=171|173|AE||III|80||&nofresh3=1&deletepartid=C1.1.C2020811.1869&addpart2g",
+        "partadd=174|176|AE||III|80||&actFrame3=1&addpart2g"
+      ]
     }
   ]
 }

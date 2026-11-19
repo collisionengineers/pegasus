@@ -892,13 +892,14 @@ public static class GlassAutomationPositionPolicy
 
     /// <summary>
     /// The input a change of a position already on the estimate does not
-    /// take (R1206), or null: its equipment, its operation and Both stay as
-    /// the position has them; optional parts are codes, none blank or
-    /// repeated. Its paint may be chosen.
+    /// take (R1206), or null: its equipment and Both stay as the position
+    /// has them, as its reopened dialog keeps them; optional parts are codes,
+    /// none blank or repeated. Its operation and its paint may be chosen, as
+    /// a person chooses them in the reopened dialog.
     /// </summary>
     private static string? ChangeRefused(GlassAutomationInputs inputs) =>
         inputs.Equipment is not null ? "inputs.equipment"
-        : inputs.Operation is not null ? "inputs.operation"
+        : inputs.Operation is { } operation && string.IsNullOrWhiteSpace(operation) ? "inputs.operation"
         : inputs.BothSides is not null ? "inputs.side"
         : inputs.OptionalParts is { } codes
             && (codes.Any(string.IsNullOrWhiteSpace) || codes.Distinct(StringComparer.Ordinal).Count() != codes.Count)

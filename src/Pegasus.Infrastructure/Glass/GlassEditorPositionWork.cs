@@ -1001,9 +1001,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// Remove and Install, or Repair with its hours, and the paint area
     /// chosen when the part is painted in more than one, whose levels the
     /// paint list is then read for. A part the estimate already holds is
-    /// refused, because the panel would delete its positions first
-    /// (<c>deletepartid</c>); so is a button the panel greys, an area it does
-    /// not offer and Both on a part with no other side. Each refusal is
+    /// replaced as the panel replaces it (<see cref="GlassEditorPanel.Deletes"/>);
+    /// a press on an operation it already has, which would remove it, is
+    /// refused, as are a button the panel greys, an area it does not offer
+    /// and Both on a part with no other side. Each refusal is
     /// <see cref="GlassAutomationPositionPolicy.PanelRefusedCode"/> before
     /// anything is sent. The codes the new positions carry are recorded
     /// before the first command; the positions are those the estimate holds
@@ -1044,10 +1045,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 problem = "The part has no other side the panel adds with Both.";
             }
         }
-        if (problem is null && items.Exists(item => before.Positions.Any(id =>
-                string.Equals(GlassAutomationPositionPolicy.CodeOf(id), "C" + item.Code, StringComparison.Ordinal))))
+        var deletes = new List<string?>();
+        for (var index = 0; problem is null && index < items.Count; index++)
         {
-            problem = "The estimate holds the part already; the panel would delete its positions first.";
+            var (delete, pressed) = GlassEditorPanel.Deletes(items[index], operation, before);
+            problem = pressed;
+            deletes.Add(delete);
         }
 
         Dictionary<string, string>? areas = null;
@@ -1093,14 +1096,16 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             ExpectedCode = "C" + items[0].Code,
             OtherSideCode = items.Count > 1 ? "C" + items[1].Code : null,
-            Before = [],
+            Before = before.Positions
+                .Where(id => items.Exists(item => GlassAutomationPositionPolicy.CodeOf(id) == "C" + item.Code))
+                .ToList(),
         };
         await record(act, opened);
         GlassEditorEstimate? after = null;
         try
         {
             var added = await StageAsync(session, "EditorPanelAdd", () => editor.PanelAddAsync(
-                opened, before, GlassEditorPanel.Commands(values), parts.Rows[head].Name.Trim(), cancellationToken));
+                opened, before, GlassEditorPanel.Commands(values, deletes), parts.Rows[head].Name.Trim(), cancellationToken));
             opened = added.Session;
             after = added.Value.Estimate;
             act = act with
@@ -1277,7 +1282,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     {
         var paintable = page == "comp";
         var change = WithPaint(
-            WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), inputs),
+            WithTyped(new GlassEditorChange(Operation: inputs?.Operation?.Trim(), ConfirmNoFigures: inputs?.ConfirmNoFigures == true), inputs),
             paintable || page == "lack" ? inputs : null)!;
         var button = !paintable ? null
             : inputs?.Button switch

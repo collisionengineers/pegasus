@@ -23,7 +23,18 @@ internal sealed record GlassEditorEstimate(
     /// when the page has none.
     /// </summary>
     public IReadOnlyList<string>? Groups { get; init; }
+
+    /// <summary>
+    /// Each position's part code and operation as the page's
+    /// <c>RegExt2Gs</c> holds them (fields 12 and 5), by its id, which the
+    /// quick repair panel reads to replace a part's positions (R1206).
+    /// </summary>
+    public IReadOnlyDictionary<string, GlassEditorRecord> Records { get; init; } =
+        new Dictionary<string, GlassEditorRecord>(StringComparer.Ordinal);
 }
+
+/// <summary>A position's part code and operation, as the estimate's page holds them (R1206).</summary>
+internal sealed record GlassEditorRecord(string Code, string Operation);
 
 /// <summary>One group of the special-operation list and its rows, each row as the page lists it.</summary>
 internal sealed record GlassEditorSpecialGroup(string Code, string Name, IReadOnlyList<IReadOnlyList<string>> Rows);
@@ -275,6 +286,16 @@ internal static partial class GlassEditorPages
     {
         var ids = StringArray(html, "Partids");
         var codes = StringArray(html, "CheckIds");
+        var records = new Dictionary<string, GlassEditorRecord>(StringComparer.Ordinal);
+        var listed = ArrayLiteral(html, "RegExt2Gs")?.Items ?? [];
+        for (var index = 0; ids is not null && index < ids.Count && index < listed.Count; index++)
+        {
+            if (ids[index].Length > 0 && listed[index].Items is { Count: > 12 } fields)
+            {
+                records.TryAdd(ids[index], new GlassEditorRecord(fields[12].Text ?? string.Empty, fields[5].Text ?? string.Empty));
+            }
+        }
+
         return new(
             ids is not null,
             (ids ?? []).Where(id => id.Length > 0).ToList(),
@@ -282,6 +303,7 @@ internal static partial class GlassEditorPages
             Totals(html))
         {
             Groups = StringArray(html, "Groups"),
+            Records = records,
         };
     }
 

@@ -199,19 +199,52 @@ internal static class GlassEditorPanel
     /// frame (<c>actFrame3=1</c>); the first goes through the panel's repair
     /// cost check, which marks nothing.
     /// </summary>
-    public static List<string> Commands(List<string> values)
+    public static List<string> Commands(List<string> values, List<string?>? deletes = null)
     {
         ArgumentNullException.ThrowIfNull(values);
         var commands = new List<string>(values.Count);
         for (var index = 0; index < values.Count; index++)
         {
+            var delete = deletes is not null && index < deletes.Count ? deletes[index] : null;
             commands.Add("partadd=" + values[index]
                 + (index + 1 < values.Count ? "&nofresh3=1" : string.Empty)
+                + (delete is null ? string.Empty : "&deletepartid=" + delete)
                 + (index > 0 ? "&actFrame3=1" : string.Empty)
                 + "&addpart2g");
         }
 
         return commands;
+    }
+
+    /// <summary>
+    /// What the panel's press does to the part's positions already on the
+    /// estimate (R1206), as its AddOrDeletePart reads them from the estimate's
+    /// page: New replaces every position of the part (<c>deletepartid</c>
+    /// with each id, joined by bars), Remove and Install or Repair replaces
+    /// its New position. A press on an operation the part already has
+    /// removes that position instead, which a remove does; that is the
+    /// problem. Judged offline on 19 November 2026: four presses over parts
+    /// on the estimate, each the panel's own command.
+    /// </summary>
+    public static (string? Delete, string? Problem) Deletes(GlassPanelItem item, string operation, GlassEditorEstimate estimate)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(estimate);
+        var own = estimate.Positions
+            .Where(id => !id.StartsWith('L')
+                && estimate.Records.TryGetValue(id, out var record) && record.Code == item.Code)
+            .ToList();
+        var pressed = operation == Repair ? "I" : operation;
+        if (own.Exists(id => estimate.Records[id].Operation == pressed))
+        {
+            return (null, "The part already has " + operation.Trim() + " on the estimate; the panel's press would remove it.");
+        }
+        if (operation == Replace)
+        {
+            return (own.Count == 0 ? null : string.Join('|', own), null);
+        }
+
+        return (own.Find(id => estimate.Records[id].Operation == Replace), null);
     }
 
     /// <summary>

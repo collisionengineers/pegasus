@@ -892,7 +892,9 @@ compose Glass's, each tool is refused with "Glass's is not available."
   estimate, any position of it as `remove` takes any (R1185), in both kinds
   of live session. It takes the position's id and `inputs`: the typed
   figures and reason, the paint choices, the OK to no figures, the button
-  and the optional parts to tick. Its equipment answer, its operation and Both stay as the
+  and the optional parts to tick, and another operation the reopened dialog
+  offers, a reload or Renew's window followed as on an add (19 November
+  2026). Its equipment answer and Both stay as the
   position has them. It reads the estimate first and opens the dialog the
   editor's own list opens for the position: `part.php` for a part with no
   paint or a special row, `comp.php` for a part with its paint, and

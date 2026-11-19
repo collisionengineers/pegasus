@@ -723,6 +723,13 @@ internal sealed class GlassEditorClient(
             throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog does not show one button to press.");
         }
 
+        if (change.Operation is { } reloading && GlassEditorDialogs.Reloads(dialog, reloading))
+        {
+            // An operation that reloads the dialog (R1206), as on an add.
+            (dialog, dialogAddress) = await ReloadAsync(session, jar, dialog, dialogAddress, reloading, cancellationToken);
+            change = change with { Operation = null };
+        }
+
         var answered = await OldForNewAsync(at, jar, dialog, dialogAddress, page == "comp" ? pressed : null, change, cancellationToken);
         var build = GlassMvaClient.Matched(
             () => page switch

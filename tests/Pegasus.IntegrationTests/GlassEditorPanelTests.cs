@@ -36,7 +36,10 @@ public sealed class GlassEditorPanelTests
         var hours = Text(item, "hours");
         var zone = Text(item, "zone");
 
+        var estimate = EstimateOf(item);
+
         var values = new List<string>();
+        var deletes = new List<string?>();
         foreach (var head in item.GetProperty("heads").EnumerateArray())
         {
             var index = rows.ToList().FindIndex(row => row.IsHead && row.Id == head.GetString());
@@ -45,9 +48,57 @@ public sealed class GlassEditorPanelTests
             var (value, problem) = GlassEditorPanel.PartAdd(panelItem, operation, hours, zone, areas);
             Assert.Null(problem);
             values.Add(value!);
+            var (delete, pressed) = GlassEditorPanel.Deletes(panelItem, operation, estimate);
+            Assert.Null(pressed);
+            deletes.Add(delete);
         }
 
-        Assert.Equal(GlassEditorFixture.Strings(item, "commands"), GlassEditorPanel.Commands(values));
+        Assert.Equal(GlassEditorFixture.Strings(item, "commands"), GlassEditorPanel.Commands(values, deletes));
+    }
+
+    /// <summary>
+    /// A press on an operation the part already has on the estimate removes
+    /// that position in the panel (it sent nothing to add, driven offline),
+    /// so it is refused; the Automation removes a position by its id.
+    /// </summary>
+    [Fact]
+    public void APressThatWouldRemoveThePartsOwnPositionIsRefused()
+    {
+        var rows = GlassEditorPages.PartList(GlassEditorFixture.Text("panel_list.html"))!;
+        var skin = GlassEditorPanel.ItemOf(rows, rows.ToList().FindIndex(row => row.IsHead && row.Id == "171"))!;
+        var estimate = new GlassEditorEstimate(true, OwnPositions, OwnCodes)
+        {
+            Records = new Dictionary<string, GlassEditorRecord>(StringComparer.Ordinal)
+            {
+                [OwnPosition] = new("2020811", "AE"),
+            },
+        };
+
+        Assert.NotNull(GlassEditorPanel.Deletes(skin, GlassEditorPanel.RemoveAndRefit, estimate).Problem);
+        var replaced = GlassEditorPanel.Deletes(skin, GlassEditorPanel.Replace, estimate);
+        Assert.Equal(OwnPosition, replaced.Delete);
+        Assert.Null(replaced.Problem);
+    }
+
+    private const string OwnPosition = "C1.1.C2020811.1869";
+
+    private static readonly string[] OwnPositions = [OwnPosition];
+
+    private static readonly string[] OwnCodes = ["C2020811"];
+
+    private static GlassEditorEstimate EstimateOf(JsonElement item)
+    {
+        var records = new Dictionary<string, GlassEditorRecord>(StringComparer.Ordinal);
+        if (item.TryGetProperty("estimate", out var held))
+        {
+            foreach (var position in held.EnumerateArray())
+            {
+                records[position.GetProperty("id").GetString()!] =
+                    new(position.GetProperty("code").GetString()!, position.GetProperty("operation").GetString()!);
+            }
+        }
+
+        return new GlassEditorEstimate(true, [.. records.Keys], []) { Records = records };
     }
 
     /// <summary>The panel's commands go out as the editor's AcoCommand sends them: a space as %20 and the command closed with =1.</summary>
