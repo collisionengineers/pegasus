@@ -18,6 +18,33 @@ public sealed class GlassReaderReasonTests
         Assert.Equal("Position 7 carries the unknown repair kind 'Overhaul', so nothing was imported.", reason);
     }
 
+    /// <summary>
+    /// R1209: a position type or repair kind is Glass's own name and may hold
+    /// spaces, so after those words a short name of letters, digits, spaces
+    /// and underscores reaches the log; any other value there is still cut.
+    /// </summary>
+    [Theory]
+    [InlineData("position type", "Text Line", "Text Line")]
+    [InlineData("position type", "Free_Labour", "Free_Labour")]
+    [InlineData("repair kind", "Old for New", "Old for New")]
+    [InlineData("repair kind", "Old for New, see https://portal.test", "?")]
+    [InlineData("repair kind", "0123456789 0123456789 0123456789 0123456789", "?")]
+    [InlineData("position type", "", "?")]
+    public void APositionTypeOrRepairKindNameIsKept(string field, string value, string expected)
+    {
+        var reason = GlassReaderReason.Of($"Position 3 carries the unknown {field} '{value}', so nothing was imported.", "AB12CDE");
+
+        Assert.Equal($"Position 3 carries the unknown {field} '{expected}', so nothing was imported.", reason);
+    }
+
+    [Fact]
+    public void ARegistrationWrittenAsAPositionTypeIsNeverKept()
+    {
+        var reason = GlassReaderReason.Of("Position 2 carries the unknown position type 'AB 12 CDE'.", "AB12 CDE");
+
+        Assert.Equal("Position 2 carries the unknown position type '?'.", reason);
+    }
+
     [Theory]
     [InlineData("https://portal.test/ere/ere_session/abc123")]
     [InlineData("a value with spaces")]

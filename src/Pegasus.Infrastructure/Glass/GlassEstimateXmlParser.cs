@@ -90,19 +90,32 @@ public sealed record GlassEstimateExport(
 /// </para>
 ///
 /// <para><b>Parts and paint.</b> <c>PosType</c> owns the split, not
-/// <c>RepairKind</c>: a <c>Part_*</c> row prices a part, so its <c>Price</c>
-/// is the unit amount and <c>RepairKind</c> chooses the operation; a
-/// <c>Paint_*</c> row prices paint material, so its <c>Price</c> is the row's
-/// materials and its time is paint time. That is what the document's own
-/// statistics say — <c>TotalAmountParts</c> is the sum of the <c>Part_*</c>
-/// prices and <c>TotalAmountPaint</c> the sum of the <c>Paint_*</c> prices.
-/// A <c>Paint_Part</c> row's line type is its paint level, not its repair
-/// kind: <see cref="GlassPaintLevels"/> maps the row's <c>PaintMatKind</c>
-/// and <c>PaintLevel</c>, the same table the calculation PDF reader maps its
-/// printed level with. <c>Paint_PreparationScratchResistantClearCoatWork</c>
-/// and <c>Paint_ClearVarnish</c> are paint preparation, like the four
-/// preparation rows before them, and <c>PaintMatExtraAppl</c> is the sheet's
-/// printed <c>Z</c> flag, noted as markup material.
+/// <c>RepairKind</c>: a <c>Part_*</c> or <c>Free_Part</c> row prices a part,
+/// so its <c>Price</c> is the unit amount and <c>RepairKind</c> chooses the
+/// operation; a <c>Paint_*</c> or <c>Free_Paint</c> row prices paint
+/// material, so its <c>Price</c> is the row's materials and its time is paint
+/// time. That is what the document's own statistics say —
+/// <c>TotalAmountParts</c> is the sum of the part prices and
+/// <c>TotalAmountPaint</c> the sum of the paint prices. A <c>Paint_Part</c>
+/// row's line type is its paint level, not its repair kind, and so is a
+/// <c>Free_Paint</c> row's (special table metal and plastic, user defined
+/// paint; R1209): <see cref="GlassPaintLevels"/> maps the row's
+/// <c>PaintMatKind</c> and <c>PaintLevel</c>, the same table the calculation
+/// PDF reader maps its printed level with. Every other <c>Paint_*</c> row is
+/// paint preparation, the six the exports have shown and any not seen yet,
+/// and <c>PaintMatExtraAppl</c> is the sheet's printed <c>Z</c> flag, noted
+/// as markup material.
+/// </para>
+///
+/// <para><b>Repair kinds.</b> <see cref="GlassOperations"/> maps a part row's
+/// <c>RepairKind</c> to its operation, the same table the calculation PDF
+/// reader maps its printed code with. <c>Old for New</c> (the editor's RN,
+/// Renew) is a new part at the <c>Price</c> and <c>Time</c> the export states,
+/// which are already net of the deduction; the guide figures and Glass's own
+/// <c>Reason</c> sentence are its note, as for any changed guide value. A kind
+/// the table does not know is an Other line with its price and hours, noted
+/// "Printed operation: kind." in the calculation PDF reader's words (R1209),
+/// so one unfamiliar position never loses the estimate.
 /// </para>
 ///
 /// <para><b>Additional operations.</b> Glass's writes a user-defined
@@ -112,7 +125,8 @@ public sealed record GlassEstimateExport(
 /// <c>Part_SetUpTime</c> row of the same kind. It is a Specialist line, as EVA
 /// files it: a row with hours costs them at the estimate's rate, and a row
 /// without prices a fixed Specialist amount. Glass's counts those amounts in
-/// <c>TotalAmountParts</c>; Pegasus does not.
+/// <c>TotalAmountParts</c>; Pegasus does not. The other operations Glass's
+/// offers land by name as <see cref="GlassOperations"/> lists them.
 /// </para>
 ///
 /// <para><b>What the figures do not say.</b> The side Glass's prints beside a
@@ -144,13 +158,16 @@ public sealed record GlassEstimateExport(
 /// <para><b>Fail closed.</b> The document is read through an
 /// <see cref="XmlReader"/> with DTDs prohibited, no resolver and explicit
 /// entity and document caps, so no external entity, no DTD and no entity
-/// expansion can be reached. An unknown <c>PosType</c>, an unknown
-/// <c>RepairKind</c>, a paint level outside <see cref="GlassPaintLevels"/>, a
+/// expansion can be reached. A position with no <c>PosType</c> or no
+/// <c>RepairKind</c>, a <c>PosType</c> that begins with none of
+/// <c>Part_</c>, <c>Free_</c> and <c>Paint_</c> (nothing says what it
+/// charges), a paint level outside <see cref="GlassPaintLevels"/>, a
 /// time unit that is not a positive whole number, an
 /// unreadable number, an over-long document and an
 /// attachment that is not a PDF each reject the whole import with
-/// <see cref="EstimateParseRejectedException"/> — nothing is guessed and no
-/// partial line set is ever returned.
+/// <see cref="EstimateParseRejectedException"/> — no partial line set is ever
+/// returned. A repair kind or a part or paint position type Pegasus has not
+/// seen is read as the paragraphs above say, never refused (R1209).
 /// </para>
 /// </summary>
 public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
@@ -175,14 +192,20 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     /// <summary>An operation whose time its parent position already carries.</summary>
     private const string InclusivePosition = "Part_InclusiveSparePart";
 
-    /// <summary>A user-defined operation, read the same way as a part row.</summary>
-    private const string FreePosition = "Free_Part";
-
-    /// <summary>Glass's own set-up time: an <c>Extra costs</c> row, read the same way as a part row.</summary>
-    private const string SetUpTimePosition = "Part_SetUpTime";
-
     /// <summary>The paint row whose level and material kind choose its line type.</summary>
     private const string PaintPosition = "Paint_Part";
+
+    /// <summary>A user-defined paint row (special table metal and plastic, user defined paint), read as <see cref="PaintPosition"/> is.</summary>
+    private const string FreePaintPosition = "Free_Paint";
+
+    /// <summary>A paint row: <see cref="PaintPosition"/>, or paint preparation.</summary>
+    private const string PaintPrefix = "Paint_";
+
+    /// <summary>A part or operation row, including Glass's own set-up time (<c>Part_SetUpTime</c>).</summary>
+    private const string PartPrefix = "Part_";
+
+    /// <summary>A user-defined row (<c>Free_Part</c>), read the same way as a part row.</summary>
+    private const string FreePrefix = "Free_";
 
     /// <summary>The note a paint row carries when Glass's marked up its paint material (the sheet's <c>Z</c>).</summary>
     private const string MarkupMaterialNote = "Markup material";
@@ -392,17 +415,21 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     {
         var posType = Text(position.Element("PosType"))
             ?? throw Reject(ordinal, "names no position type");
-        var operation = Operation(Text(position.Element("RepairKind")), ordinal);
+        var repairKind = Text(position.Element("RepairKind"))
+            ?? throw Reject(ordinal, "names no repair kind");
+        var known = GlassOperations.OfExport(repairKind);
         var description = Bounded(Description(position), MaximumDescriptionLength, ordinal, "description")
             ?? throw Reject(ordinal, "carries no description");
 
         var price = Money(position.Element("Price"), ordinal, "price");
         var time = Hours(position.Element("Time"), ordinal, "time", divisor) ?? 0m;
         var hours = ChargeableHours(position, time, posType, ordinal, divisor);
-        var (type, charge) = LineShape(position, posType, operation, hours, ordinal);
+        var (type, charge) = LineShape(position, posType, known ?? EstimateOperation.Other, hours, ordinal);
         var guideCode = Bounded(Text(position.Element("MCode")), MaximumGuideCodeLength, ordinal, "MCode");
         var isPaint = charge == Charge.Paint;
         var isPart = charge == Charge.Part;
+        // Only a part row's repair kind chooses its line, so only there does an unseen one need naming.
+        var unseenKind = isPart && known is null ? repairKind : null;
 
         return (new EstimateLineInput(
             type,
@@ -419,7 +446,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Betterment: null,
             // The Audatex report's own evidence label, because this is the same claim.
             EvidenceLabel: "case",
-            Justification: Note(position, ordinal, charge == Charge.Included, isPaint, parent, time, price, divisor),
+            Justification: Note(
+                position, ordinal, charge == Charge.Included, isPaint, unseenKind, parent, time, price, divisor),
             PaintWorkUnits: isPaint ? hours : null,
             Quantity: null,
             Materials: isPaint ? price : null,
@@ -437,10 +465,16 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
     }
 
     /// <summary>The line's note; see the class remarks. The markers are written true or false.</summary>
+    /// <param name="unseenKind">A part row's repair kind <see cref="GlassOperations"/> does not know, named first in the calculation PDF reader's words.</param>
     private static string? Note(
-        XElement position, int ordinal, bool included, bool paint, int? parent, decimal time, decimal? price, decimal divisor)
+        XElement position, int ordinal, bool included, bool paint, string? unseenKind, int? parent, decimal time,
+        decimal? price, decimal divisor)
     {
         List<string> notes = [];
+        if (unseenKind is not null)
+        {
+            notes.Add($"Printed operation: {unseenKind}.");
+        }
         if (included)
         {
             notes.Add(IncludedOperations.Note(parent is { } row ? string.Create(CultureInfo.InvariantCulture, $"row {row}") : null));
@@ -517,22 +551,29 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 
     /// <summary>
     /// The one place a position type is read: the estimate line type it lands
-    /// as, and what it charges. An unknown type is refused here rather than
-    /// guessed at in either answer.
+    /// as, and what it charges. The types the exports have shown are
+    /// <c>Part_SparePart</c>, <c>Free_Part</c> and <c>Part_SetUpTime</c> (part
+    /// rows), <c>Part_InclusiveSparePart</c>, <c>Paint_Part</c> and
+    /// <c>Free_Paint</c> (paint rows by level), and six preparation rows
+    /// (<c>Paint_PreparationMetal</c>, <c>Paint_PreparationPlastic</c>,
+    /// <c>Paint_ColourMixing</c>, <c>Paint_ColourSample</c>,
+    /// <c>Paint_PreparationScratchResistantClearCoatWork</c>,
+    /// <c>Paint_ClearVarnish</c>). A type not seen yet is read by its prefix
+    /// (R1209): <c>Paint_</c> is preparation, <c>Part_</c> or <c>Free_</c> a
+    /// part row. Any other type is refused here rather than guessed at, because
+    /// nothing says what it charges.
     /// </summary>
     private static (string Type, Charge Charge) LineShape(
         XElement position, string posType, EstimateOperation operation, decimal hours, int ordinal) => posType switch
     {
-        "Part_SparePart" or FreePosition or SetUpTimePosition =>
-            (EstimateOperations.ToLineType(operation, hours), Charge.Part),
         InclusivePosition => (EstimateOperations.ToLineType(EstimateOperation.Other), Charge.Included),
         // The paint level, not the repair kind, says what the paint work is
-        // (every observed Paint_Part is a Replace); the sheet's own table maps it.
-        PaintPosition => (PaintPartType(position, ordinal), Charge.Paint),
-        "Paint_PreparationMetal" or "Paint_PreparationPlastic"
-            or "Paint_ColourMixing" or "Paint_ColourSample"
-            or "Paint_PreparationScratchResistantClearCoatWork" or "Paint_ClearVarnish" =>
-            ("paint_prep", Charge.Paint),
+        // (every observed paint row is a Replace); the sheet's own table maps it.
+        PaintPosition or FreePaintPosition => (PaintPartType(position, ordinal), Charge.Paint),
+        _ when posType.StartsWith(PaintPrefix, StringComparison.Ordinal) => ("paint_prep", Charge.Paint),
+        _ when posType.StartsWith(PartPrefix, StringComparison.Ordinal)
+            || posType.StartsWith(FreePrefix, StringComparison.Ordinal) =>
+            (EstimateOperations.ToLineType(operation, hours), Charge.Part),
         _ => throw Reject(ordinal, $"carries the unknown position type '{posType}'"),
     };
 
@@ -547,24 +588,6 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         return GlassPaintLevels.LineTypeOfExport(kind, level)
             ?? throw Reject(ordinal, $"carries the unknown paint level (material '{kind}', level '{stated}')");
     }
-
-    /// <summary>
-    /// The repair kinds the return reads. The Automation may choose in Glass's
-    /// dialog only the operations whose position comes back as one of these
-    /// (<c>GlassAutomationPositionPolicy.ReadBackOperations</c>, R1206;
-    /// change the two together). Any other kind refuses the whole export
-    /// (issue 2155: an "Old for New" position, Renew).
-    /// </summary>
-    private static EstimateOperation Operation(string? repairKind, int ordinal) => repairKind switch
-    {
-        "Replace" => EstimateOperation.Replace,
-        "Repair" => EstimateOperation.Repair,
-        "Uninstall and install" => EstimateOperation.RemoveAndRefit,
-        "Control" or "Sealing" or "Adjust" or "Air out" => EstimateOperation.Other,
-        "Extra costs" => EstimateOperation.Specialist,
-        null => throw Reject(ordinal, "names no repair kind"),
-        _ => throw Reject(ordinal, $"carries the unknown repair kind '{repairKind}'"),
-    };
 
     /// <summary>
     /// The document's own arithmetic. It prints money totals only — a labour
