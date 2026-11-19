@@ -19,10 +19,7 @@ public sealed partial class ProviderWorkService(
     /// <summary>How many pieces of work run at once.</summary>
     public const int Concurrency = 4;
 
-    /// <summary>
-    /// The longest one piece of work may run before it is cancelled, unless
-    /// the work names its own cap (<see cref="ProviderWork.Cap"/>).
-    /// </summary>
+    /// <summary>The longest one piece of work may run before it is cancelled.</summary>
     public static readonly TimeSpan TimeCap = TimeSpan.FromMinutes(3);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
@@ -45,7 +42,7 @@ public sealed partial class ProviderWorkService(
 
     private async Task RunAsync(ProviderWork work, CancellationToken stoppingToken)
     {
-        using var cap = new CancellationTokenSource(work.Cap ?? TimeCap, timeProvider);
+        using var cap = new CancellationTokenSource(TimeCap, timeProvider);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, cap.Token);
         try
         {

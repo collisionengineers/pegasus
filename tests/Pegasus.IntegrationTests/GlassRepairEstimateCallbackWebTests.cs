@@ -1149,17 +1149,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
             return await inner.ContinueLaunchAsync(request, cancellationToken);
         }
 
-        public async Task<GlassRepairEstimateSession> ContinueBuildAsync(
-            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
-        {
-            if (fault.LaunchGate is { } gate)
-            {
-                await gate.Task.WaitAsync(cancellationToken);
-            }
-
-            return await inner.ContinueBuildAsync(request, cancellationToken);
-        }
-
         public Task<GlassRepairEstimateStep> PrepareResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
             fault.ResumeFailure is { } failure
@@ -1245,8 +1234,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             string role = StaffRoleNames.Engineer,
             GatewayFault? fault = null,
             CaseReadFault? caseReadFault = null,
-            bool liveGlass = true,
-            int editorPauseMilliseconds = 0)
+            bool liveGlass = true)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -1266,8 +1254,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ["Glass:RepairProfileId"] = GlassProviderFixture.ProfileId,
                     ["Glass:ExportPollSeconds"] = "1",
                     ["Glass:ExportTimeoutSeconds"] = "5",
-                    ["Glass:EditorPauseMilliseconds"] =
-                        editorPauseMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 })
                 {
                     builder.UseSetting(key, value);
@@ -1562,65 +1548,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
                     "Set rate", $"rate-card-{Guid.NewGuid():N}"),
                 CancellationToken.None);
-        }
-
-        /// <summary>
-        /// A repair spec made outside Pegasus, Current on the Case and
-        /// belonging to no Glass's estimate: a special operation by its
-        /// Glass's name at a price of its own, and a part.
-        /// </summary>
-        public async Task<Guid> SeedOutsideSpecAsync()
-        {
-            await using var scope = factory.Services.CreateAsyncScope();
-            await using var context = await scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-                .CreateDbContextAsync();
-            var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
-            var specification = new CaseRepairSpecificationEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                Version = 1,
-                State = nameof(RepairSpecificationState.Draft),
-                SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
-                CreatedBy = actor,
-                CreationOperationKey = $"outside-estimate:{Guid.NewGuid():N}",
-                CreatedAtUtc = FixedUtcNow,
-                Name = "Repairer",
-                LabourRate = 60m,
-                VatPercent = 20m,
-                IsCurrent = true,
-            };
-            specification.Lines.Add(new CaseEstimateLineEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                RepairSpecification = specification,
-                Position = 1,
-                LineType = "specialist_fixed",
-                Description = ".Assessment Damage Appraisal Charge",
-                Price = 150m,
-                RecordedByKind = nameof(ActorKind.Staff),
-                RecordedBy = actor,
-                RecordedAtUtc = FixedUtcNow,
-            });
-            specification.Lines.Add(new CaseEstimateLineEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                RepairSpecification = specification,
-                Position = 2,
-                LineType = "new_part",
-                Description = "Bonnet",
-                Price = 310m,
-                Quantity = 1,
-                RecordedByKind = nameof(ActorKind.Staff),
-                RecordedBy = actor,
-                RecordedAtUtc = FixedUtcNow,
-            });
-            context.Set<CaseRepairSpecificationEntity>().Add(specification);
-            await context.SaveChangesAsync();
-            return specification.Id;
         }
 
         public async Task<IReadOnlyList<RepairSpecificationVersion>> EstimatesAsync()

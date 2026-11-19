@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -76,10 +75,6 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <c>ResultArtifactsJson</c>: both are opaque here — this store never sees,
 /// derives, parses or logs what is inside them. The account key is opaque in
 /// the same way: it arrives canonical and is written and compared verbatim.
-/// The session's <see cref="GlassRepairEstimateSession.Build"/> is not opaque:
-/// it is a Core record, written to <c>BuildJson</c> and read back with the
-/// session, so the Case page and the Glass's window can read a build's
-/// progress and its list without the protected state.
 /// A save writes every mutable column
 /// from the material it is handed, so a null result, failure code or provider
 /// id <i>writes</i> null; null never means "leave what is already there". That
@@ -97,17 +92,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IGlassRepairEstimateSessionStore, IGlassRepairEstimateSessionReader
 {
-    /// <summary>
-    /// How a build is written: enums by name, so a stored build reads the same
-    /// whatever order the members are declared in, and no derived count.
-    /// </summary>
-    private static readonly JsonSerializerOptions BuildJson = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        IgnoreReadOnlyProperties = true,
-        Converters = { new JsonStringEnumConverter() },
-    };
-
     public async Task<GlassRepairEstimateSessionMaterial?> GetAsync(
         Guid sessionId, CancellationToken cancellationToken)
     {
@@ -203,7 +187,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
             CallbackDigest = callbackDigest,
             ProtectedSession = material.ProtectedProviderState,
             ResultArtifactsJson = material.ResultArtifactsJson,
-            BuildJson = WriteBuild(session.Build),
             LastError = session.FailureCode,
             Version = session.Version,
         };
@@ -280,7 +263,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
         // writes null. A caller that means to keep the results carries the
         // ones GetAsync handed it.
         entity.ResultArtifactsJson = material.ResultArtifactsJson;
-        entity.BuildJson = WriteBuild(session.Build);
         entity.UpdatedAtUtc = now;
         entity.Version = expectedVersion + 1;
         AddHistory(context, entity, previousState, session.State, now);
@@ -424,30 +406,15 @@ public sealed class EfGlassRepairEstimateSessionStore(
         return entity is null ? null : ToMaterial(entity);
     }
 
-    public async Task<GlassRepairEstimateSessionProgress?> GetOwnProgressAsync(
+    public async Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var row = await context.Set<GlassRepairEstimateSessionEntity>()
+        return await context.Set<GlassRepairEstimateSessionEntity>()
             .AsNoTracking()
             .Where(item => item.Id == sessionId && item.UserId == pegasusUserId)
-            .Select(item => new { item.State, item.BuildJson })
+            .Select(item => (GlassRepairEstimateSessionState?)item.State)
             .SingleOrDefaultAsync(cancellationToken);
-        return row is null ? null : new(row.State, ReadBuild(row.BuildJson));
-    }
-
-    /// <summary>
-    /// One read of the spec: it belongs to no Glass's estimate and has at
-    /// least one line.
-    /// </summary>
-    public async Task<bool> OffersBuildAsync(Guid specificationId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.CaseRepairSpecifications
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.Id == specificationId && item.GlassVehicleId == null && item.Lines.Any(),
-                cancellationToken);
     }
 
     private static GlassRepairEstimateSession ToSession(GlassRepairEstimateSessionEntity entity) =>
@@ -464,16 +431,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.ProviderVehicleId,
             entity.EreId,
             entity.LastError,
-            entity.CallbackConsumedAtUtc)
-        {
-            Build = ReadBuild(entity.BuildJson),
-        };
-
-    private static string? WriteBuild(GlassEstimateBuild? build) =>
-        build is null ? null : JsonSerializer.Serialize(build, BuildJson);
-
-    private static GlassEstimateBuild? ReadBuild(string? json) =>
-        string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<GlassEstimateBuild>(json, BuildJson);
+            entity.CallbackConsumedAtUtc);
 
     public async Task<GlassRepairEstimateSession> CloseAsync(
         GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)

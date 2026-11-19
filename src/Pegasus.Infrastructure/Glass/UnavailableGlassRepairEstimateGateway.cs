@@ -29,14 +29,6 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         return Task.FromException<GlassRepairEstimateSession>(Unavailable());
     }
 
-    public Task<GlassRepairEstimateSession> ContinueBuildAsync(
-        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromException<GlassRepairEstimateSession>(Unavailable());
-    }
-
     public Task<GlassRepairEstimateStep> PrepareResumeAsync(
         GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken)
     {

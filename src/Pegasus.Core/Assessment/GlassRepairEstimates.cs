@@ -291,15 +291,7 @@ public sealed record GlassRepairEstimateSession(
     string NormalizedExternalAccountKey, GlassRepairEstimateSessionState State,
     long Version, string OperationKey, DateTimeOffset CreatedAtUtc,
     string? ProviderVehicleId, string? ProviderEstimateId, string? FailureCode,
-    DateTimeOffset? CallbackConsumedAtUtc = null)
-{
-    /// <summary>
-    /// The rebuild of a repair spec made outside Pegasus that this session
-    /// runs or ran, or null for an ordinary launch: the plan, each act's
-    /// outcome as it is reached, and the Glass's repair spec it landed as.
-    /// </summary>
-    public GlassEstimateBuild? Build { get; init; }
-}
+    DateTimeOffset? CallbackConsumedAtUtc = null);
 /// <summary>
 /// A launch. <paramref name="SessionId"/> is the id a new session takes, chosen
 /// by the caller so it can hold the session busy before it exists; a replay of
@@ -314,13 +306,6 @@ public sealed record GlassRepairEstimateLaunchRequest(
     /// reopens it; any other, or none, starts a new estimate.
     /// </summary>
     public Guid? SpecificationId { get; init; }
-
-    /// <summary>
-    /// The member of staff chose Import and open: a spec with lines that
-    /// belongs to no Glass's estimate is rebuilt in Glass's before the
-    /// estimator opens. A spec that belongs to one, or has no lines, ignores it.
-    /// </summary>
-    public bool Build { get; init; }
 }
 public sealed record GlassRepairEstimateResumeRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion,
@@ -340,10 +325,7 @@ public enum GlassRepairEstimateContinuation
 {
     None,
     Launch,
-    Import,
-
-    /// <summary>A launch that rebuilds the spec on the screen in Glass's, then brings it back.</summary>
-    Build
+    Import
 }
 
 /// <summary>
@@ -371,15 +353,6 @@ public interface IGlassRepairEstimateGateway
     Task<GlassRepairEstimateStep> PrepareLaunchAsync(
         GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> ContinueLaunchAsync(
-        GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
-    /// <summary>
-    /// A build's provider work: the launch stages, then the session's
-    /// <see cref="GlassRepairEstimateSession.Build"/> in Glass's editor, then
-    /// its save and its return through the import, all in one piece of work.
-    /// A session no build is owed to continues as
-    /// <see cref="ContinueLaunchAsync"/> continues it.
-    /// </summary>
-    Task<GlassRepairEstimateSession> ContinueBuildAsync(
         GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
     Task<GlassRepairEstimateStep> PrepareResumeAsync(
         GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken);

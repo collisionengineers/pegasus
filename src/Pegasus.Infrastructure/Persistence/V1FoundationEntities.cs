@@ -220,8 +220,6 @@ internal sealed class GlassRepairEstimateSessionEntity : IApplicationManagedConc
     public DateTimeOffset? CallbackConsumedAtUtc { get; set; }
     public required string ProtectedSession { get; set; }
     public string? ResultArtifactsJson { get; set; }
-    // The rebuild of an outside repair spec this session runs, as JSON; null for an ordinary launch.
-    public string? BuildJson { get; set; }
     public string? LastError { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }

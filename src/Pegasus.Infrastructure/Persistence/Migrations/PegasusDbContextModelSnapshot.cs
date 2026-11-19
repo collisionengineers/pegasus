@@ -3852,9 +3852,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("ActiveAccountKey")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("BuildJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTimeOffset?>("CallbackConsumedAtUtc")
                         .HasColumnType("datetimeoffset");
 

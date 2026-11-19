@@ -416,25 +416,6 @@ public sealed partial class DetailsModel
     public bool GlassWorkRunning { get; private set; }
 
     /// <summary>
-    /// Whether Glass's asks first (operator, 18 November 2026; R1171): the
-    /// spec on the screen has lines and belongs to no Glass's estimate, and
-    /// this staff member holds no live session of their own on the Case, so
-    /// the press would start a new estimate. Import and open rebuilds the
-    /// spec in Glass's; Open an empty estimate is the launch as it was.
-    /// </summary>
-    public bool AsksGlassBuild { get; private set; }
-
-    /// <summary>
-    /// The list of what this staff member's build sent to Glass's, shown on
-    /// the repair spec it landed as until their next Glass's session on the
-    /// Case (R1173); null anywhere else.
-    /// </summary>
-    public GlassEstimateBuild? GlassBuildList =>
-        GlassSession?.Build is { BuiltSpecificationId: { } built } build && built == GlassSpecificationId
-            ? build
-            : null;
-
-    /// <summary>
     /// What the selected spec's frozen versions decide: Compare's sides, the
     /// scaling readout and the Supplementary difference. Compare's From and To
     /// come from the request's query.
@@ -463,7 +444,6 @@ public sealed partial class DetailsModel
     /// <summary>The dialog of the Estimate section the request asks to draw open, when it may open.</summary>
     private string? EstimateDialogOf(string? dialog) => dialog switch
     {
-        "glass-build" when AsksGlassBuild => "glass-build",
         "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
         "compare-estimates" when ComparisonOffered => "compare-estimates",
         "versions" when SelectedEstimate is not null => "versions",
@@ -519,10 +499,8 @@ public sealed partial class DetailsModel
         var snapshotRead = specificationIds.Length > 0
             ? dependentReads.Start(token => specificationSnapshots.ListForSpecificationsAsync(id, specificationIds, token))
             : null;
-        var buildOffer = dependentReads.Start(token => ReadGlassBuildOfferAsync(token));
         await dependentReads.WhenAllAsync();
         SpecAuthorNames = await authorNames;
-        AsksGlassBuild = await buildOffer;
         ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         OpenDialog = EstimateDialogOf(dialog);
     }
@@ -544,20 +522,6 @@ public sealed partial class DetailsModel
         ActionActor actor,
         CancellationToken cancellationToken) =>
         ApplyGlassSession(await ReadGlassSessionAsync(id, actor, cancellationToken));
-
-    /// <summary>
-    /// Whether the press asks first. The spec's link is not on the shared
-    /// read model (ADR-0063), so it costs one read, made only where the press
-    /// would start a new estimate on a spec that has lines.
-    /// </summary>
-    private Task<bool> ReadGlassBuildOfferAsync(CancellationToken cancellationToken) =>
-        CanLaunchGlass
-        && !EditingNewEstimate
-        && (GlassSession is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(GlassSession.State))
-        && GlassSpecificationId is { } specificationId
-        && SelectedEstimate is not { Lines.Count: 0 }
-            ? glassSessions.OffersBuildAsync(specificationId, cancellationToken)
-            : Task.FromResult(false);
 
     private void ApplyGlassSession(GlassSessionReads reads)
     {
@@ -1213,7 +1177,6 @@ public sealed partial class DetailsModel
             fragmentLeaseToken = renderLeaseToken;
         }
         await LoadGlassSessionAsync(id, actor, cancellationToken);
-        AsksGlassBuild = await ReadGlassBuildOfferAsync(cancellationToken);
         return Partial("/Pages/Cases/Shared/_GlassControls.cshtml", this);
     }
 
@@ -1241,9 +1204,7 @@ public sealed partial class DetailsModel
     /// member's own session on the Case still holds the account it is
     /// continued, exactly as <see cref="OnPostResumeGlassAsync"/> continues
     /// one; otherwise the gateway reopens the estimate the repair spec on the
-    /// screen belongs to, or starts a new one. On a spec made outside Pegasus
-    /// the page asks first (R1171), and Import and open posts here with
-    /// <paramref name="build"/>, which rebuilds that spec in Glass's.
+    /// screen belongs to, or starts a new one.
     /// </remarks>
     public async Task<IActionResult> OnPostLaunchGlassAsync(
         Guid id,
@@ -1251,7 +1212,6 @@ public sealed partial class DetailsModel
         string operationKey,
         string? editLeaseToken,
         Guid? estimate,
-        bool build,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
         [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
@@ -1302,7 +1262,6 @@ public sealed partial class DetailsModel
                     newSessionId)
                 {
                     SpecificationId = estimate,
-                    Build = build,
                 },
                 cancellationToken);
             return await ContinueGlassAsync(actor, step, reservation, cancellationToken);

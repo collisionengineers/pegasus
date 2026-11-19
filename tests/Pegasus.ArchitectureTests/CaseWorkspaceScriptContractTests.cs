@@ -24,26 +24,6 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
-    /// Glass's on a repair spec made outside Pegasus asks first (operator, 18
-    /// November 2026; R1171). Its two answers are two Glass's window forms
-    /// that differ only by their action, because the launch is submitted by
-    /// script, which drops the pressed button: the form is found again by its
-    /// action once a change not yet sent has landed. The question closes
-    /// before the window opens, on the press itself.
-    /// </summary>
-    [Fact]
-    public void AGlassWindowFormIsFoundAgainByItsActionAndTheQuestionClosesFirst()
-    {
-        var script = File.ReadAllText(Path.Combine(
-            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
-
-        Assert.Contains("return candidate.getAttribute('action') === action;", script, StringComparison.Ordinal);
-        var asking = script.IndexOf("var asking = form.closest('[data-dialog]');", StringComparison.Ordinal);
-        var opening = script.IndexOf("glassWindow = window.open('', windowName", StringComparison.Ordinal);
-        Assert.True(asking > 0 && asking < opening, "The question closes before Glass's window opens.");
-    }
-
-    /// <summary>
     /// Tasks is the Actions menu's dialog (operator, 13 October 2026): its body is
     /// fetched from the section fragment route as it opens, and a page opened with
     /// <c>?dialog=tasks</c> does not open the dialog again at every catch up.
