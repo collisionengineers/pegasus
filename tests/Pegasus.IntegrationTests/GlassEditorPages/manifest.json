@@ -3562,6 +3562,284 @@
       },
       "page": "wing_zero.dialog.html",
       "post": "c6_wing_zero_automation.post.txt"
+    },
+    {
+      "name": "c7_lack_a_served",
+      "dialog": "lack.php",
+      "capture": "#1310",
+      "button": "BL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AL0B8005",
+      "fields": 12,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Front Bumper Reinforcement",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "77.20",
+        "paintHours": "0.40",
+        "side": ""
+      },
+      "page": "lack_a.dialog.html",
+      "post": "c7_lack_a_served.post.txt"
+    },
+    {
+      "name": "c7_lack_a_coats3",
+      "dialog": "lack.php",
+      "capture": "#1310",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "coats": "3"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AL0B8005",
+      "fields": 15,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Front Bumper Reinforcement",
+        "paintType": "3",
+        "paintLevel": "2",
+        "paintPrice": "117.70",
+        "paintHours": "0.60",
+        "side": ""
+      },
+      "page": "lack_a.dialog.html",
+      "post": "c7_lack_a_coats3.post.txt"
+    },
+    {
+      "name": "c7_lack_a_surcharge",
+      "dialog": "lack.php",
+      "capture": "#1310",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "surcharge": true
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AL0B8005",
+      "fields": 13,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Front Bumper Reinforcement",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "77.20",
+        "paintHours": "0.40",
+        "side": ""
+      },
+      "page": "lack_a.dialog.html",
+      "post": "c7_lack_a_surcharge.post.txt"
+    },
+    {
+      "name": "c7_lack_a_typed",
+      "dialog": "lack.php",
+      "capture": "#1310",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "price": "90.00",
+          "hours": "0.50",
+          "reason": "Blend into door"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AL0B8005",
+      "fields": 12,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Front Bumper Reinforcement",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "90.00",
+        "paintHours": "0.50",
+        "side": ""
+      },
+      "page": "lack_a.dialog.html",
+      "post": "c7_lack_a_typed.post.txt"
+    },
+    {
+      "name": "c7_lack_a_left",
+      "dialog": "lack.php",
+      "capture": "#1310",
+      "button": "BL",
+      "change": {
+        "place": "L"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AL0B8005",
+      "fields": 13,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Front Bumper Reinforcement",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "77.20",
+        "paintHours": "0.40",
+        "side": "L"
+      },
+      "page": "lack_a.dialog.html",
+      "post": "c7_lack_a_left.post.txt"
+    },
+    {
+      "name": "c7_lack_l_served",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {},
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 12,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "685.40",
+        "paintHours": "3.90",
+        "side": ""
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_served.post.txt"
+    },
+    {
+      "name": "c7_lack_l_level3",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "level": "3"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 12,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "843.20",
+        "paintHours": "7.90",
+        "side": ""
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_level3.post.txt"
+    },
+    {
+      "name": "c7_lack_l_coats3",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "coats": "3"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 15,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "3",
+        "paintLevel": "2",
+        "paintPrice": "1045.05",
+        "paintHours": "5.75",
+        "side": ""
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_coats3.post.txt"
+    },
+    {
+      "name": "c7_lack_l_surcharge",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "surcharge": true
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 13,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "685.40",
+        "paintHours": "3.90",
+        "side": ""
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_surcharge.post.txt"
+    },
+    {
+      "name": "c7_lack_l_typed",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {
+        "paint": {
+          "price": "90.00",
+          "hours": "0.50",
+          "reason": "Blend into door"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 12,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "90.00",
+        "paintHours": "0.50",
+        "side": ""
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_typed.post.txt"
+    },
+    {
+      "name": "c7_lack_l_left",
+      "dialog": "lack.php",
+      "capture": "#1488",
+      "button": "BL",
+      "change": {
+        "place": "L"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=L&mcode=Lxx4200.480",
+      "fields": 13,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "Lxx|25|1",
+        "description": "Side of Vehicle",
+        "paintType": "2",
+        "paintLevel": "2",
+        "paintPrice": "685.40",
+        "paintHours": "3.90",
+        "side": "L"
+      },
+      "page": "lack_l.dialog.html",
+      "post": "c7_lack_l_left.post.txt"
     }
   ],
   "panelNote": "The quick repair panel (R1206), judged on 19 November 2026: rpvwpart.php and rpvwpaint.php from glasss2missing.har (#295, #296) run offline in headless Chromium (scratch-2026-11-19/miss/panel.mjs), each given the item list.php's createRepairViewItem builds from the captured list (#373) and paint list (#412), a button pressed, and the commands its AcoCommand gave recorded. p_door_skin_both_ae is #536 and #537 byte for byte.",

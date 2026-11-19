@@ -1098,10 +1098,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// rule (<see cref="GlassEditorPages.DialogPage"/>), or why there is none
     /// to change: a position the estimate does not hold
     /// (<see cref="GlassAutomationPositionPolicy.RowUnknownCode"/>), a group
-    /// the list does not hold (<see cref="GlassFailure.EditorAnswer"/>), or a
-    /// paint position's own dialog (<c>lack.php</c>), not built
-    /// (<see cref="GlassEstimateBuildPolicy.NotBuiltCode"/>: the return's
-    /// reader does not know its free paint rows).
+    /// the list does not hold (<see cref="GlassFailure.EditorAnswer"/>). A
+    /// paint position's own dialog is <c>lack</c> (R1206).
     /// </summary>
     private static (string? Page, string? Code) PageOf(GlassEditorEstimate estimate, string positionId)
     {
@@ -1129,7 +1127,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         var paintable = page == "comp";
         var change = WithPaint(
             WithTyped(new GlassEditorChange(ConfirmNoFigures: inputs?.ConfirmNoFigures == true), inputs),
-            paintable ? inputs : null)!;
+            paintable || page == "lack" ? inputs : null)!;
         var button = !paintable ? null
             : inputs?.Button switch
             {
@@ -1138,7 +1136,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 GlassAutomationButton.PartAndPaint => PartAndPaintButton,
                 _ => null,
             };
-        var refused = page == "lack" ? GlassEstimateBuildPolicy.NotBuiltCode
+        // A paint position's own dialog (lack.php) has its paint and one button (R1206).
+        var refused = page == "lack" ? (inputs?.Button is not null ? GlassAutomationPositionPolicy.NotPaintableCode : null)
             : !paintable && (inputs?.Button is not null and not GlassAutomationButton.Part || inputs?.Paint is not null)
                 ? GlassAutomationPositionPolicy.NotPaintableCode
             : null;

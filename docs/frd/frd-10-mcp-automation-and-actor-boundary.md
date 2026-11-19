@@ -872,9 +872,14 @@ compose Glass's, each tool is refused with "Glass's is not available."
   and the optional parts to tick. Its equipment answer, its operation and Both stay as the
   position has them. It reads the estimate first and opens the dialog the
   editor's own list opens for the position: `part.php` for a part with no
-  paint or a special row, `comp.php` for a part with its paint. A paint
-  position of its own (`lack.php`) is refused with `glass.build.not_built`,
-  and a position the estimate does not hold with `glass.row.unknown`. The
+  paint or a special row, `comp.php` for a part with its paint, and
+  `lack.php` for a paint position of its own, whose paint choices, typed
+  paint figures and reason and side boxes are given as on `comp.php` and
+  posted with its OK (19 November 2026: eleven posts of the walk's two
+  paint dialogs, #1310 and #1488, identical to their own script's, the
+  served two the browser's #1326 and #1504; `preview` answers its kind as
+  `paint`). A position the estimate does not hold is refused with
+  `glass.row.unknown`. The
   dialog must be the position's own. It is posted with the change, its
   "Mandatory parts:" page is confirmed as an add's is, the estimate is read
   back and must still hold the position, which keeps its id, and the

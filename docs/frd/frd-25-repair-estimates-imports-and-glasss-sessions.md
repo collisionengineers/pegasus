@@ -729,7 +729,9 @@ the editor opens for it, in its own session and in an Engineer's with help
 on ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)),
 with what that dialog lets a person change. The position keeps its id. The
 act records what Glass's served and what was sent, and the position's own
-figures afterwards. A paint position's own dialog is not changed.
+figures afterwards. A paint position's own dialog is changed as a person
+changes it: its paint choices, typed paint price, hours and reason, and its
+side boxes.
 
 **Paint choices (19 November 2026; R1206).** On a part that can be painted,
 pressed with Paint or Part and Paint, and in a change, the Automation may

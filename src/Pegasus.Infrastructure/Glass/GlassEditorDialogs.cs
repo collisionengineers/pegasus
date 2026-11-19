@@ -739,6 +739,171 @@ internal static partial class GlassEditorDialogs
         };
     }
 
+    /// <summary>
+    /// The post of a paint position's own dialog (<c>lack.php</c>, R1206), as
+    /// its OK (<c>BL</c>) sends it: the load script first (FillLackstufeSelect,
+    /// FillVerfSelect, FillMethSelect, SetLackartValues and SetZKBoxes, from
+    /// the dialog's one list per quantity), then what a person gives it: the
+    /// side boxes, every paint choice as on <c>comp.php</c>
+    /// (<see cref="PaintPlan"/>), typed paint price, hours and reason, and a
+    /// free paint row's description; its CheckSubmit asks a free row for three
+    /// characters and a price or a time. Judged offline on 19 November 2026:
+    /// the walk's two paint dialogs (#1310, #1488), eleven posts each the
+    /// dialog's own script's, the two served ones the browser's #1326 and #1504.
+    /// </summary>
+    public static GlassEditorBuild LackPost(string html, GlassEditorChange? change = null)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        change ??= new GlassEditorChange();
+        var form = GlassEditorForm.Read(html, "Part");
+        if (form is null)
+        {
+            return GlassEditorBuild.Failed("The page has no form named Part.");
+        }
+
+        var submitter = form.Controls.FirstOrDefault(control => control.Type == "submit" && control.Name == "BL");
+        if (submitter is null)
+        {
+            return GlassEditorBuild.Failed("The form has no submit button named BL.");
+        }
+
+        var problems = new List<string>();
+        var notes = new List<string>();
+        if (change.Operation is not null || change.Both || change.Price is not null || change.Hours is not null
+            || change.OverlapHours is not null || change.Reason is not null || change.Trade is not null
+            || change.PartNumber is not null || change.LabourDescription is not null || change.OutsideWork
+            || change.OverlapFull || change.OldForNew is not null)
+        {
+            problems.Add("A paint-only dialog takes its paint, a side and a free row's description only.");
+        }
+
+        var place = form.Field("Place")?.Value ?? " ";
+        if (change.Place is { } chosenSide && chosenSide != place)
+        {
+            ChooseSide(form, GlassEditorPages.SplitArray(html, "PosPlaces"), chosenSide, 0, problems);
+        }
+
+        // The load script, from the dialog's one price list per quantity (the first: no quantity).
+        var state = Number(form.Field("Stateid")?.Value);
+        var stateIndex = IsInteger(state) && state >= 0 ? (int)state : -1;
+        var prices = FlatList().Match(html) is { Success: true } priceList ? priceList.Groups[1].Value : string.Empty;
+        var times = FlatTimes().Match(html) is { Success: true } timeList ? timeList.Groups[1].Value : string.Empty;
+        var typeIds = GlassEditorPages.SplitArray(html, "Lackartids") ?? [];
+        var levelValues = GlassEditorPages.SplitArray(html, "LackStufeValues") ?? [];
+        var keys = prices.Split('|').Where((_, index) => index % 2 == 0).ToList();
+        var coats = form.Field("Lackart")?.Value;
+        var offered = levelValues
+            .Where((value, index) => index % 2 == 0 && keys.Exists(key => key.Length > 1 && At(typeIds, key[0] - 'a') == coats && key[1..2] == value))
+            .ToList();
+        if (form.Field("Lackstufe") is { IsSelect: true } levels && !offered.Contains(levels.Value ?? string.Empty) && offered.Count > 0)
+        {
+            levels.Value = offered[0];
+        }
+
+        var levelKey = StateLetter(state) + form.Field("Lackstufe")?.Value;
+        if (form.Field("LPrice") is { } priceBox && form.Field("LTime") is { } timeBox)
+        {
+            priceBox.Value = GlassEditorPages.Lookup(prices, levelKey) ?? levelKey + " UNKNOWN";
+            timeBox.Value = GlassEditorPages.Lookup(times, levelKey) ?? levelKey + " UNKNOWN";
+        }
+        foreach (var (name, table) in LackSelects)
+        {
+            if (form.Field(name) is { } list && NumberAt(GlassEditorPages.SplitArray(html, table) ?? [], stateIndex) < 3)
+            {
+                list.Disabled = true;
+            }
+        }
+        if (form.Field("Zuschlag") is { } surcharge && form.Field("Klarlack") is { } clear)
+        {
+            surcharge.Checked = Truthy(NumberAt(GlassEditorPages.SplitArray(html, "Zstates") ?? [], stateIndex));
+            clear.Checked = Truthy(NumberAt(GlassEditorPages.SplitArray(html, "Kstates") ?? [], stateIndex));
+            surcharge.Disabled = false;
+            clear.Disabled = false;
+        }
+        if (form.Field("Zuschlag_d") is { } surchargeTwin && form.Field("Klarlack_d") is { } clearTwin)
+        {
+            surchargeTwin.Value = At(GlassEditorPages.SplitArray(html, "Zdimmes") ?? [], stateIndex) ?? surchargeTwin.Value;
+            clearTwin.Value = At(GlassEditorPages.SplitArray(html, "Kdimmes") ?? [], stateIndex) ?? clearTwin.Value;
+        }
+        if (change.Description is { } description)
+        {
+            if (form.Field("Descr") is not { ReadOnly: false, Disabled: false } box)
+            {
+                problems.Add("The dialog does not let Descr be typed.");
+            }
+            else
+            {
+                box.Value = description;
+            }
+        }
+
+        var servedTicks = (Surcharge: form.Field("Zuschlag")?.Checked ?? false, Clear: form.Field("Klarlack")?.Checked ?? false);
+        var data = form.Submit(submitter);
+        if (change.Paint is { } paintIn)
+        {
+            var plan = PaintPlan(html, form, data, paintIn, servedTicks, problems);
+            var order = form.Controls.Select(control => control.Name).ToList();
+            void Put(string name, string? value)
+            {
+                if (value is null)
+                {
+                    data.Delete(name);
+                }
+                else if (form.Field(name) is not null)
+                {
+                    data.Place(name, value, order);
+                }
+            }
+
+            Put("Lackart", plan.Coats);
+            Put("Lackstufe", plan.Level);
+            Put("Verf", plan.Procedure);
+            Put("Meth", plan.Method);
+            Put("Zuschlag", plan.Surcharge ? TickValue(form.Field("Zuschlag")) : null);
+            Put("Klarlack", plan.Clear ? TickValue(form.Field("Klarlack")) : null);
+            Put("LPrice", plan.Price);
+            Put("LTime", plan.Hours);
+            Put("KrKlarlack", plan.Scratch ? TickValue(form.Field("KrKlarlack")) : null);
+            Put("Stateid", ShowNumber(plan.State));
+            Put("Zuschlag_d", plan.SurchargeTwin);
+            Put("Klarlack_d", plan.ClearTwin);
+            if (paintIn.Reason is { } paintReason)
+            {
+                Put("LReason", ReasonLineBreaks().Replace(paintReason, "|"));
+            }
+        }
+        if (data.Get("Descr") is { } typedDescription)
+        {
+            if (typedDescription.Trim().Length < 3)
+            {
+                problems.Add("A free paint row needs a description of three characters.");
+            }
+            if (Number(data.Get("LPrice") ?? "0") == 0 && Number(data.Get("LTime") ?? "0") == 0)
+            {
+                problems.Add("A free paint row needs a price or a time.");
+            }
+        }
+        if (!PaintQuantityOff().IsMatch(html))
+        {
+            problems.Add("The dialog asks for a paint quantity.");
+        }
+
+        var record = (data.Get("Partx") ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        return new(null, form.Action, [.. data.Entries], problems, notes, new Dictionary<string, string>(StringComparer.Ordinal),
+            new GlassEditorSummary
+            {
+                Position = At(record, 0),
+                Description = (At(record, 2) ?? string.Empty).Split('|')[0].Trim(),
+                PaintType = data.Get("Lackart"),
+                PaintLevel = data.Get("Lackstufe"),
+                PaintPrice = data.Get("LPrice"),
+                PaintHours = data.Get("LTime"),
+                Side = data.Get("Place"),
+            });
+    }
+
+    private static readonly (string Name, string Table)[] LackSelects = [("Verf", "Verfids"), ("Meth", "Methids")];
+
     /// <summary>The levels FillLackstufeSelect offers for a paint type: each level some price key of that type has in the area.</summary>
     private static List<string> OfferedLevels(string[] prices, string[] levelIds, string[] levelValues, string? coat)
     {
@@ -1232,11 +1397,14 @@ internal static partial class GlassEditorDialogs
         string html, GlassEditorForm form, GlassEditorFields data, GlassEditorPaint paint,
         (bool Surcharge, bool Clear) servedTicks, List<string> problems)
     {
-        var prices = NestedSplits(html, "LPrices") ?? [];
-        var times = NestedSplits(html, "LTimes") ?? [];
+        // A paint-only dialog (lack.php) holds one list per quantity, read as its one area, and
+        // offers the paint types its own list shows.
+        var prices = NestedSplits(html, "LPrices") is { Count: > 0 } nestedPrices ? nestedPrices : FlatSplits(html, "LPrices");
+        var times = NestedSplits(html, "LTimes") is { Count: > 0 } nestedTimes ? nestedTimes : FlatSplits(html, "LTimes");
         var typeIds = GlassEditorPages.SplitArray(html, "Lackartids") ?? [];
         var levelValues = GlassEditorPages.SplitArray(html, "LackStufeValues") ?? [];
-        var typeValues = GlassEditorPages.SplitArray(html, "LackArtValues") ?? [];
+        var typeValues = GlassEditorPages.SplitArray(html, "LackArtValues")
+            ?? [.. (form.Field("Lackart")?.Options ?? []).SelectMany(option => new[] { option.Value, string.Empty })];
         var defaults = (GlassEditorPages.SplitArray(html, "Defstates") ?? []).ToList();
         var defaults3 = (GlassEditorPages.SplitArray(html, "Def3states") ?? []).ToList();
         var type3Ids = GlassEditorPages.SplitArray(html, "Lackart3ids") ?? [];
@@ -2090,7 +2258,9 @@ internal static partial class GlassEditorDialogs
 
         var paintable = form.Named("Lackart").Any();
         var special = !paintable && form.Field("Descr") is not null;
-        var served = paintable ? PartPost(html, "BSS") : PlainPost(html);
+        // A paint position's own dialog (lack.php, R1206): its paint, its sides and OK alone.
+        var paintOnly = paintable && form.Field("Repart") is null && form.Field("BL") is { Type: "submit" };
+        var served = paintOnly ? LackPost(html) : paintable ? PartPost(html, "BSS") : PlainPost(html);
         var surchargeFixed = paintable && SurchargeFixed(html, form);
         var summary = served.Summary;
         var posted = served.Fields;
@@ -2195,7 +2365,7 @@ internal static partial class GlassEditorDialogs
             : null;
         var side = (summary?.Side ?? string.Empty).Trim();
         var preview = new GlassDialogPreview(
-            special ? "special_operation" : paintable ? "part_paintable" : "part",
+            special ? "special_operation" : paintOnly ? "paint" : paintable ? "part_paintable" : "part",
             summary?.Description?.Trim(),
             summary?.PartNumber is { } number && number.Trim().Length > 0 ? number.Trim() : null,
             side == "R" ? summary?.RightPartCode : summary?.PartCode,
@@ -2210,11 +2380,11 @@ internal static partial class GlassEditorDialogs
         }
 
         // What an add with these inputs would send, and each question on the way.
-        var pressed = paintable ? button ?? "BSS" : "BS";
-        var build = paintable ? PartPost(html, pressed, change) : PlainPost(html, change);
+        var pressed = paintOnly ? "BL" : paintable ? button ?? "BSS" : "BS";
+        var build = paintOnly ? LackPost(html, change) : paintable ? PartPost(html, pressed, change) : PlainPost(html, change);
         var built = build.Summary;
         var questions = new List<GlassDialogQuestion>();
-        if (!special && pressed != "BLL" && Number(built?.Price) == 0 && Number(built?.Hours) == 0)
+        if (!special && !paintOnly && pressed != "BLL" && Number(built?.Price) == 0 && Number(built?.Hours) == 0)
         {
             var force = ForceNonZero().Match(html);
             var message = ZeroMessage().Match(html);
@@ -2224,7 +2394,7 @@ internal static partial class GlassEditorDialogs
                 message.Success ? message.Groups[forced ? 1 : 2].Value : null,
                 !forced && change?.ConfirmNoFigures == true));
         }
-        if (pressed != "BLL"
+        if (pressed != "BLL" && !paintOnly
             && ReasonAsked(html, built?.Operation, placeIndex, built?.Hours) is { } reason
             && reason.StartsWith("More hours", StringComparison.Ordinal))
         {
@@ -2234,7 +2404,7 @@ internal static partial class GlassEditorDialogs
         {
             questions.Add(new GlassDialogQuestion("other_side", null, true));
         }
-        if (!special)
+        if (!special && !paintOnly)
         {
             questions.Add(new GlassDialogQuestion("mandatory_parts", null, true));
         }
@@ -2593,6 +2763,20 @@ internal static partial class GlassEditorDialogs
             .ToList();
     }
 
+    /// <summary>A list of one entry per quantity (<c>lack.php</c>'s <c>LPrices</c>), as one area's lists; empty when absent.</summary>
+    private static List<List<string[]>> FlatSplits(string source, string name)
+    {
+        var start = Regex.Match(source, @"var\s+" + Regex.Escape(name) + @"\s*=\s*\[", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var end = start.Success ? source.IndexOf("];", start.Index, StringComparison.Ordinal) : -1;
+        if (end < 0)
+        {
+            return [];
+        }
+
+        var body = source[(start.Index + start.Length)..end];
+        return [SplitEntry().Matches(body).Select(entry => entry.Groups[1].Value.Split('|')).ToList()];
+    }
+
     /// <summary>
     /// SetPlaceBoxes: ticks the side boxes the served side names and answers
     /// which of each pair of lines the dialog reads (1 for a right-hand side).
@@ -2774,6 +2958,12 @@ internal static partial class GlassEditorDialogs
 
     [GeneratedRegex(@"document\.Part\.action\s*=\s*""([^""]*frl=1)""", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex ReloadAddress();
+
+    [GeneratedRegex(@"var\s+LPrices\s*=\s*\[\s*""([^""]*)""", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex FlatList();
+
+    [GeneratedRegex(@"var\s+LTimes\s*=\s*\[\s*""([^""]*)""", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex FlatTimes();
 
     [GeneratedRegex(@"var\s+forceNonZero\s*=\s*([0-9]+)\s*;", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex ForceNonZero();

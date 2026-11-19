@@ -747,9 +747,12 @@ public sealed class GlassEditorDialogTests
     {
         var page = GlassEditorFixture.Text(item.GetProperty("page").GetString()!);
         var typed = ChangeOf(item.GetProperty("change"));
-        return item.GetProperty("dialog").GetString() == "comp.php"
-            ? GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed)
-            : GlassEditorDialogs.PlainPost(page, typed);
+        return item.GetProperty("dialog").GetString() switch
+        {
+            "comp.php" => GlassEditorDialogs.PartPost(page, item.GetProperty("button").GetString()!, typed),
+            "lack.php" => GlassEditorDialogs.LackPost(page, typed),
+            _ => GlassEditorDialogs.PlainPost(page, typed),
+        };
     }
 
     /// <summary>A manifest entry's change, as a person gave it in the dialog.</summary>

@@ -680,7 +680,12 @@ internal sealed class GlassEditorClient(
 
         var answered = await OldForNewAsync(at, jar, dialog, dialogAddress, page == "comp" ? pressed : null, change, cancellationToken);
         var build = GlassMvaClient.Matched(
-            () => page == "comp" ? GlassEditorDialogs.PartPost(dialog, pressed!, answered) : GlassEditorDialogs.PlainPost(dialog, answered),
+            () => page switch
+            {
+                "comp" => GlassEditorDialogs.PartPost(dialog, pressed!, answered),
+                "lack" => GlassEditorDialogs.LackPost(dialog, answered),
+                _ => GlassEditorDialogs.PlainPost(dialog, answered),
+            },
             GlassFailure.EditorDialog);
         if (ChangeRefusal(build, positionId) is { } refusal)
         {

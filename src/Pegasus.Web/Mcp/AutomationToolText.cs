@@ -337,7 +337,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewEquipment = "preview, with glass.build.equipment: the part's equipment question, as the search gives it.";
 
-    public const string GlassPreviewKind = "part_paintable (a part with a paint section and the Part, Paint and Part and Paint buttons), part, or special_operation.";
+    public const string GlassPreviewKind = "part_paintable (a part with a paint section and the Part, Paint and Part and Paint buttons), part, special_operation, or paint (a paint position's own dialog: its paint section, its sides and OK, changed with inputs.paint and inputs.place).";
 
     public const string GlassPreviewOperations = "Each operation the dialog's list offers, in Glass's order.";
 
