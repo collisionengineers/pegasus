@@ -743,6 +743,38 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// Paintless dent repair reloads the dialog (R1206): the form its
+    /// ChangeRepart submits is posted to the address its script names, and
+    /// the dialog the editor answers is posted with the rest of the inputs.
+    /// The scripted editor answers the reload with the door's own dialog.
+    /// </summary>
+    [Fact]
+    public async Task AnOperationThatReloadsTheDialogIsFollowedAsTheEditorFollowsIt()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        var reloadedPage = GlassEditorFixture.Text("door_left_operations.dialog.html").Replace(
+            "</body>",
+            "<script language=\"JavaScript\">\ndocument.Part.action = \"comp.php?ksid=" + GlassEditorFixture.Key
+                + "&cml=C&mcode=771|772&frl=1\";\n</script>\n</body>",
+            StringComparison.Ordinal);
+        harness.Mva.Enqueue("GET /ere/aco/comp.php", Editor(reloadedPage));
+        harness.Mva.Respond("POST /ere/aco/comp.php", _ => EditorPage("door_left_operations.dialog.html", null));
+
+        var step = await PositionAsync(harness, Add(harness, session, "mcp:dd-1",
+            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(Operation: "DD")));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
+        var reload = Assert.Single(harness.Mva.Requests, request => request.Method == "POST" && request.Path == "/ere/aco/comp.php");
+        Assert.Contains("&Repart=DD&", reload.Body, StringComparison.Ordinal);
+        Assert.Contains("&Craft=D&", reload.Body, StringComparison.Ordinal);
+        Assert.Contains("frl=1", reload.Query, StringComparison.Ordinal);
+        Assert.True(harness.Mva.IndexOf("/ere/aco/comp.php") < harness.Mva.Requests.FindIndex(request => request.Path == "/ere/aco/compproc.php"));
+        Assert.Single(DialogPosts(harness));
+    }
+
+    /// <summary>
     /// The dialog's own fields (R1206): a special operation's description,
     /// labour type, part number and labour description, posted as typed;
     /// the left reinforcement's side ticked to the right, its figures and

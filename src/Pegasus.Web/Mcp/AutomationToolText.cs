@@ -188,7 +188,7 @@ internal static class AutomationToolText
     // labels, option texts and question texts pass through as Glass's gives
     // them.
 
-    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD, P or Z. The dialog then sends the price and hours its own script sets for that operation. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
+    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD, P or Z. The dialog then sends the price and hours its own script sets for that operation. Paintless dent repair (DD) reloads the dialog, as in the editor: Pegasus submits the form as its script does and posts the dialog Glass's answers, with the rest of inputs. An operation the script holds no figures for is sent with 0.00 once inputs.confirmNoFigures answers its question. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
 
     public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it, unless inputs.paint chooses it. With change, the button the position's dialog shows is pressed when none is given. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
 
@@ -358,7 +358,7 @@ internal static class AutomationToolText
 
     public const string GlassPreviewQuestions = "Each question the dialog or Glass's would ask on the way.";
 
-    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reason: more hours than Glass's own, which inputs.reason answers. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
+    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reload: the operation reloads the dialog, which add follows. reason: more hours than Glass's own, which inputs.reason answers. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
 
     public const string GlassPreviewQuestionText = "Glass's own words, where the dialog holds them.";
 

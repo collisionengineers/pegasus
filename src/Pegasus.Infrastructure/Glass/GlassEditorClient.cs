@@ -340,10 +340,20 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var dialogAddress = at.Dialog(page, request.Rows, mode);
         var dialog = await GetAsync(dialogAddress, at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var change = request.Change;
+        if (change?.Operation is { } reloading && GlassEditorDialogs.Reloads(dialog, reloading))
+        {
+            // An operation that reloads the dialog (R1206): the form its ChangeRepart submits, then
+            // the dialog the editor answers for that operation, built with the rest of the inputs.
+            (dialog, dialogAddress) = await ReloadAsync(session, jar, dialog, dialogAddress, reloading, cancellationToken);
+            change = change with { Operation = null };
+        }
+
+        var built = change;
         var build = GlassMvaClient.Matched(
             () => request.Dialog == GlassEditorDialog.PaintablePart
-                ? GlassEditorDialogs.PartPost(dialog, request.Button!, request.Change)
-                : GlassEditorDialogs.PlainPost(dialog, request.Change),
+                ? GlassEditorDialogs.PartPost(dialog, request.Button!, built)
+                : GlassEditorDialogs.PlainPost(dialog, built),
             GlassFailure.EditorDialog);
         if (Refusal(build, request) is { } refusal)
         {
@@ -380,6 +390,34 @@ internal sealed class GlassEditorClient(
         return new(
             new GlassEditorAdded(build.Summary!, build.Notes, listed, after, added) { Next = answer.Next },
             session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// The dialog again after an operation that reloads it (R1206): the form
+    /// its ChangeRepart submits (<see cref="GlassEditorDialogs.ReloadPost"/>),
+    /// refused before anything is sent when it cannot be built, posted to the
+    /// address the script names, and the editor's answer read as the dialog
+    /// with that address. The reload adds nothing to the estimate.
+    /// </summary>
+    private async Task<(string Dialog, string Address)> ReloadAsync(
+        GlassEditorSession session, Dictionary<string, string> jar, string dialog, string dialogAddress, string operation,
+        CancellationToken cancellationToken)
+    {
+        var reload = GlassMvaClient.Matched(() => GlassEditorDialogs.ReloadPost(dialog, operation), GlassFailure.EditorDialog);
+        if (reload.Error is not null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: reload.Error);
+        }
+        if (reload.Problems.Count > 0)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', reload.Problems));
+        }
+
+        var address = session.BaseAddress + reload.Action;
+        var answer = await SendAsync(
+            HttpMethod.Post, address, GlassEditorText.EncodeForm(reload.Fields), dialogAddress, jar,
+            GlassFailure.EditorRequest, false, cancellationToken);
+        return (answer, address);
     }
 
     /// <summary>
@@ -463,10 +501,15 @@ internal sealed class GlassEditorClient(
         };
         var (jar, at) = Begin(session);
         var dialog = await GetAsync(at.Dialog(page, request.Rows, mode), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+
+        // An operation that reloads the dialog (R1206) is not followed: a preview posts nothing.
+        // It shows the dialog as served, with the reload as a question on the way.
+        var change = request.Change ?? new GlassEditorChange();
+        var reloads = GlassEditorDialogs.Reloads(dialog, change.Operation);
+        var shown = reloads ? change with { Operation = null } : change;
         var (preview, build) = GlassMvaClient.Matched(
             () => GlassEditorDialogs.Preview(
-                dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null,
-                request.Change ?? new GlassEditorChange()),
+                dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null, shown),
             GlassFailure.EditorDialog);
         if (preview is null || build is null)
         {
@@ -477,6 +520,17 @@ internal sealed class GlassEditorClient(
         if (code is not null && preview.Sends is { Code: null } sends)
         {
             preview = preview with { Sends = sends with { Code = code } };
+        }
+        if (reloads && preview.Sends is { } reloaded)
+        {
+            preview = preview with
+            {
+                Sends = reloaded with
+                {
+                    Operation = change.Operation,
+                    Questions = [new GlassDialogQuestion("reload", null, true), .. reloaded.Questions],
+                },
+            };
         }
 
         return new(preview, session with { Cookies = Snapshot(jar) });

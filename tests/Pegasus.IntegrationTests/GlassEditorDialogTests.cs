@@ -667,6 +667,45 @@ public sealed class GlassEditorDialogTests
         AssertSummary(item, build.Summary);
     }
 
+    /// <summary>
+    /// Paintless dent repair reloads the dialog (R1206): its ChangeRepart
+    /// submits the form as the load script left it, with DD and the labour
+    /// type D, to the address the script names, exactly as the bonnet's own
+    /// script sent it when driven offline (#745).
+    /// </summary>
+    [Fact]
+    public void AnOperationThatReloadsTheDialogSubmitsItAsItsScriptDoes()
+    {
+        var page = GlassEditorFixture.Text("bonnet_paint_choices.dialog.html");
+
+        var reload = GlassEditorDialogs.ReloadPost(page, "DD");
+
+        Assert.True(GlassEditorDialogs.Reloads(page, "DD"));
+        Assert.False(GlassEditorDialogs.Reloads(page, "AE"));
+        Assert.Null(reload.Error);
+        Assert.Empty(reload.Problems);
+        Assert.Equal("comp.php?ksid=" + GlassEditorFixture.Key + "&cml=C&mcode=477|478&frl=1", reload.Action);
+        Assert.Equal(GlassEditorFixture.Text("bonnet_dd_reload.post.txt"), GlassEditorText.EncodeForm(reload.Fields));
+    }
+
+    /// <summary>
+    /// An operation the script holds no figures for (the bonnet's NL): its
+    /// own script alerts, CheckSubmit writes 0.00 in each box and asks before
+    /// sending no figures; answered OK, the post is the script's own (#745).
+    /// </summary>
+    [Fact]
+    public void AnOperationWithNoFiguresIsPostedWithZeroesOnceTheQuestionIsAnswered()
+    {
+        var page = GlassEditorFixture.Text("bonnet_paint_choices.dialog.html");
+
+        var unanswered = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "NL"));
+        var answered = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "NL", ConfirmNoFigures: true));
+
+        Assert.NotEmpty(unanswered.Problems);
+        Assert.Empty(answered.Problems);
+        Assert.Equal(GlassEditorFixture.Text("c3_bonnet_nl.post.txt"), GlassEditorText.EncodeForm(answered.Fields));
+    }
+
     private static JsonElement Typed(string name) =>
         GlassEditorFixture.Manifest.GetProperty("typed").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == name);

@@ -431,6 +431,7 @@ internal static partial class GlassEditorDialogs
         {
             problems.Add("Price and time by operation do not match the record's gross figures (" + ShowAt(record, 52) + ").");
         }
+        var figureless = false;
         if (changed)
         {
             // ChangeRepart's SetRepartValues and SetRepartRemarks read the script's own lists;
@@ -450,6 +451,16 @@ internal static partial class GlassEditorDialogs
             remarkTime = GlassEditorPages.Lookup(remarkTimes, operation) ?? string.Empty;
             notes.Add("The operation was changed from " + ShowAt(record, 4) + " to " + Show(operation)
                 + "; the record and the gross figures are posted as served.");
+            if (price is null && time is null)
+            {
+                // An operation the script holds no figures for (the bonnet's NL, #745): its
+                // SetRepartValues alerts and leaves the boxes unreadable, and CheckSubmit writes
+                // 0.00 in each. Judged offline on 19 November 2026.
+                price = "0.00";
+                time = "0.00";
+                figureless = true;
+                notes.Add("The script holds no price and no time for " + Show(operation) + "; CheckSubmit sends 0.00.");
+            }
         }
 
         (string Name, string? Value)[] filled =
@@ -636,7 +647,7 @@ internal static partial class GlassEditorDialogs
         if ((changed || typed.Count > 0) && button is "BSS" or "BSL")
         {
             ZeroPrompt(html, data, change, problems, notes);
-            if (!typed.ContainsKey("Time") && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
+            if (!typed.ContainsKey("Time") && !figureless && ReasonAsked(html, operation, placeIndex, data.Get("Time")) is { } reason)
             {
                 problems.Add(reason);
             }
@@ -1640,6 +1651,83 @@ internal static partial class GlassEditorDialogs
     private const string ZeroAsked = "Price and hours are both zero; the dialog would ask before sending.";
 
     /// <summary>
+    /// Whether choosing the operation reloads the dialog (R1206): Paintless
+    /// dent repair (<c>DD</c>), and an operation the script's
+    /// <c>SubClassMap</c> marks <c>WS</c>. Its ChangeRepart then submits the
+    /// form, as it stands, to the address it names, and the editor answers
+    /// the dialog again for that operation.
+    /// </summary>
+    public static bool Reloads(string html, string? operation)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        if (operation is null)
+        {
+            return false;
+        }
+        if (operation == "DD")
+        {
+            return true;
+        }
+
+        var classes = GlassEditorPages.SplitArray(html, "SubClassMap") ?? [];
+        for (var index = 1; index < classes.Length; index += 2)
+        {
+            if (classes[index] == "WS" && classes[index - 1] == operation)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The form ChangeRepart submits when a person chooses an operation that
+    /// reloads the dialog (R1206): the dialog as its load script left it, no
+    /// button pressed, the operation chosen and, for Paintless dent repair,
+    /// the labour type the script sets (<c>D</c>), posted to the address the
+    /// script names (<c>…&amp;frl=1</c>). Judged offline on 19 November 2026:
+    /// the bonnet's own script (#745) sent this post for DD.
+    /// </summary>
+    public static GlassEditorBuild ReloadPost(string html, string operation)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        ArgumentNullException.ThrowIfNull(operation);
+        var form = GlassEditorForm.Read(html, "Part");
+        if (form is null)
+        {
+            return GlassEditorBuild.Failed("The page has no form named Part.");
+        }
+
+        var paintable = form.Named("Lackart").Any();
+        var pressed = paintable ? VisibleButton(html) ?? "BSS" : "BS";
+        var served = paintable ? PartPost(html, pressed) : PlainPost(html);
+        if (served.Error is not null)
+        {
+            return served;
+        }
+
+        var address = ReloadAddress().Match(html);
+        if (!address.Success)
+        {
+            return GlassEditorBuild.Failed("The page names no address its operation reloads to.");
+        }
+        if (form.Field("Repart") is not { IsSelect: true } list || !list.Options.Any(option => option.Value == operation))
+        {
+            return GlassEditorBuild.Failed("The dialog does not offer the operation " + operation + ".");
+        }
+
+        var fields = new GlassEditorFields([.. served.Fields.Where(pair => pair.Key != pressed)]);
+        fields.Set("Repart", operation);
+        if (operation == "DD" && fields.Has("Craft"))
+        {
+            fields.Set("Craft", "D");
+        }
+
+        return served with { Action = address.Groups[1].Value, Fields = [.. fields.Entries] };
+    }
+
+    /// <summary>
     /// The one button of a <c>comp.php</c> dialog that the page shows, of
     /// Part (<c>BSS</c>), Paint (<c>BLL</c>) and Part and Paint (<c>BSL</c>):
     /// the dialog of a position with its paint on the estimate shows Part and
@@ -1977,14 +2065,14 @@ internal static partial class GlassEditorDialogs
     }
 
     /// <summary>
-    /// Whether a person may choose the operation without the dialog reloading
-    /// or opening a window this builder does not answer: what
-    /// <see cref="ChangeProblem"/> allows, and on a <c>part.php</c> dialog
-    /// Renew (<c>AN</c>), taken through the old-for-new window as served.
+    /// Whether a person may choose the operation: what
+    /// <see cref="ChangeProblem"/> allows, an operation that reloads the
+    /// dialog (<see cref="Reloads"/>, R1206), and on a <c>part.php</c> dialog
+    /// Renew (<c>AN</c>), taken through the old-for-new window.
     /// </summary>
     private static bool Choosable(string html, List<string> offered, string operation, bool paintable) =>
-        !paintable && operation == "AN"
-            ? offered.Contains("AN")
+        (!paintable && operation == "AN") || Reloads(html, operation)
+            ? offered.Contains(operation)
             : ChangeProblem(html, offered, operation) is null;
 
     /// <summary>Which of each pair of lines a dialog reads for its served side: 1 for a right-hand side.</summary>
@@ -2081,7 +2169,7 @@ internal static partial class GlassEditorDialogs
     /// Renew on <c>part.php</c> only). Any other is refused until it has been.
     /// </summary>
     private static readonly HashSet<string> JudgedOperations =
-        new(StringComparer.Ordinal) { "AD", "AE", "AN", "E", "ET", "HO", "I", "IT", "KM", "KS", "P", "UN", "V", "Z" };
+        new(StringComparer.Ordinal) { "AD", "AE", "AN", "E", "ET", "HO", "I", "IT", "KM", "KS", "NL", "P", "UN", "V", "Z" };
 
     /// <summary>
     /// CheckSubmit's question when price and hours are both zero. The page
@@ -2389,6 +2477,9 @@ internal static partial class GlassEditorDialogs
 
     [GeneratedRegex(@"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex DecimalNumber();
+
+    [GeneratedRegex(@"document\.Part\.action\s*=\s*""([^""]*frl=1)""", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex ReloadAddress();
 
     [GeneratedRegex(@"var\s+forceNonZero\s*=\s*([0-9]+)\s*;", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex ForceNonZero();

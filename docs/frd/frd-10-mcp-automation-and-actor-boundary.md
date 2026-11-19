@@ -772,8 +772,15 @@ compose Glass's, each tool is refused with "Glass's is not available."
   operation the dialog offers, by Glass's own code, with the price and
   hours its own script sets for it. No operation is refused for the
   return's sake: the return reads every repair kind Glass's exports (issue
-  2155). An operation that reloads the dialog or opens any other window
-  stays refused. Repair answers OK to the
+  2155). An operation that reloads the dialog, Paintless dent repair (DD)
+  and any the script's `SubClassMap` marks `WS`, is followed as the editor
+  follows it: the form its ChangeRepart submits is posted to the address
+  the script names, and the dialog Glass's answers is posted with the rest
+  of the inputs; `preview` shows the reload as a question and does not
+  follow it. An operation the script holds no figures for (the bonnet's
+  NL) is sent with 0.00 in each box, as CheckSubmit writes them, once the
+  question before no figures is answered. Both were judged offline on 19
+  November 2026 on the bonnet (#745). Repair answers OK to the
   dialog's question before a part with no price and no hours (R1188); any
   other operation does so only with `inputs.confirmNoFigures`, and is
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;

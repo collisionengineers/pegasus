@@ -1774,7 +1774,10 @@ it stopped.
   gives its code as `previewCode`. An add's own inputs (R1206) are refused
   with `glass.row.not_paintable` when a paint button is asked for a part
   that cannot be painted, and with `glass.build.not_built` when Both is
-  asked for one that can. An operation the dialog does
+  asked for one that can. An operation that reloads the dialog (DD, R1206)
+  posts the form to `comp.php` or `part.php` with `frl=1` inside stage
+  `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
+  answer is `glass.editor.request`. An operation the dialog does
   not offer, or one served with no price and no hours without
   `inputs.confirmNoFigures` (Repair answers by itself), is
   `glass.editor.refused`. With Both, the other side's own dialog logs stage
