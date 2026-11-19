@@ -733,6 +733,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                     inputs),
                 paintable ? inputs : null),
             Ticks = inputs?.OptionalParts,
+            ExpectedSide = inputs?.Place ?? request.ExpectedSide,
+            EitherSideCode = inputs?.Place is not null,
         };
         // Typed figures on the dialog of a part that can be painted have no capture (R1206).
         var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null) ? GlassAutomationPositionPolicy.NotPaintableCode
@@ -1205,7 +1207,7 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// gives it, the reason as given. The change as it was when none is typed.
     /// </summary>
     private static GlassEditorChange? WithTyped(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
-        inputs is null || !inputs.Typed
+        inputs is null || (!inputs.Typed && !inputs.Fields)
             ? change
             : (change ?? new GlassEditorChange()) with
             {
@@ -1213,6 +1215,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 Hours = TypedOf(inputs.Hours),
                 OverlapHours = TypedOf(inputs.OverlapHours),
                 Reason = inputs.Reason,
+                Place = inputs.Place,
+                Trade = inputs.Trade?.Trim(),
+                PartNumber = inputs.PartNumber,
+                LabourDescription = inputs.LabourDescription,
+                Description = inputs.Description,
+                OutsideWork = inputs.OutsideWork == true,
+                OverlapFull = inputs.OverlapFull == true,
             };
 
     private static string? TypedOf(decimal? value) =>

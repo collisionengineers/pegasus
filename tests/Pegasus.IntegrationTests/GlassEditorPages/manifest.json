@@ -2949,6 +2949,224 @@
       },
       "page": "front_bumper.dialog.html",
       "post": "c1_bumper_coats_level.post.txt"
+    },
+    {
+      "name": "c2_glass_craft_etnr_wdesc",
+      "dialog": "part.php",
+      "capture": "#643",
+      "button": "BS",
+      "change": {
+        "trade": "M",
+        "partNumber": "51337397199",
+        "labourDescription": "Refit seal"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=590|592",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C2023241_701311050101_2G_590_592_|64",
+        "partCode": "2023241",
+        "description": "Front Door Glass (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "147.35",
+        "hours": "0.90",
+        "partNumber": "51337397129",
+        "trade": "M",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "door_glass_left_hours.dialog.html",
+      "post": "c2_glass_craft_etnr_wdesc.post.txt"
+    },
+    {
+      "name": "c2_glass_full",
+      "dialog": "part.php",
+      "capture": "#643",
+      "button": "BS",
+      "change": {
+        "hours": "0.70",
+        "overlapFull": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=590|592",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C2023241_701311050101_2G_590_592_|64",
+        "partCode": "2023241",
+        "description": "Front Door Glass (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "147.35",
+        "hours": "0.70",
+        "partNumber": "51337397129",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "door_glass_left_hours.dialog.html",
+      "post": "c2_glass_full.post.txt"
+    },
+    {
+      "name": "c2_glass_right",
+      "dialog": "part.php",
+      "capture": "#643",
+      "button": "BS",
+      "change": {
+        "place": "R"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=590|592",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C2023241_701311050101_2G_590_592_|64",
+        "partCode": "2023241",
+        "description": "Front Door Glass (Tinted)",
+        "special": false,
+        "operation": "ER",
+        "offered": "ER|AE|I|AD|P|AN|E|Z",
+        "price": "147.35",
+        "hours": "0.90",
+        "partNumber": "51337397130",
+        "trade": "C",
+        "side": "R",
+        "sidesOffered": "L|R"
+      },
+      "page": "door_glass_left_hours.dialog.html",
+      "post": "c2_glass_right.post.txt"
+    },
+    {
+      "name": "c2_door_right_comp",
+      "dialog": "comp.php",
+      "capture": "#894",
+      "button": "BSS",
+      "change": {
+        "place": "R"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=568|569",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 140 lines; both captured ones have 90."
+      ],
+      "summary": {
+        "position": "C2020001_701311050101_2G_568_569_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "ER",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "568.86",
+        "hours": "3.50",
+        "partNumber": "41007465528",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "437.30",
+        "paintHours": "1.80",
+        "side": "R",
+        "sidesOffered": "L|R",
+        "rowPair": "568|569"
+      },
+      "page": "door_shell.dialog.html",
+      "post": "c2_door_right_comp.post.txt"
+    },
+    {
+      "name": "c2_yard_descr",
+      "dialog": "part.php",
+      "capture": "#1109",
+      "button": "BS",
+      "change": {
+        "description": "Storage charge",
+        "price": "45.00"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AC0000083",
+      "fields": 23,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AC0000083|64",
+        "partCode": "83",
+        "description": "Storage charge",
+        "special": true,
+        "operation": "ZK",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "45.00",
+        "hours": "1.00",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "yard_charge.dialog.html",
+      "post": "c2_yard_descr.post.txt"
+    },
+    {
+      "name": "c2_bulb_fremd",
+      "dialog": "part.php",
+      "capture": "#1257",
+      "button": "BS",
+      "change": {
+        "outsideWork": true,
+        "price": "20.00"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AB0000000",
+      "fields": 24,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to ZK; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "AB0000000|64",
+        "partCode": "0",
+        "description": "Bulbs 6V 55W",
+        "special": true,
+        "operation": "ZK",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "20.00",
+        "hours": "0",
+        "partNumber": "",
+        "trade": "N",
+        "side": "",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "bulb_price.dialog.html",
+      "post": "c2_bulb_fremd.post.txt"
+    },
+    {
+      "name": "c2_bulb_side_v",
+      "dialog": "part.php",
+      "capture": "#1257",
+      "button": "BS",
+      "change": {
+        "place": "VL",
+        "price": "20.00"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=A&mcode=AB0000000",
+      "fields": 25,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "AB0000000|64",
+        "partCode": "0",
+        "description": "Bulbs 6V 55W",
+        "special": true,
+        "operation": "ER",
+        "offered": "ER|ET|I|IT|AD|AE|P|ZK|AN|E|V|W|Z|H",
+        "price": "20.00",
+        "hours": "0",
+        "partNumber": "",
+        "trade": "N",
+        "side": "VL",
+        "sidesOffered": " |L|R|V|H|VL|VR|HL|HR"
+      },
+      "page": "bulb_price.dialog.html",
+      "post": "c2_bulb_side_v.post.txt"
     }
   ]
 }

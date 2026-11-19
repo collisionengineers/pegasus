@@ -248,6 +248,35 @@ internal static class AutomationToolText
 
     public const string GlassInputsPaintHours = "The paint labour hours to type in place of Glass's own, sent as inputs.hours is; from 0 to 1000. Glass's asks no reason for them.";
 
+    // The dialog's own fields (R1206, 19 November 2026): drafts for the
+    // operator to approve on the merge request.
+
+    public const string GlassInputsPlace = "The side boxes to tick, as a person ticks them, where the dialog lets its side be changed: one of the sides preview's Place field offers, L, R, V (front), H (rear), VL, VR, HL or HR. The dialog then reads its figures and part number for that side.";
+
+    public const string GlassInputsTrade = "The labour type by Glass's own value, one preview's Craft field offers, such as C (Body), M (Mechanical) or E (Electrical).";
+
+    public const string GlassInputsPartNumber = "The part number to type in the dialog's part number box, 1 to 20 characters.";
+
+    public const string GlassInputsLabourDescription = "The labour description to type in the dialog's labour description box, as a person types or picks it, 1 to 150 characters.";
+
+    public const string GlassInputsDescription = "A special operation's own description, typed in place of the row's, 3 to 250 characters.";
+
+    public const string GlassInputsOutsideWork = "true ticks outside work where the dialog has it (a special operation's): Glass's then chooses ZK and greys the hours, the overlap hours and the labour type, so inputs.hours and inputs.overlapHours are refused with it.";
+
+    public const string GlassInputsOverlapFull = "true presses the overlap hours' Full button where the dialog has it, which copies the hours sent into the overlap hours.";
+
+    public const string GlassInputsPlaceRefused = "inputs.place is one of L, R, V, H, VL, VR, HL or HR, and is not given with inputs.side both.";
+
+    public const string GlassInputsTradeRefused = "inputs.trade is Glass's own value for a labour type, not blank.";
+
+    public const string GlassInputsPartNumberRefused = "inputs.partNumber is 1 to 20 characters.";
+
+    public const string GlassInputsLabourDescriptionRefused = "inputs.labourDescription is 1 to 150 characters.";
+
+    public const string GlassInputsDescriptionRefused = "inputs.description is 3 to 250 characters and is given for a special operation, or with change, only.";
+
+    public const string GlassInputsFieldRefused = "inputs.outsideWork and inputs.overlapFull are given to add, change or preview a position only.";
+
     public const string GlassInputsPaintArea = "The paint area by Glass's own value, as preview's paint section lists them. Choosing it sets the paint type, level, price and hours as Glass's script does.";
 
     public const string GlassInputsPaintProcedure = "The paint procedure by Glass's own value, one the paint type and level offer in preview's fields (Verf), such as 31. Choosing it sets the paint state, price and hours as Glass's script does.";

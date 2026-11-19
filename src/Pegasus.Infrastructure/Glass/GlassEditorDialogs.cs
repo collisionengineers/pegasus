@@ -27,7 +27,13 @@ internal sealed record GlassEditorChange(
     bool Both = false,
     bool ConfirmNoFigures = false,
     string? OverlapHours = null,
-    GlassEditorPaint? Paint = null);
+    GlassEditorPaint? Paint = null,
+    string? Place = null,
+    string? Trade = null,
+    string? PartNumber = null,
+    string? LabourDescription = null,
+    bool OutsideWork = false,
+    bool OverlapFull = false);
 
 /// <summary>
 /// The paint choices a person makes on a <c>comp.php</c> dialog (R1206):
@@ -318,6 +324,14 @@ internal static partial class GlassEditorDialogs
             problems.Add("The served side \"" + place + "\" is not one the dialog offers (" + Offered(places) + ").");
         }
 
+        // The side and the labour type a person chooses (R1206).
+        if (change.Place is { } chosenSide && chosenSide != place)
+        {
+            placeIndex = ChooseSide(form, places, chosenSide, placeIndex, problems);
+        }
+
+        ChooseTrade(form, change, problems);
+
         // setBothState: a page that ticks "Both" itself is adding two sides at once.
         var both = BothDescriptor().Match(html);
         if (both.Success && both.Groups[1].Value.StartsWith('1'))
@@ -565,6 +579,7 @@ internal static partial class GlassEditorDialogs
         // reason rule. Judged offline on 19 November 2026 on the bonnet (#745) with Part and
         // with Part and Paint, the captured reason window answering.
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, button is "BSS" or "BSL", problems, ref coded);
+        TypedTexts(form, data, change, problems);
 
         // The paint section as a person leaves it (R1206), in the order area, paint type,
         // procedure, method, level, Surcharge, coloured clear, scratch-resistant clear, typed
@@ -655,7 +670,7 @@ internal static partial class GlassEditorDialogs
                 PaintLevel = data.Get("Lackstufe"),
                 PaintPrice = paintPrice,
                 PaintHours = paintTime,
-                Side = place,
+                Side = data.Get("Place") ?? place,
                 SidesOffered = places is null ? null : string.Join('|', places),
                 RowPair = At(record, 87),
             })
@@ -677,6 +692,101 @@ internal static partial class GlassEditorDialogs
     private static T? ItemAt<T>(IReadOnlyList<T>? list, int index)
         where T : class =>
         list is not null && index >= 0 && index < list.Count ? list[index] : null;
+
+    /// <summary>
+    /// A side a person ticks (R1206), as click_v, click_h, click_l and click_r
+    /// and then SetPlaceSelect leave it: the boxes the side names, where the
+    /// dialog offers the side and lets each be ticked; Place then holds it,
+    /// and the figures are read for its left or right, a side naming neither
+    /// keeping the one before. Judged offline on the walk's door glass (#643),
+    /// door shell (#894) and bulb row (#1257).
+    /// </summary>
+    private static int ChooseSide(GlassEditorForm form, string[]? places, string wanted, int placeIndex, List<string> problems)
+    {
+        var lead = wanted.Length > 0 ? wanted[..1] : string.Empty;
+        var side = lead is "V" or "H" ? (wanted.Length > 1 ? wanted.Substring(1, 1) : string.Empty) : lead;
+        (string Name, bool Ticked)[] boxes = [("Place_V", lead == "V"), ("Place_H", lead == "H"), ("Place_L", side == "L"), ("Place_R", side == "R")];
+        if (places is null || !places.Contains(wanted))
+        {
+            problems.Add("The dialog does not offer the side " + wanted + ".");
+            return placeIndex;
+        }
+        if (boxes.Any(box => box.Ticked && form.Field(box.Name) is not { Disabled: false }))
+        {
+            problems.Add("The dialog does not let the side be changed.");
+            return placeIndex;
+        }
+
+        foreach (var (name, ticked) in boxes)
+        {
+            if (form.Field(name) is { } box)
+            {
+                box.Checked = ticked;
+            }
+        }
+        if (form.Field("Place") is { } placeField)
+        {
+            placeField.Value = wanted;
+        }
+
+        return side switch
+        {
+            "R" => 1,
+            "L" => 0,
+            _ => placeIndex,
+        };
+    }
+
+    /// <summary>The labour type a person chooses (<c>Craft</c>, R1206), if the dialog offers it and lets it be chosen.</summary>
+    private static void ChooseTrade(GlassEditorForm form, GlassEditorChange change, List<string> problems)
+    {
+        if (change.Trade is not { } trade)
+        {
+            return;
+        }
+        if (form.Field("Craft") is not { IsSelect: true, Disabled: false } craft || !craft.Options.Any(option => option.Value == trade))
+        {
+            problems.Add("The dialog does not offer the labour type " + trade + ".");
+            return;
+        }
+
+        craft.Value = trade;
+    }
+
+    /// <summary>
+    /// The texts a person types (R1206): a part number (<c>EtnrTxt</c>; CheckSubmit leaves it as
+    /// typed and sets the hidden numbers from its own list), a labour description (<c>Wdesc</c>,
+    /// typed, or picked in freetxt.php, which only writes the box), and the overlap hours' Full
+    /// button, whose FullValue copies the hours.
+    /// </summary>
+    private static void TypedTexts(GlassEditorForm form, GlassEditorFields data, GlassEditorChange change, List<string> problems)
+    {
+        foreach (var (value, name) in new[] { (change.PartNumber, "EtnrTxt"), (change.LabourDescription, "Wdesc") })
+        {
+            if (value is null)
+            {
+                continue;
+            }
+            if (!data.Has(name) || form.Field(name) is not { ReadOnly: false, Disabled: false })
+            {
+                problems.Add("The dialog does not let " + name + " be typed.");
+                continue;
+            }
+
+            data.Set(name, value);
+        }
+        if (change.OverlapFull)
+        {
+            if (form.Field("FullTimeButton") is not { Disabled: false } || !data.Has("Ctime"))
+            {
+                problems.Add("The dialog has no Full button for the overlap hours.");
+            }
+            else
+            {
+                data.Set("Ctime", data.Get("Time") ?? string.Empty);
+            }
+        }
+    }
 
     /// <summary>The value a ticked box posts: its own value, or <c>on</c> when it has none.</summary>
     private static string TickValue(GlassEditorControl? box) =>
@@ -1175,6 +1285,14 @@ internal static partial class GlassEditorDialogs
             problems.Add("The served side \"" + place + "\" is not one the dialog offers (" + Offered(places) + ").");
         }
 
+        // The side and the labour type a person chooses (R1206).
+        if (change.Place is { } chosenSide && chosenSide != place)
+        {
+            placeIndex = ChooseSide(form, places, chosenSide, placeIndex, problems);
+        }
+
+        ChooseTrade(form, change, problems);
+
         var both = BothDescriptor().Match(html);
         if (both.Success && both.Groups[1].Value.StartsWith('1'))
         {
@@ -1201,11 +1319,29 @@ internal static partial class GlassEditorDialogs
         List<string> offered = select is { IsSelect: true }
             ? select.Options.Select(option => option.Value).ToList()
             : [];
+        // Outside work (R1206): setFremdarbeitStatus greys the hours, the overlap hours and the
+        // labour type, and chooses ZK, whose figures it then serves; its CheckSubmit enables them
+        // again for the post. Judged offline on the walk's bulb row (#1257).
+        var outsideWork = false;
+        if (change.OutsideWork)
+        {
+            if (form.Field("fremdarbeit") is not { Disabled: false } box)
+            {
+                problems.Add("The dialog has no outside work.");
+            }
+            else
+            {
+                box.Checked = true;
+                outsideWork = offered.Contains("ZK");
+                change = outsideWork ? change with { Operation = "ZK" } : change;
+            }
+        }
         if (change.Operation is not null)
         {
             // Renew (AN) goes through the old-for-new dialog, taken as served (seen once, 18
             // November 2026); any other operation must not reload the dialog.
-            var refused = change.Operation == "AN"
+            var refused = outsideWork ? null
+                : change.Operation == "AN"
                 ? (offered.Contains("AN") ? null : "The dialog does not offer the operation AN.")
                 : ChangeProblem(html, offered, change.Operation);
             if (select is null || refused is not null)
@@ -1305,7 +1441,18 @@ internal static partial class GlassEditorDialogs
             problems.Add("The dialog has outside work ticked, which greys the overlap hours.");
         }
 
+        if (change.OutsideWork && data.Has("Ctime"))
+        {
+            data.Set("Ctime", "0");
+        }
+        if (change.OutsideWork && (change.Hours is not null || change.OverlapHours is not null))
+        {
+            problems.Add("Outside work greys the hours and the overlap hours.");
+            change = change with { Hours = null, OverlapHours = null, Reason = null };
+        }
+
         var typed = TypedFigures(html, form, data, change, operation, placeIndex, checkReason: true, problems, ref coded);
+        TypedTexts(form, data, change, problems);
         if (change.Description is { } description)
         {
             if (!data.Has("Descr"))
@@ -1380,7 +1527,7 @@ internal static partial class GlassEditorDialogs
                 ServedOverlapHours = servedOverlap,
                 PartNumber = Side("Etnr"),
                 Trade = data.Get("Craft"),
-                Side = place,
+                Side = data.Get("Place") ?? place,
                 SidesOffered = places is null ? null : string.Join('|', places),
             })
         {

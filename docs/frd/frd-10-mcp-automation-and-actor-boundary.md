@@ -788,8 +788,7 @@ compose Glass's, each tool is refused with "Glass's is not available."
   two boxes (`1102450.ER.#2` is the second), or by its code, which ticks
   the first optional box of that code. The top-level `operation` keeps its meaning;
   `inputs.operation` and `inputs.button` are given with `part` only. Every
-  input given is kept on the act, beside the figures Glass's served. A
-  typed part number or description and free rows stay refused.
+  input given is kept on the act, beside the figures Glass's served.
   The server's rebuild of an outside estimate is unchanged (R1168, R1169,
   R1172).
 - **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
@@ -813,6 +812,22 @@ compose Glass's, each tool is refused with "Glass's is not available."
   rule runs for Part and for Part and Paint, as its CheckSubmit runs it.
   The act keeps every input beside the figures the
   dialog served and the figures sent, recorded just before the post.
+- **19 November 2026; R1206.** The dialog's own fields are given as a
+  person gives them, in both kinds of live session: `inputs.place` ticks the
+  side boxes where the dialog lets its side be changed (left or right, and
+  on a special row front or rear), and the dialog then reads its figures and
+  part number for that side; `inputs.trade` chooses the labour type;
+  `inputs.partNumber` and `inputs.labourDescription` are typed, the labour
+  description as a person types it or picks it in Glass's picker
+  (`freetxt.php`, which only writes the box); `inputs.description` types a
+  special operation's own description, 3 to 250 characters as its dialog
+  wants at least 3; `inputs.outsideWork` ticks outside work on a special
+  operation's dialog, which then chooses ZK and greys the hours and overlap
+  hours; `inputs.overlapFull` presses Full, which copies the hours into the
+  overlap hours. Each was judged offline on 19 November 2026 on the walk's
+  door glass (#643), door shell (#894), yard charge (#1109) and bulb row
+  (#1257), seven posts identical to the dialog's own script's and pinned.
+  No captured dialog offers a quantity box, so none is built.
 - **19 November 2026; R1206.** `change` changes a position already on the
   estimate, any position of it as `remove` takes any (R1185), in both kinds
   of live session. It takes the position's id and `inputs`: the typed

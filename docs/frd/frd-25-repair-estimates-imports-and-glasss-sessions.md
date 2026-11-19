@@ -708,8 +708,10 @@ with Glass's question before no figures answered OK for Repair by itself
 reads every repair kind Glass's exports, issue 2155); Both, with the other
 side's own dialog posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
-posted for a preview. A typed part number or text and free rows still wait.
-The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
+posted for a preview. It also types a part number, a labour description and
+a special operation's own description, chooses the labour type and the side
+boxes, ticks outside work and presses the overlap hours' Full, as a person
+would. Free rows still wait. The rebuild of an outside estimate keeps R1168, R1169 and R1172 as above.
 
 **Typed hours, price and overlap hours (19 November 2026; R1206).** In the
 dialog of a special operation or of any part, the Automation may type the labour hours, the price and the overlap hours, as a

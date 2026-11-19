@@ -743,6 +743,38 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
+    /// The dialog's own fields (R1206): a special operation's description,
+    /// labour type, part number and labour description, posted as typed;
+    /// the left reinforcement's side ticked to the right, its figures and
+    /// part number then read for that side, as the dialog's own script does.
+    /// </summary>
+    [Fact]
+    public async Task TheDialogsOwnFieldsArePostedAsAPersonGivesThem()
+    {
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+
+        var special = await PositionAsync(harness, Add(harness, session, "mcp:fields-1",
+            GlassAutomationPositionKind.SpecialOperation, "AC0000073",
+            inputs: new GlassAutomationInputs(
+                Description: "Storage charge", Trade: "M", PartNumber: "PN-1", LabourDescription: "Collected from site")));
+        var right = await PositionAsync(harness, Add(harness, special.Session, "mcp:fields-2",
+            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Part,
+            inputs: new GlassAutomationInputs(Place: "R")));
+
+        Assert.Equal(GlassAutomationActOutcome.Added, special.Act.Outcome);
+        var posts = DialogPosts(harness);
+        Assert.Contains("Descr=Storage+charge&", posts[0], StringComparison.Ordinal);
+        Assert.Contains("&Craft=M&", posts[0], StringComparison.Ordinal);
+        Assert.Contains("&EtnrTxt=PN-1&", posts[0], StringComparison.Ordinal);
+        Assert.Contains("&Wdesc=Collected+from+site&", posts[0], StringComparison.Ordinal);
+        Assert.Equal(GlassAutomationActOutcome.Added, right.Act.Outcome);
+        Assert.Contains("&Place_R=", posts[1], StringComparison.Ordinal);
+        Assert.Contains("&Place=R&", posts[1], StringComparison.Ordinal);
+        Assert.DoesNotContain("Place_L=", posts[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A preview (R1206) reads the part list, the row's map and its dialog,
     /// posts nothing and records no act. It answers the dialog as a form,
     /// with Glass's own labels and texts, and for the inputs given what an

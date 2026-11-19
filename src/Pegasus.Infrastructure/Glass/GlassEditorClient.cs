@@ -58,7 +58,11 @@ internal sealed record GlassEditorAddRequest(
     IReadOnlyCollection<string>? Ticks = null,
     string? ExpectedSide = null,
     bool CheckRows = false,
-    string? ExpectedPartNumber = null);
+    string? ExpectedPartNumber = null)
+{
+    /// <summary>The side was chosen in the dialog (R1206): the part code may be either code line the record carries.</summary>
+    public bool EitherSideCode { get; init; }
+}
 
 /// <summary>
 /// What an add did: the dialog's summary and notes, the parts the
@@ -411,6 +415,11 @@ internal sealed class GlassEditorClient(
         }
 
         var servedCode = servedSide == "R" ? build.Summary.RightPartCode : build.Summary.PartCode;
+        if (request.EitherSideCode
+            && (build.Summary.PartCode == request.ExpectedPartCode || build.Summary.RightPartCode == request.ExpectedPartCode))
+        {
+            servedCode = request.ExpectedPartCode;
+        }
         if (servedCode != request.ExpectedPartCode)
         {
             return new GlassMvaStageException(

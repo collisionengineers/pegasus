@@ -89,7 +89,14 @@ internal sealed record GlassPositionInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsPrice)] decimal? Price = null,
     [property: Description(AutomationToolText.GlassInputsOverlapHours)] decimal? OverlapHours = null,
     [property: Description(AutomationToolText.GlassInputsReason)] string? Reason = null,
-    [property: Description(AutomationToolText.GlassInputsPaint)] GlassPaintInputsToolInput? Paint = null);
+    [property: Description(AutomationToolText.GlassInputsPaint)] GlassPaintInputsToolInput? Paint = null,
+    [property: Description(AutomationToolText.GlassInputsPlace)] string? Place = null,
+    [property: Description(AutomationToolText.GlassInputsTrade)] string? Trade = null,
+    [property: Description(AutomationToolText.GlassInputsPartNumber)] string? PartNumber = null,
+    [property: Description(AutomationToolText.GlassInputsLabourDescription)] string? LabourDescription = null,
+    [property: Description(AutomationToolText.GlassInputsDescription)] string? Description = null,
+    [property: Description(AutomationToolText.GlassInputsOutsideWork)] bool? OutsideWork = null,
+    [property: Description(AutomationToolText.GlassInputsOverlapFull)] bool? OverlapFull = null);
 
 /// <summary>The paint choices of a part's dialog (R1206).</summary>
 internal sealed record GlassPaintInputsToolInput(
@@ -919,7 +926,14 @@ internal sealed class GlassMcpTools(
                     paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, paint.Hours, paint.Area?.Trim(),
                     paint.Procedure?.Trim(), paint.Method?.Trim(), paint.ColouredClear, paint.ScratchResistant, paint.Price,
                     paint.Reason)
-                : null));
+                : null,
+            inputs.Place?.Trim(),
+            inputs.Trade?.Trim(),
+            inputs.PartNumber,
+            inputs.LabourDescription,
+            inputs.Description,
+            inputs.OutsideWork,
+            inputs.OverlapFull));
     }
 
     /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
@@ -935,6 +949,12 @@ internal sealed class GlassMcpTools(
         "inputs.overlapHours" => AutomationToolText.GlassInputsOverlapHoursRefused,
         "inputs.reason" => AutomationToolText.GlassInputsReasonRefused,
         "inputs.paint" => AutomationToolText.GlassInputsPaintRefused,
+        "inputs.place" => AutomationToolText.GlassInputsPlaceRefused,
+        "inputs.trade" => AutomationToolText.GlassInputsTradeRefused,
+        "inputs.partNumber" => AutomationToolText.GlassInputsPartNumberRefused,
+        "inputs.labourDescription" => AutomationToolText.GlassInputsLabourDescriptionRefused,
+        "inputs.description" => AutomationToolText.GlassInputsDescriptionRefused,
+        "inputs.outsideWork" or "inputs.overlapFull" => AutomationToolText.GlassInputsFieldRefused,
         _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
     };
 
@@ -1089,7 +1109,14 @@ internal sealed class GlassMcpTools(
                         ? new GlassPaintInputsToolInput(
                             paint.Coats, paint.Level, paint.Surcharge, paint.Hours, paint.Area, paint.Procedure, paint.Method,
                             paint.ColouredClear, paint.ScratchResistant, paint.Price, paint.Reason)
-                        : null)
+                        : null,
+                    given.Place,
+                    given.Trade,
+                    given.PartNumber,
+                    given.LabourDescription,
+                    given.Description,
+                    given.OutsideWork,
+                    given.OverlapFull)
                 : null,
             MapEquipment(act.Equipment),
             act.RowPair,

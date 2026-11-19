@@ -162,6 +162,13 @@ public enum GlassAutomationButton
 /// and sent only when the dialog asks for it.
 /// </param>
 /// <param name="Paint">The paint choices in the dialog of a part that can be painted (R1206).</param>
+/// <param name="Place">The side boxes a person ticks (R1206): one of the sides the dialog offers, <c>L</c>, <c>R</c>, <c>V</c>, <c>H</c> or front or rear with left or right (<c>VL</c>).</param>
+/// <param name="Trade">The labour type (<c>Craft</c>) by Glass's own value, such as <c>M</c> for Mechanical.</param>
+/// <param name="PartNumber">The part number typed in the dialog's part number box.</param>
+/// <param name="LabourDescription">The labour description typed in, or picked into, the dialog's labour description box.</param>
+/// <param name="Description">A special operation's own description, typed in place of the row's.</param>
+/// <param name="OutsideWork">Ticks outside work where the dialog has it; Glass's then greys the hours.</param>
+/// <param name="OverlapFull">Presses the overlap hours' Full button, which copies the hours.</param>
 public sealed record GlassAutomationInputs(
     IReadOnlyList<string>? Equipment = null,
     string? Operation = null,
@@ -173,12 +180,24 @@ public sealed record GlassAutomationInputs(
     decimal? Price = null,
     decimal? OverlapHours = null,
     string? Reason = null,
-    GlassAutomationPaint? Paint = null)
+    GlassAutomationPaint? Paint = null,
+    string? Place = null,
+    string? Trade = null,
+    string? PartNumber = null,
+    string? LabourDescription = null,
+    string? Description = null,
+    bool? OutsideWork = null,
+    bool? OverlapFull = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null && !Typed && Paint is null;
+        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields;
+
+    /// <summary>Whether a field of the dialog's own is given: a side, labour type, part number, description, outside work or Full (R1206).</summary>
+    public bool Fields =>
+        Place is not null || Trade is not null || PartNumber is not null || LabourDescription is not null
+        || Description is not null || OutsideWork is not null || OverlapFull is not null;
 
     /// <summary>Whether a typed figure or a reason is given (R1206).</summary>
     public bool Typed => Hours is not null || Price is not null || OverlapHours is not null || Reason is not null;
@@ -628,7 +647,7 @@ public static class GlassAutomationPositionPolicy
         {
             return FirstGiven(inputs);
         }
-        if (TypedRefused(inputs) is { } typed)
+        if ((TypedRefused(inputs) ?? FieldRefused(inputs)) is { } typed)
         {
             return typed;
         }
@@ -640,8 +659,21 @@ public static class GlassAutomationPositionPolicy
         }
         if (kind != GlassAutomationPositionKind.Part)
         {
-            // A special operation takes typed figures and a reason alone.
-            return FirstGiven(inputs with { Hours = null, Price = null, OverlapHours = null, Reason = null });
+            // A special operation takes typed figures, a reason and its dialog's own fields.
+            return FirstGiven(inputs with
+            {
+                Hours = null, Price = null, OverlapHours = null, Reason = null, Place = null, Trade = null,
+                PartNumber = null, LabourDescription = null, Description = null, OutsideWork = null, OverlapFull = null,
+            });
+        }
+        if (inputs.Description is not null)
+        {
+            // A part's dialog has no description box of its own.
+            return "inputs.description";
+        }
+        if (inputs.Place is not null && inputs.BothSides == true)
+        {
+            return "inputs.place";
         }
         if (inputs.Paint is not null
             && (inputs.BothSides == true
@@ -695,7 +727,48 @@ public static class GlassAutomationPositionPolicy
         : inputs.OptionalParts is not null ? "inputs.optionalParts"
         : inputs.ConfirmNoFigures is not null ? "inputs.confirmNoFigures"
         : inputs.Paint is not null ? "inputs.paint"
-        : FirstTyped(inputs);
+        : FirstTyped(inputs) ?? FirstField(inputs);
+
+    private static string? FirstField(GlassAutomationInputs inputs) =>
+        inputs.Place is not null ? "inputs.place"
+        : inputs.Trade is not null ? "inputs.trade"
+        : inputs.PartNumber is not null ? "inputs.partNumber"
+        : inputs.LabourDescription is not null ? "inputs.labourDescription"
+        : inputs.Description is not null ? "inputs.description"
+        : inputs.OutsideWork is not null ? "inputs.outsideWork"
+        : inputs.OverlapFull is not null ? "inputs.overlapFull"
+        : null;
+
+    /// <summary>
+    /// A field of the dialog's own that is not one Pegasus gives (R1206), by
+    /// its tool name: a side that no dialog has; a blank labour type; a part
+    /// number blank or longer than the dialog's box (20 characters); a blank
+    /// labour description or one longer than <see cref="MaximumReasonLength"/>;
+    /// a description of fewer than 3 characters (the dialog's own CheckEmpty)
+    /// or longer than <see cref="MaximumDescriptionLength"/>.
+    /// </summary>
+    private static string? FieldRefused(GlassAutomationInputs inputs) =>
+        inputs.Place is { } place && !Places.Contains(place) ? "inputs.place"
+        : inputs.Trade is { } trade && string.IsNullOrWhiteSpace(trade) ? "inputs.trade"
+        : inputs.PartNumber is { } number && (string.IsNullOrWhiteSpace(number) || number.Length > MaximumPartNumberLength) ? "inputs.partNumber"
+        : inputs.LabourDescription is { } labour && (string.IsNullOrWhiteSpace(labour) || labour.Length > MaximumReasonLength) ? "inputs.labourDescription"
+        : inputs.Description is { } description
+            && (description.Trim().Length < 3 || description.Length > MaximumDescriptionLength) ? "inputs.description"
+        : null;
+
+    /// <summary>The sides a dialog's boxes can name (<c>PosPlaces</c>): left, right, front, rear, and front or rear with left or right.</summary>
+    public static IReadOnlySet<string> Places { get; } =
+        new HashSet<string>(StringComparer.Ordinal) { "L", "R", "V", "H", "VL", "VR", "HL", "HR" };
+
+    /// <summary>The longest part number typed: the dialog's box takes 20 characters.</summary>
+    public const int MaximumPartNumberLength = 20;
+
+    /// <summary>
+    /// The longest description typed: the return's reader refuses a whole
+    /// export with a description above 300 characters, Glass's printing the
+    /// side after it.
+    /// </summary>
+    public const int MaximumDescriptionLength = 250;
 
     /// <summary>
     /// The input a change of a position already on the estimate does not

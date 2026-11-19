@@ -702,7 +702,13 @@ public sealed class GlassEditorDialogTests
             Reason: Text(change, "reason"),
             ConfirmNoFigures: Tick(change, "confirm") == true,
             OverlapHours: Text(change, "overlapHours"),
-            Paint: paint);
+            Paint: paint,
+            Place: Text(change, "place"),
+            Trade: Text(change, "trade"),
+            PartNumber: Text(change, "partNumber"),
+            LabourDescription: Text(change, "labourDescription"),
+            OutsideWork: Tick(change, "outsideWork") == true,
+            OverlapFull: Tick(change, "overlapFull") == true);
     }
 
     private static JsonElement Operation(string name) =>
