@@ -682,6 +682,52 @@ public sealed partial class ContactIndexWebTests
             $"SELECT InspectionMode FROM Principals WHERE Id = '{successorId:D}';"));
     }
 
+    /// <summary>
+    /// R1190: the search finds a Principal by the start of any code it holds, in
+    /// any case and an earlier code included, and shows its current code; a contact
+    /// linked to that Principal is still found by its name only.
+    /// </summary>
+    [Fact]
+    public async Task TheSearchFindsAPrincipalByTheStartOfAnyCodeItHolds()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var administration = services.GetRequiredService<IContactDirectoryAdministration>();
+            var principal = await administration.SaveAsync(new(
+                Administrator, Guid.NewGuid(), 0, "Code Search Fixture Principal", null, null, null, null, true,
+                ContactRole.Principal, "QXSC1", CaseInspectionMode.PhysicalAddress, [], "contact-index:code-search:principal"), default);
+            var predecessorId = principal.OwnPrincipalIds!.Single();
+            await administration.SaveAsync(new(
+                Administrator, Guid.NewGuid(), 0, "Code Search Fixture Repairer", null, null, null, null, true,
+                ContactRole.Repairer, null, CaseInspectionMode.PhysicalAddress, [predecessorId], "contact-index:code-search:repairer"), default);
+            using var client = IntakeWebDriver.CreateClient(factory);
+
+            var byCode = Regex.Replace(await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=qxsc"), @">\s+<", "><");
+            Assert.Contains("<td class=\"mono\">QXSC1</td><td>Code Search Fixture Principal</td>", byCode, StringComparison.Ordinal);
+            Assert.DoesNotContain("Code Search Fixture Repairer", byCode, StringComparison.Ordinal);
+            Assert.DoesNotContain(">Repairers</h2>", byCode, StringComparison.Ordinal);
+
+            var byName = await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=Code%20Search%20Fixture");
+            Assert.Contains("Code Search Fixture Principal", byName, StringComparison.Ordinal);
+            Assert.Contains("Code Search Fixture Repairer", byName, StringComparison.Ordinal);
+
+            var predecessor = await services.GetRequiredService<IGetPrincipal>()
+                .ExecuteAsync(Administrator, predecessorId, default);
+            await services.GetRequiredService<IReplacePrincipal>().ExecuteAsync(
+                new(predecessorId, predecessor!.Principal.Version, "QXSD1", Administrator,
+                    "contact-index:code-search:replace", null,
+                    (await services.GetRequiredService<IContactDirectoryQueries>()
+                        .GetAsync(Administrator, principal.OrganizationId, default))!.Version), default);
+
+            var byEarlierCode = Regex.Replace(await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=QXSC1"), @">\s+<", "><");
+            Assert.Contains("<td class=\"mono\">QXSD1</td><td>Code Search Fixture Principal</td>", byEarlierCode, StringComparison.Ordinal);
+            var byCurrentCode = Regex.Replace(await IntakeWebDriver.GetHtmlAsync(client, "/Administration/Contacts?search=qxsd"), @">\s+<", "><");
+            Assert.Contains("<td class=\"mono\">QXSD1</td><td>Code Search Fixture Principal</td>", byCurrentCode, StringComparison.Ordinal);
+        }
+    }
+
     [GeneratedRegex(
         "<input type=\"checkbox\" name=\"LinkedPrincipalIds\" value=\"(?<id>[^\"]+)\" checked",
         RegexOptions.CultureInvariant)]
