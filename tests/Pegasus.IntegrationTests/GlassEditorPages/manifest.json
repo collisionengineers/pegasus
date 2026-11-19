@@ -3488,6 +3488,80 @@
       },
       "page": "skin_right_next.dialog.html",
       "post": "c5_skin_both_second.post.txt"
+    },
+    {
+      "name": "c6_wing_zero_as_typed",
+      "dialog": "comp.php",
+      "capture": "m #686, post m #707",
+      "button": "BSL",
+      "change": {
+        "hours": "0",
+        "paint": {
+          "hours": "0"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=827|828",
+      "fields": 37,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1040001_702810400202_2G_827_828_|64",
+        "partCode": "1040001",
+        "description": "Front Wing",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|AD|P|AN|E|Z|DD|HO",
+        "price": "277.31",
+        "hours": "0",
+        "partNumber": "60260TV0E00ZZ",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "136.10",
+        "paintHours": "0",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "827|828"
+      },
+      "page": "wing_zero.dialog.html",
+      "post": "c6_wing_zero_as_typed.post.txt"
+    },
+    {
+      "name": "c6_wing_zero_automation",
+      "dialog": "comp.php",
+      "capture": "m #686",
+      "button": "BSL",
+      "change": {
+        "hours": "0.00",
+        "paint": {
+          "hours": "0.00"
+        }
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=827|828",
+      "fields": 37,
+      "problems": [],
+      "notes": [],
+      "summary": {
+        "position": "C1040001_702810400202_2G_827_828_|64",
+        "partCode": "1040001",
+        "description": "Front Wing",
+        "operation": "ER",
+        "offered": "ER|AE|-|ET|I|IT|AD|P|AN|E|Z|DD|HO",
+        "price": "277.31",
+        "hours": "0.00",
+        "partNumber": "60260TV0E00ZZ",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "136.10",
+        "paintHours": "0.00",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "827|828"
+      },
+      "page": "wing_zero.dialog.html",
+      "post": "c6_wing_zero_automation.post.txt"
     }
   ]
 }
