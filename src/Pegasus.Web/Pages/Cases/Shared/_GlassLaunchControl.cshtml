@@ -2,6 +2,7 @@
 @using Pegasus.Web.Presentation
 @using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var caseId = Model.CurrentWorkflow!.CaseId;
@@ -43,21 +44,79 @@
                 </button>
             </form>
         }
-        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
-              asp-route-id="@caseId" asp-route-section="estimate"
-              target="_blank" data-glass-window data-glass-slot="launch">
-            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
-            <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
-            <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
-            <input type="hidden" name="view" value="@Model.ViewRoute" />
-            @if (Model.GlassSpecificationId is { } specificationId)
-            {
-                <input type="hidden" name="estimate" value="@specificationId.ToString("D")" />
-            }
-            <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small">
+        @if (Model.AsksGlassBuild && Model.GlassSpecificationId is { } outsideId)
+        {
+            @* A spec made outside Pegasus asks first (operator, 18 November
+               2026; R1171). The dialog lives in this host so a controls
+               refresh brings it with the current lease. Each answer is its
+               own Glass's window form, opened on its own press: Import and
+               open posts with build, and Open an empty estimate is the
+               launch as it was, which the stall's second press finds. The
+               link is the no-script path. *@
+            var openOnLoad = Model.OpenDialog == "glass-build"
+                ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+                : Html.Raw(" hidden");
+            <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId" asp-route-section="estimate"
+               asp-route-estimate="@outsideId" asp-route-dialog="glass-build" asp-route-view="@Model.ViewRoute"
+               data-dialog-open="glass-build-dialog" data-glass-slot="ask">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
                 <span>@GlassLabels.Launch</span>
-            </button>
-        </form>
+            </a>
+            <div id="glass-build-dialog" class="dialog-backdrop" data-dialog="glass-build-dialog" @openOnLoad>
+                <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="glass-build-dialog-title">
+                    <div class="dialog-head">
+                        <h2 id="glass-build-dialog-title" tabindex="-1">@GlassLabels.BuildTitle</h2>
+                        <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                        </button>
+                    </div>
+                    <div class="dialog-body stack">
+                        <p class="consequence">@GlassLabels.BuildPrompt</p>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close>@EngineerLabels.Cancel</button>
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate"
+                              target="_blank" data-glass-window data-glass-slot="launch">
+                            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+                            <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+                            <input type="hidden" name="view" value="@Model.ViewRoute" />
+                            <input type="hidden" name="estimate" value="@outsideId.ToString("D")" />
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn">@GlassLabels.BuildEmpty</button>
+                        </form>
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+                              asp-route-id="@caseId" asp-route-section="estimate" asp-route-build="true"
+                              target="_blank" data-glass-window data-glass-slot="build">
+                            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+                            <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+                            <input type="hidden" name="view" value="@Model.ViewRoute" />
+                            <input type="hidden" name="estimate" value="@outsideId.ToString("D")" />
+                            <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--primary">@GlassLabels.BuildImport</button>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        }
+        else
+        {
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+                  asp-route-id="@caseId" asp-route-section="estimate"
+                  target="_blank" data-glass-window data-glass-slot="launch">
+                <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+                <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
+                <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+                <input type="hidden" name="view" value="@Model.ViewRoute" />
+                @if (Model.GlassSpecificationId is { } specificationId)
+                {
+                    <input type="hidden" name="estimate" value="@specificationId.ToString("D")" />
+                }
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Opening" class="btn btn--small">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-external-link")" /></svg>
+                    <span>@GlassLabels.Launch</span>
+                </button>
+            </form>
+        }
     }
 </div>

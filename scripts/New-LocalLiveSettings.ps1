@@ -3,7 +3,8 @@
     Writes the ignored local live-integration settings file for a hosted local
     Pegasus run: real DVLA/DVSA, real Box custody under the test root, real
     Glass's, and the Glass's, Cazana and Brego guide valuations on production's
-    accounts (R709), with the secrets read from the production Key Vault.
+    accounts (R709), and the Glass's account the Automation's own repair-estimate
+    sessions sign in with, with the secrets read from the production Key Vault.
 
     .DESCRIPTION
     Nothing is read until -Approve is given; without it the script prints the
@@ -74,6 +75,9 @@ $secretNames = [ordered]@{
     # Production's guide valuation accounts (R709).
     Glass__ValuationAccount__Username = 'glass-valuation-username'
     Glass__ValuationAccount__Password = 'glass-valuation-password'
+    # The Glass's account the Automation's own repair-estimate sessions use.
+    Glass__AutomationAccount__Username = 'glass-automation-username'
+    Glass__AutomationAccount__Password = 'glass-automation-password'
     Cazana__CompanionAccount__Email = 'cazana-companion-email'
     Cazana__CompanionAccount__Password = 'cazana-companion-password'
     Brego__ValuationAccount__Email = 'brego-valuation-email'

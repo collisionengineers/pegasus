@@ -53,14 +53,16 @@ public sealed partial class AutomationAdministrationWebTests
         // The counts have one home on the page, the AI jobs panel's head.
         Assert.Equal(3, FactCount(html));
         // The panel shows each scope's plain label, with the raw key kept on
-        // the chip as a title so no scope key is ever silently hidden.
+        // the chip as a title so no scope key is ever silently hidden. The
+        // label is HTML as the page writes it (Glass's apostrophe encoded).
         foreach (var scope in AutomationMcp.Scopes)
         {
             Assert.Contains(
-                $"<span title=\"{scope}\">{OperatorLabels.AutomationAdmin.AutomationScope(scope)}</span>",
+                $"<span title=\"{scope}\">{System.Text.Encodings.Web.HtmlEncoder.Default.Encode(OperatorLabels.AutomationAdmin.AutomationScope(scope))}</span>",
                 html,
                 StringComparison.Ordinal);
         }
+        Assert.Equal("Glass's", OperatorLabels.AutomationAdmin.AutomationScope(AutomationMcp.GlassScope));
         Assert.Equal(OperatorLabels.AiJobs.Counts(new(2, 1), sendToAiEnabled: true), CountsText(html));
         Assert.Equal("2 active · 1 failed · Send to AI on", CountsText(html));
         Assert.Contains("Stop automation", html, StringComparison.Ordinal);

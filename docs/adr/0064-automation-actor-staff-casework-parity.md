@@ -48,6 +48,19 @@ classification as before.
 7's second sentence: staff may take over an Automation lease, and only staff
 may. The rest of decision 7 stands.
 
+Amended 18 November 2026 (R1177 to R1180): decision 2's second exception is
+replaced. The Automation Actor runs Glass's sessions of its own, under a
+Glass's login the deployment holds for it;
+[FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)
+owns its tools and
+[FRD-25](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)
+what staff see.
+
+Amended 18 November 2026 (R1170, R1182 to R1185): decision 2's sentence on a
+staff member's session is narrowed. The Automation acts in a staff member's
+open Glass's session only while that staff member has turned help on for it,
+never saves or closes it, and never reads the staff member's login.
+
 ## Context
 
 The Automation Actor holds `PerformCasework` and nothing else, the right
@@ -67,10 +80,16 @@ fact the call did not name.
    history. The `Manage*` rights stay with staff Administrators; automation
    has no Administration, configuration, credential, release or deletion
    authority ([ADR-0011](0011-restrict-mcp-to-automation-actor.md)).
-2. **Two exceptions.** Automation never puts an estimate in use (**Use repair
-   spec**, making an estimate Current). It never runs a Glass's session,
-   since a session signs in with the staff member's own Glass's account.
-   Get valuation is not a session: it uses Pegasus's own valuation account
+2. **One exception.** Automation never puts an estimate in use (**Use repair
+   spec**, making an estimate Current). It runs Glass's sessions of its own,
+   under the Glass's login the deployment holds for it, and never reads a
+   staff member's stored login. A session it finishes lands as a Draft, and
+   a session a member of staff launched stays that member of staff's
+   (18 November 2026; R1177). It acts in a staff member's open session only
+   while that staff member has turned help on for it, never saves or closes
+   it, and never reads the staff member's login (18 November 2026; R1170,
+   R1185). Get valuation is not a session: it uses
+   Pegasus's own valuation account
    ([ADR-0060](0060-glass-valuation-account-and-valuation-report.md)), and
    `pegasus_valuation_get` presses it and records the card (operator,
    8 October 2026).

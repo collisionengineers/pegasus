@@ -1,0 +1,374 @@
+<html><head><title>Enter part</title></head><body>
+<script language="JavaScript">
+var Zstates = "0|0|0|0|0|0|0|0|0|0".split( "|" );
+var Kstates = "0|0|1|1|1|0|1|1|0|0".split( "|" );
+var Zdimmes = "1|0|0|0|0|0|0|0|0|0".split( "|" );
+var Kdimmes = "1|1|1|1|1|0|1|1|0|0".split( "|" );
+var PosPlaces = " ".split( "|" );
+var OemSelDis = true;
+var RemarkPrice = ["",""];
+var RemarkMaterial = ["Part made of plastic","Part made of plastic"];
+var LackRemark = [""];
+var ArtLackMap = "ER|1|R|ET|1|R|I|3|2|IT|3|2|AE|3|2|AN|1|R|KM|1|3|KS|1|3|DD|4|G".split( "|" );
+var Mater = "K";
+var LPrices = [["a2|203.80|a3|245.50|aR|351.30|aN|383.10|aG|383.60|aB|203.80|b2|208.70|b3|256.10|bR|354.00|bN|385.70|bG|386.50|bB|208.70|bS|14.32|c2|310.60|c3|358.00|cR|455.90|cN|487.60|cG|488.40|cB|208.70|d2|412.50|d3|459.90|dR|557.80|dN|589.50|dG|590.30|dB|208.70|e2|310.60|e3|358.00|eR|455.90|eN|487.60|eG|488.40|eB|208.70|f2|412.50|f3|459.90|fR|557.80|fN|589.50|fG|590.30|fB|208.70|g2|412.50|g3|459.90|gR|557.80|gN|589.50|gG|590.30|gB|313.05|h2|514.40|h3|561.80|hR|659.70|hN|691.40|hG|692.20|hB|313.05|i2|514.40|i3|561.80|iR|659.70|iN|691.40|iG|692.20|iB|313.05|j2|616.30|j3|663.70|jR|761.60|jN|793.30|jG|794.10|jB|417.40".split( "|" )]];
+var LTimes = [["a2|0.80|a3|1.30|aR|0.90|aN|1.10|aG|1.70|aB|0.80|b2|0.90|b3|1.50|bR|1.10|bN|1.30|bG|1.90|bB|0.90|bS|0.90|c2|1.30|c3|1.90|cR|1.50|cN|1.70|cG|2.30|cB|0.90|d2|1.70|d3|2.30|dR|1.90|dN|2.10|dG|2.70|dB|0.90|e2|1.30|e3|1.90|eR|1.50|eN|1.70|eG|2.30|eB|0.90|f2|1.70|f3|2.30|fR|1.90|fN|2.10|fG|2.70|fB|0.90|g2|1.70|g3|2.30|gR|1.90|gN|2.10|gG|2.70|gB|1.35|h2|2.10|h3|2.70|hR|2.30|hN|2.50|hG|3.10|hB|1.35|i2|2.10|i3|2.70|iR|2.30|iN|2.50|iG|3.10|iB|1.35|j2|2.50|j3|3.10|jR|2.70|jN|2.90|jG|3.50|jB|1.80".split( "|" )]];
+var Verfids = "1|2|30|30|31|31|40|40|40|40".split( "|" );
+var Methids = "1|2|50|51|60|61|70|71|72|73".split( "|" );
+var QuantityEnableLack = false;
+var Prices = ["ER|379.00|ET|379.00|I|0|IT|0|AD|0|AE|0|P|0|ZK|0|AN|379.00|E|0|V|0|W|0|Z|0|H|0|KM|35.92|KS|71.84|DD|0|UN|0|HO|0".split( "|" ),"ER|379.00|ET|379.00|I|0|IT|0|AD|0|AE|0|P|0|ZK|0|AN|379.00|E|0|V|0|W|0|Z|0|H|0|KM|35.92|KS|71.84|DD|0|UN|0|HO|0".split( "|" )];
+var Times = ["ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" ),"ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" )];
+var RemarkTimes = ["ER|Time includes adjustment|ET||I||IT||AD||AE||P||ZK||AN||E||V||W||Z||H||KM||KS||DD||NL||UN||HO||PL||PM||PS|".split( "|" ),"ER|Time includes adjustment|ET||I||IT||AD||AE||P||ZK||AN||E||V||W||Z||H||KM||KS||DD||NL||UN||HO||PL||PM||PS|".split( "|" )];
+var Etnr = ["6F0807221DGRU","6F0807221DGRU"];
+var EtnrW = ["0","0"];
+var OrigTimes = ["ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" ),"ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" )];
+var DatabaseTimes = ["ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" ),"ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0".split( "|" )];
+var bothDescriptor = "";
+</script>
+<form name="Part" method="post" onsubmit=" return CheckSubmit();"
+  action="compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=0|5"
+  target="_self" enctype="application/x-www-form-urlencoded">
+  <table class="dialogoutervhspace" border="0" cellspacing="0" cellpadding="0">
+  <tr style="vertical-align:top"><td nowrap>
+    <table class="frame" width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr><td nowrap>
+      <table id="mainTable" class="dialogvhspace" width="100%" border="0" cellspacing="2" cellpadding="0" style="width:100%;">
+      <colgroup>
+        <col style="width:10%;">
+        <col style="width:15%;">
+        <col style="width:20%;">
+        <col style="width:28%;">
+        <col style="width:35%;">
+        <col style="width:2%;">
+      </colgroup>
+
+      
+      <tr>
+      <td nowrap rowspan="2"><img style="position:absolute" id="carpic" src="img/bt_ball_car2.png" border="0"></td>
+      <td nowrap align="right"><span id="ID_Descr" class="ControllName">Part&nbsp;</span></td>
+      <td nowrap colspan="2">
+      <input type="text" size="34" value="Front Bumper Lining" readonly class="Disabled" style="width:100%">      </td>
+      <td nowrap>&nbsp;&nbsp;<input type="text" tastatura="no" name="EtnrTxt" size="20" maxlength="20" value=""></td><td></td>
+      </tr>
+      <tr>
+            <td nowrap align="right"><span class="ControllName">Place&nbsp;</span></td>
+      <td nowrap colspan="2" nowrap>
+                <span id="ID_Place_L" class="ControllNameDisabled">Left&nbsp;</span>
+        <input name="Place_L" type="checkbox" onclick="click_l();" disabled class="checkboxDisabled">
+        <input name="Place_R" type="checkbox" onclick="click_r();" disabled class="checkboxDisabled">
+        <span id="ID_Place_R" class="ControllNameDisabled">Right</span>&nbsp;&nbsp;
+        <span id="ID_Place_V" class="ControllNameDisabled">Front</span>
+        <input name="Place_V" type="checkbox" onclick="click_v();" disabled class="checkboxDisabled">
+        <input name="Place_H" type="checkbox" onclick="click_h();" disabled class="checkboxDisabled">
+        <span id="ID_Place_H" class="ControllNameDisabled">Rear</span>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        <span id="ID_Both" class="ControllName">Both</span>
+        <input name="Both" type="checkbox" class="checkbox">
+      </td>
+      <td>
+              <div id="divHV" style="visibility:hidden;">
+          <input type="radio" name="HorizVert" id="HorizVertH" class="radiobutton" value="H" onclick="changeHailValue();">Horizontal          <input type="radio" name="HorizVert" id="HorizVertV" class="radiobutton" value="V" onclick="changeHailValue();">Vertical        </div>
+            </td>
+      </tr>
+      <tr>
+      <td nowrap colspan="2" align="right"><span id="ID_Repart" class="ControllName">Repair type&nbsp;</span></td>
+      <td colspan="2">
+        <select name="Repart" size="1" onchange="ChangeRepart();" style="width:100%;">
+        <option value="ER" selected>RP (Replace)
+<option value="AE">UI (Uninstall and install)
+<option value="-">-----------------------------------------------
+<option value="ET">PN (Partial renew)
+<option value="I">R (Repair)
+<option value="IT">PR (Partial repair)
+<option value="P">CA (Control and adjustment)
+<option value="AN">RN (Renew)
+<option value="E">A (Adjustments)
+<option value="Z">DM (Dismantle and assemble)
+<option value="KM">PN (Synthetics repair normal)
+<option value="KS">PS (Synthetics repair serious)
+</select>
+      </td>
+            </tr>
+      <tr>
+      <td nowrap colspan="2" align="right" nowrap><span id="ID_Wdesc" class="ControllName">Labour description&nbsp;</span></td>
+      <td nowrap colspan="2" nowrap>
+        <input type="text" tastatura="no" name="Wdesc" size="53" style="width:86%;" value="">
+        <input type="button" style="width:13%" value="  !  " onclick="OpenFreetxtWindow();" class="button">
+      </td>
+            </tr>
+
+      <tr><td style="vertical-align:bottom;" rowspan="2">
+                <img src="img/calculat.png" border="0" onclick="openTastatura();">
+              </td>
+
+            <td nowrap colspan="3" width="100%">&nbsp;</td></tr>
+      <tr>
+      <td nowrap colspan="1" align="right"><span id="ID_Price" class="ControllName">Price&nbsp;[£]&nbsp;</span></td>
+      <td nowrap colspan="1" height="21" valign="baseline">
+	<input type="text" name="Price" id="Price" maxlength="9" style="width:170px;" onkeyup="Check0(this);" onpaste="Check0(this);" oncut="Check0(this);" onpropertychange="Check0(this);" onchange="Check0(this); //AfN if ( document.Part.Repart[ document.Part.Repart.selectedIndex ].value == 'AN' ) document.Part.Reason.value = '';">
+	      </td>
+            <td nowrap>&nbsp;</td>
+            <td nowrap>&nbsp;</td>
+            </tr>
+      <tr>
+                <td style="vertical-align:bottom;"><img src="img/percent.png" border="0" onclick="openEnterPart('part');"></td>
+          <td nowrap colspan="1" align="right"><span id="ID_Time" class="ControllName">Labour hours&nbsp;[Hour]&nbsp;</span></td>
+          <td nowrap><input type="text" name="Time" maxlength="9" style="width:86px;" onkeyup="Check0(this);" onpaste="Check0(this);" oncut="Check0(this);" onpropertychange="Check0(this);" onchange="Check0(this);">
+              <input type="button" style="width:80px;" class="button" value="   !   " onclick="OpenReasonWindow();"></td>
+            <td nowrap><span id="ID_Craft" class="ControllName" style="top:3px;">Labour type&nbsp;</span></td>
+      </tr>
+      <tr>
+            <td nowrap colspan="2" align="right" nowrap><span id="ID_Ctime" class="ControllName">Overlap-time&nbsp;[Hour]&nbsp;</span></td>
+      <td nowrap><input type="text" name="Ctime" maxlength="9" style="width:86px;" value="0.00">
+                 <input type="button" style="width:80px;" class="button" value="Full" onclick="FullValue();"></td>
+            <td nowrap><table width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td nowrap width="100%">
+        <select name="Craft" size="1" style="width:100%;">
+        <option value="C" selected>Body
+<option value="M">Mechanical
+<option value="E">Electrical
+<option value="N">Auxiliary work
+<option value="S">Upholstery
+<option value="D">Dent repair
+<option value="T">Mechatronics
+        </select>
+                </td></tr></table>
+      </td>
+      </tr>
+      <tr>
+            <td nowrap colspan="2" align="right" nowrap><span id="ID_RemarkTxt" class="ControllNameDisabled">Annotation&nbsp;</span></td>
+      <td nowrap colspan="2"><input type="text" tastatura="no" name="RemarkTxt" size="55" value="Part made of plastic" style="width:100%;" readonly class="Disabled"></td>
+      </tr>
+      <tr>
+      <td nowrap colspan="2" align="right" nowrap><span id="ID_RemarkTxtTime" class="ControllNameDisabled">Annotation (time)&nbsp;</span></td>
+      <td nowrap colspan="2"><input type="text" tastatura="no" name="RemarkTxtTime" size="55" value="Time includes adjustment" style="width:100%;" readonly class="Disabled"></td>
+            </tr>
+      
+      
+            <tr id="firstlackrow"><td class="dialogverticalspace">&nbsp;</td></tr>
+      <tr><td id="titleseparatorplace" class="dialogverticalspace">&nbsp;</td></tr>
+            
+      <tr>
+      <td nowrap rowspan="2"><img style="position:absolute" id="lackpic" src="img/bt_ball_lack2.png" border="0"></td>
+      <td nowrap align="right"></td>
+      <td nowrap colspan="2">&nbsp;</td>
+      <td nowrap>&nbsp;</td>
+      </tr>
+            <tr id="lackpicposition">
+            <td nowrap align="right"><span id="ID_Bereich" class="ControllName">Paint area&nbsp;</span></td>
+      <td nowrap colspan="2"><select name="Bereich" size="1" onchange="FillLackartSelect();FillLackstufeSelect();setDefaultLackStufe();setStateKrKlarlack();SetLackartValues();changeSelectBereich();" style="width:100%;">
+      <option value="64" selected>Front Bumper k    
+      </select></td>
+
+                              <td nowrap rowspan="4">&nbsp;&nbsp;<img width="88" height="85" src="img/blank.png" id="aztZonePicture" border="0"></td>
+        
+            </tr>
+      
+      
+      <tr>
+      <td nowrap colspan="2" align="right" nowrap><span id="ID_Mater" class="ControllNameDisabled">Material&nbsp;</span></td>
+      <td nowrap colspan="2">
+      <span disabled class="Disabled" style="width:100%">PLASTIC&nbsp;&nbsp;</span>      </td>
+      </tr>
+      <tr>
+            <td nowrap colspan="2" align="right"><span id="ID_Lackart" class="ControllName">Paint type&nbsp;</span></td>
+      <td colspan="2">
+        <select name="Lackart" size="1" onchange="LackartChange();" style="width:100%;">
+        <option value="1">1 Coat
+<option value="2" selected>2 Coat
+<option value="3">3 Coat
+<option value="4">4 Coat
+</select>
+      </td>
+            </tr>
+      <tr>
+            <td nowrap colspan="2" align="right"><span id="ID_Lackstufe" class="ControllName">Paint level&nbsp;</span></td>
+      <td colspan="2">
+        <select name="Lackstufe" size="1" onchange="SetLackartValues();" style="width:100%;">
+        <option value="R" selected>K1R  (Part priming/part raw)
+<option value="N">K1N  (Part raw, with filler/without polish)
+<option value="G">K1G  (Raw puttyied/polished/PUR soft foam)
+<option value="2">K2  (Surface spraying)
+<option value="3">K3  (Spraying repair upto 15%)
+<option value="B">Adjacent Panel Blend
+<option value="S">SP  (Spot-Repair)
+</select>
+      </td>
+
+            </tr>
+      <tr>
+            <td nowrap colspan="2" align="right"><span id="ID_Verf" class="ControllName">Procedure&nbsp;</span></td>
+      <td nowrap colspan="2"><select name="Verf" size="1" onchange="VerfChange();" style="width:100%;">
+      <option value="30">Base colour
+<option value="31">Cover paint
+<option value="40">Base colour and cover paint
+      </select></td>
+      <td nowrap>
+        <input name="Zuschlag" value="1" class="checkbox" type="checkbox" onclick="click_z();" style="visibility:inherit">
+        <span id="ID_Zuschlag" class="ControllName" style="visibility:inherit">Surcharge paint material&nbsp;</span>
+      </td>
+
+            </tr>
+      <tr>
+            <td nowrap colspan="2" align="right"><span id="ID_Meth" class="ControllName">Method&nbsp;</span></td>
+      <td nowrap colspan="2"><select name="Meth" size="1" onchange="MethChange();" style="width:100%;">
+      <option value="50">Wet on wet
+<option value="51">Base colour drying and polishing
+<option value="60">Wet on wet
+<option value="61">Cover paint
+<option value="70">Wet on wet
+<option value="71">Base colour
+<option value="72">Wet on wet, cover paint
+<option value="73">Base colour, cover paint
+      </select></td>
+      <td nowrap><input name="Klarlack" value="1" class="checkbox" type="checkbox" onclick="click_k();">&nbsp;<span id="ID_Klarlack" class="ControllName">Coloured clear paint&nbsp;</span></td>
+
+            </tr>
+      <tr>
+            <td style="vertical-align:bottom;"><img src="img/percent.png" border="0" onclick="openEnterPart('paint');"></td>
+      <td nowrap colspan="1" align="right"><span id="ID_LPrice" class="ControllName">Price&nbsp;[£]&nbsp;</span></td>
+      <td nowrap colspan="2"><input type="text" size="10" maxlength="9" name="LPrice"></td>
+      <td nowrap style="display:none" id="TD_KrKlarlack"><input disabled name="KrKlarlack" class="checkbox" type="checkbox">&nbsp;<span id="ID_KrKlarlack" class="ControllName">Scratch-resistant clear coat&nbsp;</span></td>
+
+            </tr>
+      <tr>
+            <td nowrap colspan="2" align="right"><span id="ID_LTime" class="ControllName">Labour time&nbsp;[Hour]&nbsp;</span></td>
+      <td nowrap colspan="2"><input type="text" name="LTime" size="10" maxlength="9">
+                             <input type="button" style="width:80px;" class="button" value="  !  " onclick="OpenLReasonWindow();"></td>
+
+            </tr>
+      <tr id="lastlackrow">
+            <td nowrap colspan="2" align="right" nowrap><span id="ID_RemarkTxtLack" class="ControllNameDisabled">Annotation&nbsp;</span></td>
+      <td nowrap colspan="2"><input type="text" name="RemarkTxtLack" size="55" readonly class="Disabled" value="" style="width:100%;"></td>
+            </tr>
+      <tr style="display:none"><td>&nbsp;</td></tr>
+            
+      </table>
+    </td></tr>
+    </table>
+  </td></tr>
+  <tr><td>
+  <table id="titleseparator" style="position:absolute;visibility:hidden;z-index:2;margin:0;border-left-width:0;border-right-width:0; width:90%;" class="frame" border="0" cellspacing="0" cellpadding="0"><tr><td>&nbsp;</td></tr></table>
+  <table id="titleseparator2" style="position:absolute;visibility:hidden;z-index:2;margin:0;border-left-width:0;border-right-width:0 width:90%;" class="frame" border="0" cellspacing="0" cellpadding="0"><tr><td>&nbsp;</td></tr></table>
+  </td></tr>
+  <tr><td align="right" nowrap>
+    <input type="button" name="BD" value="Delete" onclick="delpart();" disabled class="bigbuttonDisabled">
+    <input type="button" name="BC" class="bigbutton" value="Cancel" onclick="cancel();">
+        <input type="submit" name="BSS" style="" class="bigbutton" value="Part" onclick="SetButt( 'S' );">
+    <input type="submit" name="BLL" style="" class="bigbutton" value="Paint" onclick="SetButt( 'L' );">
+    <input type="submit" name="BSL" class="bigbutton" value="Part and Paint" onclick="SetButt( 'SL' );">
+    
+    
+    <input type="hidden" name="Place" value=" ">
+    <input type="hidden" name="Reason" value="">
+    <input type="hidden" name="ANReason" value="">
+    <input type="hidden" name="ANSpecifiers" value="0.00|%|0.00|%">
+    <input type="hidden" name="ANBruttos" value="379.00|379.00|1.80|1.80">
+    <input type="hidden" name="RemarkP" value="">
+        <input type="hidden" name="Etnr" value="6F0807221DGRU">
+    <input type="hidden" name="EtnrR" value="6F0807221DGRU">
+    <input type="hidden" name="Defoems" value="0|0">
+    <input type="hidden" name="Defsmarts" value=" | ">
+    <input type="hidden" name="Okoreps" value="">
+              <input type="hidden" name="LReason" value="">
+      <input type="hidden" name="ANLReason" value="">
+      <input type="hidden" name="ANLSpecifiers" value="">
+      <input type="hidden" name="ANLOriginals" value="">
+      <input type="hidden" name="Stateid" value="1">
+            <input type="hidden" name="Zuschlag_d" value="0">
+      <input type="hidden" name="Klarlack_d" value="1">
+        <input type="hidden" name="Partx" value="C1010800_701910520101_2G_0_5_|64
+1010800
+1010800
+Front Bumper Lining|0
+ER
+ER|AE|-|ET|I|IT|P|AN|E|Z|KM|KS
+ER|379.00|ET|379.00|I|0|IT|0|AD|0|AE|0|P|0|ZK|0|AN|379.00|E|0|V|0|W|0|Z|0|H|0|KM|35.92|KS|71.84|DD|0|UN|0|HO|0
+ER|379.00|ET|379.00|I|0|IT|0|AD|0|AE|0|P|0|ZK|0|AN|379.00|E|0|V|0|W|0|Z|0|H|0|KM|35.92|KS|71.84|DD|0|UN|0|HO|0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+0.00|0.00|0
+C
+C|M|E|N|S|D|T
+6F0807221DGRU|0
+6F0807221DGRU|0
+ 
+ 
+
+
+ER|Time includes adjustment|ET||I||IT||AD||AE||P||ZK||AN||E||V||W||Z||H||KM||KS||DD||NL||UN||HO||PL||PM||PS|
+ER|Time includes adjustment|ET||I||IT||AD||AE||P||ZK||AN||E||V||W||Z||H||KM||KS||DD||NL||UN||HO||PL||PM||PS|
+
+
+1
+ 00
+2097152|0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+ER|1|R|ET|1|R|I|3|2|IT|3|2|AE|3|2|AN|1|R|KM|1|3|KS|1|3|DD|4|G
+Part made of plastic
+Part made of plastic
+
+
+0|0
+
+
+ | 
+
+
+
+0.000|0|0|0|1.00|0||0||0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+ER|1.80|ET|1.80|I|0|IT|0|AD|0|AE|0.80|P|0|ZK|0|AN|1.80|E|0|V|0|W|0|Z|0|H|0|KM|0.60|KS|1.10|DD|0|UN|0|HO|0
+
+
+
+
+
+
+
+
+0.00|%|0.00|%
+379.00|379.00|1.80|1.80
+
+
+0|1
+
+C
+
+0|0
+ER|1010800_t_24119_1010800_t_90109_1010800_i_24119_1010800_i_90109_1017100_i_24119|AE|
+ER|1010800_t_24119_1010800_t_90109_1010800_i_24119_1010800_i_90109_1017100_i_24119|AE|
+0|ER|852|AE|854
+0|ER|852|AE|854
+L1010800|25|1
+1010
+Front Bumper k    |0
+K|0
+R
+b
+a2|203.80|a3|245.50|aR|351.30|aN|383.10|aG|383.60|aB|203.80|b2|208.70|b3|256.10|bR|354.00|bN|385.70|bG|386.50|bB|208.70|bS|14.32|c2|310.60|c3|358.00|cR|455.90|cN|487.60|cG|488.40|cB|208.70|d2|412.50|d3|459.90|dR|557.80|dN|589.50|dG|590.30|dB|208.70|e2|310.60|e3|358.00|eR|455.90|eN|487.60|eG|488.40|eB|208.70|f2|412.50|f3|459.90|fR|557.80|fN|589.50|fG|590.30|fB|208.70|g2|412.50|g3|459.90|gR|557.80|gN|589.50|gG|590.30|gB|313.05|h2|514.40|h3|561.80|hR|659.70|hN|691.40|hG|692.20|hB|313.05|i2|514.40|i3|561.80|iR|659.70|iN|691.40|iG|692.20|iB|313.05|j2|616.30|j3|663.70|jR|761.60|jN|793.30|jG|794.10|jB|417.40
+a2|0.80|a3|1.30|aR|0.90|aN|1.10|aG|1.70|aB|0.80|b2|0.90|b3|1.50|bR|1.10|bN|1.30|bG|1.90|bB|0.90|bS|0.90|c2|1.30|c3|1.90|cR|1.50|cN|1.70|cG|2.30|cB|0.90|d2|1.70|d3|2.30|dR|1.90|dN|2.10|dG|2.70|dB|0.90|e2|1.30|e3|1.90|eR|1.50|eN|1.70|eG|2.30|eB|0.90|f2|1.70|f3|2.30|fR|1.90|fN|2.10|fG|2.70|fB|0.90|g2|1.70|g3|2.30|gR|1.90|gN|2.10|gG|2.70|gB|1.35|h2|2.10|h3|2.70|hR|2.30|hN|2.50|hG|3.10|hB|1.35|i2|2.10|i3|2.70|iR|2.30|iN|2.50|iG|3.10|iB|1.35|j2|2.50|j3|3.10|jR|2.70|jN|2.90|jG|3.50|jB|1.80
+0|0|0
+0|1
+ 
+ |L|R|V|H|VL|VR|HL|HR
+
+
+*
+4194304|0|1010800
+
+ 
+k|1010K
+0|0|1
+011
+0.00|%
+354.00|1.10
+0|5
+
+">
+    <input type="hidden" name="paintonly" value="0">
+  </td></tr>
+  </table>
+  <img name="bottomposition" src="img/blank.png" border="0">
+</form>
+</body></html>

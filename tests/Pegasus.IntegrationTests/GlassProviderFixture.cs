@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Pegasus.Infrastructure.Glass;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
@@ -233,6 +234,147 @@ internal static class GlassProviderFixture
             HttpStatusCode.OK, ReportLink()));
         mva.Set("GET /ndp_download/18390/", new(
             HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: ReportPdf));
+        ScriptEditor(mva);
+    }
+
+    /// <summary>
+    /// The return address the editor's captured pages carry. Each page is
+    /// served with it replaced by the session's own, read from the launch
+    /// address the editor is opened with, as Glass's would serve it.
+    /// </summary>
+    private const string CapturedCallback =
+        "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000";
+
+    private const string EmptyEstimate = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
+
+    /// <summary>
+    /// Glass's editor on the estimator's host, answering from the pages cut
+    /// from browser sessions (<c>GlassEditorPages/</c>): the launch page, the
+    /// two opening pages, the estimate (empty until a position is posted),
+    /// the special list, the dialogs and answers of two special operations
+    /// (<c>AC0000073</c> and <c>AC0000075</c>), the part list
+    /// (<see cref="BuildPartList"/>), an equipment map with no variants for
+    /// any row, the left front door's dialog for its rows <c>771|772</c> and
+    /// for the right door's <c>790|791</c> (so that one serves the wrong side),
+    /// cut with the script values a changed operation reads, its "Mandatory
+    /// parts:" page and answer, and Save and Exit's three
+    /// pages. One scripted editor for the editor client's own tests is
+    /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
+    /// provider as the portal, so a build runs end to end.
+    /// </summary>
+    public static void ScriptEditor(ScriptedGlass glass)
+    {
+        ArgumentNullException.ThrowIfNull(glass);
+        string? callback = null;
+        glass.Respond("GET /ere/acolib/aco_call_xml.php", request =>
+        {
+            callback = QueryValue(request.Query, "caller") ?? callback;
+            return EditorPage(
+                request.Query.Contains("DoSave=", StringComparison.Ordinal) ? "return.html" : "launch.html", callback);
+        });
+        glass.Set("GET /ere/aco/aco.php", Editor("<html><body></body></html>"));
+        glass.Respond("GET /ere/aco/aco2.php", _ => EditorPage("aco2.html", null));
+        glass.Respond("GET /ere/aco/selected.php", _ => glass.Count("POST /ere/aco/compproc.php") == 0
+            ? Editor(EmptyEstimate)
+            : EditorPage("selected.html", null));
+        glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
+        glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
+        glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
+        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") is "771|772" or "790|791"
+            ? EditorPage("door_left_operations.dialog.html", null)
+            : new Reply(HttpStatusCode.NotFound, string.Empty));
+        glass.Respond("POST /ere/aco/compproc.php", request => QueryValue(request.Query, "mcode") switch
+        {
+            "771|772" => EditorPage(
+                QueryValue(request.Query, "BX") is null ? "door_left_part.answer.html" : "door_left_part.confirm_answer.html", null),
+            _ => SpecialOperation(request.Query, "answer"),
+        });
+        glass.Respond("GET /ere/aco/service.php", request => QueryValue(request.Query, "rowid") is { } row
+            ? Editor(EquipmentMapWithNoVariants(row))
+            : EditorPage("save.answer.html", null));
+        glass.Respond("GET /ere/aco/close.php", _ => EditorPage("close.html", callback));
+    }
+
+    /// <summary>
+    /// The part list the scripted editor serves: the blocks cut from the list
+    /// of 7 September 2026 (<c>part_list.html</c>), then two blocks made for
+    /// this script in the same row format, the left and right front door
+    /// shells, whose dialog the captures hold for the left one only (rows
+    /// <c>771|772</c>, code 2020001, 18 November 2026). Each door's block
+    /// needs no equipment, and the door can be painted (marked <c>L</c>), as
+    /// the browser's use of <c>comp.php</c> for it shows.
+    /// </summary>
+    public static string BuildPartList() =>
+        GlassEditorFixture.Text("part_list.html").Replace(
+            "\n</script>",
+            "\n" + string.Join('\n', DoorRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>",
+            StringComparison.Ordinal);
+
+    /// <summary>The two door blocks of <see cref="BuildPartList"/>: the head row, its Replace time row, its refit time row.</summary>
+    private static readonly string[] DoorRows =
+    [
+        "771|pbclTIdLg|HTB3-202_809|701300250101|36|2020001||41009628759|545.24|ERAEI |||||||Front Door Shell|||||||||||KS|||||790|0|0.0.0.9",
+        "772|tlTI|||||||2.90|ER|||||||||||||||||||||||791|0|0.0.0.9",
+        "773|tlTI|||||||2.40|AE|||||||||||||||||||||||792|0|0.0.0.9",
+        "790|pbcrTIdLg|HTB3-202_809|701300250101|36|2020002||41009628760|545.24|ERAEI |||||||Front Door Shell|||||||||||KS|||||771|0|0.0.0.9",
+        "791|trTI|||||||2.90|ER|||||||||||||||||||||||772|0|0.0.0.9",
+        "792|trTI|||||||2.40|AE|||||||||||||||||||||||773|0|0.0.0.9",
+    ];
+
+    /// <summary>
+    /// The equipment map Glass's serves for a row with no variants, for the
+    /// row's own code (the shape the program read for row 753 on 18 November
+    /// 2026: <c>[ ["I","2020001"],[],[],[] ]</c>).
+    /// </summary>
+    private static string EquipmentMapWithNoVariants(string row)
+    {
+        var code = BuildPartList().Split('\n')
+            .Select(line => line.Split('|'))
+            .FirstOrDefault(fields => fields.Length > 5 && fields[0] == "partlist.addPart(\"" + row)?[5] ?? string.Empty;
+        return "<script>\nvar aCritMap = [ [\"I\",\"" + code + "\"],[],[],[] ];\n</script>\n";
+    }
+
+    /// <summary>A captured editor page, its return address replaced by the session's own.</summary>
+    public static Reply EditorPage(string file, string? callback)
+    {
+        var text = GlassEditorFixture.Text(file);
+        if (callback is not null)
+        {
+            text = text
+                .Replace(CapturedCallback, callback, StringComparison.Ordinal)
+                .Replace(CapturedCallback.Replace("/", "\\/", StringComparison.Ordinal),
+                    callback.Replace("/", "\\/", StringComparison.Ordinal), StringComparison.Ordinal);
+        }
+
+        return Editor(text);
+    }
+
+    /// <summary>An editor answer, sent as windows-1252 as the editor sends it.</summary>
+    public static Reply Editor(string body) =>
+        new(HttpStatusCode.OK, body, Bytes: GlassEditorText.Encode(body));
+
+    /// <summary>The dialog or the answer of the special operation a request names, or a 404 for any other.</summary>
+    private static Reply SpecialOperation(string query, string page) =>
+        QueryValue(query, "mcode") switch
+        {
+            "AC0000073" => EditorPage("special_fixed_price." + page + ".html", null),
+            "AC0000075" => EditorPage("special_hours." + page + ".html", null),
+            _ => new Reply(HttpStatusCode.NotFound, string.Empty),
+        };
+
+    /// <summary>One parameter of a request's query, unescaped.</summary>
+    private static string? QueryValue(string query, string name)
+    {
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = part.IndexOf('=', StringComparison.Ordinal);
+            if (separator > 0 && string.Equals(part[..separator], name, StringComparison.Ordinal))
+            {
+                return Uri.UnescapeDataString(part[(separator + 1)..]);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -312,6 +454,7 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     private readonly Dictionary<string, Reply> standing = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Queue<Reply>> queued = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action<ScriptedGlass>> hooks = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<Recorded, Reply>> responders = new(StringComparer.Ordinal);
 
     public List<Recorded> Requests { get; } = [];
 
@@ -325,6 +468,14 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     /// which is theory data.
     /// </summary>
     public void OnServed(string route, Action<ScriptedGlass> served) => hooks[route] = served;
+
+    /// <summary>
+    /// Answers the route from the request itself, for a page that must name
+    /// what the request named (the editor's pages name the session's return
+    /// address). A reply queued for the route is still served first; a
+    /// standing one is not served while a responder is set.
+    /// </summary>
+    public void Respond(string route, Func<Recorded, Reply> responder) => responders[route] = responder;
 
     public void Enqueue(string route, params Reply[] replies)
     {
@@ -346,24 +497,27 @@ internal sealed class ScriptedGlass : HttpMessageHandler
     {
         var uri = request.RequestUri!;
         var key = $"{request.Method.Method} {uri.AbsolutePath}";
-        Requests.Add(new(
+        var recorded = new Recorded(
             request.Method.Method,
             uri.AbsolutePath,
             uri.Query,
             request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
             Header(request, "Cookie"),
             Header(request, "X-Requested-With"),
-            request.Headers.Referrer?.AbsoluteUri));
+            request.Headers.Referrer?.AbsoluteUri);
+        Requests.Add(recorded);
 
-        var route = queued.Keys.Concat(standing.Keys)
+        var route = queued.Keys.Concat(standing.Keys).Concat(responders.Keys)
             .Where(candidate => key.StartsWith(candidate, StringComparison.Ordinal))
             .OrderByDescending(candidate => candidate.Length)
             .FirstOrDefault();
         var reply = route is not null && queued.TryGetValue(route, out var queue) && queue.Count > 0
             ? queue.Dequeue()
-            : route is not null && standing.TryGetValue(route, out var standingReply)
-                ? standingReply
-                : new Reply(HttpStatusCode.NotFound, string.Empty);
+            : route is not null && responders.TryGetValue(route, out var responder)
+                ? responder(recorded)
+                : route is not null && standing.TryGetValue(route, out var standingReply)
+                    ? standingReply
+                    : new Reply(HttpStatusCode.NotFound, string.Empty);
         if (route is not null && hooks.TryGetValue(route, out var served))
         {
             served(this);

@@ -3852,6 +3852,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("ActiveAccountKey")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("AutomationJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BuildJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTimeOffset?>("CallbackConsumedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -3877,6 +3883,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("EreId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset?>("HelpOnAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<string>("LastError")
                         .HasColumnType("nvarchar(max)");
 
@@ -3887,6 +3896,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("OwnerKind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Staff");
 
                     b.Property<string>("ProtectedSession")
                         .IsRequired()
@@ -9294,12 +9310,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
                         .WithMany()
                         .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PegasusIdentityUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
