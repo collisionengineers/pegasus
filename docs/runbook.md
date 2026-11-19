@@ -1578,7 +1578,10 @@ it stopped.
   instead settles `Failed` with the same code and cannot be continued.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
-  **Fetch again** reads the same estimate once the reader is fixed.
+  **Fetch again** reads the same estimate once the reader is fixed. An unseen
+  repair kind no longer refuses an export; it lands as an Other line that
+  names it (R1209). A position type that begins with none of `Part_`,
+  `Free_` and `Paint_` still does, and the warning names the type.
 - `glass.identity.registration`, `glass.identity.mileage`,
   `glass.identity.natcode` and `glass.export.empty` mean the export came back
   for another vehicle or with no estimate in it. The XML is kept on the Case in

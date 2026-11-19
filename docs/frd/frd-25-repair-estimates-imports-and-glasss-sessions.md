@@ -193,6 +193,29 @@ export and the calculation PDF land the same spec:
   environmental-fee value the XML prints as non-zero (operator, 5 October
   2026) is imported and noted on the first line with room, beside Glass's
   net. It changes no line and no total.
+- Every operation lands from one table both routes share (19 November 2026,
+  R1209). An Old for New position (the sheet's `RN`, Renew) is a new part at
+  the price and hours Glass's exports, which are already net of the
+  deduction. Its note is the changed guide price and time and Glass's own
+  reason. Partial renew is a new part. Partial repair (`PR`), Paintless dent
+  repair (`DP`) and both Synthetics repairs (`PS`) are a repair. Dismantle and
+  assemble (`DM`) is a remove and refit. Adjustments (`A`), Sealing (`S`),
+  Control and adjustment (`CA`), Remove air (`RA`), Cavity wax protection
+  (`HO`), Diagnostic (`D`), Underbody coating (`UN`) and Wheel balancing
+  (`WB`) are Other labour. Surcharge (`EC`) is the additional operation above.
+  The XML is matched by the names exports have shown and by the labels
+  Glass's dialog shows, without regard to case. The sheet prints `PN` for
+  both Partial renew and Synthetics repair normal, so a printed `PN` is Other.
+- A free paint row (the XML's `Free_Paint`: special table metal and plastic,
+  user defined paint) is a paint line by its level, as a painted part is
+  (19 November 2026, R1209).
+- A repair kind or printed code Pegasus has not seen is an Other line with
+  its price and hours, noted "Printed operation:" and the kind. It no longer
+  refuses the import. An XML position type not seen yet is read by its
+  prefix: `Paint_` is paint preparation, `Part_` or `Free_` a part row by its
+  repair kind. A position with no repair kind, and a position type with none
+  of those prefixes, still refuse the import, and the log names the type
+  (19 November 2026, R1209).
 
 **Labour rate on a new spec.** A new repair spec — imported, returned from
 Glass's, or started with **New repair spec** — takes the Standard

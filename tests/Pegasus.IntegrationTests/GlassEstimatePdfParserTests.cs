@@ -389,6 +389,88 @@ public sealed class GlassEstimatePdfParserTests
     }
 
     /// <summary>
+    /// R1209: every operation code Glass's dialogs print lands as Core's one
+    /// table maps it, the table the XML reader maps its repair kind with. PN
+    /// is printed for both Partial renew and Synthetics repair normal, so it
+    /// is Other, and so is a code the table does not know. Every row names its
+    /// printed code first. RP and RN are parts the parts appendix lists, and
+    /// a part's or an additional operation's material is its unit amount.
+    /// </summary>
+    [Theory]
+    [InlineData("RP", "new_part")]
+    [InlineData("RN", "new_part")]
+    [InlineData("UI", "rnr")]
+    [InlineData("DM", "rnr")]
+    [InlineData("R", "repair")]
+    [InlineData("PR", "repair")]
+    [InlineData("DP", "repair")]
+    [InlineData("PS", "repair")]
+    [InlineData("PN", "check_labour")]
+    [InlineData("A", "check_labour")]
+    [InlineData("S", "check_labour")]
+    [InlineData("CA", "check_labour")]
+    [InlineData("RA", "check_labour")]
+    [InlineData("HO", "check_labour")]
+    [InlineData("D", "check_labour")]
+    [InlineData("UN", "check_labour")]
+    [InlineData("WB", "check_labour")]
+    [InlineData("EC", "specialist_wu")]
+    [InlineData("XY", "check_labour")]
+    public void EveryPrintedOperationCodeLandsAsTheSharedTableMapsIt(string code, string expected)
+    {
+        var part = code is "RP" or "RN";
+        var parts = part ? new[] { new PartRow("Front Door Shell", "PN-DOOR-1", 450.00m) } : Array.Empty<PartRow>();
+        var parsed = GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("1001", "Front Door Shell (L)", code, 1.00m, 80.00m, part ? 450.00m : 0.00m))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            parts,
+            [new PositionRow("Front Door Shell", "1001")]));
+
+        var line = parsed.Lines[0];
+        Assert.Equal(expected, line.Type);
+        Assert.Equal(1.00m, line.WorkUnits);
+        Assert.StartsWith($"Printed operation: {code}.", line.Justification, StringComparison.Ordinal);
+        if (part)
+        {
+            Assert.Equal(450.00m, line.Price);
+            Assert.Equal("PN-DOOR-1", line.PartNumber);
+            Assert.Null(line.Materials);
+        }
+        else if (code == "EC")
+        {
+            Assert.Equal(0.00m, line.Price);
+            Assert.Null(line.Materials);
+        }
+        else
+        {
+            Assert.Null(line.Price);
+            Assert.Equal(0.00m, line.Materials);
+        }
+    }
+
+    /// <summary>
+    /// The operation column holds a code of one or two capital letters. Text
+    /// that is not a short upper-case word is not taken for a code, so the
+    /// sheet is still refused rather than read with a misplaced column.
+    /// </summary>
+    [Theory]
+    [InlineData("rp")]
+    [InlineData("R2")]
+    [InlineData("REPAIR")]
+    public void TextThatIsNotAnOperationCodeStillRefusesTheWholeTable(string printed)
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(() => GlassEstimatePdfParser.Parse(Sheet(
+            [new SectionRows("Body", new SheetRow("1001", "Wing (L)", printed, 1.00m, 80.00m, 0.00m))],
+            [new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.00m, 0.00m)],
+            [],
+            [],
+            [new PositionRow("Wing", "1001")])));
+
+        Assert.Contains("repair operation is unknown", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// "Heated)" ends at x 205.25 and the number starts at 205.0, so the
     /// extractor yields one word, name and number together: it splits at the
     /// main row's own name, in the parts appendix and in the positions one.

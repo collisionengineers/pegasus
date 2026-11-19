@@ -14,9 +14,12 @@ namespace Pegasus.Infrastructure.Assessment;
 /// Mechatronics, Special work), each in the Body column layout, then Paint,
 /// then Additional costs; at least one operation section and Paint are
 /// required, and every section a sheet prints must reconcile.
-/// Auxiliary work (EC) and Additional costs (EC) are Specialist, as the XML
-/// reader files them. The paint level a sheet prints lands as the line type
-/// <see cref="GlassPaintLevels"/> gives it, the same table the XML reader uses.
+/// Every printed operation code lands as <see cref="GlassOperations"/> maps
+/// it, the same table the XML reader maps its repair kind with: RP and RN are
+/// a new part, Auxiliary work (EC) and Additional costs (EC) are Specialist,
+/// and a code the table does not know is an Other line whose note names it
+/// (R1209). RP and RN rows are the parts the parts appendix lists. The paint
+/// level a sheet prints lands as the line type <see cref="GlassPaintLevels"/> gives it, the same table the XML reader uses.
 /// Printed PDF hours are already net and never use the XML overlap rule.
 /// The sheet's <c>Labour time unit</c> is <c>1 Hour</c> or <c>N WU</c>, N work
 /// units to the hour; every printed time is a count of those units. The sums
@@ -39,6 +42,9 @@ internal static class GlassEstimatePdfParser
 {
     /// <summary>The note a row carries when Glass's marked up its material (the printed <c>Z</c> flag).</summary>
     private const string MarkupMaterialNote = "Markup material";
+
+    /// <summary>The longest word read as an operation code; Glass's own are one or two letters.</summary>
+    private const int MaximumOperationCodeLength = 4;
 
     internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> source)
     {
@@ -261,9 +267,10 @@ internal static class GlassEstimatePdfParser
                 throw Reject("A guide position is unreadable");
             var included = row.Words[0].X > 31;
             var operation = included ? null : Cell(row, 230, 285);
-            // The code-to-line map is fixed here (S and CA are check labour, as
-            // the XML's Sealing and Control are); the Abbreviations table is not read.
-            if (!included && operation is not ("RP" or "R" or "PR" or "UI" or "EC" or "S" or "CA"))
+            // Core's GlassOperations maps the code, as it maps the XML's repair
+            // kind; the Abbreviations table is not read. Text that is not a code
+            // is not taken for one.
+            if (!included && !IsOperationCode(operation))
                 throw Reject("A repair operation is unknown");
             if (included && (parent is null || row.Words.Any(word => word.X >= 300)))
                 throw Reject("Included work has ambiguous parent or amounts");
@@ -303,7 +310,7 @@ internal static class GlassEstimatePdfParser
                 Overlap = AmountCell(row, 350, 440), Labour = AmountCell(row, 440, 505),
                 Material = AmountCell(row, 505, 555, required: true),
             };
-            if (item.Operation != "EC") throw Reject("A repair operation is unknown");
+            if (!IsOperationCode(item.Operation)) throw Reject("A repair operation is unknown");
             if (item.Description.Length == 0) throw Reject("An operation has no description");
             parent = item;
             AddFlags(item, row);
@@ -562,7 +569,7 @@ internal static class GlassEstimatePdfParser
                 || totalLabour + totalMaterial != net || net + vat != gross
                 || decimal.Round(net.Value * vatPercent.Value / 100, 2, MidpointRounding.AwayFromZero) != vat)
                 throw Reject("The document's printed totals do not reconcile");
-            var replacements = rows.Where(item => item.Operation == "RP").ToArray();
+            var replacements = rows.Where(item => OperationOf(item) == EstimateOperation.Replace).ToArray();
             if (parts.Count != replacements.Length || partsTotal is null || parts.Sum(item => item.Amount) != partsTotal
                 || positioned.Count != MainRows().Count()) throw Reject("The source appendices are incomplete");
             for (var index = 0; index < parts.Count; index++)
@@ -592,18 +599,14 @@ internal static class GlassEstimatePdfParser
         {
             var paint = row.Section == Section.Paint;
             var hours = InHours(row.Hours);
-            var type = paint ? PaintLineType(row.Operation) : row.Operation switch
-            {
-                "RP" => "new_part", "R" or "PR" => "repair", "UI" => "rnr",
-                "EC" => EstimateOperations.ToLineType(EstimateOperation.Specialist, hours),
-                _ => "check_labour",
-            };
+            var operation = OperationOf(row);
+            var type = paint ? PaintLineType(row.Operation) : EstimateOperations.ToLineType(operation, hours);
             // A part and an additional operation print their amount as a unit
             // amount; every other row's printed material is row materials.
-            var priced = row.Operation is "RP" or "EC";
+            var priced = operation is EstimateOperation.Replace or EstimateOperation.Specialist;
             List<string> notes = [.. row.Notes];
             if (row.Parent is { } parent) notes.Insert(0, IncludedOperations.Note($"{parent.Section} row {parent.Position}"));
-            if (row.Operation is { } operation) notes.Insert(0, $"Printed {(paint ? "paint level" : "operation")}: {operation}.");
+            if (row.Operation is { } printed) notes.Insert(0, $"Printed {(paint ? "paint level" : "operation")}: {printed}.");
             if (InHours(row.Overlap) is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
             if (row.Labour is { } labour) notes.Add(FormattableString.Invariant($"Printed labour: {labour:0.00} GBP."));
             return new(type, row.Guide, row.Description, paint ? null : hours,
@@ -613,6 +616,20 @@ internal static class GlassEstimatePdfParser
                 SourceRowIdentity: FormattableString.Invariant($"{row.Section.ToString().ToLowerInvariant()}:p{row.Page}:r{row.Position}:{row.Guide}"));
         }
     }
+
+    /// <summary>
+    /// A row's operation from its printed code, by Core's <see cref="GlassOperations"/>.
+    /// A code the table does not know, and an included row, which prints none,
+    /// is Other; the row's note names the code (R1209). A paint row's code is its level.
+    /// </summary>
+    private static EstimateOperation OperationOf(Row row) =>
+        row.Section == Section.Paint || row.Operation is null
+            ? EstimateOperation.Other
+            : GlassOperations.OfPrinted(row.Operation) ?? EstimateOperation.Other;
+
+    /// <summary>Glass's operation codes are short upper-case words (RP, UI, R, EC); anything else in the column is not one.</summary>
+    private static bool IsOperationCode(string? printed) =>
+        printed is { Length: > 0 and <= MaximumOperationCodeLength } && printed.All(char.IsAsciiLetterUpper);
 
     /// <summary>A paint row with no printed level is preparation; any printed level is the Core table's.</summary>
     private static string PaintLineType(string? level) => level is null
