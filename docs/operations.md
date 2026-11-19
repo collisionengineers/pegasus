@@ -5,6 +5,22 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Brego sign-in lookup stopped naming the tenant - 19 November 2026
+
+- Read in production (5.0.0) at 09:24 UTC: five Get valuation presses for
+  Brego on one Case each called `POST www.brego.ai/login/api/getAuthorizer`
+  (200) and logged `brego.valuation.unreadable stage=authorizer
+  authorizer=absent`. The last Brego valuation answered in production was on
+  12 November at 14:11 UTC. Glass's and Cazana answered on 19 November.
+- Brego's answer now holds only `authorizer`, `authorizerId` and
+  `allowPasskeyLogin`, for the valuation account and for an unknown address
+  alike. A password sign-in with the Key Vault details still issues tokens,
+  and its ID token names `organizationId` and `slug`. Both Key Vault
+  references read `Resolved`; nothing in Azure changed.
+- The operator signed in to Brego in a browser at 09:37 UTC. The organisation
+  allows one web session per user, so the stored `brego-session` may have
+  ended; that is not read.
+
 ## Third CI runner - 18 November 2026
 
 - On R1174, `pegasus-a` (id 59485411) joined `pegasus-wsl` and

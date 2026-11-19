@@ -36,8 +36,13 @@ tenant platform web application (`https://{slug}.brego.ai/platform`, backed by
 `/platform/api/brego/...` and `/platform/api/pdf/{organizationId}`;
 [notes](../external-component-documents/brego/brego.md)):
 1. Resolves the account e-mail at `POST https://www.brego.ai/login/api/getAuthorizer`
-   to the tenant `organizationId`, `slug`, Cognito User Pool ID (`authorizer`)
-   and Cognito App Client ID (`authorizerId`).
+   to the Cognito User Pool ID (`authorizer`) and Cognito App Client ID
+   (`authorizerId`). Until November 2026 this answer also named the tenant
+   `organizationId` and `slug`; Brego removed them, and from 19 November 2026
+   both are read from the `organizationId` and `slug` claims of the ID token
+   that step 2 issues. An ID token that names neither is `unreadable` at
+   `stage=cognito_verify`. The slug is also sent as `client` when a new
+   `brego-session` is created.
 2. Authenticates against AWS Cognito (`https://cognito-idp.{region}.amazonaws.com/`)
    via `USER_SRP_AUTH` (`InitiateAuth` and `RespondToAuthChallenge` with
    `PASSWORD_VERIFIER`). When an active 1-year `brego-session` cookie is already
