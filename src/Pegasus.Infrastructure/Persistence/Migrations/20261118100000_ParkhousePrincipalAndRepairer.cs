@@ -16,7 +16,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// included, until staff tick Active on the contact (R1192).
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20261118180000_ParkhousePrincipalAndRepairer")]
+[Migration("20261118100000_ParkhousePrincipalAndRepairer")]
 public partial class ParkhousePrincipalAndRepairer : Migration
 {
     internal const string OrganizationId = "00000000-0000-4000-8000-00000000D038";
