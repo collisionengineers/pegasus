@@ -50,7 +50,7 @@ internal static class AutomationToolText
     // Operator, 18 November 2026: R1178. The equipment sentence is a draft
     // for the operator under R1206 (19 November 2026).
     public const string GlassCatalogueSearch =
-        "Search the open Glass's estimate's part list and its special operations by name, part code or part number. Each row carries the value pegasus_glass_position_act adds it by, its side, and whether its part can be painted. A part whose row asks Glass's equipment question carries the question; with row, the search answers that one row and each answer to its question that leads to a part. Glass's is asked at most twice; nothing changes.";
+        "Search the open Glass's estimate's part list and its special operations by name, part code or part number, or with list one list a person opens under Areas > Additional or Areas > Paint. Each row carries the value pegasus_glass_position_act adds it by, its side, and whether its part can be painted. A part whose row asks Glass's equipment question carries the question; with row, the search answers that one row and each answer to its question that leads to a part. Glass's is asked at most twice; nothing changes.";
 
     // Operator, 18 November 2026: R1178. The equipment sentences, and the
     // preview and inputs sentences, are drafts for the operator under R1206

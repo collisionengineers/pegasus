@@ -149,7 +149,7 @@ public sealed class GlassEditorClientTests
 
         var added = await client.PanelAddAsync(
             GlassEditorFixture.Session(), NoPositions(),
-            GlassEditorPanel.Commands(PanelValues), "Front Door Skin", default);
+            GlassEditorPanel.Commands([.. PanelValues]), "Front Door Skin", default);
 
         Assert.Equal(
             "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=171|173|AE||III|80||&nofresh3=1&addpart2g=1&dummy=1794979937000",

@@ -131,7 +131,7 @@ internal static class GlassEditorPanel
     /// </summary>
     public static (string? Value, string? Problem) PartAdd(
         GlassPanelItem item, string operation, string? hours, string? zone,
-        IReadOnlyDictionary<string, string>? zoneLevels)
+        Dictionary<string, string>? zoneLevels)
     {
         ArgumentNullException.ThrowIfNull(item);
         ArgumentNullException.ThrowIfNull(operation);
@@ -199,7 +199,7 @@ internal static class GlassEditorPanel
     /// frame (<c>actFrame3=1</c>); the first goes through the panel's repair
     /// cost check, which marks nothing.
     /// </summary>
-    public static IReadOnlyList<string> Commands(IReadOnlyList<string> values)
+    public static List<string> Commands(List<string> values)
     {
         ArgumentNullException.ThrowIfNull(values);
         var commands = new List<string>(values.Count);

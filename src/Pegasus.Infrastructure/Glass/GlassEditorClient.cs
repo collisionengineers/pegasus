@@ -232,7 +232,7 @@ internal sealed class GlassEditorClient(
     /// on, a lost answer may still have added a position.
     /// </summary>
     public async Task<GlassEditorReply<GlassEditorAdded>> PanelAddAsync(
-        GlassEditorSession session, GlassEditorEstimate before, IReadOnlyList<string> commands, string description,
+        GlassEditorSession session, GlassEditorEstimate before, List<string> commands, string description,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(before);
@@ -807,8 +807,12 @@ internal sealed class GlassEditorClient(
             return new GlassMvaStageException(
                 build.RefusalCode ?? GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
         }
+        // A paint position's own dialog (lack.php) may name its code rather than its id: the
+        // record's kind and number, Lxx and 8005 for a position coded Lxx8005 (R1206).
         if (build.Summary is null
-            || !string.Equals((build.Summary.Position ?? string.Empty).Split('|')[0], positionId, StringComparison.Ordinal))
+            || !(string.Equals((build.Summary.Position ?? string.Empty).Split('|')[0], positionId, StringComparison.Ordinal)
+                || (positionId.StartsWith('L')
+                    && string.Equals(build.Summary.PartCode, GlassAutomationPositionPolicy.CodeOf(positionId), StringComparison.Ordinal))))
         {
             return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record is not the position's.");
         }

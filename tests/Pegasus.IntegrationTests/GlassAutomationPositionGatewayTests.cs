@@ -186,6 +186,39 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassEditorFixture.Text("c7_lack_a_served.post.txt"), posts[1]);
     }
 
+    /// <summary>
+    /// A paint row's position is previewed and changed through its own
+    /// <c>lack.php</c> (R1206): the estimate's group for it holds L alone,
+    /// so the editor's LoadGraph opens <c>lack</c>, and its paint type is
+    /// changed as the walk's dialog's own script changes it (#1310).
+    /// </summary>
+    [Fact]
+    public async Task APaintRowsPositionIsPreviewedAndChangedThroughItsOwnDialog()
+    {
+        const string Table = "L421474.16.Lxx8005.Lxx8005";
+        var harness = Harness.Create();
+        var session = await AutomationStartAsync(harness);
+        var held = "<script>\nvar Partids = [ '', '" + Table + "' ];\nvar CheckIds = [ 'Lxx8005' ];\nvar Groups = [ "
+            + string.Join(", ", Enumerable.Repeat("'L'", 20)) + " ];\n</script>\n";
+        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(held));
+        harness.Mva.Respond("GET /ere/aco/lack.php", _ => EditorPage("lack_a.dialog.html", null));
+        harness.Mva.Respond("POST /ere/aco/compproc.php", _ => EditorPage("bulb_price.answer.html", null));
+
+        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
+            new GlassAutomationPositionRequest(harness.Automation, session.Id, 0, "mcp:table-preview", GlassAutomationActAction.Preview)
+            {
+                PositionId = Table,
+            },
+            CancellationToken.None);
+        var changed = await PositionAsync(harness, Change(harness, preview!.Session, "mcp:table-change", Table,
+            new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "3"))));
+
+        Assert.Equal("paint", preview.Dialog?.Kind);
+        Assert.Contains("partid=" + Table, Asked(harness, "GET", "lack.php")[0], StringComparison.Ordinal);
+        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
+        Assert.Equal(GlassEditorFixture.Text("c7_lack_a_coats3.post.txt"), Assert.Single(DialogPosts(harness)));
+    }
+
     /// <summary>A list Glass's does not answer answers no rows and its code; the session stays open.</summary>
     [Fact]
     public async Task ASearchWhoseListIsNotAnsweredAnswersItsCode()
