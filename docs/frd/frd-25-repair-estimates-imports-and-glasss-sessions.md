@@ -511,9 +511,12 @@ the provider's. Pegasus changes none of Glass's files or requests. The Pegasus
 helper extension, which an Engineer installs, defines the framing page's
 dialog helper before Glass's own script asks for it, with Glass's own class,
 so the stall does not happen in a browser that has it (operator, 18 November
-2026; R1170). The helper reads only the editor frame's own address, hands it
-to Pegasus, and asks for the selected list again when Pegasus says a position
-was added or removed. The Case page keeps the estimator window in view after the handoff:
+2026; R1170). The helper reads only the editor frame's own address and the
+two cookies of Glass's load balancer in that frame, which name the Glass's
+server the window's session is on (19 November 2026;
+[ADR-0091](../adr/0091-pegasus-sends-the-glass-editor-its-own-requests.md),
+decision 5), hands them to Pegasus, and asks for the selected list again when
+Pegasus says a position was added or removed. The Case page keeps the estimator window in view after the handoff:
 it may read how deep the window's frames nest and whether it is closed,
 nothing more. When the frames have not grown past the provider's skeleton
 within 30 seconds, the page presses **Glass's** again once itself, which is

@@ -180,7 +180,7 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.Position(positionId), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var position = GlassMvaClient.Matched(() => GlassEditorPages.Position(text), GlassFailure.EditorAnswer)
-            ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=position");
+            ?? throw Unread("position", text);
         return new(position, session with { Cookies = Snapshot(jar) });
     }
 
@@ -195,7 +195,7 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.SpecialList(groups), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var list = GlassMvaClient.Matched(() => GlassEditorPages.SpecialOperations(text), GlassFailure.EditorAnswer)
-            ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=special-list");
+            ?? throw Unread("special-list", text);
         return new(list, session with { Cookies = Snapshot(jar) });
     }
 
@@ -210,7 +210,7 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.PartList(groups), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var list = GlassMvaClient.Matched(() => GlassEditorPages.PartList(text), GlassFailure.EditorAnswer)
-            ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=part-list");
+            ?? throw Unread("part-list", text);
         return new(list, session with { Cookies = Snapshot(jar) });
     }
 
@@ -222,7 +222,7 @@ internal sealed class GlassEditorClient(
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.Equipment(row), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
         var map = GlassMvaClient.Matched(() => GlassEditorPages.EquipmentMap(text), GlassFailure.EditorAnswer)
-            ?? throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=equipment");
+            ?? throw Unread("equipment", text);
         return new(map, session with { Cookies = Snapshot(jar) });
     }
 
@@ -411,8 +411,18 @@ internal sealed class GlassEditorClient(
         var estimate = GlassMvaClient.Matched(() => GlassEditorPages.Selected(text), GlassFailure.EditorAnswer);
         return estimate.Found
             ? estimate
-            : throw new GlassMvaStageException(GlassFailure.EditorAnswer, detail: "page=selected");
+            : throw Unread("selected", text);
     }
+
+    /// <summary>
+    /// An answer that is not the page asked for, said by the page's name and
+    /// the answer's length alone. A Glass's server that does not hold the
+    /// session answers a short page with none of the editor's lists, where
+    /// the lists of the one that holds it run to tens of thousands of
+    /// characters.
+    /// </summary>
+    private static GlassMvaStageException Unread(string page, string text) =>
+        new(GlassFailure.EditorAnswer, detail: $"page={page} length={text.Length}");
 
     /// <summary>The cookies as they stand, in the order Glass's set them, as a copy no later answer changes.</summary>
     private static ReadOnlyDictionary<string, string> Snapshot(Dictionary<string, string> jar) =>

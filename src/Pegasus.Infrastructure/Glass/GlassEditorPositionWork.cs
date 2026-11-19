@@ -66,6 +66,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             outcome = failure is GlassMvaStageException providerFailure
                 ? providerFailure.FailureCode : failure is OperationCanceledException ? "Cancelled" : "Failed";
+            if (failure is GlassMvaStageException { Detail: { } detail })
+            {
+                // A search or a read answers the caller its code alone; the
+                // detail (a page's name and length, a status) is said here.
+                LogStageDetail(logger, session.Id, session.CaseId, stage, detail);
+            }
+
             throw;
         }
         finally
@@ -489,6 +496,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         Message = "Glass's attempt {SessionId}/{Version} case {CaseId} stage {Stage} outcome {Outcome} in {ElapsedMs} ms")]
     private static partial void LogStage(ILogger logger, Guid sessionId, Guid caseId, long version,
         string stage, string outcome, double elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Glass's attempt {SessionId} case {CaseId} stage {Stage} was answered {Detail}")]
+    private static partial void LogStageDetail(ILogger logger, Guid sessionId, Guid caseId, string stage, string detail);
 
     [LoggerMessage(
         Level = LogLevel.Warning,

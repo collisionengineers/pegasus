@@ -30,6 +30,13 @@ public sealed class GlassSessionHelpTests
 
     private static readonly ActionActor Automation = ActionActor.Automation("automation-grant-help");
 
+    /// <summary>The load balancer's cookies as a window's helper hands them over; made up.</summary>
+    private static readonly Dictionary<string, string> WindowsCookies = new()
+    {
+        ["AWSALB"] = "madeUpWindowOne",
+        ["AWSALBCORS"] = "madeUpWindowTwo",
+    };
+
     [Fact]
     public async Task AnAddReadsBeforeAndAfterAndTellsItsOwnPositionFromTheEngineers()
     {
@@ -217,6 +224,51 @@ public sealed class GlassSessionHelpTests
         Assert.Equal(0, help.Glass.Count("POST /ere/aco/compproc.php"));
     }
 
+    /// <summary>
+    /// The editor's session lives on one Glass's server and the load
+    /// balancer's cookies name it (first live session, 19 November 2026: 7
+    /// of 8 requests sent on the key alone were answered by a server that
+    /// did not hold it). The helper hands the window's cookies over with the
+    /// key, so the first request Pegasus sends carries them.
+    /// </summary>
+    [Fact]
+    public async Task TheFirstRequestCarriesTheLoadBalancersCookiesTheWindowHandedOver()
+    {
+        var help = Help.Create(WindowsCookies);
+
+        var read = await help.Sessions.ReadAsync(Automation, help.Session, CancellationToken.None);
+
+        Assert.NotNull(read.PositionIds);
+        Assert.Equal("AWSALB=madeUpWindowOne; AWSALBCORS=madeUpWindowTwo", Assert.Single(help.Glass.Requests).Cookie);
+    }
+
+    /// <summary>
+    /// A server that does not hold the session answers a page with none of
+    /// the editor's lists and sets its own load balancer cookie. The search
+    /// answers its code and no rows, and the cookies the window handed over
+    /// stay as they were: the next request still goes to the window's server.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerWithNoListsLeavesTheWindowsCookiesAsTheyWere()
+    {
+        var help = Help.Create(WindowsCookies);
+        help.Glass.Enqueue("GET /ere/aco/list_1G.php", new Reply(
+            HttpStatusCode.OK, "<html><body>no such session</body></html>", SetCookie: "AWSALB=madeUpOtherServer; path=/"));
+
+        var found = await help.Sessions.SearchAsync(
+            new GlassAutomationCatalogueQuery(Automation, help.Session.Id, "appraisal", GlassAutomationPositionKind.SpecialOperation, null),
+            help.Session,
+            CancellationToken.None);
+        var read = await help.Sessions.ReadAsync(Automation, help.Session, CancellationToken.None);
+
+        Assert.Empty(found.Rows);
+        Assert.Equal(GlassFailure.EditorAnswer, found.Code);
+        Assert.NotNull(read.PositionIds);
+        Assert.All(
+            help.Glass.Requests,
+            request => Assert.Equal("AWSALB=madeUpWindowOne; AWSALBCORS=madeUpWindowTwo", request.Cookie));
+    }
+
     private static GlassAutomationPositionRequest Add(Help help, string key) =>
         new(Automation, help.Session.Id, help.Session.Version, key, GlassAutomationActAction.Add)
         {
@@ -247,7 +299,7 @@ public sealed class GlassSessionHelpTests
 
         public GlassRepairEstimateSession Session { get; }
 
-        public static Help Create()
+        public static Help Create(IReadOnlyDictionary<string, string>? windowsCookies = null)
         {
             var glass = new ScriptedGlass();
             ScriptEditor(glass);
@@ -261,7 +313,7 @@ public sealed class GlassSessionHelpTests
             {
                 HelpOnAtUtc = new DateTimeOffset(2031, 5, 6, 10, 35, 0, TimeSpan.Zero),
             };
-            keys.Hold(session.Id, keys.Read(GlassHelpFrameTests.OwnFrame())
+            keys.Hold(session.Id, keys.Read(GlassHelpFrameTests.OwnFrame(), windowsCookies)
                 ?? throw new InvalidOperationException("The frame was not read."));
             var store = new RecordingHelpStore();
             var sessions = new GlassSessionHelp(

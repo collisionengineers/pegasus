@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -426,8 +425,12 @@ internal static partial class GlassEditorPages
     /// <see cref="GlassEditorAddresses.Escape"/> writes it, whose
     /// <c>caller</c> is exactly this host's callback for a 64-character
     /// lower-case hex return token. Null when the address is anything else.
+    /// The session carries what <see cref="GlassHelpFrame.Balancer"/> keeps
+    /// of <paramref name="balancerCookies"/>, so its first request reaches
+    /// the Glass's server the browser is on.
     /// </summary>
-    public static GlassHelpFrame? HelpFrame(string? address, GlassRepairEstimateOptions options)
+    public static GlassHelpFrame? HelpFrame(
+        string? address, GlassRepairEstimateOptions options, IReadOnlyDictionary<string, string>? balancerCookies = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (address is null
@@ -472,7 +475,7 @@ internal static partial class GlassEditorPages
             ? new GlassHelpFrame(
                 token,
                 new GlassEditorSession(
-                    new Uri(frame, "./").AbsoluteUri, url0, key.Groups[1].Value, ReadOnlyDictionary<string, string>.Empty))
+                    new Uri(frame, "./").AbsoluteUri, url0, key.Groups[1].Value, GlassHelpFrame.Balancer(balancerCookies)))
             : null;
     }
 

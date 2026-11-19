@@ -1710,8 +1710,14 @@ it stopped.
     a launch.
 - Automation help in an Engineer's open session (R1170, R1183 to R1185)
   logs the same editor stages under the Engineer's session id, and "The
-  Glass's helper handed over the editor key for session …" when the
-  window's key arrives. Each act is a `glass_session_help_act` history row
+  Glass's helper handed over the editor key for session … with 2 load
+  balancer cookies." when the window's key arrives. With 0 the helper found
+  none in the frame, and Pegasus's requests reach the Glass's server that
+  holds the session only by chance. A search or a read that answers
+  `glass.editor.answer` logs "stage … was answered page=… length=…": the
+  page asked for and how long Glass's answer was. The editor's own lists run
+  to tens of thousands of characters; a short answer is a server that does
+  not hold the session. Each act is a `glass_session_help_act` history row
   on the session and each toggle a `glass_session_help` row. The chip
   "Automation help on · Glass's window not connected" means this Web host
   holds no key for the session: the Pegasus helper is missing or out of date

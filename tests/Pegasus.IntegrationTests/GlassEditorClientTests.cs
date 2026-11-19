@@ -332,6 +332,33 @@ public sealed class GlassEditorClientTests
     }
 
     /// <summary>
+    /// A Glass's server that does not hold the session answers 200 with a
+    /// page that has none of the editor's lists (first live session, 19
+    /// November 2026). The failure names the page asked for and the answer's
+    /// length, which is all the host log needs to tell such an answer from
+    /// the editor's own, and nothing of the answer itself.
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerWithNoneOfTheEditorsListsSaysItsPageAndLength()
+    {
+        const string NoSession = "<html><body>no such session</body></html>";
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, NoSession));
+        editor.Enqueue("GET list_1G.php", new(HttpStatusCode.OK, NoSession));
+        var client = Client(editor);
+
+        var read = await Assert.ThrowsAsync<GlassMvaStageException>(() =>
+            client.ReadEstimateAsync(GlassEditorFixture.Session(), default));
+        var listed = await Assert.ThrowsAsync<GlassMvaStageException>(() =>
+            client.ReadSpecialOperationsAsync(GlassEditorFixture.Session(), "DS-AUXWORK-702", default));
+
+        Assert.Equal(GlassFailure.EditorAnswer, read.FailureCode);
+        Assert.Equal("page=selected length=41", read.Detail);
+        Assert.Equal(GlassFailure.EditorAnswer, listed.FailureCode);
+        Assert.Equal("page=special-list length=41", listed.Detail);
+    }
+
+    /// <summary>
     /// The pace holds across clients (design 07 section 6): a client that
     /// continues an editor another client used is given that client's last
     /// request time, so its first request still waits out the pause, and it
