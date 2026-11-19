@@ -1766,10 +1766,12 @@ it stopped.
   gives its code as `previewCode`. An add's own inputs (R1206) are refused
   with `glass.row.not_paintable` when a paint button is asked for a part
   that cannot be painted, and with `glass.build.not_built` when Both is
-  asked for one that can; an operation the dialog does not offer, one that
-  reloads the dialog or opens a window Pegasus does not answer, one not yet
-  judged against Glass's own script, or one served with no price and no
-  hours without `inputs.confirmNoFigures` (Repair answers by itself) is
+  asked for one that can, and with `glass.build.operation_not_read_back`,
+  before anything is sent and with a warning line naming the operation,
+  when `inputs.operation` is anything but I, AE, AD or P: the return could
+  not read the position back (issue 2155). An operation the dialog does
+  not offer, or one served with no price and no hours without
+  `inputs.confirmNoFigures` (Repair answers by itself), is
   `glass.editor.refused`. With Both, the other side's own dialog logs stage
   `EditorAddOtherSide`; an act `added` with `glass.row.other_side_not_added`
   added the first side only, because Glass's did not go on to the other

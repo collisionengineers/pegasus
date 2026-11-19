@@ -105,7 +105,8 @@ internal sealed record GlassDialogOperationToolItem(
     [property: Description(AutomationToolText.GlassPreviewOperationFigures)] decimal? Hours,
     [property: Description(AutomationToolText.GlassPreviewGlassHours)] decimal? GlassHours,
     [property: Description(AutomationToolText.GlassPreviewServed)] bool Served,
-    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable,
+    [property: Description(AutomationToolText.GlassPreviewOperationRefusedCode)] string? RefusedCode = null);
 
 internal sealed record GlassDialogChoiceToolItem(string Value, [property: Description(AutomationToolText.GlassPreviewText)] string Text);
 
@@ -671,7 +672,8 @@ internal sealed class GlassMcpTools(
                 dialog.Side,
                 dialog.Operations
                     .Select(item => new GlassDialogOperationToolItem(
-                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable))
+                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable,
+                        item.RefusedCode))
                     .ToList(),
                 dialog.Fields
                     .Select(field => new GlassDialogFieldToolItem(

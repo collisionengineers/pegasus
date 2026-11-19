@@ -177,7 +177,7 @@ internal static class AutomationToolText
     // labels, option texts and question texts pass through as Glass's gives
     // them.
 
-    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, E or AN. The dialog then sends the price and hours it serves for that operation. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
+    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, AD or P. The dialog then sends the price and hours it serves for that operation. Only an operation preview marks changeable is taken. Only I, AE, AD and P are taken, because Pegasus cannot yet read back any other when the estimate returns; any other is refused with glass.build.operation_not_read_back and nothing is sent. Not with inputs.button paint.";
 
     public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
 
@@ -218,6 +218,8 @@ internal static class AutomationToolText
     public const string GlassPreviewGlassHours = "Glass's own hours for this operation, which the dialog compares typed hours against.";
 
     public const string GlassPreviewServed = "The dialog serves this one selected.";
+
+    public const string GlassPreviewOperationRefusedCode = "glass.build.operation_not_read_back when the dialog offers the operation but Pegasus cannot yet read it back when the estimate returns, so add refuses it.";
 
     public const string GlassPreviewChangeable = "Whether Pegasus can change it yet. An operation that reloads the dialog or opens a window Pegasus does not answer cannot be chosen.";
 

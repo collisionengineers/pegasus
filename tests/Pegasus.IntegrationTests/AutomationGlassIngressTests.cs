@@ -426,17 +426,21 @@ public sealed class AutomationGlassIngressTests
         using (var preview = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
         {
             caseId, action = "preview", operationKey = "mcp:preview-1",
-            kind = "part", row = "771", operation = "part", inputs = new { operation = "Z" },
+            kind = "part", row = "771", operation = "part", inputs = new { operation = "AD" },
         })))
         {
             var structured = await ReadStructuredContentAsync(preview);
             Assert.True(IsAbsent(structured, "act"));
             var dialog = structured.GetProperty("dialog");
             Assert.Equal("part_paintable", dialog.GetProperty("kind").GetString());
-            var dismantle = dialog.GetProperty("operations").EnumerateArray()
-                .Single(item => item.GetProperty("code").GetString() == "Z");
-            Assert.Equal("DM (Dismantle and assemble)", dismantle.GetProperty("text").GetString());
-            Assert.True(dismantle.GetProperty("changeable").GetBoolean());
+            var operations = dialog.GetProperty("operations").EnumerateArray().ToList();
+            var sealing = operations.Single(item => item.GetProperty("code").GetString() == "AD");
+            Assert.Equal("S (Sealing)", sealing.GetProperty("text").GetString());
+            Assert.True(sealing.GetProperty("changeable").GetBoolean());
+            var dismantle = operations.Single(item => item.GetProperty("code").GetString() == "Z");
+            Assert.False(dismantle.GetProperty("changeable").GetBoolean());
+            Assert.Equal(
+                GlassAutomationPositionPolicy.OperationNotReadBackCode, dismantle.GetProperty("refusedCode").GetString());
             var sends = dialog.GetProperty("sends");
             Assert.Equal(GlassFailure.EditorRefused, sends.GetProperty("code").GetString());
             var question = sends.GetProperty("questions").EnumerateArray()
@@ -451,13 +455,15 @@ public sealed class AutomationGlassIngressTests
         {
             caseId, action = "add", operationKey = "mcp:add-z", expectedSessionVersion = version,
             kind = "part", row = "771", operation = "part",
-            inputs = new { operation = "Z", button = "part_and_paint", confirmNoFigures = true, optionalParts = TrimSupportKit },
+            inputs = new { operation = "AD", button = "part_and_paint", confirmNoFigures = true, optionalParts = TrimSupportKit },
         })))
         {
-            var act = (await ReadStructuredContentAsync(added)).GetProperty("act");
+            var structured = await ReadStructuredContentAsync(added);
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+            var act = structured.GetProperty("act");
             Assert.Equal("added", act.GetProperty("outcome").GetString());
             var inputs = act.GetProperty("inputs");
-            Assert.Equal("Z", inputs.GetProperty("operation").GetString());
+            Assert.Equal("AD", inputs.GetProperty("operation").GetString());
             Assert.Equal("part_and_paint", inputs.GetProperty("button").GetString());
             Assert.True(inputs.GetProperty("confirmNoFigures").GetBoolean());
             var kit = act.GetProperty("mandatoryParts").EnumerateArray()
@@ -466,7 +472,22 @@ public sealed class AutomationGlassIngressTests
             Assert.True(kit.GetProperty("optional").GetBoolean());
         }
         Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));
-        Assert.Contains("&BSL=Part+and+Paint&", glass.Requests.First(request => request.Method == "POST").Body, StringComparison.Ordinal);
+        Assert.Equal(
+            GlassEditorFixture.Text("door_left_ad_part_and_paint.post.txt"),
+            glass.Requests.First(request => request.Method == "POST").Body);
+
+        using (var renew = await PostMcpAsync(client, token, ToolCallPayload(8, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:add-renew", expectedSessionVersion = version,
+            kind = "part", row = "771", operation = "part", inputs = new { operation = "AN" },
+        })))
+        {
+            var act = (await ReadStructuredContentAsync(renew)).GetProperty("act");
+            Assert.Equal("refused", act.GetProperty("outcome").GetString());
+            Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, act.GetProperty("code").GetString());
+            Assert.Equal("AN", act.GetProperty("inputs").GetProperty("operation").GetString());
+        }
+        Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));
 
         var requests = glass.Requests.Count;
         using (var button = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Glass;
 
 namespace Pegasus.IntegrationTests;
@@ -307,8 +308,9 @@ public sealed class GlassEditorDialogTests
     /// <summary>
     /// A preview reads a part's dialog as a form (R1206): each operation with
     /// Glass's own text and the figures its script serves for the side,
-    /// Renew choosable on a part.php dialog, the fields with Glass's own
+    /// the fields with Glass's own
     /// labels, and its one button; with no inputs it says nothing of a send.
+    /// Renew is offered but not choosable: the return cannot read it back.
     /// </summary>
     [Fact]
     public void APreviewReadsAPlainDialogAsAForm()
@@ -324,7 +326,9 @@ public sealed class GlassEditorDialogTests
         var refit = Assert.Single(preview.Operations, item => item.Code == "AE");
         Assert.Equal(0.60m, refit.Hours);
         Assert.True(refit.Changeable);
-        Assert.True(Assert.Single(preview.Operations, item => item.Code == "AN").Changeable);
+        var renew = Assert.Single(preview.Operations, item => item.Code == "AN");
+        Assert.False(renew.Changeable);
+        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, renew.RefusedCode);
         Assert.DoesNotContain(preview.Operations, item => item.Code == "-");
         Assert.Equal("Repair type", Assert.Single(preview.Fields, field => field.Name == "Repart").Label);
         Assert.Contains(preview.Buttons, button => button.Value == "BS");

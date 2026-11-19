@@ -315,6 +315,34 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// An operation the return cannot read back (R1206; issue 2155) is
+    /// refused in the Engineer's session with its own code before anything
+    /// is asked of Glass's, and the refusal is a history row.
+    /// </summary>
+    [Fact]
+    public async Task AnOperationTheReturnCannotReadBackIsRefusedInTheEngineersSession()
+    {
+        var help = Help.Create();
+
+        var outcome = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-renew",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "193",
+                Operation = GlassAutomationPartOperation.Part,
+                Inputs = new GlassAutomationInputs(Operation: "AN"),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Refused, outcome.Act.Outcome);
+        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, outcome.Act.Code);
+        Assert.Empty(help.Glass.Requests);
+        Assert.Equal("AN", Assert.Single(help.Store.Acts).Inputs?.Operation);
+    }
+
+    /// <summary>
     /// "Both" in the Engineer's session: the left side's post, then the
     /// right side's own dialog and post; both positions are the act's own,
     /// told by their two codes from those the Engineer added meanwhile.

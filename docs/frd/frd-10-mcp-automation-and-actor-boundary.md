@@ -768,12 +768,18 @@ compose Glass's, each tool is refused with "Glass's is not available."
   part's dialog what a person gives it without typing, in both kinds of
   live session. Paint on its own and Part and Paint are sent: the button is
   pressed on the dialog of a part that can be painted, and the paint section
-  is sent as Glass's serves it. `inputs.operation` chooses any operation the
-  dialog offers, by Glass's own code, where its own script was seen offline
-  to post it as Pegasus builds it (AD, AE, E, ET, HO, I, IT, KM, KS, P, UN,
-  V and Z; Renew, AN, on a part that cannot be painted, taken through the
-  old-for-new window with no deduction). An operation that reloads the
-  dialog or opens any other window stays refused. Repair answers OK to the
+  is sent as Glass's serves it. `inputs.operation` chooses another
+  operation the dialog offers, by Glass's own code, only where Pegasus can
+  read its position back when the estimate returns: I (Repair), AE
+  (Uninstall and install), AD (Sealing) and P (Control and adjustment),
+  whose positions Glass's exports as repair kinds the return reads. Any
+  other operation, Renew (AN) among them, is refused with
+  `glass.build.operation_not_read_back` before anything is sent, because
+  the return refuses the whole export on a repair kind it does not read
+  (issue 2155), and which line each becomes is the operator's decision
+  there. Pegasus can build more of them, as Glass's own script was seen
+  offline to post them; they wait on that decision. An operation that
+  reloads the dialog or opens any other window stays refused. Repair answers OK to the
   dialog's question before a part with no price and no hours (R1188); any
   other operation does so only with `inputs.confirmNoFigures`, and is
   refused without it. `inputs.button` presses Part, Paint or Part and Paint;
@@ -801,7 +807,9 @@ compose Glass's, each tool is refused with "Glass's is not available."
   its served value, its choices and whether Pegasus may change it; the
   paint section; the buttons; and, for the inputs given, what the add would
   send, each question on the way, and the code the add would be refused
-  with. Glass's own labels and texts pass through unchanged. Which
+  with. An operation the dialog offers that the return cannot read back
+  is shown as not choosable, with `glass.build.operation_not_read_back`.
+  Glass's own labels and texts pass through unchanged. Which
   mandatory parts Glass's lists after a post cannot be known before it.
 - **19 November 2026; R1208.** The Automation changes no setting of the
   estimate as a whole or of the Glass's account: not Preferences, not the

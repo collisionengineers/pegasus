@@ -914,7 +914,14 @@ internal static partial class GlassEditorDialogs
                 Amount(GlassEditorPages.Lookup(times, option.Value)),
                 Amount(GlassEditorPages.Lookup(own, option.Value)),
                 option.Value == select!.Value,
-                !special && Choosable(html, offered, option.Value, paintable)))
+                !special && Choosable(html, offered, option.Value, paintable)
+                    && GlassAutomationPositionPolicy.OperationRefusal(option.Value) is null)
+            {
+                // Offered and buildable, but the return cannot read it back (R1206; issue 2155).
+                RefusedCode = !special && Choosable(html, offered, option.Value, paintable)
+                    ? GlassAutomationPositionPolicy.OperationRefusal(option.Value)
+                    : null,
+            })
             .ToList();
 
         var both = BothDescriptor().Match(html);
@@ -1148,7 +1155,7 @@ internal static partial class GlassEditorDialogs
     /// Renew on <c>part.php</c> only). Any other is refused until it has been.
     /// </summary>
     private static readonly HashSet<string> JudgedOperations =
-        new(["AD", "AE", "AN", "E", "ET", "HO", "I", "IT", "KM", "KS", "P", "UN", "V", "Z"], StringComparer.Ordinal);
+        new(StringComparer.Ordinal) { "AD", "AE", "AN", "E", "ET", "HO", "I", "IT", "KM", "KS", "P", "UN", "V", "Z" };
 
     /// <summary>
     /// CheckSubmit's question when price and hours are both zero. The page

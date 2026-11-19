@@ -41,7 +41,7 @@ public sealed record GlassSessionHelpOutcome(
 /// and the session's version does not move.
 /// </para>
 /// </remarks>
-public sealed class GlassSessionHelp(
+public sealed partial class GlassSessionHelp(
     GlassHelpKeys keys,
     IHttpClientFactory httpClientFactory,
     GlassRepairEstimateOptions options,
@@ -127,6 +127,13 @@ public sealed class GlassSessionHelp(
         }
 
         var act = Claimed(request);
+        if (act.Outcome != GlassAutomationActOutcome.Pending)
+        {
+            // Refused before anything is asked of Glass's: an operation the return cannot read back.
+            LogRefusedBeforeSending(logger, session.Id, session.CaseId, act.Code ?? string.Empty, act.Inputs?.Operation ?? string.Empty);
+            return await RecordAsync(request.Actor, session, new(act, [], null, false));
+        }
+
         using var turn = Enter(session);
         var editor = turn.Editor;
         GlassEditorEstimate before;
@@ -185,9 +192,9 @@ public sealed class GlassSessionHelp(
     }
 
     /// <summary>
-    /// The act as asked, Pending (<see cref="GlassAutomationPositionPolicy.Draft"/>):
-    /// every kind and operation is sent in an Engineer's session as in the
-    /// Automation's own (R1206).
+    /// The act as asked (<see cref="GlassAutomationPositionPolicy.Draft"/>):
+    /// Pending, or refused with its code when it chooses an operation the
+    /// return cannot read back, as in the Automation's own session (R1206).
     /// </summary>
     private GlassAutomationAct Claimed(GlassAutomationPositionRequest request) =>
         GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
@@ -317,4 +324,10 @@ public sealed class GlassSessionHelp(
 
         public void Dispose() => gate.Dispose();
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's help in session {SessionId} for case {CaseId} add refused before sending at {Code} for operation {Operation}")]
+    private static partial void LogRefusedBeforeSending(
+        ILogger logger, Guid sessionId, Guid caseId, string code, string operation);
 }

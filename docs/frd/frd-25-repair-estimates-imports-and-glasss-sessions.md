@@ -698,11 +698,14 @@ In its own session and in an Engineer's with help on, the Automation gives
 a dialog what a person gives it without typing
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
 Paint on its own and Part and Paint, in place of R1182's refusal, with the
-paint section as Glass's serves it; any operation the dialog offers that
-Glass's own script was seen offline to post as Pegasus builds it, Renew
-taken through the old-for-new window with no deduction, with Glass's
+paint section as Glass's serves it; another operation the dialog offers,
+only Repair, Uninstall and install, Sealing and Control and adjustment,
+whose positions the return reads back from Glass's export, with Glass's
 question before no figures answered OK for Repair by itself (R1188) and
-for anything else only when the Automation says so; Both, with the other
+for anything else only when the Automation says so (any other operation,
+Renew among them, waits on the operator's decision under issue 2155,
+because the return refuses a whole export on a repair kind it does not
+read); Both, with the other
 side's own dialog posted as served; and the optional parts to tick on the
 "Mandatory parts:" page. It may preview the dialog first, and nothing is
 posted for a preview. A typed figure or text, a paint choice, a change to

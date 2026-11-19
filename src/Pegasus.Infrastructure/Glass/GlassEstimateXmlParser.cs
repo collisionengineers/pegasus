@@ -548,6 +548,13 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             ?? throw Reject(ordinal, $"carries the unknown paint level (material '{kind}', level '{stated}')");
     }
 
+    /// <summary>
+    /// The repair kinds the return reads. The Automation may choose in Glass's
+    /// dialog only the operations whose position comes back as one of these
+    /// (<c>GlassAutomationPositionPolicy.ReadBackOperations</c>, R1206;
+    /// change the two together). Any other kind refuses the whole export
+    /// (issue 2155: an "Old for New" position, Renew).
+    /// </summary>
     private static EstimateOperation Operation(string? repairKind, int ordinal) => repairKind switch
     {
         "Replace" => EstimateOperation.Replace,

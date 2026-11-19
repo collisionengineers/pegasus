@@ -461,12 +461,12 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// Any operation the dialog offers is chosen by Glass's own code (R1206)
-    /// and posted exactly as the dialog's own script posted it offline
-    /// (manifest operations): Adjustments with its own hours; Dismantle and
-    /// assemble, served with no figures, only with the OK given; Repair with
-    /// Part and Paint, answered OK by itself (R1188). Every input is kept on
-    /// the act.
+    /// An operation the dialog offers and the return reads back is chosen by
+    /// Glass's own code (R1206) and posted exactly as the dialog's own script
+    /// posted it offline (manifest operations): Uninstall and install with
+    /// its own hours; Sealing, served with no figures, only with the OK
+    /// given; Repair with Part and Paint, answered OK by itself (R1188).
+    /// Every input is kept on the act.
     /// </summary>
     [Fact]
     public async Task AnOperationTheDialogOffersIsPostedAsItsScriptPostsIt()
@@ -474,22 +474,22 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
 
-        var adjust = await PositionAsync(harness, Add(harness, session, "mcp:op-e",
+        var adjust = await PositionAsync(harness, Add(harness, session, "mcp:op-ae",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "E")));
-        var unanswered = await PositionAsync(harness, Add(harness, adjust.Session, "mcp:op-z-1",
+            inputs: new GlassAutomationInputs(Operation: "AE")));
+        var unanswered = await PositionAsync(harness, Add(harness, adjust.Session, "mcp:op-ad-1",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "Z")));
-        var answered = await PositionAsync(harness, Add(harness, unanswered.Session, "mcp:op-z-2",
+            inputs: new GlassAutomationInputs(Operation: "AD")));
+        var answered = await PositionAsync(harness, Add(harness, unanswered.Session, "mcp:op-ad-2",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "Z", ConfirmNoFigures: true)));
+            inputs: new GlassAutomationInputs(Operation: "AD", ConfirmNoFigures: true)));
         var repaired = await PositionAsync(harness, Add(harness, answered.Session, "mcp:op-i",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
             inputs: new GlassAutomationInputs(Operation: "I", Button: GlassAutomationButton.PartAndPaint)));
 
         Assert.Equal(GlassAutomationActOutcome.Added, adjust.Act.Outcome);
-        Assert.Equal(new GlassEstimateBuildFigures(null, 0.30m), adjust.Act.Served);
-        Assert.Equal("E", adjust.Act.Inputs?.Operation);
+        Assert.Equal(new GlassEstimateBuildFigures(null, 0.40m), adjust.Act.Served);
+        Assert.Equal("AE", adjust.Act.Inputs?.Operation);
         Assert.Equal(GlassAutomationActOutcome.Refused, unanswered.Act.Outcome);
         Assert.Equal(GlassFailure.EditorRefused, unanswered.Act.Code);
         Assert.Equal(GlassAutomationActOutcome.Added, answered.Act.Outcome);
@@ -498,34 +498,39 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(GlassAutomationButton.PartAndPaint, repaired.Act.Inputs?.Button);
         List<string?> judged =
         [
-            GlassEditorFixture.Text("door_left_e.post.txt"),
-            GlassEditorFixture.Text("door_left_z.post.txt"),
+            GlassEditorFixture.Text("door_left_refit.post.txt"),
+            GlassEditorFixture.Text("door_left_ad.post.txt"),
             GlassEditorFixture.Text("door_left_repair_part_and_paint.post.txt"),
         ];
         Assert.Equal(judged, DialogPosts(harness));
     }
 
     /// <summary>
-    /// An operation that reloads the dialog or opens a window Pegasus does
-    /// not answer stays refused: Paintless dent repair, and Renew on a part
-    /// that can be painted. The dialog is asked for and nothing is posted.
+    /// An operation the return cannot read back (R1206; issue 2155) is
+    /// refused with its own code when it is claimed, before anything is asked
+    /// of Glass's: Renew, Dismantle and assemble, Adjustments, and Paintless
+    /// dent repair, which also reloads the dialog. The act keeps the
+    /// operation asked for.
     /// </summary>
     [Theory]
-    [InlineData("DD")]
     [InlineData("AN")]
-    public async Task AnOperationThatReloadsOrOpensAWindowIsRefused(string operation)
+    [InlineData("Z")]
+    [InlineData("E")]
+    [InlineData("DD")]
+    public async Task AnOperationTheReturnCannotReadBackIsRefusedAndNothingIsSent(string operation)
     {
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
+        var requests = harness.Mva.Requests.Count;
 
         var step = await PositionAsync(harness, Add(harness, session, "mcp:op-" + operation,
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
             inputs: new GlassAutomationInputs(Operation: operation)));
 
         Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassFailure.EditorRefused, step.Act.Code);
-        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/comp.php"));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, step.Act.Code);
+        Assert.Equal(operation, step.Act.Inputs?.Operation);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
     }
 
     /// <summary>
@@ -603,7 +608,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var requests = harness.Mva.Requests.Count;
 
         var preview = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "Z")),
+            Preview(harness, session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AD")),
             CancellationToken.None);
 
         Assert.NotNull(preview);
@@ -618,7 +623,10 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(545.24m, replace.Price);
         Assert.Equal(2.90m, replace.Hours);
         Assert.True(replace.Served);
-        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "Z").Changeable);
+        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AD").Changeable);
+        var dismantle = Assert.Single(dialog.Operations, item => item.Code == "Z");
+        Assert.False(dismantle.Changeable);
+        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, dismantle.RefusedCode);
         Assert.False(Assert.Single(dialog.Operations, item => item.Code == "DD").Changeable);
         Assert.False(Assert.Single(dialog.Operations, item => item.Code == "AN").Changeable);
         var repairType = Assert.Single(dialog.Fields, field => field.Name == "Repart");
@@ -630,7 +638,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Contains(dialog.Buttons, button => button is { Value: "BSL", Text: "Part and Paint" });
         var sends = dialog.Sends;
         Assert.NotNull(sends);
-        Assert.Equal("Z", sends.Operation);
+        Assert.Equal("AD", sends.Operation);
         Assert.Equal(GlassFailure.EditorRefused, sends.Code);
         var question = Assert.Single(sends.Questions, item => item.Kind == "no_figures");
         Assert.False(question.Answered);
@@ -640,6 +648,12 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(session.Version + 1, preview.Session.Version);
         Assert.Null(harness.Store.Material(session.Id).Session.Automation);
+
+        var unread = await harness.Gateway.PreviewAutomationPositionAsync(
+            Preview(harness, preview.Session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AN")),
+            CancellationToken.None);
+        Assert.Equal(GlassAutomationPositionPolicy.OperationNotReadBackCode, unread?.Dialog?.Sends?.Code);
+        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
     }
 
     /// <summary>

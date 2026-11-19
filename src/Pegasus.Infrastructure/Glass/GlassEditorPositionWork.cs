@@ -665,7 +665,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// for those operations, else the dialog's own. The question before a
     /// part with no figures: <c>inputs.confirmNoFigures</c>, else answered OK
     /// for Repair alone (R1188). "Both": only on a <c>part.php</c> dialog,
-    /// else refused as not built. The optional parts to tick. A rebuild never
+    /// else refused as not built. An operation the return cannot read back is
+    /// refused first (<see cref="GlassAutomationPositionPolicy.OperationRefusal"/>).
+    /// The optional parts to tick. A rebuild never
     /// comes here: its lines keep <see cref="ChoosePartAsync"/>'s own rule.
     /// The request is answered with the choices even when refused, so a
     /// preview still shows the dialog.
@@ -702,7 +704,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
             Ticks = inputs?.OptionalParts,
         };
-        var refused = !paintable && button != GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
+        var refused = GlassAutomationPositionPolicy.OperationRefusal(operation) is { } unread ? unread
+            : !paintable && button != GlassAutomationButton.Part ? GlassAutomationPositionPolicy.NotPaintableCode
             : paintable && inputs?.BothSides == true ? GlassEstimateBuildPolicy.NotBuiltCode
             : null;
         return (chosen, refused);
