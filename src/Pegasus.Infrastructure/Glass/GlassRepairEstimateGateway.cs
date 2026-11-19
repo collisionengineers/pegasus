@@ -439,7 +439,7 @@ public sealed partial class GlassRepairEstimateGateway(
                         var list = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                             opened, PartListGroups, cancellationToken));
                         opened = list.Session;
-                        parts = list.Value;
+                        parts = list.Value.Rows;
                     }
                     catch (Exception failure)
                         when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
@@ -1362,7 +1362,11 @@ public sealed partial class GlassRepairEstimateGateway(
         GlassAutomationCatalogueQuery query, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
+        if (string.IsNullOrWhiteSpace(query.Row))
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
+        }
+
         RequireAutomation(query.Actor);
         var material = await store.GetAsync(query.SessionId, cancellationToken)
             ?? throw new KeyNotFoundException($"There is no Glass's session {query.SessionId}.");
@@ -1376,7 +1380,8 @@ public sealed partial class GlassRepairEstimateGateway(
 
         var editor = NewEditorClient(provider.EditorLastRequestAtUtc);
         var (rows, code, opened) = await Positions.SearchAsync(
-            session, editor, open.Session(), query.Term.Trim(), query.Kind, query.Side, cancellationToken);
+            session, editor, open.Session(), query.Term.Trim(), query.Kind, query.Side,
+            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), cancellationToken);
         provider.Editor = EditorState.Of(opened);
         provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
         session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, session.FailureCode,
@@ -1450,12 +1455,19 @@ public sealed partial class GlassRepairEstimateGateway(
                     "An add names its row, and an operation for a part and only for a part.", nameof(request));
             }
 
+            if (request.Inputs?.Equipment is not null
+                && !GlassAutomationPositionPolicy.TakesEquipment(kind, request.Operation))
+            {
+                throw new ArgumentException("An equipment answer is given for a part added as Part only.", nameof(request));
+            }
+
             act = act with
             {
                 Kind = kind,
                 Row = request.Row.Trim(),
                 Operation = request.Operation,
                 Side = string.IsNullOrWhiteSpace(request.Side) ? null : request.Side.Trim(),
+                Inputs = request.Inputs?.Equipment is null ? null : request.Inputs,
             };
             if (!GlassAutomationPositionPolicy.Sends(kind, request.Operation))
             {

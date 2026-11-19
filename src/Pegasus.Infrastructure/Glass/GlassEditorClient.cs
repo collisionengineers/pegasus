@@ -43,7 +43,10 @@ internal enum GlassEditorDialog
 /// figures),
 /// which optional parts to tick if the editor lists mandatory parts, and the
 /// side the dialog must serve: <c>L</c>, <c>R</c>, empty for a part with no
-/// side, or null when the side is not checked (a special operation).
+/// side, or null when the side is not checked (a special operation). A part
+/// whose rows an equipment answer chose (R1206) also names the part number
+/// the dialog must serve, and has its rows checked against the pair the
+/// record's first line names (<c>C1010800_701910520101_2G_0_5_|64</c>).
 /// </summary>
 internal sealed record GlassEditorAddRequest(
     GlassEditorDialog Dialog,
@@ -52,7 +55,9 @@ internal sealed record GlassEditorAddRequest(
     string? Button = null,
     GlassEditorChange? Change = null,
     IReadOnlyCollection<string>? Ticks = null,
-    string? ExpectedSide = null);
+    string? ExpectedSide = null,
+    bool CheckRows = false,
+    string? ExpectedPartNumber = null);
 
 /// <summary>
 /// What an add did: the dialog's summary and notes, the parts the
@@ -201,17 +206,44 @@ internal sealed class GlassEditorClient(
 
     /// <summary>
     /// The vehicle's part list (<c>list.php</c>), asked for with the editor's
-    /// group list as the graph page asks for it, read row by row.
+    /// group list as the graph page asks for it, read row by row, with the
+    /// vehicle's equipment criteria the same page carries.
     /// </summary>
-    public async Task<GlassEditorReply<IReadOnlyList<GlassEditorPartRow>>> ReadPartListAsync(
+    public async Task<GlassEditorReply<GlassEditorPartList>> ReadPartListAsync(
         GlassEditorSession session, string groups, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(groups);
         var (jar, at) = Begin(session);
         var text = await GetAsync(at.PartList(groups), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
-        var list = GlassMvaClient.Matched(() => GlassEditorPages.PartList(text), GlassFailure.EditorAnswer)
+        var rows = GlassMvaClient.Matched(() => GlassEditorPages.PartList(text), GlassFailure.EditorAnswer)
             ?? throw Unread("part-list", text);
+        var list = new GlassEditorPartList(
+            rows,
+            GlassMvaClient.Matched(() => GlassEditorPages.Criteria(text), GlassFailure.EditorAnswer),
+            GlassMvaClient.Matched(() => GlassEditorPages.ReferencedNote(text), GlassFailure.EditorAnswer));
         return new(list, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// Stores an equipment answer for the vehicle as the editor's list does
+    /// just before it asks for the part's dialog (R1206). Glass's keeps it
+    /// for the vehicle. The answer must be the service page that tells the
+    /// list to read the criteria again; any other, or none, may still have
+    /// stored it.
+    /// </summary>
+    public async Task<GlassEditorReply<bool>> StoreEquipmentAsync(
+        GlassEditorSession session, string answer, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(answer);
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.StoreEquipment(answer), at.Frame, jar, GlassFailure.EditorRequest, true, cancellationToken);
+        if (!GlassMvaClient.Matched(() => GlassEditorPages.EquipmentStored(text), GlassFailure.EditorAnswer, outcomeUnknown: true))
+        {
+            throw new GlassMvaStageException(
+                GlassFailure.EditorAnswer, outcomeUnknown: true, detail: $"page=equipment-answer length={text.Length}");
+        }
+
+        return new(true, session with { Cookies = Snapshot(jar) });
     }
 
     /// <summary>One part-list row's equipment map, as the nested lists the page holds.</summary>
@@ -290,6 +322,15 @@ internal sealed class GlassEditorClient(
             throw new GlassMvaStageException(
                 GlassFailure.EditorRefused,
                 detail: "The dialog carries part code " + (servedCode ?? "none") + ", not " + request.ExpectedPartCode + ".");
+        }
+        if (request.CheckRows && !NamesRows(build.Summary.Position, request.Rows))
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record names other rows.");
+        }
+        if (request.ExpectedPartNumber is { } number
+            && !string.Equals((build.Summary.PartNumber ?? string.Empty).Trim(), number.Trim(), StringComparison.Ordinal))
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries another part number.");
         }
         if (build.Action is null)
         {
@@ -393,6 +434,20 @@ internal sealed class GlassEditorClient(
         }
 
         return outcome.Address;
+    }
+
+    /// <summary>
+    /// Whether a part record's first line names the row pair asked for: the
+    /// two fields after <c>2G</c> in <c>C1010800_701910520101_2G_0_5_|64</c>,
+    /// as all five captured part dialogs asked for by a pair carry them.
+    /// </summary>
+    internal static bool NamesRows(string? position, string rows)
+    {
+        var pair = rows.Split('|');
+        var fields = (position ?? string.Empty).Split('|')[0].Split('_');
+        var at = Array.IndexOf(fields, "2G");
+        return pair.Length == 2 && at >= 0 && at + 2 < fields.Length
+            && fields[at + 1] == pair[0] && fields[at + 2] == pair[1];
     }
 
     /// <summary>Pegasus's own return address, up to its one-use token.</summary>

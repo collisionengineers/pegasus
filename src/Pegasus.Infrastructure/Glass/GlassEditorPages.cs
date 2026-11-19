@@ -35,7 +35,10 @@ internal sealed record GlassEditorSpecialGroup(string Code, string Name, IReadOn
 /// <param name="Number">The manufacturer's part number.</param>
 /// <param name="Price">The part's price, or a time row's hours.</param>
 /// <param name="Operations">The operations the row offers (<c>ERAEI </c>), or a time row's one operation (<c>ER</c>).</param>
-/// <param name="ShownByEquipment">Whether the row is shown or hidden on its drawing by some equipment.</param>
+/// <param name="Show">The equipment that shows the row (field 10): alternatives joined by <c>+</c>, codes by <c>_</c>.</param>
+/// <param name="Hide">The equipment that hides the row (field 11), written as <paramref name="Show"/> is.</param>
+/// <param name="DrawingShow">The equipment that shows the row's drawing (field 12).</param>
+/// <param name="DrawingHide">The equipment that hides the row's drawing (field 13).</param>
 /// <param name="Name">The part's name.</param>
 internal sealed record GlassEditorPartRow(
     string Id,
@@ -47,10 +50,17 @@ internal sealed record GlassEditorPartRow(
     string Number,
     string Price,
     string Operations,
-    bool ShownByEquipment,
+    string Show,
+    string Hide,
+    string DrawingShow,
+    string DrawingHide,
     string Name)
 {
     public bool Has(char mark) => Marks.Contains(mark, StringComparison.Ordinal);
+
+    /// <summary>Whether the row is shown or hidden on its drawing by some equipment.</summary>
+    public bool ShownByEquipment =>
+        Show.Length > 0 || Hide.Length > 0 || DrawingShow.Length > 0 || DrawingHide.Length > 0;
 
     /// <summary>A part row (marked <c>p</c>).</summary>
     public bool IsPart => Has('p');
@@ -63,6 +73,46 @@ internal sealed record GlassEditorPartRow(
 
     /// <summary>A part that can be painted: its dialog is <c>comp.php</c>, as the editor's own pages choose it.</summary>
     public bool Paintable => Has('L');
+}
+
+/// <summary>
+/// One of the vehicle's equipment criteria, as the part list's
+/// <c>partlist.addCrit("…")</c> line gives it (the list code's <c>CIID</c> to
+/// <c>CIRR</c> fields): its code, marks, value, how many positions use it,
+/// name, radio group and radio flag. Mark <c>g</c> is a value Glass's keeps
+/// for the vehicle; mark <c>f</c> one the vehicle fixes, such as a build date,
+/// which the editor's dialog does not show.
+/// </summary>
+internal sealed record GlassEditorCriterion(
+    string Code, string Marks, string Value, string Referenced, string Name, string Group, string Radio)
+{
+    public bool Has(char mark) => Marks.Contains(mark, StringComparison.Ordinal);
+
+    /// <summary>The vehicle has it.</summary>
+    public bool IsSet => Value == "1";
+
+    /// <summary>A radio option: one of a group of which at most one is ticked.</summary>
+    public bool IsRadio => Group is not ("" or "0") && Radio is not ("" or "0");
+
+    /// <summary>Another position uses it, so the dialog marks it (the list code's <c>critConv</c>).</summary>
+    public bool AffectsOtherParts =>
+        int.TryParse(Referenced, NumberStyles.Integer, CultureInfo.InvariantCulture, out var count) && count > 0;
+}
+
+/// <summary>
+/// The vehicle's part list page as the editor's list code holds it: its rows,
+/// the vehicle's criteria by code (the first line for a code wins), and the
+/// note the page shows on an option another position uses
+/// (<c>partlist.ttReferenced</c>), when the page sets one.
+/// </summary>
+internal sealed record GlassEditorPartList(
+    IReadOnlyList<GlassEditorPartRow> Rows,
+    IReadOnlyDictionary<string, GlassEditorCriterion> Criteria,
+    string? ReferencedNote)
+{
+    /// <summary>The codes of the criteria the vehicle has.</summary>
+    public IReadOnlySet<string> Vehicle { get; } =
+        Criteria.Values.Where(criterion => criterion.IsSet).Select(criterion => criterion.Code).ToHashSet(StringComparer.Ordinal);
 }
 
 /// <summary>
@@ -300,7 +350,10 @@ internal static partial class GlassEditorPages
                     Field(fields, 7),
                     Field(fields, 8),
                     Field(fields, 9),
-                    Enumerable.Range(10, 4).Any(column => Field(fields, column).Length > 0),
+                    Field(fields, 10),
+                    Field(fields, 11),
+                    Field(fields, 12),
+                    Field(fields, 13),
                     above[3]));
             }
 
@@ -309,6 +362,61 @@ internal static partial class GlassEditorPages
 
         return rows.Count == 0 ? null : rows;
     }
+
+    /// <summary>
+    /// The vehicle's equipment criteria on the part list page: one per
+    /// <c>partlist.addCrit("…")</c> call, by code, the first call for a code
+    /// kept, read without running the page (R1206). Empty when the page has
+    /// none.
+    /// </summary>
+    public static IReadOnlyDictionary<string, GlassEditorCriterion> Criteria(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        const string Call = "partlist.addCrit(";
+        var criteria = new Dictionary<string, GlassEditorCriterion>(StringComparer.Ordinal);
+        var at = html.IndexOf(Call, StringComparison.Ordinal);
+        while (at >= 0)
+        {
+            var index = at + Call.Length;
+            while (index < html.Length && char.IsWhiteSpace(html[index]))
+            {
+                index++;
+            }
+            if (index < html.Length && html[index] is '"' or '\'')
+            {
+                var fields = Quoted(html, ref index).Split('|');
+                var code = Field(fields, 0);
+                if (code.Length > 0)
+                {
+                    criteria.TryAdd(code, new GlassEditorCriterion(
+                        code, Field(fields, 1), Field(fields, 2), Field(fields, 4), Field(fields, 5), Field(fields, 8),
+                        Field(fields, 10)));
+                }
+            }
+
+            at = index < html.Length ? html.IndexOf(Call, index, StringComparison.Ordinal) : -1;
+        }
+
+        return criteria;
+    }
+
+    /// <summary>
+    /// The note the part list page shows on an option another position uses
+    /// (<c>partlist.ttReferenced = '…';</c>), as the page writes it, or null.
+    /// </summary>
+    public static string? ReferencedNote(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var found = ReferencedTooltip().Match(html);
+        return found.Success && found.Groups[1].Value.Length > 0 ? found.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// <c>service.php?…&amp;globcrit=…&amp;updatecrit2g=1</c>: whether the answer is
+    /// the service page that tells the editor's list to read the vehicle's
+    /// criteria again (<c>critRefresh()</c>), as it answered a browser.
+    /// </summary>
+    public static bool EquipmentStored(string text) => CriteriaRefresh().IsMatch(text);
 
     /// <summary>The part list's fields its own <c>index()</c> fills down: drawing, drawing number, part code, name.</summary>
     private static readonly int[] FilledDown = [3, 4, 5, 16];
@@ -707,4 +815,10 @@ internal static partial class GlassEditorPages
 
     [GeneratedRegex(@"document\.location\.replace\(\s*(""(?:[^""\\]|\\.)*"")\s*\)", Patterns, 1000)]
     private static partial Regex ReturnReplace();
+
+    [GeneratedRegex(@"partlist\.ttReferenced\s*=\s*'([^'\r\n]*)'", Patterns, 1000)]
+    private static partial Regex ReferencedTooltip();
+
+    [GeneratedRegex(@"\.critRefresh\(\s*\)", Patterns, 1000)]
+    private static partial Regex CriteriaRefresh();
 }

@@ -46,18 +46,20 @@ internal static class AutomationToolText
     // Operator, 18 November 2026: R1178
     public const string GlassEstimateEmpty = "The estimate has no positions; close the session instead.";
 
-    // Operator, 18 November 2026: R1178
+    // Operator, 18 November 2026: R1178. The equipment sentence is a draft
+    // for the operator under R1206 (19 November 2026).
     public const string GlassCatalogueSearch =
-        "Search the open Glass's estimate's part list and its special operations by name, part code or part number. Each row carries the value pegasus_glass_position_act adds it by, its side, and whether its part can be painted. Glass's is asked at most twice; nothing changes.";
+        "Search the open Glass's estimate's part list and its special operations by name, part code or part number. Each row carries the value pegasus_glass_position_act adds it by, its side, and whether its part can be painted. A part whose row asks Glass's equipment question carries the question; with row, the search answers that one row and each answer to its question that leads to a part. Glass's is asked at most twice; nothing changes.";
 
-    // Operator, 18 November 2026: R1178
+    // Operator, 18 November 2026: R1178. The equipment sentences are drafts
+    // for the operator under R1206 (19 November 2026).
     public const string GlassPositionAct =
-        "Add a position to the Automation's open Glass's estimate, or remove one. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it: no price, hours or part number is typed. A part is added only when its row needs no equipment answer; otherwise it is refused with the reason and nothing is sent. remove takes a position id. Each takes the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
+        "Add a position to the Automation's open Glass's estimate, or remove one. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it: no price, hours or part number is typed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. Each takes the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
 
     // The parameter and field descriptions and the refusals of the catalogue
     // search and the position act that the ruled set (R1178) does not hold.
 
-    public const string GlassSearchTerm = "Matched against each row's description, part code or part number, ignoring case; 1 to 200 characters.";
+    public const string GlassSearchTerm = "Matched against each row's description, part code or part number, ignoring case; 1 to 200 characters. Not needed with row.";
 
     public const string GlassSearchKind = "part, special_operation or any; omit for any.";
 
@@ -77,7 +79,7 @@ internal static class AutomationToolText
 
     public const string GlassCataloguePaintable = "Whether the part can be painted.";
 
-    public const string GlassCatalogueCode = "The glass.* code when Glass's did not answer a list; no rows are then answered.";
+    public const string GlassCatalogueCode = "The glass.* code when Glass's did not answer a list, or the row asked for is not a part on it; no rows are then answered.";
 
     public const string GlassExpectedSessionVersion = "The session version from pegasus_glass_session_get or the last Glass's tool answer; a stale value fails closed.";
 
@@ -124,6 +126,55 @@ internal static class AutomationToolText
     public const string GlassActMandatoryParts = "The parts Glass's listed as mandatory; only those it ticked itself were added.";
 
     public const string GlassActs = "Each position act the Automation asked for on this session, in order.";
+
+    // A part's equipment question (R1206; design 10 section 3). Drafts for
+    // the operator to approve on the merge request. Glass's own option names
+    // and its own "Criteria affects other parts!" are passed through as
+    // Glass's gives them.
+
+    public const string GlassSearchRow = "A part's row from an earlier search: the search answers that row alone, with each answer to its equipment question that leads to a part.";
+
+    public const string GlassCatalogueEquipment = "Present only when Glass's asks an equipment question before it adds this part: the options as Glass's dialog shows them, and with row each answer that leads to a part.";
+
+    public const string GlassEquipmentOptionCode = "The code inputs.equipment names to tick the option.";
+
+    public const string GlassEquipmentOptionName = "Glass's own name for the option.";
+
+    public const string GlassEquipmentOptionTicked = "Whether Glass's holds the option for the vehicle now, so its dialog shows it ticked.";
+
+    public const string GlassEquipmentOptionGreyed = "Glass's dialog greys the option out; an answer may not name it.";
+
+    public const string GlassEquipmentOptionGroup = "Options of one group exclude each other; an answer names at most one of them.";
+
+    public const string GlassEquipmentOptionNote = "Glass's own note on an option another position uses.";
+
+    public const string GlassEquipmentAnswers = "With row: each answer that leads to a part. An answer not listed is refused.";
+
+    public const string GlassEquipmentAnswerTicked = "The option codes the answer ticks; an entry of mapParts or mapHours needs these.";
+
+    public const string GlassEquipmentAnswerRows = "The rows Glass's dialog is asked for: the part's row and its Replace hours row. An entry of mapParts or mapHours names its one row.";
+
+    public const string GlassEquipmentAnswerFigures = "As Glass's part list gives it; the add answers with the figures Glass's dialog serves.";
+
+    public const string GlassEquipmentMapParts = "With row, when the answers are too many to list: the part rows Glass's equipment map holds, each with the options it needs.";
+
+    public const string GlassEquipmentMapHours = "With row, when the answers are too many to list: the Replace hours rows Glass's equipment map holds, each with the options it needs.";
+
+    public const string GlassAddInputs = "add: what to give Glass's for the position, as a person would; omit it to give nothing.";
+
+    public const string GlassInputsEquipment = "A part added as part whose row asks Glass's equipment question: the option codes to tick, from the row's equipment in pegasus_glass_catalogue_search; [] ticks none. It is the whole answer: an option not named is unticked, even one the vehicle has now. Glass's keeps the answer for the vehicle, as it keeps a person's. Omit it for a row that asks nothing.";
+
+    public const string GlassInputsEquipmentRefused = "inputs.equipment is given only to add a part as part, and holds option codes, none blank.";
+
+    public const string GlassActInputs = "What the add gave Glass's.";
+
+    public const string GlassActEquipment = "An add refused on a part's equipment question: the question, as the search gives it.";
+
+    public const string GlassActRowPair = "The rows Glass's dialog was asked for, as the equipment answer chose them.";
+
+    public const string GlassActEquipmentChanged = "The options whose value Glass's held for the vehicle the answer changed, each with its new tick.";
+
+    public const string GlassActEquipmentStored = "The answer was sent to Glass's, which keeps it for the vehicle even when the add was then refused.";
 
     // The Automation's help in an Engineer's own open Glass's session
     // (R1170, R1182, R1185; design 08 section 5). Not ruled: the sentences

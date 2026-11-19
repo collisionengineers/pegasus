@@ -592,7 +592,7 @@
     },
     "partList": {
       "file": "part_list.html",
-      "note": "Whole blocks cut from the list.php of 7 September 2026 (glasses7.har), each partlist.addPart line kept byte for byte, by a cut script in the operator's workspace; the address is the one the browser asked for, with the made-up key.",
+      "note": "Whole blocks cut from the list.php of 7 September 2026 (glasses7.har), each partlist.addPart line kept byte for byte, by a cut script in the operator's workspace; the address is the one the browser asked for, with the made-up key. The page's ttReferenced line and its 170 partlist.addCrit lines were added on 19 November 2026 by cut-fixtures.mjs (design 10 section 5); they carry no key.",
       "address": "https://repairestimate.autovistagroup.com/ere/aco/list.php?ksid=Q0TESTKEY000000000000000000001&cml=C&html5svg=1&ds=DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022&win7=1",
       "groups": "DS2000019|DS2000008|DS2000005|DS2000018|DS2000003|DS2000002|DS2000001|DS2000007|DS2000004|DS2000006|DS2000013|DS2000014|DS2000011|DS2000009|DS2000010|DS2000012|DS2000015|DS2000017|DS2000016|DS2000021|DS2000022",
       "rows": 100
@@ -600,6 +600,28 @@
     "equipment274": {
       "file": "equipment_274.html",
       "note": "The map of part-list row 274 (Front Door Outer Handle, left) on 7 September 2026, the vehicle of part_list.html"
+    },
+    "partListAfterAnswers": {
+      "file": "part_list_after_answers.html",
+      "note": "The 170 partlist.addCrit lines of the list.php served after the 08:06 answers of 7 September 2026 (glasses7.har #648): 12000, 24119, 90109 and 85161 are set."
+    },
+    "equipment0": {
+      "file": "equipment_0.html",
+      "asked": "0|5",
+      "answers": "12000|1|1|24119|1|1|90109|1|1"
+    },
+    "equipment682": {
+      "file": "equipment_682.html",
+      "note": "Row 682's map (glasses7.har #575): its part rows by a fixed build date, 740."
+    },
+    "globcrit": {
+      "file": "globcrit.answer.html",
+      "address": "https://repairestimate.autovistagroup.com/ere/aco/service.php?ksid=Q0TESTKEY000000000000000000001&html5svg=1&nationscodepage=iso-8859-1&globcrit=12000%7C1%7C1%7C24119%7C1%7C1%7C90109%7C1%7C1&updatecrit2g=1&dummy=1794979937123",
+      "answers": "12000|1|1|24119|1|1|90109|1|1",
+      "note": "The answer to the stored equipment answer of glasses7.har #519; its address with the made-up key and time."
+    },
+    "equipmentAnswers": {
+      "file": "equipment_answers.json"
     }
   },
   "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up.",

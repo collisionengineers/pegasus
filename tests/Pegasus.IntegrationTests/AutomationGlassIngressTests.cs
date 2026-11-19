@@ -25,6 +25,11 @@ public sealed class AutomationGlassIngressTests
     /// <summary>The Automation's own login on this host (R1177): a made-up username.</summary>
     private const string AutomationLogin = "automation-ingress-login";
 
+    /// <summary>The lining's three options (glasses7 #356, row 0), all ticked.</summary>
+    private static readonly string[] LiningOptions = ["12000", "24119", "90109"];
+
+    private static readonly string[] FogLamp = ["12000"];
+
     [Fact]
     public async Task TheGlassToolsNeedTheGlassScope()
     {
@@ -312,6 +317,83 @@ public sealed class AutomationGlassIngressTests
 
         Assert.Equal(3, await CountHistoryAsync(factory, "pegasus_glass_catalogue_search"));
         Assert.Equal(1, await CountHistoryAsync(factory, "pegasus_glass_position_act"));
+    }
+
+    /// <summary>
+    /// A part's equipment question through the tools (R1206): an answer on a
+    /// remove is refused before anything is asked of Glass's; the search
+    /// answers a row with its question, as Glass's names the options, and
+    /// every answer that leads to a part; an add with no answer is refused
+    /// with the question; an add with inputs.equipment stores the answer and
+    /// adds the part as served, and its act keeps the answer, the rows and
+    /// the values it changed.
+    /// </summary>
+    [Fact]
+    public async Task APartsEquipmentQuestionIsAnsweredThroughTheTools()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        var glass = new ScriptedGlass();
+        GlassProviderFixture.ScriptEditor(glass);
+        using var mcpFactory = WithEditor(WithGlass(WithAutomationMcp(factory)), glass);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AutomationMcp.GlassScope);
+        await SeedAutomationSessionAsync(mcpFactory, caseId, withEditor: true);
+
+        using (var remove = await PostMcpAsync(client, token, ToolCallPayload(1, "pegasus_glass_position_act", new
+        {
+            caseId, action = "remove", operationKey = "mcp:remove-1", expectedSessionVersion = 0, positionId = "C1.2.C3.4",
+            inputs = new { equipment = FogLamp },
+        })))
+        {
+            Assert.Contains(AutomationToolText.GlassInputsEquipmentRefused, await RefusalAsync(remove), StringComparison.Ordinal);
+        }
+        Assert.Empty(glass.Requests);
+
+        long version;
+        using (var found = await PostMcpAsync(client, token, ToolCallPayload(2, "pegasus_glass_catalogue_search", new { caseId, row = "0" })))
+        {
+            var structured = await ReadStructuredContentAsync(found);
+            var equipment = Assert.Single(structured.GetProperty("items").EnumerateArray()).GetProperty("equipment");
+            var options = equipment.GetProperty("options").EnumerateArray().ToList();
+            Assert.Equal(LiningOptions, options.Select(option => option.GetProperty("code").GetString()));
+            Assert.Equal("Fog Lamp", options[0].GetProperty("name").GetString());
+            Assert.Equal("144", options[1].GetProperty("group").GetString());
+            Assert.Equal(8, equipment.GetProperty("answers").GetArrayLength());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+
+        using (var unanswered = await PostMcpAsync(client, token, ToolCallPayload(3, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:lining-1", expectedSessionVersion = version,
+            kind = "part", row = "0", operation = "part",
+        })))
+        {
+            var structured = await ReadStructuredContentAsync(unanswered);
+            var act = structured.GetProperty("act");
+            Assert.Equal("refused", act.GetProperty("outcome").GetString());
+            Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, act.GetProperty("code").GetString());
+            Assert.Equal(3, act.GetProperty("equipment").GetProperty("options").GetArrayLength());
+            version = structured.GetProperty("session").GetProperty("version").GetInt64();
+        }
+        Assert.DoesNotContain(glass.Requests, request => request.Query.Contains("globcrit=", StringComparison.Ordinal));
+
+        using (var added = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_glass_position_act", new
+        {
+            caseId, action = "add", operationKey = "mcp:lining-2", expectedSessionVersion = version,
+            kind = "part", row = "0", operation = "part", inputs = new { equipment = LiningOptions },
+        })))
+        {
+            var act = (await ReadStructuredContentAsync(added)).GetProperty("act");
+            Assert.Equal("added", act.GetProperty("outcome").GetString());
+            Assert.Equal("0|5", act.GetProperty("rowPair").GetString());
+            Assert.True(act.GetProperty("equipmentStored").GetBoolean());
+            Assert.Equal(3, act.GetProperty("inputs").GetProperty("equipment").GetArrayLength());
+            Assert.Equal(3, act.GetProperty("equipmentChanged").GetArrayLength());
+            Assert.Equal(379.00m, act.GetProperty("price").GetDecimal());
+        }
+        Assert.Single(glass.Requests, request => request.Query.Contains("globcrit=", StringComparison.Ordinal));
+        Assert.Equal(2, glass.Count("POST /ere/aco/compproc.php"));
     }
 
     /// <summary>

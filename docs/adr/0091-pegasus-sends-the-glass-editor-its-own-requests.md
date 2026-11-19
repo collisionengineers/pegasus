@@ -79,7 +79,9 @@ the key alone reaches the server that holds the session only by chance
 1. **An editor client beside the portal client.** `GlassEditorClient` in
    `src/Pegasus.Infrastructure/Glass/` opens an editor session from the launch
    address, reads the estimate and the editor's lists, adds and removes
-   positions, and saves and exits. It asks only the editor's host
+   positions, and saves and exits. It also stores a part's equipment answer
+   for the vehicle as the editor's list stores it, just before the part's
+   dialog, when the Automation gives one (19 November 2026; R1206). It asks only the editor's host
    (`GlassRepairEstimateOptions.EstimatorBaseUri`), one request at a time
    with a pause between them, and follows no redirect.
 2. **It posts what the page serves.** A position is added by asking for its
