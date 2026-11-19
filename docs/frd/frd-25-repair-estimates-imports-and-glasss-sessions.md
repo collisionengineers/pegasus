@@ -740,6 +740,15 @@ scratch-resistant clear, and the paint price, hours and reason it types.
 Glass's own script sets the paint price and hours each choice leads to, a
 plastic part's levels as well as a metal one's.
 
+**The quick repair panel (19 November 2026; R1206).** The Automation may
+also add a part as a person does with the panel under the editor's drawing
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)): New,
+Remove and Install or Repair with its hours, for one side or both, with the
+paint the panel adds itself and the paint area it offers. It is quicker and
+sets less than the dialog: no price, typed figures, labour type, part
+number or paint choices. A part already on the estimate is not added this
+way, because the panel would first delete its positions.
+
 **Renew and its old-for-new deductions (19 November 2026; R1206).** When
 the Automation chooses Renew, it answers the old-for-new window as a person
 would ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):

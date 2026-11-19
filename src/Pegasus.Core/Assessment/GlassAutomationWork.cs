@@ -188,12 +188,13 @@ public sealed record GlassAutomationInputs(
     string? Description = null,
     bool? OutsideWork = null,
     bool? OverlapFull = null,
-    GlassAutomationRenew? Renew = null)
+    GlassAutomationRenew? Renew = null,
+    bool? Panel = null)
 {
     /// <summary>Whether no member is given.</summary>
     public bool IsEmpty =>
         Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
-        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields && Renew is null;
+        && ConfirmNoFigures is null && !Typed && Paint is null && !Fields && Renew is null && Panel is null;
 
     /// <summary>Whether a field of the dialog's own is given: a side, labour type, part number, description, outside work or Full (R1206).</summary>
     public bool Fields =>
@@ -662,6 +663,10 @@ public static class GlassAutomationPositionPolicy
         {
             return FirstGiven(inputs);
         }
+        if (inputs.Panel is not null)
+        {
+            return PanelRefused(action, kind, operation, inputs);
+        }
         if ((TypedRefused(inputs) ?? FieldRefused(inputs)) is { } typed)
         {
             return typed;
@@ -727,6 +732,44 @@ public static class GlassAutomationPositionPolicy
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// What an add through the quick repair panel does not take (R1206): it
+    /// adds a part, never a special operation or a position already on the
+    /// estimate, by one of the panel's three buttons (New for Part, Remove and
+    /// Install, Repair); with Repair the hours its spinner holds, to one
+    /// decimal place; Both; and of the paint, only the area its paint box
+    /// offers. The panel chooses the paint level itself and has no other box.
+    /// </summary>
+    private static string? PanelRefused(
+        GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
+        GlassAutomationInputs inputs)
+    {
+        if (inputs.Panel != true || action != GlassAutomationActAction.Add
+            || kind != GlassAutomationPositionKind.Part
+            || operation is not (GlassAutomationPartOperation.Part or GlassAutomationPartOperation.RemoveAndRefit
+                or GlassAutomationPartOperation.Repair))
+        {
+            return "inputs.panel";
+        }
+        if (inputs.Hours is { } hours
+            && (operation != GlassAutomationPartOperation.Repair || hours < 0 || hours > MaximumTypedHours
+                || decimal.Round(hours, 1) != hours))
+        {
+            return "inputs.hours";
+        }
+        if (inputs.Paint is { } paint
+            && (!(paint with { Area = null }).IsEmpty || string.IsNullOrWhiteSpace(paint.Area)))
+        {
+            return "inputs.paint";
+        }
+        if (inputs.Equipment is { } equipment && equipment.Any(string.IsNullOrWhiteSpace))
+        {
+            return "inputs.equipment";
+        }
+
+        return FirstGiven(inputs with { Panel = null, Hours = null, Paint = null, BothSides = null, Equipment = null });
     }
 
     private static string? FirstGiven(GlassAutomationInputs inputs) =>
@@ -892,6 +935,15 @@ public static class GlassAutomationPositionPolicy
     /// negative figure, so nothing is posted (R1206).
     /// </summary>
     public const string DeductionBelowZeroCode = "glass.build.deduction_below_zero";
+
+    /// <summary>
+    /// The quick repair panel would not add the part as asked (R1206): its
+    /// button is greyed for the part, the paint area is not one its paint box
+    /// offers, the part has no other side for Both, or the estimate holds the
+    /// part already, whose positions the panel would delete first. Nothing
+    /// was sent.
+    /// </summary>
+    public const string PanelRefusedCode = "glass.panel.refused";
 
     /// <summary>The inputs as an act keeps them: null when none is given.</summary>
     public static GlassAutomationInputs? Kept(GlassAutomationInputs? inputs) =>

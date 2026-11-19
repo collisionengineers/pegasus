@@ -133,6 +133,36 @@ public sealed class GlassEditorClientTests
         Assert.Equal("GET", only.Method);
     }
 
+    /// <summary>
+    /// The quick repair panel's Both (R1206): one command per side, in order,
+    /// exactly as glasss2missing.har #536 and #537 asked for them, then the
+    /// estimate read again for the positions added.
+    /// </summary>
+    [Fact]
+    public async Task ThePanelsCommandsAreSentInOrderAndTheEstimateReadAgain()
+    {
+        using var editor = new ScriptedEditor();
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET service.php", new(HttpStatusCode.OK, string.Empty));
+        editor.Enqueue("GET selected.php", new(HttpStatusCode.OK, GlassEditorFixture.Text("selected.html")));
+        var client = Client(editor);
+
+        var added = await client.PanelAddAsync(
+            GlassEditorFixture.Session(), NoPositions(),
+            GlassEditorPanel.Commands(PanelValues), "Front Door Skin", default);
+
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=171|173|AE||III|80||&nofresh3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[0].Query));
+        Assert.Equal(
+            "?ksid=" + GlassEditorFixture.Key + "&html5svg=1&nationscodepage=iso-8859-1&partadd=174|176|AE||III|80||&actFrame3=1&addpart2g=1&dummy=1794979937000",
+            Uri.UnescapeDataString(editor.Requests[1].Query));
+        Assert.Equal("/ere/aco/selected.php", editor.Requests[2].Path);
+        Assert.Equal(GlassEditorFixture.Strings(GlassEditorFixture.Page("selected"), "positions"), added.Value.Added);
+    }
+
+    private static readonly string[] PanelValues = ["171|173|AE||III|80||", "174|176|AE||III|80||"];
+
     /// <summary>Any other problem the builder finds refuses the dialog with the editor's own code, and nothing is posted.</summary>
     [Fact]
     public async Task ADialogWithAProblemIsNeverPosted()

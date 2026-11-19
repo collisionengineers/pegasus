@@ -3563,5 +3563,208 @@
       "page": "wing_zero.dialog.html",
       "post": "c6_wing_zero_automation.post.txt"
     }
+  ],
+  "panelNote": "The quick repair panel (R1206), judged on 19 November 2026: rpvwpart.php and rpvwpaint.php from glasss2missing.har (#295, #296) run offline in headless Chromium (scratch-2026-11-19/miss/panel.mjs), each given the item list.php's createRepairViewItem builds from the captured list (#373) and paint list (#412), a button pressed, and the commands its AcoCommand gave recorded. p_door_skin_both_ae is #536 and #537 byte for byte.",
+  "panel": [
+    {
+      "name": "p_door_skin_both_ae",
+      "heads": [
+        "171",
+        "174"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=171|173|AE||III|80||&nofresh3=1&addpart2g",
+        "partadd=174|176|AE||III|80||&actFrame3=1&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_left_ae",
+      "heads": [
+        "171"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=171|173|AE||III|80||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_left_er",
+      "heads": [
+        "171"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=171|172|ER||I|80||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_both_er",
+      "heads": [
+        "171",
+        "174"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=171|172|ER||I|80||&nofresh3=1&addpart2g",
+        "partadd=174|175|ER||I|80||&actFrame3=1&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_left_repair",
+      "heads": [
+        "171"
+      ],
+      "operation": "I ",
+      "hours": "1.5",
+      "zone": null,
+      "commands": [
+        "partadd=171|172|I |1.5|III|80||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_left_ae_zone88",
+      "heads": [
+        "171"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": "88",
+      "commands": [
+        "partadd=171|173|AE||III|88||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_door_skin_left_er_zone88",
+      "heads": [
+        "171"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": "88",
+      "commands": [
+        "partadd=171|172|ER||II|88||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_bumper_cover_er",
+      "heads": [
+        "13"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=13|14|ER||K1R|22||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_bumper_cover_ae",
+      "heads": [
+        "13"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=13|15|AE||K2|22||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_bumper_cover_repair",
+      "heads": [
+        "13"
+      ],
+      "operation": "I ",
+      "hours": "2.0",
+      "zone": null,
+      "commands": [
+        "partadd=13|14|I |2.0|K2|22||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_reinforcement_er",
+      "heads": [
+        "19"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=19|20|ER||II|||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_reinforcement_ae",
+      "heads": [
+        "19"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=19|21|AE|||||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_reinforcement_repair",
+      "heads": [
+        "19"
+      ],
+      "operation": "I ",
+      "hours": "0.5",
+      "zone": null,
+      "commands": [
+        "partadd=19|20|I |0.5|II|||&addpart2g"
+      ]
+    },
+    {
+      "name": "p_jet_flap_both_er",
+      "heads": [
+        "22",
+        "26"
+      ],
+      "operation": "ER",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=22|24|ER|||||&nofresh3=1&addpart2g",
+        "partadd=26|28|ER|||||&actFrame3=1&addpart2g"
+      ]
+    },
+    {
+      "name": "p_bracket_both_repair",
+      "heads": [
+        "30",
+        "33"
+      ],
+      "operation": "I ",
+      "hours": "1.0",
+      "zone": null,
+      "commands": [
+        "partadd=30|31|I |1.0||||&nofresh3=1&addpart2g",
+        "partadd=33|34|I |1.0||||&actFrame3=1&addpart2g"
+      ]
+    },
+    {
+      "name": "p_plate_carrier_ae",
+      "heads": [
+        "16"
+      ],
+      "operation": "AE",
+      "hours": null,
+      "zone": null,
+      "commands": [
+        "partadd=16|18|AE|||||&addpart2g"
+      ]
+    }
   ]
 }

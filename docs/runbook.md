@@ -1777,7 +1777,11 @@ it stopped.
   asked for one that can. An operation that reloads the dialog (DD, R1206)
   posts the form to `comp.php` or `part.php` with `frl=1` inside stage
   `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
-  answer is `glass.editor.request`. Renew (AN) asks for `oldfrnew.php` before the
+  answer is `glass.editor.request`. An add with `inputs.panel` sends
+  `service.php?…&partadd=…&addpart2g=1` once per side in stage
+  `EditorPanelAdd` (reading `list_paint.php` first in stage
+  `EditorPaintList` when the part is painted in more than one area), then
+  reads the estimate; `glass.panel.refused` means nothing was sent. Renew (AN) asks for `oldfrnew.php` before the
   post on a part with its paint, or when a deduction is given; a window
   Glass's does not answer is `glass.editor.request`, and deductions that
   leave a negative figure are `glass.build.deduction_below_zero` with

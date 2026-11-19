@@ -832,6 +832,23 @@ compose Glass's, each tool is refused with "Glass's is not available."
   rule runs for Part and for Part and Paint, as its CheckSubmit runs it.
   The act keeps every input beside the figures the
   dialog served and the figures sent, recorded just before the post.
+- **19 November 2026; R1206.** `inputs.panel` adds a part through the
+  quick repair panel under the editor's drawing instead of its dialog, as
+  a person does with one press: New for `part`, Remove and Install for
+  `remove_and_refit`, Repair for `repair` with `inputs.hours` as its repair
+  hours (one decimal place). With `inputs.side` `both` it adds each side in
+  turn, one command each, as the panel's own Both does. On a part that can
+  be painted the panel adds the paint too, at the level it chooses itself;
+  `inputs.paint.area` chooses the paint area where its paint box offers
+  more than one, and the paint list is then read for that area's levels.
+  The panel sets no price, typed figures, reason, labour type, part number,
+  overlap hours, optional parts, paint type, Surcharge or clear coats; the
+  dialog route does. A part already on the estimate (the panel would delete
+  its positions first), a button the panel greys, an area it does not offer
+  and Both on a part with no other side are refused with
+  `glass.panel.refused` before anything is sent. Judged offline on 19
+  November 2026: the panel's own script (glasss2missing.har #295, #296)
+  sent #536 and #537 byte for byte, and 16 commands over seven parts.
 - **19 November 2026; R1206.** The dialog's own fields are given as a
   person gives them, in both kinds of live session: `inputs.place` ticks the
   side boxes where the dialog lets its side be changed (left or right, and

@@ -200,6 +200,50 @@ internal sealed class GlassEditorClient(
     }
 
     /// <summary>
+    /// Each paint area's paint levels from the paint list (R1206), which the
+    /// quick repair panel chooses its paint level from for a part painted in
+    /// more than one area.
+    /// </summary>
+    public async Task<GlassEditorReply<Dictionary<string, string>>> ReadPaintAreasAsync(
+        GlassEditorSession session, CancellationToken cancellationToken)
+    {
+        var (jar, at) = Begin(session);
+        var text = await GetAsync(at.PaintList(), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var areas = GlassMvaClient.Matched(() => GlassEditorPanel.ZoneLevels(text), GlassFailure.EditorAnswer);
+        if (areas.Count == 0)
+        {
+            throw Unread("list_paint", text);
+        }
+
+        return new(areas, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// The quick repair panel's commands sent in order (R1206), each as the
+    /// editor's AcoCommand sends it, then the estimate read again: the
+    /// positions it holds now that it did not before. From the first command
+    /// on, a lost answer may still have added a position.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassEditorAdded>> PanelAddAsync(
+        GlassEditorSession session, GlassEditorEstimate before, IReadOnlyList<string> commands, string description,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(commands);
+        var (jar, at) = Begin(session);
+        foreach (var command in commands)
+        {
+            await GetAsync(at.Panel(command), at.Frame, jar, GlassFailure.EditorAnswer, true, cancellationToken);
+        }
+
+        var after = await SelectedAsync(at, jar, cancellationToken);
+        var added = after.Positions.Where(id => !before.Positions.Contains(id)).ToList();
+        return new(
+            new GlassEditorAdded(new GlassEditorSummary { Description = description }, [], [], after, added),
+            session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
     /// One position's figures from its record, as <c>mcode.php</c> answers
     /// it. The id goes into the address as it is, so only an id as Glass's
     /// lists them (letters, digits and dots) is asked for.

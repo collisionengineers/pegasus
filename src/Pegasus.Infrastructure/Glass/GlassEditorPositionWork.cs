@@ -506,6 +506,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             }
         }
 
+        // The quick repair panel adds the part without its dialog (R1206).
+        if (act.Inputs?.Panel == true && partList is not null)
+        {
+            return await PanelAsync(session, editor, opened, act, adding, partList, before, record, cancellationToken);
+        }
+
         // Just before the post, in the one write the post needs: the code above, and the figures
         // the dialog served and those it is about to send (R1206).
         async Task PostingAsync(GlassEditorSummary summary)
@@ -839,6 +845,137 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
             return (act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode }, opened, after);
         }
+    }
+
+    /// <summary>
+    /// An add through the quick repair panel (R1206): the head the add's own
+    /// rule chose, and with Both the same row on the other side, each pressed
+    /// as the panel presses it (<see cref="GlassEditorPanel"/>): New for Part,
+    /// Remove and Install, or Repair with its hours, and the paint area
+    /// chosen when the part is painted in more than one, whose levels the
+    /// paint list is then read for. A part the estimate already holds is
+    /// refused, because the panel would delete its positions first
+    /// (<c>deletepartid</c>); so is a button the panel greys, an area it does
+    /// not offer and Both on a part with no other side. Each refusal is
+    /// <see cref="GlassAutomationPositionPolicy.PanelRefusedCode"/> before
+    /// anything is sent. The codes the new positions carry are recorded
+    /// before the first command; the positions are those the estimate holds
+    /// afterwards that it did not before.
+    /// </summary>
+    private async Task<GlassEditorPositionDone> PanelAsync(
+        GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened, GlassAutomationAct act,
+        GlassEditorAddRequest adding, GlassEditorPartList parts, GlassEditorEstimate before,
+        Func<GlassAutomationAct, GlassEditorSession, Task> record, CancellationToken cancellationToken)
+    {
+        var inputs = act.Inputs!;
+        var operation = act.Operation switch
+        {
+            GlassAutomationPartOperation.RemoveAndRefit => GlassEditorPanel.RemoveAndRefit,
+            GlassAutomationPartOperation.Repair => GlassEditorPanel.Repair,
+            _ => GlassEditorPanel.Replace,
+        };
+        var head = IndexOfHead(parts.Rows, adding.Rows.Split('|')[0]);
+        var items = new List<GlassPanelItem>();
+        string? problem = null;
+        if (GlassEditorPanel.ItemOf(parts.Rows, head) is { } first)
+        {
+            items.Add(first);
+        }
+        else
+        {
+            problem = "The row is not a part's head.";
+        }
+        if (problem is null && inputs.BothSides == true)
+        {
+            var other = parts.Rows[head].Has('T') ? IndexOfHead(parts.Rows, parts.Rows[head].OtherSide) : -1;
+            if (GlassEditorPanel.ItemOf(parts.Rows, other) is { } second)
+            {
+                items.Add(second);
+            }
+            else
+            {
+                problem = "The part has no other side the panel adds with Both.";
+            }
+        }
+        if (problem is null && items.Exists(item => before.Positions.Any(id =>
+                string.Equals(GlassAutomationPositionPolicy.CodeOf(id), "C" + item.Code, StringComparison.Ordinal))))
+        {
+            problem = "The estimate holds the part already; the panel would delete its positions first.";
+        }
+
+        Dictionary<string, string>? areas = null;
+        if (problem is null && items.Exists(item => item.Paintable && item.Zones.Count >= 2))
+        {
+            try
+            {
+                var read = await StageAsync(session, "EditorPaintList", () => editor.ReadPaintAreasAsync(opened, cancellationToken));
+                opened = read.Session;
+                areas = read.Value;
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                // Reading a list changes nothing: the act is refused with the code.
+                act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = CodeOf(failure) };
+                await record(act, opened);
+                return new(act, opened, null);
+            }
+        }
+
+        var values = new List<string>();
+        var hours = inputs.Hours is { } given ? GlassEditorPanel.HoursText(given) : null;
+        for (var index = 0; problem is null && index < items.Count; index++)
+        {
+            var (value, refused) = GlassEditorPanel.PartAdd(items[index], operation, hours, inputs.Paint?.Area?.Trim(), areas);
+            problem = refused;
+            if (value is not null)
+            {
+                values.Add(value);
+            }
+        }
+        if (problem is not null)
+        {
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.Refused, GlassAutomationPositionPolicy.PanelRefusedCode, problem);
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = GlassAutomationPositionPolicy.PanelRefusedCode };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        act = act with
+        {
+            ExpectedCode = "C" + items[0].Code,
+            OtherSideCode = items.Count > 1 ? "C" + items[1].Code : null,
+            Before = [],
+        };
+        await record(act, opened);
+        GlassEditorEstimate? after = null;
+        try
+        {
+            var added = await StageAsync(session, "EditorPanelAdd", () => editor.PanelAddAsync(
+                opened, before, GlassEditorPanel.Commands(values), parts.Rows[head].Name.Trim(), cancellationToken));
+            opened = added.Session;
+            after = added.Value.Estimate;
+            act = act with
+            {
+                Outcome = GlassAutomationActOutcome.Added,
+                Code = null,
+                PositionIds = added.Value.Added,
+                Description = parts.Rows[head].Name.Trim(),
+            };
+        }
+        catch (Exception lost)
+            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+        {
+            // Sent, or perhaps sent: the next read of the estimate settles it.
+            var failure = AsFailure(lost);
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
+            act = act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode };
+        }
+
+        await record(act, opened);
+        return new(act, opened, after);
     }
 
     /// <summary>

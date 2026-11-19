@@ -110,6 +110,20 @@ internal sealed class GlassEditorAddresses(GlassEditorSession session, TimeProvi
     public string OpenPosition(string id) =>
         session.BaseAddress + "part.php?" + Q + "&cml=C&partid=" + id + "&dialogCodePage=iso-8859-1&dummy=" + Milliseconds();
 
+    /// <summary>
+    /// The paint list (<c>list_paint.php</c>), as the editor loads it (#412):
+    /// its paint areas' levels, which the quick repair panel reads (R1206).
+    /// </summary>
+    public string PaintList() => session.BaseAddress + "list_paint.php?" + Q + "&cml=L&html5svg=1&win7=1";
+
+    /// <summary>
+    /// A quick repair panel command (R1206), as the editor's AcoCommand sends
+    /// it: <c>service.php</c> with the command and <c>=1</c>
+    /// (<c>…&amp;addpart2g=1</c>); a space is sent as <c>%20</c>, as a
+    /// browser sends it.
+    /// </summary>
+    public string Panel(string command) => Service(command.Replace(" ", "%20", StringComparison.Ordinal) + "=1");
+
     /// <summary>The removal of a position already on the estimate.</summary>
     public string Remove(string id) =>
         session.BaseAddress + "compproc.php?" + Q + "&cml=C&partid=" + id + "&dummy=" + Milliseconds();

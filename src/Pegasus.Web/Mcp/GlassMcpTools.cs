@@ -97,7 +97,8 @@ internal sealed record GlassPositionInputsToolInput(
     [property: Description(AutomationToolText.GlassInputsDescription)] string? Description = null,
     [property: Description(AutomationToolText.GlassInputsOutsideWork)] bool? OutsideWork = null,
     [property: Description(AutomationToolText.GlassInputsOverlapFull)] bool? OverlapFull = null,
-    [property: Description(AutomationToolText.GlassInputsRenew)] GlassRenewInputsToolInput? Renew = null);
+    [property: Description(AutomationToolText.GlassInputsRenew)] GlassRenewInputsToolInput? Renew = null,
+    [property: Description(AutomationToolText.GlassInputsPanel)] bool? Panel = null);
 
 /// <summary>Renew's old-for-new window as a person answers it (R1206).</summary>
 internal sealed record GlassRenewInputsToolInput(
@@ -947,7 +948,8 @@ internal sealed class GlassMcpTools(
                 ? new GlassAutomationRenew(
                     renew.PriceDeduction, renew.PriceAmount == true, renew.HoursDeduction, renew.HoursAmount == true,
                     renew.PaintDeduction)
-                : null));
+                : null,
+            inputs.Panel));
     }
 
     /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
@@ -970,6 +972,7 @@ internal sealed class GlassMcpTools(
         "inputs.description" => AutomationToolText.GlassInputsDescriptionRefused,
         "inputs.outsideWork" or "inputs.overlapFull" => AutomationToolText.GlassInputsFieldRefused,
         "inputs.renew" => AutomationToolText.GlassInputsRenewRefused,
+        "inputs.panel" => AutomationToolText.GlassInputsPanelRefused,
         _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
     };
 
@@ -1136,7 +1139,8 @@ internal sealed class GlassMcpTools(
                         ? new GlassRenewInputsToolInput(
                             renew.PriceDeduction, renew.PriceAmount ? true : null, renew.HoursDeduction,
                             renew.HoursAmount ? true : null, renew.PaintDeduction)
-                        : null)
+                        : null,
+                    given.Panel)
                 : null,
             MapEquipment(act.Equipment),
             act.RowPair,
