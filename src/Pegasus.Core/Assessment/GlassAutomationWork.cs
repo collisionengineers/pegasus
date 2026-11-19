@@ -389,9 +389,6 @@ public static class GlassAutomationPositionPolicy
     /// <summary>A row neither of the session's lists holds, or a position the estimate does not hold.</summary>
     public const string RowUnknownCode = "glass.row.unknown";
 
-    /// <summary>A part row that serves both sides: the dialog's side tick box is not built.</summary>
-    public const string BothSidesCode = "glass.row.both_sides";
-
     // The refusals of an equipment answer (R1206), each made before anything
     // is sent to Glass's. For the Automation's add and preview,
     // GlassEstimateBuildPolicy.EquipmentCode means only that the row asks

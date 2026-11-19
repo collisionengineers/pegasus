@@ -578,6 +578,36 @@ public sealed class GlassSessionHelpTests
     }
 
     /// <summary>
+    /// In the Engineer's session a part whose block has no time row is asked
+    /// for alone, as the editor asks it (R1206); the mirror's dialog stands
+    /// in for its own, none being captured, and is refused by its part code.
+    /// </summary>
+    [Fact]
+    public async Task APartWithNoTimeRowIsAskedForAloneInTheEngineersSession()
+    {
+        var help = Help.Create();
+        help.Glass.Enqueue("GET /ere/aco/part.php", EditorPage("mirror_left.dialog.html", null));
+
+        var guide = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-guide",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "51",
+                Operation = GlassAutomationPartOperation.Part,
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassFailure.EditorRefused, guide.Act.Code);
+        Assert.Equal("51", guide.Act.RowPair);
+        Assert.Contains(
+            "mcode=51&",
+            Uri.UnescapeDataString(Assert.Single(help.Glass.Requests, request => request.Path == "/ere/aco/part.php").Query),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A preview in the Engineer's session (R1206) reads the lists and the
     /// dialog on the held key, posts nothing, records no history row and
     /// does not ask the window to redraw.

@@ -28,6 +28,14 @@ internal sealed record GlassEditorEquipmentChoice(
     GlassEstimateBuildFigures? Listed = null)
 {
     public IReadOnlyList<GlassEquipmentHiding> HiddenBy { get; init; } = [];
+
+    /// <summary>
+    /// Each operation's time row in the editor's selection, as its repair
+    /// view gives them: a row pair of one operation is the part row and this
+    /// row (the recording of 19 November 2026 added remove-and-refit on each
+    /// side by <c>171|173</c> and <c>174|176</c>).
+    /// </summary>
+    public GlassEditorOperationTimes Operations { get; init; } = GlassEditorOperationTimes.None;
 }
 
 /// <summary>
@@ -641,12 +649,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             return (null, GlassAutomationPositionPolicy.RowUnknownCode, opened, null);
         }
 
+        // A head marked both left and right is one row serving both sides:
+        // the editor clicks it on either side to the same rows, and its side
+        // is chosen in the dialog, so either side may be asked for (R1206).
         var row = parts.Rows[head];
-        if (row.Has('l') && row.Has('r'))
-        {
-            return (null, GlassAutomationPositionPolicy.BothSidesCode, opened, null);
-        }
-        if (act.Side is { } side && !string.Equals(side, row.Side, StringComparison.Ordinal))
+        var bothSides = row.Has('l') && row.Has('r');
+        if (act.Side is { } side && !bothSides && !string.Equals(side, row.Side, StringComparison.Ordinal))
         {
             return (null, GlassEstimateBuildPolicy.NoRowCode, opened, null);
         }
@@ -687,18 +695,20 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         }
 
         var answered = GlassEditorRows.Answer(parts, head, question, map, answer ?? []);
-        if (answered is not { Part: { } part, Time: { } time, Rows: { } rows })
+        if (answered is not { Part: { } part, Rows: { } rows })
         {
             return (null, answered.ReasonCode ?? GlassAutomationPositionPolicy.EquipmentNoPartCode, opened, asked);
         }
 
         // The dialog is the chosen part row's: comp.php when it can be painted.
+        // A row serving both sides has its side chosen in the dialog, so the
+        // side served is not checked.
         var request = new GlassEditorAddRequest(
             part.Paintable ? GlassEditorDialog.PaintablePart : GlassEditorDialog.Part,
             rows,
             row.Code,
             Button: part.Paintable ? PartButton : null,
-            ExpectedSide: row.Side ?? string.Empty,
+            ExpectedSide: bothSides ? null : row.Side ?? string.Empty,
             CheckRows: true,
             ExpectedPartNumber: part.Number);
         return (request, null, opened, asked with
@@ -706,7 +716,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             Rows = rows,
             Store = answered.Store,
             Changes = answered.Changes,
-            Listed = new(Amount(part.Price), Amount(time.Price)),
+            Listed = new(Amount(part.Price), Amount(answered.Time?.Price)),
+            Operations = answered.Operations,
         });
     }
 

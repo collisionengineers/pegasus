@@ -703,17 +703,19 @@ internal sealed class GlassEditorClient(
     }
 
     /// <summary>
-    /// Whether a part record's first line names the row pair asked for: the
-    /// two fields after <c>2G</c> in <c>C1010800_701910520101_2G_0_5_|64</c>,
-    /// as all five captured part dialogs asked for by a pair carry them.
+    /// Whether a part record's first line names the rows asked for: the two
+    /// fields after <c>2G</c> in <c>C1010800_701910520101_2G_0_5_|64</c>, as
+    /// all five captured part dialogs asked for by a pair carry them; a part
+    /// row asked for alone, as the editor asks a part whose block has no time
+    /// row (R1206), by the first of them.
     /// </summary>
     internal static bool NamesRows(string? position, string rows)
     {
-        var pair = rows.Split('|');
+        var asked = rows.Split('|');
         var fields = (position ?? string.Empty).Split('|')[0].Split('_');
         var at = Array.IndexOf(fields, "2G");
-        return pair.Length == 2 && at >= 0 && at + 2 < fields.Length
-            && fields[at + 1] == pair[0] && fields[at + 2] == pair[1];
+        return at >= 0 && at + 2 < fields.Length && fields[at + 1] == asked[0]
+            && (asked.Length == 1 || (asked.Length == 2 && fields[at + 2] == asked[1]));
     }
 
     /// <summary>Pegasus's own return address, up to its one-use token.</summary>
