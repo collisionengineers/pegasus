@@ -580,7 +580,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Select(principal => new { principal.Id, principal.Code })
             .ToListAsync();
 
-        Assert.Equal(55, seeded.Count);
+        Assert.Equal(56, seeded.Count);
         foreach (var (code, principalId) in expected)
         {
             var matches = seeded.Where(row => row.Id == principalId).ToArray();

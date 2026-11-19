@@ -521,10 +521,11 @@ public sealed class ProductionCompositionTests
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
             initializer => initializer is SecretPathTelemetryInitializer);
-        // The same host connects Glass's (ADR-0060), Cazana (ADR-0079) and
-        // Brego (ADR-0084) as guide valuation sources, one provider each.
+        // The same host connects Glass's (ADR-0060), Cazana (ADR-0079), Brego
+        // (ADR-0084) and CAP through Experian (ADR-0089, R1201) as guide
+        // valuation sources, one provider each.
         Assert.Equal(
-            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.Brego],
+            [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.Brego, ValuationSource.Cap],
             factory.Services.GetServices<IGuideValuationProvider>().Select(provider => provider.Source));
         // It connects Experian as the vehicle history check (ADR-0089).
         Assert.IsType<Pegasus.Infrastructure.Experian.ExperianVehicleHistoryProvider>(

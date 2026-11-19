@@ -157,7 +157,9 @@ section clears comes last, under Accounts where it opens Accounts. The
 Cases list's Current work names the same first row, except Vehicle
 registration incomplete and Vehicle mileage incomplete, which only the Not
 ready queue reads ([R759](../rulings.md), [R929](../rulings.md),
-[R1081](../rulings.md)).
+[R1081](../rulings.md)); a Garage authorisation & invoice Audit's External
+estimate incomplete and Repair invoice incomplete are named on every queue
+(operator, 18 November 2026; [R1198](../rulings.md)).
 The card shows beside every section; a long list scrolls
 within the aside rather than pushing the sections down.
 When a newer fact has made the current generation stale, the Next action
@@ -717,10 +719,14 @@ when a retail answers (operator, 2 November 2026, R638). A source already
 answered for that month at the Case's registration and mileage is not asked
 again: the press is refused on the card (operator, 10 November 2026, R900;
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
-Glass's, Brego and Cazana
-are the connected sources; each valuation's PDF report is filed on the Case's
+Glass's, Brego, Cazana and CAP
+are the connected sources; each Glass's, Brego and Cazana valuation's PDF
+report is filed on the Case's
 Documents after the figures have answered and appears there on the next load
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+CAP's Guide month is greyed while editing, holds the current month and says
+`CAP can only do valuations for the current day.` on hover (operator, 19
+November 2026, [R1203](../rulings.md)).
 A source with no connected provider shows "{Source} valuation is
 unavailable. Contact an administrator or report a problem." on its card from
 the start, as one quiet line under its figures rather than a notice box

@@ -9,7 +9,7 @@
 - The Principal API is create-only. A Principal states its instruction in JSON
   with its files attached; Pegasus does not read the values back out of a
   document.
-- Twenty-three Principal email routes are accepted, each tied to exact domains
+- Twenty-four Principal email routes are accepted, each tied to exact domains
   or mailboxes. No wider domain matching is allowed.
 - A message links to an existing Case automatically only when exactly one
   Case matches and nothing contradicts it. Several matches fail closed.
@@ -203,7 +203,7 @@ already holds the fields, so it states them.
 
 ### Accepted principal email routes and automatic association
 
-**Twenty-three routes.** The twenty-three existing instruction profiles are
+**Twenty-four routes.** The twenty-four existing instruction profiles are
 active through the ordinary email path. Principal API credentials and mailbox
 onboarding are separate capabilities.
 
@@ -211,14 +211,17 @@ onboarding are separate capabilities.
 of the direct routes' evidenced exact domains and mailboxes. Principal
 Settings displays it. It
 covers ABRAHAMS, ALISON, ALS, AMS, AX, BC, BLACK, DFD, FW, KBS, KERR, KMR,
-MP, OAK, PCH, QCL, QDOS, RJS, SBL, SWAN, TEN, ULA and YML. YML accepts only its evidenced
+MP, OAK, PCH, PHOUSE, QCL, QDOS, RJS, SBL, SWAN, TEN, ULA and YML. YML accepts only its evidenced
 mailbox, never the shared Gmail domain. HDUK-branded instructions in the
 supplied YML samples belong to the confirmed YML route; HDUK is recorded as
 document issuer, separately from the instructing Principal. Branding never
 creates a Principal or widens an accepted sender. No suffix or subdomain
 widening is allowed. ABRAHAMS accepts the whole of
 `abrahamssolicitors.co.uk`, though every instruction seen came from one
-mailbox (operator, 12 November 2026, [R980](../rulings.md)).
+mailbox (operator, 12 November 2026, [R980](../rulings.md)). PHOUSE is
+Parkhouse, its own Principal and no alias of PCH, and accepts both of its
+domains, `parkhouseassist.com` and `parkhousebodyshop.com` (operator, 18
+November 2026, [R1191](../rulings.md)).
 
 **One sender.** Exactly one consistent transport sender is required. A
 Collision Engineers staff forward must also prove one external original
@@ -256,9 +259,11 @@ implementation is bound to each extraction registration. QDOS keeps its
 generated Inspection, Audit, combined and Triage tells (below). Other
 profiles need the evidenced explicit inspect or examine request, or a
 Principal's evidenced template tell: DFD's `Engineer instruction request`,
-FW's `New INSTRUCTIONS:`, and Baker & Coleman's letter sentence `prepare a
+FW's `New INSTRUCTIONS:`, Baker & Coleman's letter sentence `prepare a
 desktop report` (operator, 9 November 2026, [R829](../rulings.md); their
-earlier letters ask to inspect the vehicle and pass the generic request).
+earlier letters ask to inspect the vehicle and pass the generic request),
+and Parkhouse Assist's letter sentence `will be doing a DESKTOP INSPECTION`
+(operator, 18 November 2026, [R1193](../rulings.md)).
 A DFD instruction is the attached form titled
 `Engineer instruction request`, sent from the `dfd-solicitors.co.uk` route;
 it classifies `new-instruction` for an Inspection (operator, 9 November
@@ -289,6 +294,23 @@ that proves the work, so the letter itself does, and it has no original
 report to read (operator, 17 November 2026, [R1145](../rulings.md),
 [R1155](../rulings.md);
 [FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+A Parkhouse instruction is the Word letter `Instructing_Repairer.docx`
+attached to mail from the `parkhouseassist.com` route, addressed to the
+repairer and copied to Collision Engineers. It is recognised by its
+`Instructing repairer:` heading, its `Our Ref:`, `Our Client:`, `Vehicle:`
+and `Accident Date:` rows and the name Parkhouse Assist it signs with. It
+gives the claim reference, the client with an address and telephone, the
+registration and vehicle, the accident date, the VAT status and the repairer
+it instructs, and no inspection address. The letter is a new instruction for
+an Inspection when it says the engineers "will be doing a DESKTOP
+INSPECTION"; a letter without that sentence waits for staff (operator, 18
+November 2026, [R1193](../rulings.md)). The repairer's name fills the Case's
+Repairer when it is an active Repairer's; a fresh database is seeded with
+PHOUSE, active, and with the Repairer "Parkhouse Bodyshop" linked to it. A
+PHOUSE record a database already holds is left as it is: while it is
+inactive every Case for it is refused, until staff tick Active on the
+contact. Its inspection mode stays a physical address ([R1192](../rulings.md),
+[R1194](../rulings.md), [R1195](../rulings.md)).
 
 **Case matching.** `PrincipalCaseMatchPolicy` is bound the same way. Its
 non-QDOS keys come from the profile's typed role-labelled fields and keep the
@@ -422,7 +444,7 @@ permission to guess.
 ## Acceptance evidence
 
 Core tests cover the submission contract (credential, replay, validation,
-existing-Case rejection), the twenty-three-route catalogue, the QDOS match keys
+existing-Case rejection), the twenty-four-route catalogue, the QDOS match keys
 and eliminator, and the two Triage tells. Integration tests cover the
 Principal API over real HTTP with the feature gate on and off. Live activation
 for a named Principal needs exact-target approval and its own evidence tier

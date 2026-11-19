@@ -1902,7 +1902,7 @@
             }
             done = true;
             if (editKey && editFocus) { focusControl(editKey, editFocus); }
-            if (form.hasAttribute('data-glass-close-form') || form.hasAttribute('data-glass-help-form')) { return refreshGlassControls(); }
+            if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             done = false;
             var failure = isImport
@@ -2595,11 +2595,6 @@
         if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
         event.preventDefault();
         if (glassOpening) { return; }
-        // An answer to the import question (R1171) closes its dialog before
-        // the window opens, so focus returning to the page does not pull it
-        // back over Glass's; the form is found again by its action below.
-        var asking = form.closest('[data-dialog]');
-        if (asking && !asking.hidden && typeof asking.pegasusClose === 'function') { asking.pegasusClose(); }
         var windowName = 'pegasus-glass-' + window.location.pathname;
         glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
@@ -3781,6 +3776,14 @@
                 if (typed && typed.matches && typed.matches('[data-valuation-retail]')) {
                     // A retail typed into a card answers its "enter the retail" sentence.
                     if (parseFloat(typed.value) > 0) { needsRetail(typed.closest('[data-valuation-card]'), false); }
+                }
+                // A figure typed on a card valued only as it stands today is
+                // the current month's (R1203): its greyed month box follows.
+                if (typed && typed.matches
+                    && (typed.matches('[data-valuation-retail]') || typed.matches('[data-valuation-trade]'))) {
+                    var monthToday = typed.closest('[data-valuation-card]');
+                    monthToday = monthToday && monthToday.querySelector('[data-valuation-month-today]');
+                    if (monthToday) { monthToday.value = monthToday.getAttribute('data-valuation-month-today'); }
                 }
                 // A figure typed into the chosen card is the basis figure now.
                 if (typed && typed.matches

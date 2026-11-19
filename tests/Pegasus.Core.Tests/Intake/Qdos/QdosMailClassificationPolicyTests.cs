@@ -10,7 +10,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("principal_mail_classification", PrincipalMailClassificationPolicy.Key);
-        Assert.Equal(7, PrincipalMailClassificationPolicy.Version);
+        Assert.Equal(8, PrincipalMailClassificationPolicy.Version);
     }
 
     /// <summary>

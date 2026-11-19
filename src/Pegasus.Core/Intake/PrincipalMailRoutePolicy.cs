@@ -64,6 +64,7 @@ public sealed class PrincipalMailRoutePolicy : IMailRoutePolicy
             ["MP"] = ["montrealprestige.co.uk"],
             ["OAK"] = ["oakwoodscotland.co.uk", "oakwoodsolicitors.co.uk"],
             ["PCH"] = ["pch-ltd.com"],
+            ["PHOUSE"] = ["parkhouseassist.com", "parkhousebodyshop.com"],
             ["QCL"] = ["qc-law.co.uk"],
             ["QDOS"] = ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"],
             ["RJS"] = ["robertjameslaw.co.uk"],

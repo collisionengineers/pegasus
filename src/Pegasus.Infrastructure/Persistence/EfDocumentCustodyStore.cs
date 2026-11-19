@@ -100,6 +100,15 @@ internal sealed class EfDocumentCustodyStore(
                     cancellationToken);
             }
             await context.SaveChangesAsync(cancellationToken);
+            // A garage Audit's External estimate or Repair invoice moves the
+            // Case in the same save, within the one version an upload takes,
+            // as an image's completion does (R1196).
+            if (EndsGarageWait(command.SemanticRole)
+                && await EfCaseWorkflowStore.EndGarageWaitAsync(
+                    context, workflow, command.Actor, beforeVersion, now, cancellationToken))
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken);
         }
         catch (Exception exception)
@@ -1047,8 +1056,19 @@ internal sealed class EfDocumentCustodyStore(
             await SaveStalingChangedReportImagesAsync(
                 context, command.CaseId, reportImagesBefore, now, cancellationToken);
         }
+        // The move is its own Case change, after the type's (R997, R1196).
+        if (EndsGarageWait(command.NewRole)
+            && await EfCaseWorkflowStore.EndGarageWaitAsync(
+                context, workflow, command.Actor, null, now, cancellationToken))
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
         await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>The two types whose filing can end a Garage authorisation and invoice Audit's wait (R1141, R1144).</summary>
+    private static bool EndsGarageWait(DocumentSemanticRole role) =>
+        role is DocumentSemanticRole.ExternalEstimate or DocumentSemanticRole.RepairInvoice;
 
     /// <summary>The history line a Mark and a recognition write.</summary>
     private static string OriginalReportHistoryLine(DocumentVersionEntity version) =>

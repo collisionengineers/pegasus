@@ -78,9 +78,8 @@ asks the Administrator to reload.
 
 Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.intake`, `automation.documents`, `automation.assessment`,
-`automation.mail`, `automation.jobs`, `automation.send`, `automation.glass`)
-renders as a plain label (Cases, Received files, Documents, Assessment, Mail,
-AI jobs, Sending, Glass's; the last 18 November 2026, R1179).
+`automation.mail`, `automation.jobs`, `automation.send`) renders as a plain
+label (Cases, Received files, Documents, Assessment, Mail, AI jobs, Sending).
 The underlying key is kept only as a hover title
 ([v41 A23](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
 `automation.send` is the sending scope

@@ -40,14 +40,6 @@ until the work it queued has run. So no window finds the session idle between
 its claim and its work, and a racing second request waits on the first one's
 work. A background service runs a few items at a time, but one session's work
 runs in turn. Each item gets its own dependency scope and an overall time cap.
-An item may name a longer cap of its own: a Glass's build (18 November 2026;
-R1171, [ADR-0091](0091-pegasus-sends-the-glass-editor-its-own-requests.md))
-runs the launch, every line at a browser's pace, the save and the return as
-one item of up to 15 minutes, because splitting it would mean taking up an
-editor session again after a restart, where a lost post may already have
-added a line. The same item then reopens the estimate it landed, holding the
-reopen's new session busy from before its claim until it has run, so the
-build's window opens it with no second request.
 The Glass's window polls a small owner-only state answer and moves on when the
 work is done.
 
@@ -62,8 +54,7 @@ Worker read and mint staff cookies.
   settle another instance's running work as interrupted.
 - A restart or the time cap stops work part-way. The session is left as an
   interrupted request always left it: Prepared stays resumable, and anything
-  past it becomes Unknown and holds the account. A build stopped part-way is
-  continued as a launch and never built again. The Glass's window settles a
+  past it becomes Unknown and holds the account. The Glass's window settles a
   session it finds waiting with nothing running.
 - A full queue never drops work. The request runs the work itself, as every
   request did before this decision.

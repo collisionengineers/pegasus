@@ -48,10 +48,6 @@ const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string GlassCallbackRateLimitPolicy = "GlassCallback";
 const int GlassCallbackRequestsPerClientPerMinute = 30;
-// The Glass's helper polls each open editor window every 2 to 10 seconds, and
-// an office's Engineers share one public address (R1170).
-const string GlassHelpRateLimitPolicy = "GlassHelp";
-const int GlassHelpRequestsPerClientPerMinute = 600;
 const string InitializeDevelopmentArgument = "--initialize-development";
 const string BootstrapProductionAdministratorArgument = "--bootstrap-production-administrator";
 const string BuildDiagnosticsArgument = "--diagnostics-version";
@@ -191,23 +187,6 @@ if (liveGuideValuation)
         }
     }
 }
-// The Automation's own Glass's login (R1177) is required wherever Glass's is
-// composed, so a host without it stops at start naming the key rather than
-// at the Automation's first start.
-if (liveGlass)
-{
-    foreach (var key in new[]
-    {
-        "Glass:AutomationAccount:Username",
-        "Glass:AutomationAccount:Password"
-    })
-    {
-        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
-        {
-            throw new InvalidOperationException($"{key} is required for Features:LiveGlass.");
-        }
-    }
-}
 if (!developmentOfflineProfile && !productionProfile)
 {
     throw new InvalidOperationException(
@@ -245,9 +224,6 @@ if (productionProfile)
         // Glass's valuation account (ADR-0060), read on each Get valuation.
         "Glass:ValuationAccount:Username",
         "Glass:ValuationAccount:Password",
-        // The Automation's own Glass's login (R1177), read on each of its acts.
-        "Glass:AutomationAccount:Username",
-        "Glass:AutomationAccount:Password",
         // Cazana's Companion account (ADR-0079), read on each Get valuation.
         "Cazana:CompanionAccount:Email",
         "Cazana:CompanionAccount:Password",
@@ -428,10 +404,6 @@ builder.Services.AddRazorPages()
             "/Integrations/Glass/Callback",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
-        options.Conventions.AddPageApplicationModelConvention(
-            "/Integrations/Glass/Help",
-            model => model.EndpointMetadata.Add(
-                new EnableRateLimitingAttribute(GlassHelpRateLimitPolicy)));
         // The Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
@@ -498,8 +470,6 @@ builder.Services.AddRateLimiter(options =>
                     ? "principal_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
-                    : rejectedPath.StartsWithSegments(Pegasus.Web.Pages.Integrations.Glass.HelpModel.BasePath)
-                        ? "glass_help_rate_limited"
                     : PhotoCaptureSurface.IsPublicPath(rejectedPath)
                         ? "capture_rate_limited"
                     : "authentication_rate_limited";
@@ -549,18 +519,6 @@ builder.Services.AddRateLimiter(options =>
             {
                 AutoReplenishment = true,
                 PermitLimit = GlassCallbackRequestsPerClientPerMinute,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
-            }));
-    // Its own budget, not the callback's: one window's polls would spend that.
-    options.AddPolicy(
-        GlassHelpRateLimitPolicy,
-        context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = GlassHelpRequestsPerClientPerMinute,
                 QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
@@ -888,13 +846,18 @@ if (productionProfile || liveGuideValuation)
         provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
 }
 
-// Experian's vehicle history check (ADR-0089): Production, and an offline
-// host (the hosted test instance) under Features:LiveExperian; any other
-// offline host says Experian is not connected. The account is read on each
-// check for the same unresolved-Key-Vault-reference reason as Box's.
+// Experian's vehicle history check and CAP valuation (ADR-0089, R1201):
+// Production, and an offline host (the hosted test instance) under
+// Features:LiveExperian; any other offline host says Experian is not
+// connected and its CAP card is unavailable. Each act is handed its account,
+// read on each call for the same unresolved-Key-Vault-reference reason as
+// Box's. Experian:Account:* is the account with CAP valuations (R1207), and
+// the history check reads it too until its own account's entries exist.
 if (productionProfile || liveExperian)
 {
     builder.Services.AddExperianVehicleHistoryCheck(
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
+    builder.Services.AddExperianCapValuation(
         _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
 }
 
@@ -904,8 +867,7 @@ builder.Services.AddPegasusReportRendering();
 if (productionProfile || liveGlass)
 {
     builder.Services.AddGlassRepairEstimates(
-        GlassRepairEstimateOptions.Create(key => builder.Configuration[key]),
-        _ => Pegasus.Infrastructure.Glass.GlassAutomationAccount.Create(key => builder.Configuration[key]));
+        GlassRepairEstimateOptions.Create(key => builder.Configuration[key]));
 }
 else
 {
@@ -1507,8 +1469,7 @@ static bool IsMachineSurface(PathString path) =>
     || path.StartsWithSegments("/diagnostics")
     || AutomationMcp.IsIngressPath(path)
     || path.StartsWithSegments(PrincipalApi.BasePath)
-    || path.StartsWithSegments("/capture/api")
-    || path.StartsWithSegments(Pegasus.Web.Pages.Integrations.Glass.HelpModel.BasePath);
+    || path.StartsWithSegments("/capture/api");
 
 static async Task BootstrapProductionAdministratorAsync(IServiceProvider services)
 {

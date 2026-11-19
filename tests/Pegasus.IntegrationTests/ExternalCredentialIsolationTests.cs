@@ -53,7 +53,7 @@ public sealed class ExternalCredentialIsolationTests
                     otherEngineer,
                     ExternalCredentialProvider.GlassRepairEstimate,
                     default));
-                Assert.Null(await store.GetEnabledReferenceAsync(
+                Assert.False(await store.IsEnabledAsync(
                     otherEngineer,
                     ExternalCredentialProvider.GlassRepairEstimate,
                     default));
@@ -73,15 +73,10 @@ public sealed class ExternalCredentialIsolationTests
 
                 Assert.NotNull(material);
                 Assert.Equal("alex.glass", material.Username);
-                // The reference alone carries the login's account key, the
-                // one rule a login becomes a key by, and no secret.
-                var reference = await restartedStore.GetEnabledReferenceAsync(
+                Assert.True(await restartedStore.IsEnabledAsync(
                     engineer,
                     ExternalCredentialProvider.GlassRepairEstimate,
-                    default);
-                Assert.NotNull(reference);
-                Assert.Equal(material.Reference, reference);
-                Assert.Equal(GlassAccountKey.Of("alex.glass"), reference.NormalizedExternalAccountKey);
+                    default));
                 Assert.True(SecretEquals("provider-password", material.Password));
                 Assert.Equal(
                     nameof(PerUserExternalCredentialMaterial),

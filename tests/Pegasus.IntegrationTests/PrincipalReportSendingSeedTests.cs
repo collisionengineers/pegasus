@@ -756,4 +756,63 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(principals.Count, await context.Principals.CountAsync());
         Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
     }
+
+    /// <summary>
+    /// Parkhouse (operator, 18 November 2026; R1191, R1192, R1194, R1195):
+    /// one active Principal, code PHOUSE, with a physical inspection address,
+    /// the standard default fee and the default sending rules, and the
+    /// Repairer "Parkhouse Bodyshop" linked to it with the address Parkhouse
+    /// Assist's letter prints. The seed met again changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ParkhouseAndItsRepairerAreSeeded()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+
+        var principal = principals["PHOUSE"].Principal;
+        Assert.Equal(Guid.Parse(ParkhousePrincipalAndRepairer.PrincipalId), principal.Id);
+        Assert.True(principal.IsActive);
+        Assert.Equal("principal_sequence", principal.ReferenceScheme);
+        Assert.Equal("physical_address", principal.InspectionMode);
+        Assert.Equal("original_engineer_report", principal.AuditWorkflow);
+        Assert.Equal("none", principal.PrincipalInvoice);
+        Assert.Equal(180.00m, principal.DefaultFee);
+        Assert.Null(principal.SalvageMatrixJson);
+        Assert.Equal(PrincipalReportSendingRules.Default, principals["PHOUSE"].Rules);
+        var organization = organizations[principal.OrganizationId];
+        Assert.Equal("Parkhouse", organization.Name);
+        Assert.Equal("principal", organization.Role);
+        Assert.True(organization.Active);
+        Assert.Equal("C/O Parkhouse Assist Ltd, Brulimar House, Jubilee Road, Middleton", organization.Address);
+        Assert.Equal("M24 2LX", organization.Postcode);
+        Assert.Equal("0161 524 0000", organization.Telephone);
+        Assert.Equal("office@parkhouseassist.com", organization.Email);
+        Assert.Null(organization.NotesOnEveryCase);
+
+        var repairer = organizations[Guid.Parse(ParkhousePrincipalAndRepairer.RepairerId)];
+        Assert.Equal("Parkhouse Bodyshop", repairer.Name);
+        Assert.Equal("repairer", repairer.Role);
+        Assert.True(repairer.Active);
+        Assert.Equal(
+            "Unit 7, Park House Bridge Estate, 7 Langley Rd, Manchester, Pendlebury, Salford",
+            repairer.Address);
+        Assert.Equal("M6 6JQ", repairer.Postcode);
+        Assert.Null(repairer.Email);
+        Assert.Null(repairer.Telephone);
+
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var links = context.Set<ContactPrincipalLinkEntity>().AsNoTracking();
+        Assert.Equal(principal.Id, (await links.SingleAsync(link => link.OrganizationId == repairer.Id)).PrincipalId);
+        var linkCount = await links.CountAsync();
+
+        // ExecuteSqlRaw reads braces as placeholders, and the rules are JSON.
+        await context.Database.ExecuteSqlRawAsync(ParkhousePrincipalAndRepairer.SeedSql
+            .Replace("{", "{{", StringComparison.Ordinal)
+            .Replace("}", "}}", StringComparison.Ordinal));
+        Assert.Equal(principals.Count, await context.Principals.CountAsync());
+        Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
+        Assert.Equal(linkCount, await links.CountAsync());
+    }
 }

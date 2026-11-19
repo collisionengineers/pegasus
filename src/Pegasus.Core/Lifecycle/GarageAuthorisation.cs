@@ -119,8 +119,9 @@ public static class GarageAuthorisationPolicy
 /// Moves on the Garage authorisation and invoice Audits whose wait a stored
 /// fact has ended: a confirmed Repair invoice or a waiving Outcome returns a
 /// waiting Case to With Engineer (R1143, R1144), and a confirmed External
-/// estimate lets a complete Case into Review (R1141). One owner for every
-/// route a file or an Outcome arrives by.
+/// estimate lets a complete Case into Review (R1141). The staff acts that
+/// file the fact move the Case in their own save (R1196); this sweep moves it
+/// for every other route a file or an Outcome arrives by.
 /// </summary>
 public interface IGarageWaitStore
 {

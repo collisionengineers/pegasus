@@ -10,7 +10,8 @@ namespace Pegasus.Infrastructure.Brego;
 
 /// <summary>
 /// Brego's platform API as the Brego web application calls it (ADR-0084):
-/// tenant authorizer discovery, AWS Cognito <c>USER_SRP_AUTH</c>, browser
+/// authorizer discovery, AWS Cognito <c>USER_SRP_AUTH</c> (whose ID token
+/// names the tenant organisation and slug), browser
 /// device-approval verification, BFF session exchange, VRM vehicle lookup,
 /// point-in-time valuation, derivative option configuration, and PDF valuation
 /// report rendering. Credentials, Cognito tokens, and session cookies travel
@@ -79,8 +80,6 @@ internal sealed class BregoClient(HttpClient http)
         CancellationToken cancellationToken,
         string? existingBregoSessionCookie = null)
     {
-        string organizationId;
-        string slug;
         string region;
         string poolName;
         string clientId;
@@ -93,14 +92,10 @@ internal sealed class BregoClient(HttpClient http)
             var first = authorizers.RootElement is { ValueKind: JsonValueKind.Array } array && array.GetArrayLength() > 0
                 ? array[0]
                 : (JsonElement?)null;
-            organizationId = BregoJson.String(first, "organizationId") ?? "";
-            slug = BregoJson.String(first, "slug") ?? "";
             var authorizer = BregoJson.String(first, "authorizer") ?? "";
             clientId = BregoJson.String(first, "authorizerId") ?? "";
             var separator = authorizer.IndexOf('_');
-            if (string.IsNullOrWhiteSpace(organizationId)
-                || !IsSafeHostLabel(slug)
-                || string.IsNullOrWhiteSpace(clientId)
+            if (string.IsNullOrWhiteSpace(clientId)
                 || separator <= 0
                 || separator == authorizer.Length - 1)
             {
@@ -211,6 +206,13 @@ internal sealed class BregoClient(HttpClient http)
             }
         }
 
+        // Brego's authorizer answer stopped naming the tenant in November
+        // 2026; the ID token Cognito issues names it instead.
+        if (!TryReadTenant(idToken, out var organizationId, out var slug))
+        {
+            throw new BregoFailure("cognito_verify", null, "tenant=absent");
+        }
+
         var expiresAt = timeProvider.GetUtcNow().AddSeconds(Math.Max(60, expiresIn - 300));
         if (!string.IsNullOrWhiteSpace(existingBregoSessionCookie))
         {
@@ -256,6 +258,7 @@ internal sealed class BregoClient(HttpClient http)
                     accessToken,
                     idToken,
                     refreshToken,
+                    client = slug,
                     deviceId = DefaultDeviceId,
                 }),
             cancellationToken);
@@ -679,6 +682,43 @@ internal sealed class BregoClient(HttpClient http)
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The tenant organisation and slug an ID token names in its
+    /// <c>organizationId</c> and <c>slug</c> claims. The token is read, not
+    /// verified: Brego verifies it at every call it is presented to, and the
+    /// slug is used only as a host label under <c>brego.ai</c>.
+    /// </summary>
+    internal static bool TryReadTenant(string idToken, out string organizationId, out string slug)
+    {
+        organizationId = "";
+        slug = "";
+        var parts = idToken.Split('.');
+        if (parts.Length != 3)
+        {
+            return false;
+        }
+
+        var payload = parts[1].Replace('-', '+').Replace('_', '/');
+        payload = payload.PadRight(payload.Length + ((4 - (payload.Length % 4)) % 4), '=');
+        if (!TryDecodeBase64(payload, out var bytes))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var claims = JsonDocument.Parse(bytes);
+            organizationId = BregoJson.String(claims.RootElement, "organizationId") ?? "";
+            slug = BregoJson.String(claims.RootElement, "slug") ?? "";
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(organizationId) && IsSafeHostLabel(slug);
     }
 
     private static bool IsSafeHostLabel(string value)

@@ -648,8 +648,10 @@ public sealed class IndexModel(
         // (R929). Only those states read the configuration. The Not ready
         // queue has already read what holds each of its Cases; from any other
         // queue only an Audit kept without standalone evidence reads whether
-        // its report is filed, and a Case past Not ready has passed the
-        // vehicle gate.
+        // its report is filed, a Not ready Garage authorisation and invoice
+        // Audit reads its External estimate and Repair invoice, which FRD-16
+        // names on every queue (operator, 18 November 2026; R1198), and the
+        // registration and the mileage are named only on the Not ready queue.
         IReadOnlyList<string> missingRequirements = [];
         string? firstRequirement = null;
         if (CaseNextAction.ReadsTheRequirements(workflow))
@@ -661,11 +663,19 @@ public sealed class IndexModel(
                     summary.CaseType, summary.AuditWorkflow, frame.StandaloneAuditEvidenceId)
                 ? _caseDocuments.HasCurrentAuditReportAsync(caseId, cancellationToken)
                 : Task.FromResult(false);
-            await Task.WhenAll(configurationRead, auditReportRead);
+            var garageRead = listed is null
+                && workflow.State == CaseLifecycleState.NotReady
+                && Pegasus.Core.Lifecycle.GarageAuthorisationPolicy.Applies(summary.CaseType, summary.AuditWorkflow)
+                ? _notReadyCases.GetBlockersAsync([caseId], cancellationToken)
+                : null;
+            await Task.WhenAll(configurationRead, auditReportRead, garageRead ?? Task.CompletedTask);
+            CaseVehicleGate? garageGate = garageRead?.Result.GetValueOrDefault(caseId) is { } garageBlockers
+                ? garageBlockers.VehicleGate with { RegistrationRecorded = true, MileageRecorded = true }
+                : null;
             missingRequirements = CaseCompletenessPolicy.Evaluate(
                 new(summary.InstructionComplete ?? false, summary.ImagesComplete ?? false),
                 configurationRead.Result,
-                listed?.VehicleGate ?? CaseVehicleGate.Open).MissingRequirements;
+                listed?.VehicleGate ?? garageGate ?? CaseVehicleGate.Open).MissingRequirements;
             var originalReportMissing = listed?.OriginalReportMissing
                 ?? OriginalReportPolicy.IsMissing(
                     summary.CaseType, summary.AuditWorkflow, frame.StandaloneAuditEvidenceId, auditReportRead.Result);

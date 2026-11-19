@@ -110,16 +110,6 @@ internal static class GlassFailure
     public const string TransportFailed = "glass.transport.failed";
     public const string TransportUnknown = "glass.transport.unknown";
     public const string Interrupted = "glass.interrupted";
-    public const string EditorHost = "glass.editor.host";
-    public const string EditorLaunch = "glass.editor.launch";
-    public const string EditorBlocked = "glass.editor.blocked";
-    public const string EditorKey = "glass.editor.key";
-    public const string EditorRequest = "glass.editor.request";
-    public const string EditorDialog = "glass.editor.dialog";
-    public const string EditorRefused = "glass.editor.refused";
-    public const string EditorAnswer = "glass.editor.answer";
-    public const string EditorSave = "glass.editor.save";
-    public const string EditorReturn = "glass.editor.return";
 }
 
 /// <summary>What stage 6's fresh lookup established about the vehicle.</summary>
@@ -215,7 +205,7 @@ internal sealed partial class GlassMvaClient(
     /// A page or fragment beyond this is not a Glass's response this adapter
     /// knows how to read, so it is refused unread rather than buffered.
     /// </summary>
-    internal const int MaximumTextBytes = 4 * 1024 * 1024;
+    private const int MaximumTextBytes = 4 * 1024 * 1024;
 
     /// <summary>
     /// How long any one pattern below may take to match. Every pattern is
@@ -1391,7 +1381,7 @@ internal sealed partial class GlassMvaClient(
         }
     }
 
-    internal static async Task<byte[]> ReadAsync(
+    private static async Task<byte[]> ReadAsync(
         HttpResponseMessage response, int maximumBytes, string failureCode, bool outcomeUnknown,
         CancellationToken cancellationToken)
     {

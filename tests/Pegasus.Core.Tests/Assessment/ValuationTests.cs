@@ -25,6 +25,26 @@ public sealed class ValuationTests
     }
 
     /// <summary>
+    /// CAP alone is valued only as it stands today (R1203): its card is
+    /// recorded for the current month whatever month was entered, and every
+    /// other source's card for the month entered.
+    /// </summary>
+    [Fact]
+    public void OnlyCapIsValuedTodayOnlyAndItsCardIsTheCurrentMonths()
+    {
+        Assert.All(
+            Enum.GetValues<ValuationSource>(),
+            source => Assert.Equal(source == ValuationSource.Cap, ValuationSources.IsValuedTodayOnly(source)));
+
+        var today = new DateOnly(2026, 11, 19);
+        var entered = new DateOnly(2026, 9, 1);
+        Assert.Equal(new DateOnly(2026, 11, 1), ValuationPolicy.GuideMonthToRecord(ValuationSource.Cap, entered, today));
+        Assert.Equal(new DateOnly(2026, 11, 1), ValuationPolicy.GuideMonthToRecord(ValuationSource.Cap, null, today));
+        Assert.Equal(entered, ValuationPolicy.GuideMonthToRecord(ValuationSource.Brego, entered, today));
+        Assert.Null(ValuationPolicy.GuideMonthToRecord(ValuationSource.Brego, null, today));
+    }
+
+    /// <summary>
     /// Collision Engineers reads the Glass's, Brego, Super CAP, CAP and Cazana
     /// guides and types the figure in; none of them is a live call here. AI
     /// market research is written only by the automation completion, so staff

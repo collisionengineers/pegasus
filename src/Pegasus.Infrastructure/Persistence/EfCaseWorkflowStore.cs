@@ -740,7 +740,7 @@ public sealed partial class EfCaseWorkflowStore(
         }, cancellationToken, refuse: workflow => CaseLifecycleRules.RequireCanBeHeld(StateOf(workflow)));
 
     public Task<CaseWorkflowRecord> ReleaseHoldAsync(CaseMutationRequest request, CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_hold_released", (context, workflow, now) =>
+        MutateAsync(request, "case_hold_released", async (context, workflow, now) =>
         {
             if (!Enum.TryParse<CaseLifecycleState>(workflow.PreHoldState, out var previousState)
                 || previousState is not (
@@ -783,8 +783,20 @@ public sealed partial class EfCaseWorkflowStore(
             workflow.PreHoldState = null;
             workflow.HeldAtUtc = null;
             workflow.HoldReviewOn = null;
-            return Task.CompletedTask;
-        }, cancellationToken, refuse: workflow => CaseLifecycleRules.RequireCanBeReleased(StateOf(workflow)));
+            // Readiness is not applied to a held Case, so what was filed or
+            // recorded while it was held is applied now: the Case moves on as
+            // a Not ready Case would have. The release's own line shows the
+            // move; a garage Audit's move is a line of its own, after it, in
+            // the words the sweep uses (operator, 18 November 2026; R1197).
+            if (previousState == CaseLifecycleState.NotReady && !CaseGarage.Applies(workflow.Case))
+            {
+                await MoveOnFromNotReadyAsync(context, workflow, now, cancellationToken);
+            }
+        },
+        cancellationToken,
+        refuse: workflow => CaseLifecycleRules.RequireCanBeReleased(StateOf(workflow)),
+        afterEvent: (context, workflow, now) =>
+            EndGarageWaitAsync(context, workflow, request.Actor, null, now, cancellationToken));
 
     public Task<CaseWorkflowRecord> ReturnToReviewAsync(ReturnCaseToReviewRequest request, CancellationToken cancellationToken) =>
         MutateAsync(request, "case_returned_to_review", async (context, workflow, now) =>
@@ -1542,10 +1554,11 @@ public sealed partial class EfCaseWorkflowStore(
         Action<CaseWorkflowEntity>? refuse = null,
         Func<PegasusDbContext, CaseWorkflowEntity, CancellationToken, Task>? refuseAsync = null,
         Action? onReplay = null,
-        Action<CaseWorkflowEntity>? refuseReplay = null) =>
+        Action<CaseWorkflowEntity>? refuseReplay = null,
+        Func<PegasusDbContext, CaseWorkflowEntity, DateTimeOffset, Task>? afterEvent = null) =>
         StoreConcurrencyRetry.ExecuteAsync(
             token => MutateOnceAsync(
-                request, eventType, apply, token, discriminator,
+                request, eventType, apply, token, discriminator, afterEvent: afterEvent,
                 refuse: refuse, refuseAsync: refuseAsync, onReplay: onReplay, refuseReplay: refuseReplay),
             cancellationToken);
 
