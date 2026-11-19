@@ -1384,20 +1384,65 @@ public sealed partial class GlassRepairEstimateGateway(
     }
 
     /// <summary>
+    /// A preview in the Automation's open estimate (R1206): the dialog an add
+    /// of the request's row and inputs would post, chosen as the add chooses
+    /// it, or a position on the estimate's dialog, read as a form. Nothing is
+    /// posted, no equipment answer is stored and no act is recorded; the
+    /// editor's cookies and pace are kept, so the session's version moves. A
+    /// page Glass's does not answer answers no dialog and its code, and leaves
+    /// the session as it stands. Null when the session's editor is not open.
+    /// </summary>
+    public async Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
+        GlassAutomationPositionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Action != GlassAutomationActAction.Preview)
+        {
+            throw new ArgumentException("The request is not a preview.", nameof(request));
+        }
+
+        var draft = GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
+        RequireAutomation(request.Actor);
+        var material = await store.GetAsync(request.SessionId, cancellationToken)
+            ?? throw new KeyNotFoundException($"There is no Glass's session {request.SessionId}.");
+        var session = material.Session;
+        GlassRepairEstimateSessionPolicy.RequireActor(request.Actor, session);
+        var provider = Unprotect(material.ProtectedProviderState);
+        if (session.State != GlassRepairEstimateSessionState.Active || provider.Editor is not { } open)
+        {
+            return null;
+        }
+
+        var editor = NewEditorClient(provider.EditorLastRequestAtUtc);
+        var (dialog, code, opened) = await Positions.PreviewAsync(session, editor, open.Session(), draft, cancellationToken);
+        provider.Editor = EditorState.Of(opened);
+        provider.EditorLastRequestAtUtc = editor.LastRequestAtUtc;
+        session = await WriteAsync(session, GlassRepairEstimateSessionState.Active, session.FailureCode,
+            provider, material.CallbackDigest, Kept(material), cancellationToken);
+        return new(session, dialog, code);
+    }
+
+    /// <summary>
     /// A position act's prepare half (design 07 section 3.4): the act is
     /// claimed, Pending, under the session version the Automation read and
     /// before Glass's is asked anything. The same operation key again
     /// answers the act as recorded and owes nothing, whatever the version
     /// and whichever of the Case's Automation sessions recorded it.
-    /// An add the Automation may not send (R1182) is recorded refused with
-    /// its reason, and nothing is owed. Null when the session's editor is not
-    /// open. A remove may name any position of the estimate (R1185).
+    /// Every kind and operation is claimed and owed (R1206), with the inputs
+    /// <see cref="GlassAutomationPositionPolicy.InputRefused"/> allows. Null
+    /// when the session's editor is not open. A remove may name any position
+    /// of the estimate (R1185).
     /// </summary>
     public async Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
         GlassAutomationPositionRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        if (request.Action == GlassAutomationActAction.Preview)
+        {
+            throw new ArgumentException("A preview is not an act.", nameof(request));
+        }
+
         RequireAutomation(request.Actor);
         var operationKey = request.OperationKey.Trim();
         var material = await store.GetAsync(request.SessionId, cancellationToken)
@@ -1428,51 +1473,8 @@ public sealed partial class GlassRepairEstimateGateway(
                 $"The Glass's session is at version {session.Version} and not {request.ExpectedVersion}.");
         }
 
-        var act = new GlassAutomationAct(
-            operationKey, request.Action, GlassAutomationActOutcome.Pending, timeProvider.GetUtcNow());
-        if (request.Action == GlassAutomationActAction.Remove)
-        {
-            if (string.IsNullOrWhiteSpace(request.PositionId))
-            {
-                throw new ArgumentException("A remove names a position.", nameof(request));
-            }
-
-            act = act with { PositionId = request.PositionId.Trim() };
-        }
-        else
-        {
-            var kind = request.Kind ?? throw new ArgumentException("An add names its kind of position.", nameof(request));
-            if (string.IsNullOrWhiteSpace(request.Row)
-                || (kind == GlassAutomationPositionKind.Part) != request.Operation.HasValue)
-            {
-                throw new ArgumentException(
-                    "An add names its row, and an operation for a part and only for a part.", nameof(request));
-            }
-
-            if (request.Inputs?.Equipment is not null
-                && !GlassAutomationPositionPolicy.TakesEquipment(kind, request.Operation))
-            {
-                throw new ArgumentException("An equipment answer is given for a part added as Part only.", nameof(request));
-            }
-
-            act = act with
-            {
-                Kind = kind,
-                Row = request.Row.Trim(),
-                Operation = request.Operation,
-                Side = string.IsNullOrWhiteSpace(request.Side) ? null : request.Side.Trim(),
-                Inputs = request.Inputs?.Equipment is null ? null : request.Inputs,
-            };
-            if (!GlassAutomationPositionPolicy.Sends(kind, request.Operation))
-            {
-                act = act with
-                {
-                    Outcome = GlassAutomationActOutcome.Refused,
-                    Code = GlassEstimateBuildPolicy.NotBuiltCode,
-                };
-            }
-        }
-
+        // Every kind and operation is sent, with the inputs the policy allows (R1206).
+        var act = GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
         session = await WriteAsync(
             session with { Automation = GlassAutomationPositionPolicy.Record(session.Automation, act) },
             GlassRepairEstimateSessionState.Active, session.FailureCode, provider, material.CallbackDigest,
@@ -1488,7 +1490,8 @@ public sealed partial class GlassRepairEstimateGateway(
     /// nothing sent when the row is not certain (R1169); a remove must name a
     /// position the estimate holds. Before an add is posted, the code its
     /// position will carry is recorded, so a lost answer is settled by the
-    /// next read. The dialog is posted as Glass's serves it, nothing typed
+    /// next read. The dialog is posted as Glass's serves it, with the button,
+    /// operation and answers the Automation gave (R1206), nothing typed
     /// (R1168). The outcome, the served figures and the editor's cookies and
     /// pace are recorded. An act no longer Pending, or a session whose editor
     /// is closed, is answered as it stands.

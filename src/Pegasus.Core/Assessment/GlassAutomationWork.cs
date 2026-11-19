@@ -26,11 +26,16 @@ public sealed record GlassAutomationWork
     public IReadOnlyList<GlassAutomationAct> Acts { get; init; } = [];
 }
 
-/// <summary>Whether a position act adds a position or removes one.</summary>
+/// <summary>
+/// Whether a position act adds a position or removes one. A preview asks
+/// Glass's for the dialog an add would post, or a position is shown by, and
+/// is never an act: it posts nothing and is never recorded (R1206).
+/// </summary>
 public enum GlassAutomationActAction
 {
     Add,
     Remove,
+    Preview,
 }
 
 /// <summary>What became of a position act.</summary>
@@ -82,8 +87,30 @@ public enum GlassAutomationPartOperation
     RemoveAndRefit,
 }
 
-/// <summary>One part the editor's "Mandatory parts:" page listed, and whether Glass's ticked it itself.</summary>
-public sealed record GlassAutomationListedPart(string Code, string Text, bool Ticked);
+/// <summary>
+/// One part the editor's "Mandatory parts:" page listed, and whether it was
+/// ticked when the page was confirmed: by Glass's itself, or, for an optional
+/// one, because the add's <see cref="GlassAutomationInputs.OptionalParts"/>
+/// named it (R1206).
+/// </summary>
+public sealed record GlassAutomationListedPart(string Code, string Text, bool Ticked)
+{
+    /// <summary>Whether the page let the part be ticked or left: an optional part.</summary>
+    public bool Optional { get; init; }
+}
+
+/// <summary>The button an add presses on the dialog of a part that can be painted (Glass's <c>comp.php</c>).</summary>
+public enum GlassAutomationButton
+{
+    /// <summary>Part (<c>BSS</c>): the part, not painted.</summary>
+    Part,
+
+    /// <summary>Paint (<c>BLL</c>): the part's paint on its own.</summary>
+    Paint,
+
+    /// <summary>Part and Paint (<c>BSL</c>).</summary>
+    PartAndPaint,
+}
 
 /// <summary>
 /// What a position act gives Glass's, as a person would give it in the
@@ -94,7 +121,32 @@ public sealed record GlassAutomationListedPart(string Code, string Text, bool Ti
 /// A part's answer to Glass's equipment question: the option codes ticked,
 /// the whole answer, so an option not named is unticked; empty ticks none.
 /// </param>
-public sealed record GlassAutomationInputs(IReadOnlyList<string>? Equipment = null);
+/// <param name="Operation">
+/// The operation chosen in a part's dialog, by Glass's own code as its list
+/// offers it (<c>I</c>, <c>AE</c>, <c>E</c>, <c>AN</c> …): given with the
+/// act's operation Part only.
+/// </param>
+/// <param name="Button">The button pressed on a dialog of a part that can be painted: given with the act's operation Part only.</param>
+/// <param name="BothSides">Ticks "Both" on a dialog that offers it; the other side's own dialog is then posted as served.</param>
+/// <param name="OptionalParts">The optional parts to tick on the "Mandatory parts:" page when Glass's shows one, by its codes.</param>
+/// <param name="ConfirmNoFigures">
+/// Answers OK to the question Glass's dialog asks before it sends a part
+/// with no price and no hours. Repair (<c>I</c>) is answered OK without it
+/// (R1188); any other operation is refused without it.
+/// </param>
+public sealed record GlassAutomationInputs(
+    IReadOnlyList<string>? Equipment = null,
+    string? Operation = null,
+    GlassAutomationButton? Button = null,
+    bool? BothSides = null,
+    IReadOnlyList<string>? OptionalParts = null,
+    bool? ConfirmNoFigures = null)
+{
+    /// <summary>Whether no member is given.</summary>
+    public bool IsEmpty =>
+        Equipment is null && Operation is null && Button is null && BothSides is null && OptionalParts is null
+        && ConfirmNoFigures is null;
+}
 
 /// <summary>One option of Glass's equipment question for a part, as Glass's own dialog shows it.</summary>
 /// <param name="Code">Glass's code for the option: the value an answer names.</param>
@@ -174,7 +226,14 @@ public sealed record GlassAutomationAct(
     /// </summary>
     public string? ExpectedCode { get; init; }
 
-    /// <summary>The positions that carried <see cref="ExpectedCode"/> just before the post.</summary>
+    /// <summary>
+    /// With "Both" ticked (R1206): the code the other side's position
+    /// carries, recorded before the other side's own dialog is posted, by
+    /// which a lost answer is settled as <see cref="ExpectedCode"/> is.
+    /// </summary>
+    public string? OtherSideCode { get; init; }
+
+    /// <summary>The positions that carried <see cref="ExpectedCode"/> or <see cref="OtherSideCode"/> just before each post.</summary>
     public IReadOnlyList<string> Before { get; init; } = [];
 
     /// <summary>The positions an add put on the estimate.</summary>
@@ -295,21 +354,6 @@ public static class GlassAutomationPositionPolicy
         return null;
     }
 
-    /// <summary>
-    /// Whether an add of this kind and operation is sent at all: the same set
-    /// a rebuild sends (R1172), special operations, and a part as Part,
-    /// Repair or remove-and-refit, each posted as Glass's dialog serves it
-    /// and only where its row is certain. Paint on its own and Part and
-    /// Paint are refused with <see cref="GlassEstimateBuildPolicy.NotBuiltCode"/>
-    /// and nothing is sent. One predicate, so the set is narrowed in one place.
-    /// </summary>
-    /// <remarks>Operator, 18 November 2026: R1182.</remarks>
-    public static bool Sends(GlassAutomationPositionKind kind, GlassAutomationPartOperation? operation) =>
-        kind == GlassAutomationPositionKind.SpecialOperation
-        || operation is GlassAutomationPartOperation.Part
-            or GlassAutomationPartOperation.Repair
-            or GlassAutomationPartOperation.RemoveAndRefit;
-
     /// <summary>The act recorded under the key, or null.</summary>
     public static GlassAutomationAct? Find(GlassAutomationWork? work, string operationKey) =>
         work?.Acts.FirstOrDefault(act => string.Equals(act.OperationKey, operationKey, StringComparison.Ordinal));
@@ -383,14 +427,13 @@ public static class GlassAutomationPositionPolicy
                 : act with { Outcome = GlassAutomationActOutcome.Refused, Code = code };
         }
 
-        if (act.ExpectedCode is not { } expected)
+        if (act.ExpectedCode is null)
         {
             return act with { Outcome = GlassAutomationActOutcome.Refused, Code = code };
         }
 
         var added = positions
-            .Where(id => string.Equals(CodeOf(id), expected, StringComparison.Ordinal)
-                && !act.Before.Contains(id, StringComparer.Ordinal))
+            .Where(id => Carries(act, id) && !act.Before.Contains(id, StringComparer.Ordinal))
             .ToList();
         return added.Count > 0
             ? act with { Outcome = GlassAutomationActOutcome.Added, Code = null, PositionIds = added }
@@ -399,13 +442,154 @@ public static class GlassAutomationPositionPolicy
 
     /// <summary>The code of an act whose work stopped before it recorded an outcome.</summary>
     public const string InterruptedCode = "glass.interrupted";
+
+    /// <summary>
+    /// Whether a position carries the code an add expects: its own side's
+    /// (<see cref="GlassAutomationAct.ExpectedCode"/>) or, with "Both"
+    /// ticked, the other side's (<see cref="GlassAutomationAct.OtherSideCode"/>).
+    /// </summary>
+    public static bool Carries(GlassAutomationAct act, string positionId)
+    {
+        ArgumentNullException.ThrowIfNull(act);
+        ArgumentNullException.ThrowIfNull(positionId);
+        var code = CodeOf(positionId);
+        return code is not null
+            && (string.Equals(code, act.ExpectedCode, StringComparison.Ordinal)
+                || string.Equals(code, act.OtherSideCode, StringComparison.Ordinal));
+    }
+
+    /// <summary>A part's button or a dialog's choice was asked for a part that cannot be painted: its dialog has no Paint or Part and Paint button.</summary>
+    public const string NotPaintableCode = "glass.row.not_paintable";
+
+    /// <summary>
+    /// "Both" was ticked and the first side was added, but the editor did not
+    /// go on to the other side's own dialog as its list does, or that dialog
+    /// was not the one expected: the other side was not added.
+    /// </summary>
+    public const string OtherSideNotAddedCode = "glass.row.other_side_not_added";
+
+    /// <summary>
+    /// The input of an add or a preview that its kind and operation do not
+    /// take, by its tool name, or null when every input given is taken
+    /// (R1206). A special operation takes none. A part takes
+    /// <c>inputs.equipment</c> with the operation Part (R1172);
+    /// <c>inputs.operation</c> and <c>inputs.button</c> with the operation
+    /// Part, and an operation not with the Paint button, which sends paint
+    /// alone; <c>inputs.side</c> ("Both") with the operation Part, the dialog's
+    /// own operation and the Part button; <c>inputs.optionalParts</c> as
+    /// codes, none blank or repeated. A remove takes none.
+    /// </summary>
+    public static string? InputRefused(
+        GlassAutomationActAction action, GlassAutomationPositionKind? kind, GlassAutomationPartOperation? operation,
+        GlassAutomationInputs? inputs)
+    {
+        if (inputs is null || inputs.IsEmpty)
+        {
+            return null;
+        }
+        if (action == GlassAutomationActAction.Remove || kind != GlassAutomationPositionKind.Part)
+        {
+            return FirstGiven(inputs);
+        }
+        if (inputs.Equipment is { } equipment
+            && (!TakesEquipment(kind, operation) || equipment.Any(string.IsNullOrWhiteSpace)))
+        {
+            return "inputs.equipment";
+        }
+
+        var asServed = operation == GlassAutomationPartOperation.Part;
+        if (inputs.Operation is { } chosen
+            && (!asServed || string.IsNullOrWhiteSpace(chosen) || inputs.Button == GlassAutomationButton.Paint))
+        {
+            return "inputs.operation";
+        }
+        if (inputs.Button is not null && !asServed)
+        {
+            return "inputs.button";
+        }
+        if (inputs.BothSides == true
+            && (!asServed || inputs.Operation is not null || inputs.Button is GlassAutomationButton.Paint or GlassAutomationButton.PartAndPaint))
+        {
+            return "inputs.side";
+        }
+        if (inputs.OptionalParts is { } codes
+            && (codes.Any(string.IsNullOrWhiteSpace) || codes.Distinct(StringComparer.Ordinal).Count() != codes.Count))
+        {
+            return "inputs.optionalParts";
+        }
+
+        return null;
+    }
+
+    private static string FirstGiven(GlassAutomationInputs inputs) =>
+        inputs.Equipment is not null ? "inputs.equipment"
+        : inputs.Operation is not null ? "inputs.operation"
+        : inputs.Button is not null ? "inputs.button"
+        : inputs.BothSides is not null ? "inputs.side"
+        : inputs.OptionalParts is not null ? "inputs.optionalParts"
+        : "inputs.confirmNoFigures";
+
+    /// <summary>The inputs as an act keeps them: null when none is given.</summary>
+    public static GlassAutomationInputs? Kept(GlassAutomationInputs? inputs) =>
+        inputs is null || inputs.IsEmpty ? null : inputs;
+
+    /// <summary>
+    /// The act a request asks for, Pending and not yet recorded, or an
+    /// <see cref="ArgumentException"/> when the request is not one the tools
+    /// make: a remove names its position; an add or a preview of a new
+    /// position names its kind and row, and an operation for a part and only
+    /// for a part; a preview of a position on the estimate names that
+    /// position alone; and no input is given that the kind and operation do
+    /// not take (<see cref="InputRefused"/>).
+    /// </summary>
+    public static GlassAutomationAct Draft(GlassAutomationPositionRequest request, DateTimeOffset requestedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        var act = new GlassAutomationAct(
+            request.OperationKey.Trim(), request.Action, GlassAutomationActOutcome.Pending, requestedAtUtc);
+        if (InputRefused(request.Action, request.Kind, request.Operation, request.Inputs) is { } refused)
+        {
+            throw new ArgumentException("The act gives " + refused + ", which it does not take.", nameof(request));
+        }
+        if (request.Action == GlassAutomationActAction.Remove
+            || (request.Action == GlassAutomationActAction.Preview && request.Kind is null))
+        {
+            if (string.IsNullOrWhiteSpace(request.PositionId)
+                || (request.Action == GlassAutomationActAction.Preview && request.Inputs is not null && !request.Inputs.IsEmpty))
+            {
+                throw new ArgumentException("A remove or a preview of a position names the position alone.", nameof(request));
+            }
+
+            return act with { PositionId = request.PositionId.Trim() };
+        }
+
+        var kind = request.Kind ?? throw new ArgumentException("An add names its kind of position.", nameof(request));
+        if (string.IsNullOrWhiteSpace(request.Row)
+            || (kind == GlassAutomationPositionKind.Part) != request.Operation.HasValue)
+        {
+            throw new ArgumentException(
+                "An add names its row, and an operation for a part and only for a part.", nameof(request));
+        }
+
+        return act with
+        {
+            Kind = kind,
+            Row = request.Row.Trim(),
+            Operation = request.Operation,
+            Side = string.IsNullOrWhiteSpace(request.Side) ? null : request.Side.Trim(),
+            Inputs = Kept(request.Inputs),
+        };
+    }
 }
 
 /// <summary>
 /// A position act of the Automation on its own session (design 07 section
 /// 3.4): the session version it read and its operation key, and for an add
 /// the kind, the row the catalogue search returned, a part's operation and
-/// the side asked for; for a remove the position id.
+/// the side asked for; for a remove the position id. A preview (R1206) names
+/// a new position as an add does, or a position on the estimate by its id,
+/// and is never recorded.
 /// </summary>
 public sealed record GlassAutomationPositionRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion, string OperationKey,
@@ -421,7 +605,7 @@ public sealed record GlassAutomationPositionRequest(
 
     public string? PositionId { get; init; }
 
-    /// <summary>What an add gives Glass's (R1206): in this version a part's equipment answer, for a part added as Part.</summary>
+    /// <summary>What an add or a preview gives Glass's dialog (R1206), as <see cref="GlassAutomationPositionPolicy.InputRefused"/> allows.</summary>
     public GlassAutomationInputs? Inputs { get; init; }
 }
 
@@ -573,3 +757,107 @@ public sealed record GlassCalculation(
     string? VatLabel,
     decimal? Vat,
     decimal? RepairCostsInclVat);
+
+/// <summary>
+/// The dialog a new position would be added by, or a position on the
+/// estimate is shown by, as a person sees it, answered as a form (R1206). A
+/// preview asks Glass's for the dialog and posts nothing: pressing Cancel in
+/// the editor sends no request. Glass's own labels and option texts are kept
+/// as Glass's serves them.
+/// </summary>
+/// <param name="Kind">
+/// <c>part_paintable</c> (Glass's <c>comp.php</c>, with a paint section and
+/// the Part, Paint and Part and Paint buttons), <c>part</c> (<c>part.php</c>)
+/// or <c>special_operation</c> (<c>part.php</c> for a special operation).
+/// </param>
+/// <param name="Description">The part's or special operation's description, as served.</param>
+/// <param name="PartNumber">The part number for the served side, as served.</param>
+/// <param name="PartCode">The part code for the served side.</param>
+/// <param name="Side"><c>L</c>, <c>R</c>, or null for none.</param>
+/// <param name="Operations">Each operation the dialog's list offers, in its order.</param>
+/// <param name="Fields">Each field a person sees, in the form's order.</param>
+/// <param name="Paint">The paint section as served; null where the dialog has none.</param>
+/// <param name="Buttons">Each button the dialog offers, by its name and Glass's own text.</param>
+public sealed record GlassDialogPreview(
+    string Kind,
+    string? Description,
+    string? PartNumber,
+    string? PartCode,
+    string? Side,
+    IReadOnlyList<GlassDialogOperation> Operations,
+    IReadOnlyList<GlassDialogField> Fields,
+    GlassDialogPaint? Paint,
+    IReadOnlyList<GlassDialogChoice> Buttons)
+{
+    /// <summary>For the inputs a preview gave: what an add with them would send, and what the dialog would ask.</summary>
+    public GlassDialogSend? Sends { get; init; }
+}
+
+/// <summary>
+/// One operation a dialog's list offers: Glass's code (the value
+/// <c>inputs.operation</c> names), Glass's own text, the price and hours the
+/// dialog serves for it on the served side and Glass's own hours for it, a
+/// figure the dialog does not give being null; whether the dialog serves it
+/// selected, and whether Pegasus may choose it.
+/// </summary>
+public sealed record GlassDialogOperation(
+    string Code, string Text, decimal? Price, decimal? Hours, decimal? GlassHours, bool Served, bool Changeable);
+
+/// <summary>A value of a dialog's list or a button: the value Glass's posts and Glass's own text for it.</summary>
+public sealed record GlassDialogChoice(string Value, string Text);
+
+/// <summary>
+/// One field of a dialog a person sees: its name in Glass's form, Glass's own
+/// label beside it where the dialog has one, its served value (a tick box's
+/// value is whether it is ticked), its choices where it is a list, whether
+/// the dialog serves it greyed out, and whether Pegasus may change it.
+/// </summary>
+public sealed record GlassDialogField(
+    string Name, string? Label, string? Value, IReadOnlyList<GlassDialogChoice>? Choices, bool Disabled, bool Changeable);
+
+/// <summary>
+/// The paint section of a part's dialog as served: the paint area, the paint
+/// type (coats) and the paint level, each with Glass's own text, and the
+/// paint price and labour time.
+/// </summary>
+public sealed record GlassDialogPaint(
+    GlassDialogChoice? Area, GlassDialogChoice? Coats, GlassDialogChoice? Level, decimal? Price, decimal? Hours);
+
+/// <summary>
+/// What an add with a preview's inputs would send, and each question the
+/// dialog would ask: the button, the operation, the price and hours, and on a
+/// part that can be painted the paint level, price and labour time, as the
+/// dialog's own script sets them for that operation; whether "Both" is
+/// ticked; and <see cref="Code"/>, the <c>glass.*</c> code the add would be
+/// refused with before anything is posted, or null.
+/// </summary>
+public sealed record GlassDialogSend(
+    string? Button,
+    string? Operation,
+    decimal? Price,
+    decimal? Hours,
+    string? PaintLevel,
+    decimal? PaintPrice,
+    decimal? PaintHours,
+    bool BothSides,
+    IReadOnlyList<GlassDialogQuestion> Questions,
+    string? Code);
+
+/// <summary>
+/// A question the dialog or the editor would ask on the way: <c>no_figures</c>
+/// (price and hours are both zero; <see cref="Text"/> is Glass's own),
+/// <c>reason</c> (more hours than Glass's own; the add is refused),
+/// <c>other_side</c> ("Both": the editor then opens the other side's own
+/// dialog, posted as served) or <c>mandatory_parts</c> (Glass's may list
+/// mandatory parts after the post; which, if any, cannot be known before it).
+/// <see cref="Answered"/> says whether the inputs given answer it.
+/// </summary>
+public sealed record GlassDialogQuestion(string Kind, string? Text, bool Answered);
+
+/// <summary>
+/// What a preview read (R1206): the session as the read left it, the dialog
+/// as a form, and the <c>glass.*</c> code when no dialog was read: a row or
+/// position Glass's lists do not hold, a row that is not certain, or a page
+/// Glass's did not answer. Nothing was posted either way.
+/// </summary>
+public sealed record GlassAutomationPreview(GlassRepairEstimateSession Session, GlassDialogPreview? Dialog, string? Code);

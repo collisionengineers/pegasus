@@ -9,8 +9,11 @@ namespace Pegasus.IntegrationTests;
 /// (<c>GlassEditorPages/manifest.json</c>), and the answers that came back:
 /// the page that tells the editor to redraw, or the "Mandatory parts:" page
 /// and its own confirm post. The manifest's <c>operations</c> are Repair and
-/// Uninstall and install chosen in four captured dialogs, each compared with
-/// the post the dialog's own script sent when driven offline (R1172).
+/// Uninstall and install chosen in four captured dialogs (R1172), and every
+/// other operation of the left door and the left mirror, with Part and with
+/// Part and Paint, two of the rear quarter's and the right reinforcement's
+/// Renew (R1206), each compared with the post the dialog's own script sent
+/// when driven offline.
 /// </summary>
 public sealed class GlassEditorDialogTests
 {
@@ -260,6 +263,94 @@ public sealed class GlassEditorDialogTests
 
         Assert.Equal("The form has no submit button named BS.", build.Error);
         Assert.Empty(build.Fields);
+    }
+
+    /// <summary>
+    /// An operation a dialog offers that no captured dialog's own script was
+    /// seen to post is refused (R1206): the bonnet's NL.
+    /// </summary>
+    [Fact]
+    public void AnOperationNotJudgedAgainstAScriptIsAProblem()
+    {
+        var build = GlassEditorDialogs.PartPost(
+            GlassEditorFixture.Text("bonnet_operations.dialog.html"), "BSS", new GlassEditorChange(Operation: "NL"));
+
+        Assert.Contains("Choosing NL has not been judged against a dialog's own script.", build.Problems);
+    }
+
+    /// <summary>Choosing the operation the dialog already serves changes nothing, as in the editor.</summary>
+    [Fact]
+    public void ChoosingTheServedOperationAgainChangesNothing()
+    {
+        var page = GlassEditorFixture.Text("door_left_operations.dialog.html");
+
+        var again = GlassEditorDialogs.PartPost(page, "BSS", new GlassEditorChange(Operation: "ER"));
+
+        Assert.Equal(GlassEditorDialogs.PartPost(page, "BSS").Fields, again.Fields);
+        Assert.Empty(again.Problems);
+    }
+
+    /// <summary>
+    /// The answer to a post with "Both" ticked names the other side's dialog
+    /// as the list's BothNext opens it (judged offline: drive-both.mjs); an
+    /// answer with no such call names none.
+    /// </summary>
+    [Fact]
+    public void TheAnswerToAPostWithBothNamesTheOtherSidesDialog()
+    {
+        var next = GlassEditorDialogs.AfterPost(GlassEditorFixture.Text("reinforcement_left_both.answer.html")).Next;
+
+        Assert.Equal(new GlassEditorNext("1783|ER|1786|AE|1792", "R", string.Empty), next);
+        Assert.Null(GlassEditorDialogs.AfterPost(GlassEditorFixture.Text("reinforcement_right.answer.html")).Next);
+    }
+
+    /// <summary>
+    /// A preview reads a part's dialog as a form (R1206): each operation with
+    /// Glass's own text and the figures its script serves for the side,
+    /// Renew choosable on a part.php dialog, the fields with Glass's own
+    /// labels, and its one button; with no inputs it says nothing of a send.
+    /// </summary>
+    [Fact]
+    public void APreviewReadsAPlainDialogAsAForm()
+    {
+        var (preview, build) = GlassEditorDialogs.Preview(GlassEditorFixture.Text("mirror_left_operations.dialog.html"));
+
+        Assert.NotNull(preview);
+        Assert.NotNull(build);
+        Assert.Equal("part", preview.Kind);
+        Assert.Equal("L", preview.Side);
+        Assert.Null(preview.Paint);
+        Assert.Null(preview.Sends);
+        var refit = Assert.Single(preview.Operations, item => item.Code == "AE");
+        Assert.Equal(0.60m, refit.Hours);
+        Assert.True(refit.Changeable);
+        Assert.True(Assert.Single(preview.Operations, item => item.Code == "AN").Changeable);
+        Assert.DoesNotContain(preview.Operations, item => item.Code == "-");
+        Assert.Equal("Repair type", Assert.Single(preview.Fields, field => field.Name == "Repart").Label);
+        Assert.Contains(preview.Buttons, button => button.Value == "BS");
+    }
+
+    /// <summary>
+    /// For the inputs given, a preview says what the add would send and what
+    /// it would meet: Renew's figures as the old-for-new window writes them
+    /// back on the right-hand reinforcement, and Both's other side.
+    /// </summary>
+    [Fact]
+    public void APreviewSaysWhatAnAddWouldSendAndAsk()
+    {
+        var (renew, _) = GlassEditorDialogs.Preview(
+            GlassEditorFixture.Text("reinforcement_right_operations.dialog.html"), null, new GlassEditorChange(Operation: "AN"));
+        var (both, _) = GlassEditorDialogs.Preview(
+            GlassEditorFixture.Text("reinforcement_left_both.dialog.html"), null, new GlassEditorChange(Both: true));
+
+        Assert.NotNull(renew?.Sends);
+        Assert.Equal("AN", renew.Sends.Operation);
+        Assert.Equal(38.68m, renew.Sends.Price);
+        Assert.Equal(0.00m, renew.Sends.Hours);
+        Assert.Null(renew.Sends.Code);
+        Assert.NotNull(both?.Sends);
+        Assert.True(both.Sends.BothSides);
+        Assert.Contains(both.Sends.Questions, question => question is { Kind: "other_side", Answered: true });
     }
 
     private static JsonElement Operation(string name) =>

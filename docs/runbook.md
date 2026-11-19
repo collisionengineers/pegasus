@@ -1759,6 +1759,22 @@ it stopped.
   answered but no new position carries the dialog's code). Read the
   estimate before acting again; the Automation never removes a position to
   tidy up.
+  A preview (`pegasus_glass_position_act` with `preview`, R1206) logs the
+  list and map stages an add logs, then `EditorPreview` for the dialog; one
+  of a position on the estimate logs `EditorPreview` alone. It posts
+  nothing and records no act or history row; a page Glass's does not answer
+  gives its code as `previewCode`. An add's own inputs (R1206) are refused
+  with `glass.row.not_paintable` when a paint button is asked for a part
+  that cannot be painted, and with `glass.build.not_built` when Both is
+  asked for one that can; an operation the dialog does not offer, one that
+  reloads the dialog or opens a window Pegasus does not answer, one not yet
+  judged against Glass's own script, or one served with no price and no
+  hours without `inputs.confirmNoFigures` (Repair answers by itself) is
+  `glass.editor.refused`. With Both, the other side's own dialog logs stage
+  `EditorAddOtherSide`; an act `added` with `glass.row.other_side_not_added`
+  added the first side only, because Glass's did not go on to the other
+  side's dialog, or that dialog was not the one expected. Its warning line
+  names the reason.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

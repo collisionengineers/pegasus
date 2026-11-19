@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -121,7 +122,23 @@ internal sealed record GlassEditorAnswer(
     string? PageTitle,
     string? Action,
     IReadOnlyList<KeyValuePair<string, string>> Fields,
-    IReadOnlyList<GlassEditorListed> Listed);
+    IReadOnlyList<GlassEditorListed> Listed)
+{
+    /// <summary>
+    /// After a post with "Both" ticked, the other side's dialog the editor's
+    /// list opens next (its <c>BothNext</c>), as the answer names it; null
+    /// when the answer names none.
+    /// </summary>
+    public GlassEditorNext? Next { get; init; }
+}
+
+/// <summary>
+/// The other side's dialog an answer sends the editor's list to after a post
+/// with "Both" ticked (<c>BothNext</c>): its rows, as the dialog is asked for
+/// them (<c>1783|ER|1786|AE|1792</c>), the side it serves, and the extra
+/// address parameters the answer passes (empty in every capture).
+/// </summary>
+internal sealed record GlassEditorNext(string Rows, string Side, string Parameters);
 
 /// <summary>
 /// The editor's dialogs, built as a browser builds them. Each dialog's own
@@ -181,6 +198,12 @@ internal static partial class GlassEditorDialogs
         if (submitter is null)
         {
             return GlassEditorBuild.Failed("The form has no submit button named " + button + ".");
+        }
+
+        // Choosing the operation the dialog already serves changes nothing, as in the editor.
+        if (change.Operation is { } chosenAgain && form.Field("Repart") is { IsSelect: true } servedList && servedList.Value == chosenAgain)
+        {
+            change = change with { Operation = null };
         }
 
         var problems = new List<string>();
@@ -505,6 +528,12 @@ internal static partial class GlassEditorDialogs
             return GlassEditorBuild.Failed("This dialog has paint fields; it is a comp.php dialog.");
         }
 
+        // Choosing the operation the dialog already serves changes nothing, as in the editor.
+        if (change.Operation is { } chosenAgain && form.Field("Repart") is { IsSelect: true } servedList && servedList.Value == chosenAgain)
+        {
+            change = change with { Operation = null };
+        }
+
         var problems = new List<string>();
         var notes = new List<string>();
 
@@ -589,18 +618,23 @@ internal static partial class GlassEditorDialogs
 
         var priceRemark = Side("RemarkPrice");
         var time = GlassEditorPages.Lookup(Side("Times"), operation);
+        var price = GlassEditorPages.Lookup(Side("Prices"), operation);
 
-        // "Renew" (AN) opens the old-for-new dialog; accepted as served, it writes the hours with
-        // two decimals.
-        if (change.Operation == "AN" && time is not null && !double.IsNaN(Number(time)))
+        // "Renew" (AN) opens the old-for-new window with the side's gross price and hours
+        // (ANBruttos, as OpenOldfrnewWindow reads them); taken as served, with no deduction, its OK
+        // writes them back as the price and the hours. Judged offline on 19 November 2026 on six
+        // captured part.php dialogs, among them a right-hand one whose gross hours are not its Times.
+        if (change.Operation == "AN")
         {
-            time = Number(time).ToString("F2", CultureInfo.InvariantCulture);
+            var oldForNew = (form.Field("ANBruttos")?.Value ?? string.Empty).Split('|');
+            price = At(oldForNew, placeIndex);
+            time = At(oldForNew, 2 + placeIndex);
             notes.Add("Renew goes through the old-for-new dialog, taken as served with no deduction.");
         }
 
         (string Name, string? Value)[] filled =
         [
-            ("Price", GlassEditorPages.Lookup(Side("Prices"), operation)),
+            ("Price", price),
             ("Time", time),
             ("RemarkP", priceRemark),
             ("RemarkTxt", Remarks(priceRemark, Side("RemarkMaterial"))),
@@ -762,7 +796,10 @@ internal static partial class GlassEditorDialogs
         {
             return new(
                 Redraw().IsMatch(html) ? GlassEditorAnswerKind.Done : GlassEditorAnswerKind.Unknown,
-                title, PageTitle(tokens), null, [], []);
+                title, PageTitle(tokens), null, [], [])
+            {
+                Next = NextOf(html),
+            };
         }
 
         var proceed = tokens.FirstOrDefault(token => token.Kind == GlassEditorTokenKind.Start
@@ -780,7 +817,7 @@ internal static partial class GlassEditorDialogs
         var chosen = parameters.Select(entry =>
         {
             var fields = entry.Split('|').ToList();
-            if (fields[0] == "L" && fields.Count > 1 && ticked.Contains(fields[1]))
+            if (fields[0] == "L" && fields.Count > 3 && fields[3] == "1" && ticked.Contains(fields[1]))
             {
                 SetAt(fields, 2, "1");
             }
@@ -808,6 +845,266 @@ internal static partial class GlassEditorDialogs
     }
 
     private const string ZeroAsked = "Price and hours are both zero; the dialog would ask before sending.";
+
+    /// <summary>
+    /// The answer's call to the list's <c>BothNext</c>, as the list runs it:
+    /// the dialog it opens is the right-hand rows when the first side was
+    /// left, else the left-hand ones, with the answer's <c>Params</c>. Null
+    /// when the answer makes no such call.
+    /// </summary>
+    private static GlassEditorNext? NextOf(string html)
+    {
+        var call = BothNextCall().Match(html);
+        if (!call.Success)
+        {
+            return null;
+        }
+
+        var first = call.Groups[3].Value;
+        var parameters = BothNextParameters().Match(html);
+        return new GlassEditorNext(
+            first == "L" ? call.Groups[2].Value : call.Groups[1].Value,
+            first == "L" ? "R" : "L",
+            parameters.Success ? parameters.Groups[1].Value : string.Empty);
+    }
+
+    /// <summary>
+    /// A dialog as a person sees it, read as a form, posting nothing (R1206):
+    /// its kind, what it is for, each operation its list offers with the
+    /// price, hours and Glass's own hours its script serves for the served
+    /// side, each field a person sees with Glass's own label, its value as the
+    /// load script leaves it and its choices, the paint section and the
+    /// buttons. With <paramref name="button"/> or <paramref name="change"/>,
+    /// also what the post built for them would send and what the dialog or
+    /// the editor would ask on the way (<see cref="GlassDialogSend"/>), and
+    /// that build, which the caller checks as an add checks it. Null when the
+    /// page has no dialog form.
+    /// </summary>
+    public static (GlassDialogPreview? Preview, GlassEditorBuild? Build) Preview(
+        string html, string? button = null, GlassEditorChange? change = null)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var form = GlassEditorForm.Read(html, "Part");
+        if (form is null)
+        {
+            return (null, null);
+        }
+
+        var paintable = form.Named("Lackart").Any();
+        var special = !paintable && form.Field("Descr") is not null;
+        var served = paintable ? PartPost(html, "BSS") : PlainPost(html);
+        var summary = served.Summary;
+        var posted = served.Fields;
+        var placeIndex = PlaceIndex(form.Field("Place")?.Value ?? " ");
+        var tokens = GlassEditorForm.Tokens(html);
+
+        // The operations: Glass's code and text, and the script's own figures for the served side.
+        var select = form.Field("Repart");
+        List<string> offered = select is { IsSelect: true } ? select.Options.Select(option => option.Value).ToList() : [];
+        var prices = At(GlassEditorPages.SplitPairs(html, "Prices"), placeIndex);
+        var times = At(GlassEditorPages.SplitPairs(html, "Times"), placeIndex);
+        var own = At(GlassEditorPages.SplitPairs(html, "OrigTimes"), placeIndex);
+        IReadOnlyList<GlassEditorOption> options = select is { IsSelect: true } ? select.Options : [];
+        var operations = options
+            .Where(option => option.Value != "-")
+            .Select(option => new GlassDialogOperation(
+                option.Value,
+                GlassEditorForm.Collapse(option.Text).Trim(),
+                Amount(GlassEditorPages.Lookup(prices, option.Value)),
+                Amount(GlassEditorPages.Lookup(times, option.Value)),
+                Amount(GlassEditorPages.Lookup(own, option.Value)),
+                option.Value == select!.Value,
+                !special && Choosable(html, offered, option.Value, paintable)))
+            .ToList();
+
+        var both = BothDescriptor().Match(html);
+        var descriptor = both.Success ? both.Groups[1].Value : null;
+        var bothOffered = !paintable && !special && form.Field("Both") is not null
+            && (descriptor is null || (CharAt(descriptor, 1) != '1' && CharAt(descriptor, 2) != '1'));
+        var fields = new List<GlassDialogField>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var control in form.Controls)
+        {
+            if (control.Name is not { Length: > 0 } name || control.Type == "hidden" || control.IsButton || !seen.Add(name))
+            {
+                continue;
+            }
+
+            var group = form.Named(name).Count() > 1;
+            var sent = posted.Where(pair => pair.Key == name).Select(pair => pair.Value).FirstOrDefault();
+            string? value;
+            IReadOnlyList<GlassDialogChoice>? choices = null;
+            if (control.Type is "checkbox" or "radio")
+            {
+                // A tick box's value is whether it is ticked; a group of radios answers the ticked one's value.
+                var ticked = sent is not null || control.Checked;
+                value = group
+                    ? sent ?? form.Named(name).FirstOrDefault(member => member.Checked)?.Value
+                    : ticked ? "true" : "false";
+                if (group)
+                {
+                    choices = form.Named(name).Select(member => new GlassDialogChoice(member.Value, member.Value)).ToList();
+                }
+            }
+            else
+            {
+                value = sent ?? control.Value;
+                if (control.IsSelect)
+                {
+                    choices = control.Options
+                        .Select(option => new GlassDialogChoice(option.Value, GlassEditorForm.Collapse(option.Text).Trim()))
+                        .ToList();
+                }
+            }
+
+            var changeable = name switch
+            {
+                "Repart" => operations.Exists(operation => operation.Changeable && !operation.Served),
+                "Both" => bothOffered,
+                _ => false,
+            };
+            fields.Add(new GlassDialogField(name, Label(tokens, name), value, choices, control.Disabled, changeable));
+        }
+
+        var buttons = form.Controls
+            .Where(control => control.IsButton && control.Name is { Length: > 0 } && !control.Disabled)
+            .Select(control => new GlassDialogChoice(control.Name!, GlassEditorForm.Collapse(control.Value).Trim()))
+            .ToList();
+        var paint = paintable && summary is not null
+            ? new GlassDialogPaint(
+                Choice(form.Field("Bereich"), summary.Area),
+                Choice(form.Field("Lackart"), summary.PaintType),
+                Choice(form.Field("Lackstufe"), summary.PaintLevel),
+                Amount(summary.PaintPrice),
+                Amount(summary.PaintHours))
+            : null;
+        var side = (summary?.Side ?? string.Empty).Trim();
+        var preview = new GlassDialogPreview(
+            special ? "special_operation" : paintable ? "part_paintable" : "part",
+            summary?.Description?.Trim(),
+            summary?.PartNumber is { } number && number.Trim().Length > 0 ? number.Trim() : null,
+            side == "R" ? summary?.RightPartCode : summary?.PartCode,
+            side.Length == 0 ? null : side,
+            operations,
+            fields,
+            paint,
+            buttons);
+        if (button is null && change is null)
+        {
+            return (preview, served);
+        }
+
+        // What an add with these inputs would send, and each question on the way.
+        var pressed = paintable ? button ?? "BSS" : "BS";
+        var build = paintable ? PartPost(html, pressed, change) : PlainPost(html, change);
+        var built = build.Summary;
+        var questions = new List<GlassDialogQuestion>();
+        if (!special && pressed != "BLL" && Number(built?.Price) == 0 && Number(built?.Hours) == 0)
+        {
+            var force = ForceNonZero().Match(html);
+            var message = ZeroMessage().Match(html);
+            var forced = force.Success && Number(force.Groups[1].Value) != 0;
+            questions.Add(new GlassDialogQuestion(
+                "no_figures",
+                message.Success ? message.Groups[forced ? 1 : 2].Value : null,
+                !forced && change?.ConfirmNoFigures == true));
+        }
+        if (!special && pressed != "BLL"
+            && ReasonAsked(html, built?.Operation, placeIndex, built?.Hours) is { } reason
+            && reason.StartsWith("More hours", StringComparison.Ordinal))
+        {
+            questions.Add(new GlassDialogQuestion("reason", null, false));
+        }
+        if (change?.Both == true)
+        {
+            questions.Add(new GlassDialogQuestion("other_side", null, true));
+        }
+        if (!special)
+        {
+            questions.Add(new GlassDialogQuestion("mandatory_parts", null, true));
+        }
+
+        var code = build.Error is not null ? GlassFailure.EditorDialog
+            : build.Problems.Count > 0 ? GlassFailure.EditorRefused
+            : null;
+        return (preview with
+        {
+            Sends = new GlassDialogSend(
+                buttons.Find(item => item.Value == pressed)?.Text ?? pressed,
+                built?.Operation,
+                Amount(built?.Price),
+                Amount(built?.Hours),
+                paintable ? built?.PaintLevel : null,
+                paintable ? Amount(built?.PaintPrice) : null,
+                paintable ? Amount(built?.PaintHours) : null,
+                change?.Both == true,
+                questions,
+                code),
+        }, build);
+    }
+
+    /// <summary>
+    /// Whether a person may choose the operation without the dialog reloading
+    /// or opening a window this builder does not answer: what
+    /// <see cref="ChangeProblem"/> allows, and on a <c>part.php</c> dialog
+    /// Renew (<c>AN</c>), taken through the old-for-new window as served.
+    /// </summary>
+    private static bool Choosable(string html, List<string> offered, string operation, bool paintable) =>
+        !paintable && operation == "AN"
+            ? offered.Contains("AN")
+            : ChangeProblem(html, offered, operation) is null;
+
+    /// <summary>Which of each pair of lines a dialog reads for its served side: 1 for a right-hand side.</summary>
+    private static int PlaceIndex(string place)
+    {
+        var lead = place.Length > 0 ? place[..1] : string.Empty;
+        var side = lead is "V" or "H" ? (place.Length > 1 ? place.Substring(1, 1) : string.Empty) : lead;
+        return side == "R" ? 1 : 0;
+    }
+
+    /// <summary>The selected value of a list, with Glass's own text for it.</summary>
+    private static GlassDialogChoice? Choice(GlassEditorControl? select, string? value) =>
+        value is null
+            ? null
+            : new GlassDialogChoice(
+                value,
+                select?.Options.FirstOrDefault(option => option.Value == value) is { } option
+                    ? GlassEditorForm.Collapse(option.Text).Trim()
+                    : value);
+
+    /// <summary>Glass's own label for a field: the text of the dialog's <c>ID_</c> span for it, or null.</summary>
+    private static string? Label(List<GlassEditorToken> tokens, string name)
+    {
+        var start = tokens.FindIndex(token => token.Kind == GlassEditorTokenKind.Start
+            && token.Attribute("id") == "ID_" + name);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        var tag = tokens[start].Name;
+        var depth = 1;
+        var text = new StringBuilder();
+        for (var index = start + 1; index < tokens.Count && depth > 0; index++)
+        {
+            var token = tokens[index];
+            if (token.Kind == GlassEditorTokenKind.Text)
+            {
+                text.Append(token.Text);
+            }
+            else if (token.Name == tag)
+            {
+                depth += token.Kind == GlassEditorTokenKind.Start ? 1 : -1;
+            }
+        }
+
+        var label = GlassEditorForm.Collapse(text.ToString().Replace(' ', ' ')).Trim();
+        return label.Length == 0 ? null : label;
+    }
+
+    /// <summary>A figure as the dialog serves it, a zero kept; null when it gives none or none that reads as a number.</summary>
+    private static decimal? Amount(string? served) =>
+        decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
 
     /// <summary>
     /// An operation a person may choose without the dialog reloading or
@@ -839,8 +1136,19 @@ internal static partial class GlassEditorDialogs
             }
         }
 
-        return null;
+        return JudgedOperations.Contains(operation)
+            ? null
+            : "Choosing " + operation + " has not been judged against a dialog's own script.";
     }
+
+    /// <summary>
+    /// The operations a captured dialog's own script was seen to post when
+    /// chosen, byte for byte as this builder posts them (19 November 2026,
+    /// R1206: 13 captured dialogs driven offline, each operation they offer;
+    /// Renew on <c>part.php</c> only). Any other is refused until it has been.
+    /// </summary>
+    private static readonly HashSet<string> JudgedOperations =
+        new(["AD", "AE", "AN", "E", "ET", "HO", "I", "IT", "KM", "KS", "P", "UN", "V", "Z"], StringComparer.Ordinal);
 
     /// <summary>
     /// CheckSubmit's question when price and hours are both zero. The page
@@ -1139,6 +1447,12 @@ internal static partial class GlassEditorDialogs
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex WhiteSpace();
+
+    [GeneratedRegex(@"\.BothNext\(\s*p\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([LR])'\s*,\s*Params\s*\)", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex BothNextCall();
+
+    [GeneratedRegex(@"var\s+Params\s*=\s*""([^""]*)""", RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex BothNextParameters();
 
     [GeneratedRegex(@"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$", RegexOptions.CultureInvariant, 1000)]
     private static partial Regex DecimalNumber();

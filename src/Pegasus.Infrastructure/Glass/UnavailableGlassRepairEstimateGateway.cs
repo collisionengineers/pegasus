@@ -135,6 +135,14 @@ public sealed class UnavailableGlassRepairEstimateGateway : IGlassRepairEstimate
         return Task.FromException<GlassAutomationCatalogue?>(Unavailable());
     }
 
+    public Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
+        GlassAutomationPositionRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<GlassAutomationPreview?>(Unavailable());
+    }
+
     public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
         GlassAutomationPositionRequest request, CancellationToken cancellationToken)
     {

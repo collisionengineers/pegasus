@@ -9,7 +9,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Automation's help in an Engineer's open Glass's session (design 08
-/// sections 5 and 6, slice D2; R1170, R1182, R1185, R1206) against the scripted
+/// sections 5 and 6, slice D2; R1170, R1182, R1185, R1206: paint, Both, preview) against the scripted
 /// editor of <see cref="GlassProviderFixture"/>, on a key held as the helper
 /// hands it over: an add reads the estimate before and after and tells its
 /// own position from those the Engineer added meanwhile; a lost answer is not
@@ -29,6 +29,12 @@ public sealed class GlassSessionHelpTests
     private const string NoPositions = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
 
     private static readonly ActionActor Automation = ActionActor.Automation("automation-grant-help");
+
+    /// <summary>The door's optional trim support kit, as its "Mandatory parts:" page lists it.</summary>
+    private static readonly string[] TrimSupportKit = ["8099801.ER."];
+
+    /// <summary>The two reinforcement positions the "Both" add puts on the estimate; made up.</summary>
+    private static readonly string[] BothReinforcements = ["C1.1.C1012401.1", "C2.2.C1012402.2"];
 
     /// <summary>The load balancer's cookies as a window's helper hands them over; made up.</summary>
     private static readonly Dictionary<string, string> WindowsCookies = new()
@@ -276,8 +282,13 @@ public sealed class GlassSessionHelpTests
         Assert.Empty(help.Glass.Requests);
     }
 
+    /// <summary>
+    /// Part and Paint is added in the Engineer's session as in the
+    /// Automation's own (R1206): the button pressed, the inputs kept on the
+    /// act's history row beside Glass's own figures.
+    /// </summary>
     [Fact]
-    public async Task PaintOnItsOwnIsRefusedWithItsReasonAndNothingIsSent()
+    public async Task PartAndPaintIsAddedInTheEngineersSessionWithItsInputsRecorded()
     {
         var help = Help.Create();
 
@@ -287,15 +298,92 @@ public sealed class GlassSessionHelpTests
             {
                 Kind = GlassAutomationPositionKind.Part,
                 Row = "771",
-                Operation = GlassAutomationPartOperation.Paint,
+                Operation = GlassAutomationPartOperation.Part,
+                Inputs = new GlassAutomationInputs(Button: GlassAutomationButton.PartAndPaint, OptionalParts: TrimSupportKit),
             },
             help.Session,
             CancellationToken.None);
 
-        Assert.Equal(GlassAutomationActOutcome.Refused, outcome.Act.Outcome);
-        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, outcome.Act.Code);
-        Assert.Empty(help.Glass.Requests);
-        Assert.Single(help.Store.Acts);
+        Assert.Equal(GlassAutomationActOutcome.Added, outcome.Act.Outcome);
+        var posted = help.Glass.Requests.First(request => request.Method == "POST").Body;
+        Assert.Contains("&BSL=Part+and+Paint&", posted, StringComparison.Ordinal);
+        var recorded = Assert.Single(help.Store.Acts);
+        Assert.Equal(GlassAutomationButton.PartAndPaint, recorded.Inputs?.Button);
+        Assert.Equal(TrimSupportKit, recorded.Inputs?.OptionalParts);
+        Assert.Equal(new GlassEstimateBuildFigures(545.24m, 2.90m), recorded.Served);
+        Assert.True(Assert.Single(recorded.Listed, listed => listed.Code == "8099801.ER.").Ticked);
+    }
+
+    /// <summary>
+    /// "Both" in the Engineer's session: the left side's post, then the
+    /// right side's own dialog and post; both positions are the act's own,
+    /// told by their two codes from those the Engineer added meanwhile.
+    /// </summary>
+    [Fact]
+    public async Task BothSidesInTheEngineersSessionAreTheActsOwnPositions()
+    {
+        var help = Help.Create();
+        help.Glass.Respond("GET /ere/aco/selected.php", _ => Editor(help.Glass.Count("POST /ere/aco/compproc.php") switch
+        {
+            0 => NoPositions,
+            1 => "<script>\nvar Partids = [ '', 'C1.1.C1012401.1', '" + EngineersPosition + "' ];\nvar CheckIds = [ 'C1012401', 'C2027021' ];\n</script>\n",
+            _ => "<script>\nvar Partids = [ '', 'C1.1.C1012401.1', '" + EngineersPosition + "', 'C2.2.C1012402.2' ];\nvar CheckIds = [ 'C1012401', 'C2027021', 'C1012402' ];\n</script>\n",
+        }));
+        using var window = help.Window();
+
+        var outcome = await help.Sessions.AddAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, help.Session.Version, "mcp:help-both",
+                GlassAutomationActAction.Add)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "193",
+                Operation = GlassAutomationPartOperation.Part,
+                Inputs = new GlassAutomationInputs(BothSides: true),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Equal(GlassAutomationActOutcome.Added, outcome.Act.Outcome);
+        Assert.Equal(BothReinforcements, outcome.Act.PositionIds);
+        Assert.Equal(EngineersPosition, Assert.Single(outcome.AlsoNew));
+        Assert.Equal(2, help.Glass.Count("GET /ere/aco/part.php"));
+        Assert.Equal(2, help.Glass.Count("POST /ere/aco/compproc.php"));
+    }
+
+    /// <summary>
+    /// A preview in the Engineer's session (R1206) reads the lists and the
+    /// dialog on the held key, posts nothing, records no history row and
+    /// does not ask the window to redraw.
+    /// </summary>
+    [Fact]
+    public async Task APreviewInTheEngineersSessionPostsNothingAndRecordsNothing()
+    {
+        var help = Help.Create();
+
+        var preview = await help.Sessions.PreviewAsync(
+            new GlassAutomationPositionRequest(Automation, help.Session.Id, 0, "mcp:help-preview",
+                GlassAutomationActAction.Preview)
+            {
+                Kind = GlassAutomationPositionKind.Part,
+                Row = "193",
+                Operation = GlassAutomationPartOperation.Part,
+                Inputs = new GlassAutomationInputs(BothSides: true),
+            },
+            help.Session,
+            CancellationToken.None);
+
+        Assert.Null(preview.Code);
+        Assert.NotNull(preview.Dialog);
+        Assert.Equal("part", preview.Dialog.Kind);
+        Assert.True(Assert.Single(preview.Dialog.Fields, field => field.Name == "Both").Changeable);
+        Assert.NotNull(preview.Dialog.Sends);
+        Assert.True(preview.Dialog.Sends.BothSides);
+        Assert.Null(preview.Dialog.Sends.Code);
+        Assert.Contains(preview.Dialog.Sends.Questions, question => question.Kind == "other_side");
+        Assert.Equal(3, help.Glass.Requests.Count);
+        Assert.Equal(0, help.Glass.Count("POST /ere/aco/compproc.php"));
+        Assert.Empty(help.Store.Acts);
+        Assert.Equal(0, help.Keys.Poll(help.Session.Id, 0).Refresh);
     }
 
     [Fact]

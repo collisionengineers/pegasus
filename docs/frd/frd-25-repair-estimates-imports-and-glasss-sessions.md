@@ -454,10 +454,14 @@ session. Other staff on the Case see nothing of it.
 While help is on, the Automation's Glass's tools find the session by its
 Case ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#help-in-an-engineers-open-session)).
 They may read the estimate as in the Automation's own session (R1206),
-search its lists, add the same positions as a
-rebuild, posted as Glass's dialog serves them with nothing typed (R1182),
-and remove any position of the estimate, because the Engineer asked for the
-help and watches the window (R1185). They may also add a part whose block
+search its lists, preview a dialog, add positions as in the Automation's
+own session, posted as Glass's dialog serves them with nothing typed
+(R1182), and remove any position of the estimate, because the Engineer
+asked for the help and watches the window (R1185). Since 19 November 2026
+(R1206) an add may also press Paint or Part and Paint, choose another
+operation the dialog offers, tick Both and the optional mandatory parts,
+as the Automation may in its own session; a preview posts nothing and
+records no history row. They may also add a part whose block
 asks Glass's equipment question, with the Automation's answer, which is
 stored at Glass's for the vehicle as the editor stores the Engineer's own
 and may untick an option the vehicle has (19 November 2026; R1206). A part
@@ -688,6 +692,22 @@ staff whose own stored login the Automation's session holds sees, on every
 other Case, "The Glass's account is in use by the Automation" and "Open on
 {reference}" instead of a launch. A session the Automation owns has no
 lifetime either.
+
+**What the Automation gives a position's dialog (19 November 2026; R1206).**
+In its own session and in an Engineer's with help on, the Automation gives
+a dialog what a person gives it without typing
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)):
+Paint on its own and Part and Paint, in place of R1182's refusal, with the
+paint section as Glass's serves it; any operation the dialog offers that
+Glass's own script was seen offline to post as Pegasus builds it, Renew
+taken through the old-for-new window with no deduction, with Glass's
+question before no figures answered OK for Repair by itself (R1188) and
+for anything else only when the Automation says so; Both, with the other
+side's own dialog posted as served; and the optional parts to tick on the
+"Mandatory parts:" page. It may preview the dialog first, and nothing is
+posted for a preview. A typed figure or text, a paint choice, a change to
+a position already on the estimate and free rows still wait. The rebuild
+of an outside estimate keeps R1168, R1169 and R1172 as above.
 
 **What the Automation reads of an open estimate (19 November 2026; R1206).**
 In its own session, and in an Engineer's with help on, the Automation may

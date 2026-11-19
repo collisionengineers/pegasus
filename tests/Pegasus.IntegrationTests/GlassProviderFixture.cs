@@ -262,7 +262,11 @@ internal static class GlassProviderFixture
     /// and answer, the front bumper lining's dialog for any pair of its row 0
     /// (captured for <c>0|5</c>, so any other is the wrong variant) with its
     /// "Mandatory parts:" page and answer, the left mirror's dialog for
-    /// <c>822|829</c> and its answer, and Save and Exit's three
+    /// <c>822|829</c> and its answer, the front bumper side reinforcement's
+    /// left dialog (<see cref="ReinforcementLeft"/>), whose answer to a post
+    /// with "Both" ticked sends the list to the right one
+    /// (<see cref="ReinforcementRight"/>), each with its captured answer
+    /// (NEWHAR of 18 November 2026), and Save and Exit's three
     /// pages. One scripted editor for the editor client's own tests is
     /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
     /// provider as the portal, so a build runs end to end.
@@ -286,9 +290,13 @@ internal static class GlassProviderFixture
         glass.Respond("GET /ere/aco/report.php", _ => EditorPage("report.html", null));
         glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
         glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
-        glass.Respond("GET /ere/aco/part.php", request => QueryValue(request.Query, "mcode") is "822|829"
-            ? EditorPage("mirror_left.dialog.html", null)
-            : SpecialOperation(request.Query, "dialog"));
+        glass.Respond("GET /ere/aco/part.php", request => QueryValue(request.Query, "mcode") switch
+        {
+            "822|829" => EditorPage("mirror_left.dialog.html", null),
+            ReinforcementLeft => EditorPage("reinforcement_left_both.dialog.html", null),
+            ReinforcementRight => EditorPage("reinforcement_right.dialog.html", null),
+            _ => SpecialOperation(request.Query, "dialog"),
+        });
         glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") switch
         {
             "771|772" or "790|791" => EditorPage("door_left_operations.dialog.html", null),
@@ -302,6 +310,8 @@ internal static class GlassProviderFixture
             "0|5" => EditorPage(
                 QueryValue(request.Query, "BX") is null ? "bumper_part.answer.html" : "bumper_part.confirm_answer.html", null),
             "822|829" => EditorPage("mirror_left.answer.html", null),
+            ReinforcementLeft => EditorPage("reinforcement_left_both.answer.html", null),
+            ReinforcementRight => EditorPage("reinforcement_right.answer.html", null),
             _ => SpecialOperation(request.Query, "answer"),
         });
         glass.Respond("GET /ere/aco/service.php", request =>
@@ -324,7 +334,7 @@ internal static class GlassProviderFixture
     public static string BuildPartList() =>
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Select(row => "partlist.addPart(\"" + row + "\");"))
+            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Select(row => "partlist.addPart(\"" + row + "\");"))
             + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
             StringComparison.Ordinal);
 
@@ -350,6 +360,28 @@ internal static class GlassProviderFixture
         "828|plTI|||||85142|51167459053|355.00|ERAEI |||||||||||||||||||||||837|0|0.0.0.10",
         "829|tlTI|||||||0.80|ER|||||||||||||||||||||||838|0|0.0.0.10",
         "830|tlTI|||||||0.60|AE|||||||||||||||||||||||839|0|0.0.0.10",
+    ];
+
+    /// <summary>The rows the left reinforcement's dialog is asked for: its head and its Replace time row.</summary>
+    public const string ReinforcementLeft = "193|196";
+
+    /// <summary>The rows the left dialog's answer names for the right side, as the editor's list asks for them (NEWHAR #1248).</summary>
+    public const string ReinforcementRight = "1783|ER|1786|AE|1792";
+
+    /// <summary>
+    /// The BMW's front bumper side reinforcement (codes 1012401 left and
+    /// 1012402 right), made for this script in the list's row format: each
+    /// side's head and its Replace time row. The row ids, codes, numbers,
+    /// price and hours are those its captured dialogs serve (NEWHAR #1224 and
+    /// #1248, 18 November 2026); the rest is made up. Neither side can be
+    /// painted, as the browser's use of <c>part.php</c> for them shows.
+    /// </summary>
+    private static readonly string[] ReinforcementRows =
+    [
+        "193|pbclTId|HTB3-202_809|701300250101|41|1012401||51117266193|38.68|ERAEI |||||||Front Bumper Side Reinforcement|||||||||||KS|||||1783|0|0.0.0.11",
+        "196|tlTI|||||||2.20|ER|||||||||||||||||||||||1786|0|0.0.0.11",
+        "1783|pbcrTId|HTB3-202_809|701300250203|41|1012402||51117266194|38.68|ERAEI |||||||Front Bumper Side Reinforcement|||||||||||KS|||||193|0|0.0.0.11",
+        "1786|trTI|||||||2.20|ER|||||||||||||||||||||||196|0|0.0.0.11",
     ];
 
     /// <summary>The BMW's criteria the mirror's block names, as its <c>reqglobcrit2g</c> served them (r18 #745).</summary>

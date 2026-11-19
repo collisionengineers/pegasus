@@ -52,10 +52,11 @@ internal static class AutomationToolText
     public const string GlassCatalogueSearch =
         "Search the open Glass's estimate's part list and its special operations by name, part code or part number. Each row carries the value pegasus_glass_position_act adds it by, its side, and whether its part can be painted. A part whose row asks Glass's equipment question carries the question; with row, the search answers that one row and each answer to its question that leads to a part. Glass's is asked at most twice; nothing changes.";
 
-    // Operator, 18 November 2026: R1178. The equipment sentences are drafts
-    // for the operator under R1206 (19 November 2026).
+    // Operator, 18 November 2026: R1178. The equipment sentences, and the
+    // preview and inputs sentences, are drafts for the operator under R1206
+    // (19 November 2026).
     public const string GlassPositionAct =
-        "Add a position to the Automation's open Glass's estimate, or remove one. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it: no price, hours or part number is typed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. Each takes the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
+        "Add a position to the Automation's open Glass's estimate, remove one, or preview the dialog a position would be added or shown by. add takes a row pegasus_glass_catalogue_search returned and posts Glass's own dialog as Glass's serves it, with what inputs gives it as a person would: another operation the dialog offers, the Paint or Part and Paint button, Both sides, the optional parts to tick and the OK to a part with no figures. No price, hours, reason, part number or description is typed, and nothing in the paint section is changed. A part whose row asks Glass's equipment question is added as part only with inputs.equipment, the answer a person would give; Glass's keeps that answer for the vehicle. Without it, or with an answer Glass's would not take, the add is refused with the question and nothing is sent. Any other part whose row is not certain is refused with the reason and nothing is sent. remove takes a position id. preview takes what add takes, or a position id alone, and answers the dialog as a form: its operations with Glass's figures for each, its fields, its paint section, its buttons, and for the inputs given what add would send and each question on the way. preview posts nothing and records nothing; it takes no session version. add and remove take the session version and an operation key; the same key answers the recorded outcome and never sends twice. not_confirmed means Glass's did not confirm the change: read the estimate before adding the same position again.";
 
     // The parameter and field descriptions and the refusals of the catalogue
     // search and the position act that the ruled set (R1178) does not hold.
@@ -82,21 +83,21 @@ internal static class AutomationToolText
 
     public const string GlassCatalogueCode = "The glass.* code when Glass's did not answer a list, or the row asked for is not a part on it; no rows are then answered.";
 
-    public const string GlassExpectedSessionVersion = "The session version from pegasus_glass_session_get or the last Glass's tool answer; a stale value fails closed.";
+    public const string GlassExpectedSessionVersion = "add and remove: the session version from pegasus_glass_session_get or the last Glass's tool answer; a stale value fails closed. preview takes none.";
 
-    public const string GlassPositionAction = "add or remove.";
+    public const string GlassPositionAction = "add, remove or preview.";
 
-    public const string GlassAddKind = "add: part or special_operation.";
+    public const string GlassAddKind = "add and preview: part or special_operation.";
 
-    public const string GlassAddRow = "add: the row value pegasus_glass_catalogue_search returned.";
+    public const string GlassAddRow = "add and preview: the row value pegasus_glass_catalogue_search returned.";
 
-    public const string GlassAddOperation = "add, a part only: part, repair or remove_and_refit; part_and_paint and paint are refused with their reason and nothing is sent.";
+    public const string GlassAddOperation = "add and preview, a part only: part, part_and_paint, paint, repair or remove_and_refit. part is the dialog's own operation pressed with Part; part_and_paint and paint press those buttons on a part that can be painted; repair chooses Glass's R and answers OK to its question when the dialog serves no figures; remove_and_refit chooses Glass's UI. With part, inputs.operation and inputs.button choose instead.";
 
-    public const string GlassAddSide = "add, a part only: L or R, checked against the row before anything is sent.";
+    public const string GlassAddSide = "add and preview, a part only: L or R, checked against the row before anything is sent. To add both sides, use inputs.side.";
 
-    public const string GlassRemovePositionId = "remove: a position id from the acts or the estimate.";
+    public const string GlassRemovePositionId = "remove, or preview of a position on the estimate: a position id from the acts or the estimate.";
 
-    public const string GlassPositionActionRefused = "The action must be one of: add, remove.";
+    public const string GlassPositionActionRefused = "The action must be one of: add, remove, preview.";
 
     public const string GlassAddKindRefused = "kind must be one of: part, special_operation.";
 
@@ -124,7 +125,11 @@ internal static class AutomationToolText
 
     public const string GlassActHours = "The hours Glass's dialog served.";
 
-    public const string GlassActMandatoryParts = "The parts Glass's listed as mandatory; only those it ticked itself were added.";
+    public const string GlassActMandatoryParts = "The parts Glass's listed on its Mandatory parts page. Those ticked were added: the ones Glass's ticked itself, and the optional ones inputs.optionalParts named.";
+
+    public const string GlassActMandatoryPartTicked = "Whether the part was ticked when the page was confirmed, and so added.";
+
+    public const string GlassActMandatoryPartOptional = "Whether the page let the part be left off; only these can be named in inputs.optionalParts.";
 
     public const string GlassActs = "Each position act the Automation asked for on this session, in order.";
 
@@ -161,11 +166,88 @@ internal static class AutomationToolText
 
     public const string GlassEquipmentMapHours = "With row, when the answers are too many to list: the Replace hours rows Glass's equipment map holds, each with the options it needs.";
 
-    public const string GlassAddInputs = "add: what to give Glass's for the position, as a person would; omit it to give nothing.";
+    public const string GlassAddInputs = "add and preview: what to give Glass's dialog for the position, as a person would; omit it to give nothing and take the dialog as served.";
 
     public const string GlassInputsEquipment = "A part added as part whose row asks Glass's equipment question: the option codes to tick, from the row's equipment in pegasus_glass_catalogue_search; [] ticks none. It is the whole answer: an option not named is unticked, even one the vehicle has now. Glass's keeps the answer for the vehicle, as it keeps a person's. Omit it for a row that asks nothing.";
 
     public const string GlassInputsEquipmentRefused = "inputs.equipment is given only to add a part as part, and holds option codes, none blank.";
+
+    // The dialog's own inputs and the preview (R1206, 19 November 2026):
+    // drafts for the operator to approve on the merge request. Glass's own
+    // labels, option texts and question texts pass through as Glass's gives
+    // them.
+
+    public const string GlassInputsOperation = "With operation part: Glass's own code for another operation the part's dialog offers, as preview lists it, such as I, AE, E or AN. The dialog then sends the price and hours it serves for that operation. Only an operation preview marks changeable is taken. Not with inputs.button paint.";
+
+    public const string GlassInputsButton = "With operation part, on a part that can be painted: part, paint or part_and_paint, the button pressed. The paint section is sent as Glass's serves it. A part that cannot be painted has no paint buttons and the add is refused with glass.row.not_paintable.";
+
+    public const string GlassInputsSide = "both: ticks Both on a part's dialog that offers it, with operation part, the dialog's own operation and the Part button. Glass's then opens the other side's own dialog, which is posted as served. If that dialog does not come or is not the one expected, the first side stays added and the act's code is glass.row.other_side_not_added.";
+
+    public const string GlassInputsOptionalParts = "The codes of the optional parts to tick on Glass's Mandatory parts page when it comes after the post, such as 1017810.ER. A code the page does not list as optional is not ticked. Which parts the page lists cannot be known before the post; an earlier add's mandatoryParts show the codes.";
+
+    public const string GlassInputsConfirmNoFigures = "true answers OK when the dialog asks before sending a part with no price and no hours. Repair is answered OK without it. Any other operation served with no figures is refused without it, and nothing is sent.";
+
+    public const string GlassInputsOperationRefused = "inputs.operation is Glass's own code for an operation the dialog offers, and is given with operation part only, and not with inputs.button paint.";
+
+    public const string GlassInputsButtonRefused = "inputs.button must be part, paint or part_and_paint, and is given with operation part only.";
+
+    public const string GlassInputsSideRefused = "inputs.side must be both, and is given with operation part only, with no inputs.operation and with the Part button.";
+
+    public const string GlassInputsOptionalPartsRefused = "inputs.optionalParts holds part codes, none blank or repeated, and is given for a part only.";
+
+    public const string GlassInputsConfirmNoFiguresRefused = "inputs is given to add or preview a part only.";
+
+    public const string GlassPreviewPositionAlone = "A preview of a position on the estimate takes positionId alone.";
+
+    public const string GlassActOfAddOrRemove = "The act, for add and remove; absent for preview.";
+
+    public const string GlassPreviewDialog = "preview: the dialog as a form, when Glass's served it. Nothing was posted.";
+
+    public const string GlassPreviewCode = "preview: the glass.* code when no dialog was read, such as a row that is not certain or an equipment question with no answer.";
+
+    public const string GlassPreviewKind = "part_paintable (a part with a paint section and the Part, Paint and Part and Paint buttons), part, or special_operation.";
+
+    public const string GlassPreviewOperations = "Each operation the dialog's list offers, in Glass's order.";
+
+    public const string GlassPreviewOperationCode = "Glass's own code: the value inputs.operation takes.";
+
+    public const string GlassPreviewText = "Glass's own text, as the dialog shows it.";
+
+    public const string GlassPreviewOperationFigures = "As the dialog serves it for this operation on the served side; absent when Glass's gives none.";
+
+    public const string GlassPreviewGlassHours = "Glass's own hours for this operation, which the dialog compares typed hours against.";
+
+    public const string GlassPreviewServed = "The dialog serves this one selected.";
+
+    public const string GlassPreviewChangeable = "Whether Pegasus can change it yet. An operation that reloads the dialog or opens a window Pegasus does not answer cannot be chosen.";
+
+    public const string GlassPreviewFields = "Each field a person sees, in the dialog's order. Only the operation and Both can be changed yet; typed figures, text and the paint section wait.";
+
+    public const string GlassPreviewFieldName = "The field's name in Glass's form.";
+
+    public const string GlassPreviewFieldLabel = "Glass's own label beside the field, when the dialog has one.";
+
+    public const string GlassPreviewFieldValue = "The value the dialog serves; for a tick box, true or false.";
+
+    public const string GlassPreviewFieldDisabled = "The dialog serves the field greyed out.";
+
+    public const string GlassPreviewPaint = "A part that can be painted: the paint area, paint type, paint level, price and labour time as Glass's serves them.";
+
+    public const string GlassPreviewButtons = "Each button the dialog offers, by its name and Glass's own text.";
+
+    public const string GlassPreviewSends = "What add with the same inputs would send, and each question on the way.";
+
+    public const string GlassPreviewSendsButton = "Glass's own text of the button add would press.";
+
+    public const string GlassPreviewSendsCode = "The glass.* code add would be refused with before anything is posted; absent when add would post.";
+
+    public const string GlassPreviewQuestions = "Each question the dialog or Glass's would ask on the way.";
+
+    public const string GlassPreviewQuestionKind = "no_figures: the dialog asks before sending no price and no hours. reason: more hours than Glass's own, which add refuses. other_side: Both opens the other side's dialog. mandatory_parts: Glass's may list mandatory parts after the post; which, if any, cannot be known before it.";
+
+    public const string GlassPreviewQuestionText = "Glass's own words, where the dialog holds them.";
+
+    public const string GlassPreviewQuestionAnswered = "Whether the inputs given answer it.";
 
     public const string GlassActInputs = "What the add gave Glass's.";
 

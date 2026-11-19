@@ -613,6 +613,16 @@ public interface IGlassRepairEstimateGateway
         GlassAutomationCatalogueQuery query, CancellationToken cancellationToken);
 
     /// <summary>
+    /// A preview in the Automation's open estimate (R1206): the dialog an add
+    /// of the request's row and inputs would post, or a position on the
+    /// estimate is shown by, read as a form. Nothing is posted and no act is
+    /// recorded; the editor's cookies and pace are kept, so the session's
+    /// version moves. Null when its editor is not open.
+    /// </summary>
+    Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
+        GlassAutomationPositionRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
     /// A position act's prepare half (design 07 section 3.4): the act claimed
     /// under the session version before Glass's is asked, or the act already
     /// recorded under its key. Null when the session's editor is not open.

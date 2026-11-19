@@ -730,7 +730,7 @@
       "totalsAtReport": "selectedAtReport"
     }
   },
-  "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up.",
+  "operationsNote": "Repair (I) and Uninstall and install (AE) chosen in four captured dialogs (repairestimate.autovistagroup.com.har of 18 November 2026: the left front door and the bonnet, comp.php; the left mirror and the intercooler, part.php), each served offline into a headless browser and driven by its own script, the button a person presses then pressed (Part, or OK), and its question before a part with no figures answered OK. Each post file is what that script sent; each page is the dialog cut as make-fixtures.mjs cuts it, with SubClassMap, Lackartids, LackStufeValues, forceNonZero and messageString kept as well. Keys are made up. On 19 November 2026 (R1206) every other operation each captured dialog offers was driven the same way (scratch-2026-11-19/unlock/drive-unlock.mjs: 13 dialogs, each operation with Part and with Part and Paint on comp.php, 200 posts equal to the reference builder's), and Renew (AN) on each part.php dialog with its old-for-new window run as well (drive-renew.mjs); the left door's and the left mirror's posts, two of the rear quarter's (V and UN) and the right-hand reinforcement's Renew are kept here, cut by make-fixtures-unlock.mjs.",
   "operations": [
     {
       "name": "door_left_repair",
@@ -1026,6 +1026,1063 @@
       },
       "page": "intercooler_operations.dialog.html",
       "post": "intercooler_refit.post.txt"
+    },
+    {
+      "name": "door_left_refit_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "AE"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to AE; the record and the gross figures are posted as served."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AE",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.40",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_refit_part_and_paint.post.txt"
+    },
+    {
+      "name": "door_left_e",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "E"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to E; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "E",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.30",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_e.post.txt"
+    },
+    {
+      "name": "door_left_e_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "E"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to E; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "E",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.30",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_e_part_and_paint.post.txt"
+    },
+    {
+      "name": "door_left_ho",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "HO"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to HO; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "HO",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.50",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_ho.post.txt"
+    },
+    {
+      "name": "door_left_ho_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "HO"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to HO; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "HO",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0.50",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_ho_part_and_paint.post.txt"
+    },
+    {
+      "name": "door_left_et",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "ET"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to ET; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "ET",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "545.24",
+        "hours": "2.90",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_et.post.txt"
+    },
+    {
+      "name": "door_left_et_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "ET"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to ET; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\"."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "ET",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "545.24",
+        "hours": "2.90",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_et_part_and_paint.post.txt"
+    },
+    {
+      "name": "door_left_repair_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "I",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to I; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "I",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_repair_part_and_paint.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_it",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "IT",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to IT; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "IT",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_it.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_it_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "IT",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to IT; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "IT",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "3",
+        "paintPrice": "192.40",
+        "paintHours": "1.60",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_it_part_and_paint.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_ad",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "AD",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to AD; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AD",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_ad.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_ad_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "AD",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to AD; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "AD",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_ad_part_and_paint.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_p",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "P",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to P; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "P",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_p.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_p_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "P",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to P; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "P",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_p_part_and_paint.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_z",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSS",
+      "change": {
+        "operation": "Z",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to Z; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "Z",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_z.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "door_left_z_part_and_paint",
+      "dialog": "comp.php",
+      "rows": "771|772",
+      "button": "BSL",
+      "change": {
+        "operation": "Z",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=771|772",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The part record has 115 lines; both captured ones have 90.",
+        "The operation was changed from ER to Z; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2020001_701300250101_2G_771_772_|64",
+        "partCode": "2020001",
+        "description": "Front Door Shell",
+        "operation": "Z",
+        "offered": "ER|AE|E|HO|-|ET|I|IT|AD|P|AN|Z|DD",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41009628759",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "334.10",
+        "paintHours": "1.50",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "771|772"
+      },
+      "page": "door_left_operations.dialog.html",
+      "post": "door_left_z_part_and_paint.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_et",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "ET"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to ET; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "ET",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "383.48",
+        "hours": "0.80",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_et.post.txt"
+    },
+    {
+      "name": "mirror_left_it",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "IT",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to IT; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "IT",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_it.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_ad",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "AD",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to AD; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "AD",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_ad.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_p",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "P",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to P; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "P",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_p.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_e",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "E",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to E; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "E",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_e.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_z",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "Z",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to Z; the gross figures and the record are posted as served.",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "Z",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_z.post.txt",
+      "asked": "You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price nor a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "mirror_left_km",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "KM"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to KM; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "KM",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "35.92",
+        "hours": "0.60",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_km.post.txt"
+    },
+    {
+      "name": "mirror_left_ks",
+      "dialog": "part.php",
+      "rows": "822|829",
+      "button": "BS",
+      "change": {
+        "operation": "KS"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=822|829",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to KS; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C2027021_701300250101_2G_822_829_|64",
+        "partCode": "2027021",
+        "description": "Front Door Ext Mirror (Elec/Htd)",
+        "special": false,
+        "operation": "KS",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|E|Z|KM|KS",
+        "price": "71.84",
+        "hours": "1.10",
+        "partNumber": "51167459047",
+        "trade": "C",
+        "side": "L",
+        "sidesOffered": "L|R"
+      },
+      "page": "mirror_left_operations.dialog.html",
+      "post": "mirror_left_ks.post.txt"
+    },
+    {
+      "name": "quarter_v",
+      "dialog": "comp.php",
+      "rows": "1357|1358",
+      "button": "BSS",
+      "change": {
+        "operation": "V",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1357|1358",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to V; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C3030081_701300250101_2G_1357_1358_|64",
+        "partCode": "3030081",
+        "description": "Rear Side Panel",
+        "operation": "V",
+        "offered": "ER|AE|HO|-|ET|I|IT|AD|P|AN|E|V|Z|DD|UN",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41007284387",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "235.80",
+        "paintHours": "2.40",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "1357|1358"
+      },
+      "page": "quarter_operations.dialog.html",
+      "post": "quarter_v.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "quarter_un",
+      "dialog": "comp.php",
+      "rows": "1357|1358",
+      "button": "BSS",
+      "change": {
+        "operation": "UN",
+        "confirm": true
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1357|1358",
+      "fields": 37,
+      "problems": [],
+      "notes": [
+        "The operation was changed from ER to UN; the record and the gross figures are posted as served.",
+        "RemarkTxtTime is served as \"Time includes adjustment\" and set by the script to \"\".",
+        "Price and hours are both zero; the dialog asked \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\" and was answered OK."
+      ],
+      "summary": {
+        "position": "C3030081_701300250101_2G_1357_1358_|64",
+        "partCode": "3030081",
+        "description": "Rear Side Panel",
+        "operation": "UN",
+        "offered": "ER|AE|HO|-|ET|I|IT|AD|P|AN|E|V|Z|DD|UN",
+        "price": "0",
+        "hours": "0",
+        "partNumber": "41007284387",
+        "trade": "C",
+        "area": "64",
+        "paintType": "2",
+        "paintLevel": "1",
+        "paintPrice": "235.80",
+        "paintHours": "2.40",
+        "side": "L",
+        "sidesOffered": "L|R",
+        "rowPair": "1357|1358"
+      },
+      "page": "quarter_operations.dialog.html",
+      "post": "quarter_un.post.txt",
+      "asked": "You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.",
+      "unanswered": [
+        "Price and hours are both zero; the dialog asks: \"You have not entered a price or a Labour time. If you want to continue anyway press OK. If you want to enter either a price or a time select Cancel.\""
+      ]
+    },
+    {
+      "name": "reinforcement_right_renew",
+      "dialog": "part.php",
+      "rows": "1783|ER|1786|AE|1792",
+      "button": "BS",
+      "change": {
+        "operation": "AN"
+      },
+      "action": "compproc.php?ksid=Q0TESTKEY000000000000000000001&cml=C&mcode=1783|ER|1786|AE|1792",
+      "fields": 23,
+      "problems": [],
+      "notes": [
+        "Renew goes through the old-for-new dialog, taken as served with no deduction.",
+        "The operation was changed from ER to AN; the gross figures and the record are posted as served."
+      ],
+      "summary": {
+        "position": "C1012402_701300250203_2G_1783_0_|64",
+        "partCode": "1012401",
+        "description": "Front Bumper Side Reinforcement",
+        "special": false,
+        "operation": "AN",
+        "offered": "ER|AE|ET|I|IT|AD|P|AN|Z|UN|HO",
+        "price": "38.68",
+        "hours": "0.00",
+        "partNumber": "51117266194",
+        "trade": "C",
+        "side": "R",
+        "sidesOffered": "L|R"
+      },
+      "page": "reinforcement_right_operations.dialog.html",
+      "post": "reinforcement_right_renew.post.txt"
     }
   ],
   "readNote": "Cut on 19 November 2026 by scratch-2026-11-19/read-figures/make-fixtures-read.mjs: the estimate's totals (selected.php CalcToolTipTexts and CalcToolTipNums), one position's record (mcode.php) and the calculation report (report.php?calcid=0, its tables from the first trade's to \"Repair costs incl. VAT\"). The key is made up; no cookie, address, token or vehicle detail is copied. position_special.json is made, not captured."

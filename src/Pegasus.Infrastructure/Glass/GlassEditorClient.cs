@@ -70,7 +70,11 @@ internal sealed record GlassEditorAdded(
     IReadOnlyList<string> Notes,
     IReadOnlyList<GlassEditorListed> Listed,
     GlassEditorEstimate Estimate,
-    IReadOnlyList<string> Added);
+    IReadOnlyList<string> Added)
+{
+    /// <summary>With "Both" ticked: the other side's dialog the editor's answer sends its list to next; null otherwise.</summary>
+    public GlassEditorNext? Next { get; init; }
+}
 
 /// <summary>
 /// Drives Glass's editor from the server with the same requests the editor's
@@ -313,48 +317,9 @@ internal sealed class GlassEditorClient(
                 ? GlassEditorDialogs.PartPost(dialog, request.Button!, request.Change)
                 : GlassEditorDialogs.PlainPost(dialog, request.Change),
             GlassFailure.EditorDialog);
-        if (build.Error is not null)
+        if (Refusal(build, request) is { } refusal)
         {
-            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: build.Error);
-        }
-        if (build.Problems.Count > 0)
-        {
-            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
-        }
-        if (build.Summary is null)
-        {
-            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries no part code.");
-        }
-
-        // The side first: a right-hand part's code is the record's second code line.
-        var servedSide = (build.Summary.Side ?? string.Empty).Trim();
-        if (request.ExpectedSide is { } expectedSide && servedSide != expectedSide.Trim())
-        {
-            throw new GlassMvaStageException(
-                GlassFailure.EditorRefused,
-                detail: "The dialog serves side " + (servedSide.Length == 0 ? "none" : servedSide) + ", not "
-                    + (expectedSide.Trim().Length == 0 ? "none" : expectedSide.Trim()) + ".");
-        }
-
-        var servedCode = servedSide == "R" ? build.Summary.RightPartCode : build.Summary.PartCode;
-        if (servedCode != request.ExpectedPartCode)
-        {
-            throw new GlassMvaStageException(
-                GlassFailure.EditorRefused,
-                detail: "The dialog carries part code " + (servedCode ?? "none") + ", not " + request.ExpectedPartCode + ".");
-        }
-        if (request.CheckRows && !NamesRows(build.Summary.Position, request.Rows))
-        {
-            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record names other rows.");
-        }
-        if (request.ExpectedPartNumber is { } number
-            && !string.Equals((build.Summary.PartNumber ?? string.Empty).Trim(), number.Trim(), StringComparison.Ordinal))
-        {
-            throw new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries another part number.");
-        }
-        if (build.Action is null)
-        {
-            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The form has no action.");
+            throw refusal;
         }
 
         // From the post on, a lost or unexpected answer may still have added the position.
@@ -381,8 +346,121 @@ internal sealed class GlassEditorClient(
         var after = await SelectedAsync(at, jar, cancellationToken);
         var added = after.Positions.Where(id => !before.Positions.Contains(id)).ToList();
         return new(
-            new GlassEditorAdded(build.Summary, build.Notes, listed, after, added),
+            new GlassEditorAdded(build.Summary!, build.Notes, listed, after, added) { Next = answer.Next },
             session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// Why a built dialog is not posted, as the add's stage failure, or null:
+    /// a page that is not the dialog, any problem the builder found, a side,
+    /// a part code, rows or a part number other than the request's, or no
+    /// form action.
+    /// </summary>
+    private static GlassMvaStageException? Refusal(GlassEditorBuild build, GlassEditorAddRequest request)
+    {
+        if (build.Error is not null)
+        {
+            return new GlassMvaStageException(GlassFailure.EditorDialog, detail: build.Error);
+        }
+        if (build.Problems.Count > 0)
+        {
+            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: string.Join(' ', build.Problems));
+        }
+        if (build.Summary is null)
+        {
+            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries no part code.");
+        }
+
+        // The side first: a right-hand part's code is the record's second code line.
+        var servedSide = (build.Summary.Side ?? string.Empty).Trim();
+        if (request.ExpectedSide is { } expectedSide && servedSide != expectedSide.Trim())
+        {
+            return new GlassMvaStageException(
+                GlassFailure.EditorRefused,
+                detail: "The dialog serves side " + (servedSide.Length == 0 ? "none" : servedSide) + ", not "
+                    + (expectedSide.Trim().Length == 0 ? "none" : expectedSide.Trim()) + ".");
+        }
+
+        var servedCode = servedSide == "R" ? build.Summary.RightPartCode : build.Summary.PartCode;
+        if (servedCode != request.ExpectedPartCode)
+        {
+            return new GlassMvaStageException(
+                GlassFailure.EditorRefused,
+                detail: "The dialog carries part code " + (servedCode ?? "none") + ", not " + request.ExpectedPartCode + ".");
+        }
+        if (request.CheckRows && !NamesRows(build.Summary.Position, request.Rows))
+        {
+            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog's record names other rows.");
+        }
+        if (request.ExpectedPartNumber is { } number
+            && !string.Equals((build.Summary.PartNumber ?? string.Empty).Trim(), number.Trim(), StringComparison.Ordinal))
+        {
+            return new GlassMvaStageException(GlassFailure.EditorRefused, detail: "The dialog carries another part number.");
+        }
+
+        return build.Action is null
+            ? new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The form has no action.")
+            : null;
+    }
+
+    /// <summary>
+    /// A preview (R1206): the dialog an add of the request would post, asked
+    /// for as the add asks for it and read as a form, and for the request's
+    /// button and change what the add would send. Nothing is posted: Cancel
+    /// in the editor sends no request. Where the add would refuse the built
+    /// dialog before its post, the preview's <see cref="GlassDialogSend.Code"/>
+    /// says so with the add's code.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassDialogPreview>> PreviewAsync(
+        GlassEditorSession session, GlassEditorAddRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrEmpty(request.Rows);
+        var (page, mode) = request.Dialog switch
+        {
+            GlassEditorDialog.PaintablePart => ("comp.php", "C"),
+            GlassEditorDialog.Part => ("part.php", "C"),
+            GlassEditorDialog.SpecialOperation => ("part.php", "A"),
+            _ => throw new ArgumentOutOfRangeException(nameof(request), "The dialog is not one the editor has."),
+        };
+        var (jar, at) = Begin(session);
+        var dialog = await GetAsync(at.Dialog(page, request.Rows, mode), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var (preview, build) = GlassMvaClient.Matched(
+            () => GlassEditorDialogs.Preview(
+                dialog, request.Dialog == GlassEditorDialog.PaintablePart ? request.Button ?? "BSS" : null,
+                request.Change ?? new GlassEditorChange()),
+            GlassFailure.EditorDialog);
+        if (preview is null || build is null)
+        {
+            throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
+        }
+
+        var code = Refusal(build, request)?.FailureCode;
+        if (code is not null && preview.Sends is { Code: null } sends)
+        {
+            preview = preview with { Sends = sends with { Code = code } };
+        }
+
+        return new(preview, session with { Cookies = Snapshot(jar) });
+    }
+
+    /// <summary>
+    /// A preview of a position already on the estimate (R1206): its dialog,
+    /// asked for as a remove asks for it, read as a form. Nothing is posted.
+    /// </summary>
+    public async Task<GlassEditorReply<GlassDialogPreview>> PreviewPositionAsync(
+        GlassEditorSession session, string positionId, CancellationToken cancellationToken)
+    {
+        if (!GlassAutomationRead.IsPositionId(positionId))
+        {
+            throw new ArgumentException("A position id is letters, digits and dots.", nameof(positionId));
+        }
+
+        var (jar, at) = Begin(session);
+        var shown = await GetAsync(at.OpenPosition(positionId), at.Frame, jar, GlassFailure.EditorRequest, false, cancellationToken);
+        var preview = GlassMvaClient.Matched(() => GlassEditorDialogs.Preview(shown).Preview, GlassFailure.EditorDialog)
+            ?? throw new GlassMvaStageException(GlassFailure.EditorDialog, detail: "The page has no form named Part.");
+        return new(preview, session with { Cookies = Snapshot(jar) });
     }
 
     /// <summary>

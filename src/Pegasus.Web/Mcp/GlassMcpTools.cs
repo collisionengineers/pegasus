@@ -70,11 +70,76 @@ internal sealed record GlassCalculationToolItem(
     decimal? Vat,
     decimal? RepairCostsInclVat);
 
-internal sealed record GlassListedPartToolItem(string Code, string Text, bool Ticked);
+internal sealed record GlassListedPartToolItem(
+    string Code,
+    string Text,
+    [property: Description(AutomationToolText.GlassActMandatoryPartTicked)] bool Ticked,
+    [property: Description(AutomationToolText.GlassActMandatoryPartOptional)] bool Optional);
 
-/// <summary>What an add gives Glass's (R1206): later versions add members.</summary>
+/// <summary>What an add or a preview gives Glass's dialog (R1206): later versions add members.</summary>
 internal sealed record GlassPositionInputsToolInput(
-    [property: Description(AutomationToolText.GlassInputsEquipment)] IReadOnlyList<string>? Equipment = null);
+    [property: Description(AutomationToolText.GlassInputsEquipment)] IReadOnlyList<string>? Equipment = null,
+    [property: Description(AutomationToolText.GlassInputsOperation)] string? Operation = null,
+    [property: Description(AutomationToolText.GlassInputsButton)] string? Button = null,
+    [property: Description(AutomationToolText.GlassInputsSide)] string? Side = null,
+    [property: Description(AutomationToolText.GlassInputsOptionalParts)] IReadOnlyList<string>? OptionalParts = null,
+    [property: Description(AutomationToolText.GlassInputsConfirmNoFigures)] bool? ConfirmNoFigures = null);
+
+/// <summary>A preview's dialog as a form (R1206); Glass's own labels and texts pass through unchanged.</summary>
+internal sealed record GlassDialogToolItem(
+    [property: Description(AutomationToolText.GlassPreviewKind)] string Kind,
+    string? Description,
+    string? PartNumber,
+    string? PartCode,
+    [property: Description(AutomationToolText.GlassReadSide)] string? Side,
+    [property: Description(AutomationToolText.GlassPreviewOperations)] IReadOnlyList<GlassDialogOperationToolItem> Operations,
+    [property: Description(AutomationToolText.GlassPreviewFields)] IReadOnlyList<GlassDialogFieldToolItem> Fields,
+    [property: Description(AutomationToolText.GlassPreviewPaint)] GlassDialogPaintToolItem? Paint,
+    [property: Description(AutomationToolText.GlassPreviewButtons)] IReadOnlyList<GlassDialogChoiceToolItem> Buttons,
+    [property: Description(AutomationToolText.GlassPreviewSends)] GlassDialogSendToolItem? Sends);
+
+internal sealed record GlassDialogOperationToolItem(
+    [property: Description(AutomationToolText.GlassPreviewOperationCode)] string Code,
+    [property: Description(AutomationToolText.GlassPreviewText)] string Text,
+    [property: Description(AutomationToolText.GlassPreviewOperationFigures)] decimal? Price,
+    [property: Description(AutomationToolText.GlassPreviewOperationFigures)] decimal? Hours,
+    [property: Description(AutomationToolText.GlassPreviewGlassHours)] decimal? GlassHours,
+    [property: Description(AutomationToolText.GlassPreviewServed)] bool Served,
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
+
+internal sealed record GlassDialogChoiceToolItem(string Value, [property: Description(AutomationToolText.GlassPreviewText)] string Text);
+
+internal sealed record GlassDialogFieldToolItem(
+    [property: Description(AutomationToolText.GlassPreviewFieldName)] string Name,
+    [property: Description(AutomationToolText.GlassPreviewFieldLabel)] string? Label,
+    [property: Description(AutomationToolText.GlassPreviewFieldValue)] string? Value,
+    IReadOnlyList<GlassDialogChoiceToolItem>? Choices,
+    [property: Description(AutomationToolText.GlassPreviewFieldDisabled)] bool Disabled,
+    [property: Description(AutomationToolText.GlassPreviewChangeable)] bool Changeable);
+
+internal sealed record GlassDialogPaintToolItem(
+    GlassDialogChoiceToolItem? Area,
+    GlassDialogChoiceToolItem? Coats,
+    GlassDialogChoiceToolItem? Level,
+    decimal? Price,
+    decimal? Hours);
+
+internal sealed record GlassDialogSendToolItem(
+    [property: Description(AutomationToolText.GlassPreviewSendsButton)] string? Button,
+    string? Operation,
+    decimal? Price,
+    decimal? Hours,
+    string? PaintLevel,
+    decimal? PaintPrice,
+    decimal? PaintHours,
+    bool BothSides,
+    [property: Description(AutomationToolText.GlassPreviewQuestions)] IReadOnlyList<GlassDialogQuestionToolItem> Questions,
+    [property: Description(AutomationToolText.GlassPreviewSendsCode)] string? Code);
+
+internal sealed record GlassDialogQuestionToolItem(
+    [property: Description(AutomationToolText.GlassPreviewQuestionKind)] string Kind,
+    [property: Description(AutomationToolText.GlassPreviewQuestionText)] string? Text,
+    [property: Description(AutomationToolText.GlassPreviewQuestionAnswered)] bool Answered);
 
 internal sealed record GlassEquipmentOptionToolItem(
     [property: Description(AutomationToolText.GlassEquipmentOptionCode)] string Code,
@@ -155,10 +220,12 @@ internal sealed record GlassCatalogueSearchToolResult(
 internal sealed record GlassPositionActToolResult(
     Guid CaseId,
     GlassSessionToolItem? Session,
-    GlassActToolItem Act,
+    [property: Description(AutomationToolText.GlassActOfAddOrRemove)] GlassActToolItem? Act,
     string OperationKey,
     [property: Description(AutomationToolText.GlassAlsoNew)] IReadOnlyList<string>? AlsoNew = null,
-    [property: Description(AutomationToolText.GlassShownInWindow)] bool? ShownInWindow = null);
+    [property: Description(AutomationToolText.GlassShownInWindow)] bool? ShownInWindow = null,
+    [property: Description(AutomationToolText.GlassPreviewDialog)] GlassDialogToolItem? Dialog = null,
+    [property: Description(AutomationToolText.GlassPreviewCode)] string? PreviewCode = null);
 
 internal sealed record GlassSessionActToolResult(
     Guid CaseId,
@@ -447,7 +514,7 @@ internal sealed class GlassMcpTools(
 
     [McpServerTool(
         Name = "pegasus_glass_position_act",
-        Title = "Add or remove a position on the Automation's Glass's estimate",
+        Title = "Add, remove or preview a position on the Automation's Glass's estimate",
         ReadOnly = false,
         Destructive = true,
         Idempotent = true,
@@ -476,6 +543,13 @@ internal sealed class GlassMcpTools(
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 RequireAvailable();
+                if (action?.Trim() == "preview")
+                {
+                    return await PreviewAsync(
+                        caseId, PositionRequest(context.Actor, action, key, 0, kind, row, operation, side, positionId, inputs),
+                        sessionId, key, cancellationToken);
+                }
+
                 var asked = PositionRequest(
                     context.Actor, action, key, RequireValue(expectedSessionVersion, "expectedSessionVersion"),
                     kind, row, operation, side, positionId, inputs);
@@ -544,22 +618,118 @@ internal sealed class GlassMcpTools(
     private const int MaximumTermLength = 200;
 
     /// <summary>
-    /// A position act as asked, refused before anything is read when its
-    /// action, kind, operation or side is not one the tool takes, or when
-    /// what the action needs is missing. The session is named once found.
+    /// preview (R1206): the dialog read as a form, in the Automation's own
+    /// session under the session's turn in the queue as a search is, or in an
+    /// Engineer's through help. Nothing is posted and no act is recorded, so
+    /// the operation key is not looked up and the session version is not
+    /// asked for.
+    /// </summary>
+    private async Task<GlassPositionActToolResult> PreviewAsync(
+        Guid caseId, GlassAutomationPositionRequest asked, Guid? sessionId, string key, CancellationToken cancellationToken)
+    {
+        var target = await FindAsync(caseId, sessionId, cancellationToken);
+        var session = RequireActable(target);
+        GlassAutomationPreview previewed;
+        if (target.IsStaff)
+        {
+            var helped = session;
+            previewed = await HelpAsync(() => Help.PreviewAsync(asked with { SessionId = helped.Id }, helped, cancellationToken));
+        }
+        else
+        {
+            if (session is not { State: GlassRepairEstimateSessionState.Active })
+            {
+                throw new McpException(AutomationToolText.GlassNoSession);
+            }
+            if (queue.IsInFlight(session.Id))
+            {
+                throw new McpException(AutomationToolText.GlassSessionWorking);
+            }
+
+            var id = session.Id;
+            previewed = await RunHereAsync(
+                id,
+                "GlassAutomationPreview",
+                token => gateway.PreviewAutomationPositionAsync(asked with { SessionId = id }, token),
+                cancellationToken)
+                ?? throw new McpException(AutomationToolText.GlassNoSession);
+        }
+
+        return new GlassPositionActToolResult(
+            caseId, Map(previewed.Session), null, key, Dialog: MapDialog(previewed.Dialog), PreviewCode: previewed.Code);
+    }
+
+    /// <summary>A preview's dialog as the tool answers it; Glass's own labels and texts pass through unchanged.</summary>
+    private static GlassDialogToolItem? MapDialog(GlassDialogPreview? dialog) =>
+        dialog is null
+            ? null
+            : new GlassDialogToolItem(
+                dialog.Kind,
+                dialog.Description,
+                dialog.PartNumber,
+                dialog.PartCode,
+                dialog.Side,
+                dialog.Operations
+                    .Select(item => new GlassDialogOperationToolItem(
+                        item.Code, item.Text, item.Price, item.Hours, item.GlassHours, item.Served, item.Changeable))
+                    .ToList(),
+                dialog.Fields
+                    .Select(field => new GlassDialogFieldToolItem(
+                        field.Name, field.Label, field.Value, MapChoices(field.Choices), field.Disabled, field.Changeable))
+                    .ToList(),
+                dialog.Paint is { } paint
+                    ? new GlassDialogPaintToolItem(
+                        MapChoice(paint.Area), MapChoice(paint.Coats), MapChoice(paint.Level), paint.Price, paint.Hours)
+                    : null,
+                MapChoices(dialog.Buttons) ?? [],
+                dialog.Sends is { } sends
+                    ? new GlassDialogSendToolItem(
+                        sends.Button, sends.Operation, sends.Price, sends.Hours, sends.PaintLevel, sends.PaintPrice,
+                        sends.PaintHours, sends.BothSides,
+                        sends.Questions.Select(question => new GlassDialogQuestionToolItem(
+                            question.Kind, question.Text, question.Answered)).ToList(),
+                        sends.Code)
+                    : null);
+
+    private static GlassDialogChoiceToolItem? MapChoice(GlassDialogChoice? choice) =>
+        choice is null ? null : new GlassDialogChoiceToolItem(choice.Value, choice.Text);
+
+    private static List<GlassDialogChoiceToolItem>? MapChoices(IReadOnlyList<GlassDialogChoice>? choices) =>
+        choices?.Select(choice => new GlassDialogChoiceToolItem(choice.Value, choice.Text)).ToList();
+
+    /// <summary>
+    /// A position act or a preview as asked, refused before anything is read
+    /// when its action, kind, operation, side or inputs are not ones the tool
+    /// takes (<see cref="GlassAutomationPositionPolicy.InputRefused"/>), or
+    /// when what the action needs is missing. A preview names a new position
+    /// as an add does, or a position on the estimate by positionId alone. The
+    /// session is named once found.
     /// </summary>
     private static GlassAutomationPositionRequest PositionRequest(
         ActionActor actor, string? action, string key, long expectedSessionVersion,
         string? kind, string? row, string? operation, string? side, string? positionId,
         GlassPositionInputsToolInput? inputs)
     {
-        var equipment = inputs?.Equipment;
-        if (equipment is not null && equipment.Any(string.IsNullOrWhiteSpace))
+        var given = InputsOf(inputs);
+        var verb = action?.Trim();
+        if (verb == "preview" && !string.IsNullOrWhiteSpace(positionId))
         {
-            throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
+            if (kind is not null || row is not null || operation is not null || side is not null || given is not null)
+            {
+                throw new McpException(AutomationToolText.GlassPreviewPositionAlone);
+            }
+            if (!GlassAutomationRead.IsPositionId(positionId.Trim()))
+            {
+                throw new McpException(AutomationToolText.GlassReadPositionIdRefused);
+            }
+
+            return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Preview)
+            {
+                PositionId = positionId.Trim(),
+            };
         }
 
-        switch (action?.Trim())
+        switch (verb)
         {
             case "remove":
                 if (string.IsNullOrWhiteSpace(positionId))
@@ -567,16 +737,16 @@ internal sealed class GlassMcpTools(
                     throw new McpException(AutomationToolText.GlassRemovePositionIdRefused);
                 }
 
-                if (equipment is not null)
+                if (GlassAutomationPositionPolicy.InputRefused(GlassAutomationActAction.Remove, null, null, given) is { } notTaken)
                 {
-                    throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
+                    throw new McpException(InputRefusal(notTaken));
                 }
 
                 return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Remove)
                 {
                     PositionId = positionId.Trim(),
                 };
-            case "add":
+            case "add" or "preview":
                 var wantedKind = kind?.Trim() switch
                 {
                     "part" => GlassAutomationPositionKind.Part,
@@ -606,23 +776,71 @@ internal sealed class GlassMcpTools(
                 {
                     throw new McpException(AutomationToolText.GlassAddOperationNotForSpecial);
                 }
-                if (equipment is not null && !GlassAutomationPositionPolicy.TakesEquipment(wantedKind, wantedOperation))
+
+                var wantedAction = verb == "add" ? GlassAutomationActAction.Add : GlassAutomationActAction.Preview;
+                if (GlassAutomationPositionPolicy.InputRefused(wantedAction, wantedKind, wantedOperation, given) is { } refused)
                 {
-                    throw new McpException(AutomationToolText.GlassInputsEquipmentRefused);
+                    throw new McpException(InputRefusal(refused));
                 }
 
-                return new(actor, Guid.Empty, expectedSessionVersion, key, GlassAutomationActAction.Add)
+                return new(actor, Guid.Empty, expectedSessionVersion, key, wantedAction)
                 {
                     Kind = wantedKind,
                     Row = row.Trim(),
                     Operation = wantedOperation,
                     Side = SideOf(side),
-                    Inputs = equipment is null ? null : new GlassAutomationInputs(equipment.Select(code => code.Trim()).ToList()),
+                    Inputs = given,
                 };
             default:
                 throw new McpException(AutomationToolText.GlassPositionActionRefused);
         }
     }
+
+    /// <summary>
+    /// The inputs as the tool takes them (R1206), each value trimmed, or null
+    /// when none is given; a button or a side the tool does not have is
+    /// refused here.
+    /// </summary>
+    private static GlassAutomationInputs? InputsOf(GlassPositionInputsToolInput? inputs)
+    {
+        if (inputs is null)
+        {
+            return null;
+        }
+
+        GlassAutomationButton? button = inputs.Button?.Trim() switch
+        {
+            null => null,
+            "part" => GlassAutomationButton.Part,
+            "paint" => GlassAutomationButton.Paint,
+            "part_and_paint" => GlassAutomationButton.PartAndPaint,
+            _ => throw new McpException(AutomationToolText.GlassInputsButtonRefused),
+        };
+        bool? both = inputs.Side?.Trim() switch
+        {
+            null => null,
+            "both" => true,
+            _ => throw new McpException(AutomationToolText.GlassInputsSideRefused),
+        };
+        return GlassAutomationPositionPolicy.Kept(new GlassAutomationInputs(
+            inputs.Equipment?.Select(code => code?.Trim() ?? string.Empty).ToList(),
+            inputs.Operation?.Trim(),
+            button,
+            both,
+            inputs.OptionalParts?.Select(code => code?.Trim() ?? string.Empty).ToList(),
+            inputs.ConfirmNoFigures));
+    }
+
+    /// <summary>The sentence an input the act does not take is refused with, by its tool name.</summary>
+    private static string InputRefusal(string input) => input switch
+    {
+        "inputs.equipment" => AutomationToolText.GlassInputsEquipmentRefused,
+        "inputs.operation" => AutomationToolText.GlassInputsOperationRefused,
+        "inputs.button" => AutomationToolText.GlassInputsButtonRefused,
+        "inputs.side" => AutomationToolText.GlassInputsSideRefused,
+        "inputs.optionalParts" => AutomationToolText.GlassInputsOptionalPartsRefused,
+        _ => AutomationToolText.GlassInputsConfirmNoFiguresRefused,
+    };
 
     /// <summary>
     /// What session_get is asked to read of the open estimate (R1206), or
@@ -743,9 +961,23 @@ internal sealed class GlassMcpTools(
             act.Description,
             act.Served?.Price,
             act.Served?.Hours,
-            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked)).ToList(),
+            act.Listed.Select(listed => new GlassListedPartToolItem(listed.Code, listed.Text, listed.Ticked, listed.Optional)).ToList(),
             act.RequestedAtUtc,
-            act.Inputs is { } given ? new GlassPositionInputsToolInput(given.Equipment) : null,
+            act.Inputs is { } given
+                ? new GlassPositionInputsToolInput(
+                    given.Equipment,
+                    given.Operation,
+                    given.Button switch
+                    {
+                        GlassAutomationButton.Part => "part",
+                        GlassAutomationButton.Paint => "paint",
+                        GlassAutomationButton.PartAndPaint => "part_and_paint",
+                        _ => null,
+                    },
+                    given.BothSides == true ? "both" : null,
+                    given.OptionalParts,
+                    given.ConfirmNoFigures)
+                : null,
             MapEquipment(act.Equipment),
             act.RowPair,
             act.EquipmentChanged.Count > 0
