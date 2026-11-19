@@ -3,9 +3,10 @@
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// Reads a Performance Car Hire / Parkhouse (PCH) instruction: rank 2 by
-/// observed volume — this policy proposes candidates and
-/// allocates nothing. `partial` because it owns generated regexes.
+/// Reads a Performance Car Hire (PCH) instruction: rank 2 by observed
+/// volume — this policy proposes candidates and allocates nothing. Parkhouse
+/// is its own Principal, PHOUSE (operator, 18 November 2026, R1191).
+/// `partial` because it owns generated regexes.
 ///
 /// PCH prints two documents that read alike and mean different things: an
 /// audit request against an engineer's report already in hand, and a
