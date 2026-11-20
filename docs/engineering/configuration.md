@@ -107,7 +107,7 @@ does for `Features:LocalIntake`.
 | `Features:LiveBoxCustody` | Both hosts compose the production storage shape (blob-backed intake artifacts, cached document reads, Box case custody) over the run's Azurite `transient-intake` container, with the fenced local-test Box root `425169015650`. It cannot be combined with `Features:LocalDocumentCustody`. |
 | `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
 | `Features:LiveGuideValuation` | The Web composes the Glass's, Cazana and Brego guide valuations, as Production does, from production's accounts (`Glass:ValuationAccount:*`, `Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`), each checked at start naming the key; it requires `Features:LiveGlass`, whose options Glass's valuation reads. There is no Brego session store offline, so each Brego valuation signs in afresh (R709). Without it an offline host offers no Get valuation. |
-| `Features:LiveExperian` | The Web composes the Experian vehicle history check and CAP's guide valuation, as Production does, from `Experian:*` (read on each call; ADR-0089, R1201), so the hosted test instance can run them against Experian. Without it an offline host says Experian is not connected and its CAP card is unavailable. |
+| `Features:LiveExperian` | The Web composes the Experian vehicle history check and CAP's guide valuation, as Production does, from `Experian:*`, each act with its own account (read on each call; ADR-0089, R1201, R1215), so the hosted test instance can run them against Experian. Without it an offline host says Experian is not connected and its CAP card is unavailable. |
 | `Features:LiveGraphMail` | Both hosts compose Production's Graph mail side (the mail client, the Inbox and Sent sources and their pollers, staff and report send and the answered-instruction move in the Worker; the mailbox resolver, access check, search and staff send in the Web) over a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, parsed at start. The Worker maintains change subscriptions only when `Graph:ChangeNotificationUrl` (the Funnelled webhook path on the instance's public host) and `Graph:ChangeNotificationClientState` are both set, checked at start: one without the other fails the start naming the missing key, and neither leaves the five-minute recovery poll to carry mail (ADR-0088 as amended, R675 to R677). |
 | `Features:LiveOcr` | The Worker composes Production's Document Intelligence OCR adapter and processor against `DocumentIntelligence:Endpoint`, production's account, which is otherwise a Production-only setting the profile refuses; the endpoint is required and validated as in Production. The adapter authenticates with a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, the registration `Features:LiveGraphMail` uses, which needs `Cognitive Services User` on that account; it is handed to the adapter alone. A missing endpoint or key fails the start naming it. No OCR opt-in existed before this one: without it an offline host composes no OCR provider and OCR work fails closed (ADR-0088 as amended, R931). |
 | `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. The lifecycle requires it for a run with a public origin. |
@@ -168,29 +168,30 @@ new secret version and a configuration read-back, not a release.
 `DevelopmentOffline` composes no Brego valuation, so its Brego card says the
 source is unavailable.
 
-## Experian vehicle history check
+## Experian accounts
 
-`Experian:BaseUri` and `Experian:TokenUri` are Experian's API root and OAuth2
-token endpoint, and `Experian:Account:ClientId`, `Experian:Account:ClientSecret`,
-`Experian:Account:Username` and `Experian:Account:Password` the account Run
-Experian check and CAP's Get valuation sign in with
-([ADR-0089](../adr/0089-experian-vehicle-history-check.md), R1201). It is the
-Experian account that holds CAP valuations, `merceraapi` in production and
-`merceraapiuat` on UAT; Experian's second account, which holds condition
-records, has no entries yet, and each act is composed with its own account so
-that one can be given to the history check alone (R1207). All six are
-Production required settings (R749). Both addresses must be HTTPS on an
-`experian.com` host; the sandbox is
-`https://sandbox-uk-api.experian.com/ukci/automotive` and
-`https://sandbox-uk-api.experian.com/oauth2/v1/token`. The four account
-values are held in Key Vault as `experian-client-id`, `experian-client-secret`,
-`experian-username` and `experian-password` and delivered to Web as
-`Experian__Account__*` through versioned secret URI references, each read
-through its own secret-scoped grant; the addresses are plain settings
-(`Experian__BaseUri`, `Experian__TokenUri`). The Worker receives none. They
-are read on each check, never at startup, so an unresolved reference makes
-the check unavailable rather than stopping the host. Rotating a secret is a
-new secret version and a configuration read-back, not a release.
-`DevelopmentOffline` composes no Experian unless `Features:LiveExperian` is
-set, so its Vehicle history area says Experian is not connected and its CAP
-card says the source is unavailable.
+Experian issues an account per permission, so Pegasus holds two
+([ADR-0089](../adr/0089-experian-vehicle-history-check.md), R1207, R1215).
+Each act signs in with its own account only; neither reads the other's.
+
+| Purpose | Settings | Key Vault secrets | Production user | UAT user (test instance) |
+|---|---|---|---|---|
+| Run Experian check (condition records) | `Experian:HistoryAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-history-client-id`, `-client-secret`, `-username`, `-password` | `pattersonaapi` | `pattersonaapiuat` |
+| CAP's Get valuation (CAP valuations, R1201) | `Experian:CapAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-cap-client-id`, `-client-secret`, `-username`, `-password` | `merceraapi` | `merceraapiuat` |
+
+`Experian:BaseUri` and `Experian:TokenUri`, Experian's API root and OAuth2
+token endpoint, are shared by both accounts: production uses
+`https://uk-api.experian.com/ukci/automotive` and
+`https://uk-api.experian.com/oauth2/v1/token`, UAT the same paths on
+`uat-uk-api.experian.com`. Both must be HTTPS on an `experian.com` host. All
+ten are Production required settings (R749). The account values reach the Web
+App as `Experian__HistoryAccount__*` and `Experian__CapAccount__*` through
+versioned secret URI references, each read through its own secret-scoped
+grant; the addresses are plain settings (`Experian__BaseUri`,
+`Experian__TokenUri`). The Worker receives none. They are read on each call,
+never at startup, so an unresolved reference makes that act unavailable rather
+than stopping the host. Rotating a secret is a new secret version and a
+configuration read-back, not a release. `DevelopmentOffline` composes no
+Experian unless `Features:LiveExperian` is set, so its Vehicle history area
+says Experian is not connected and its CAP card says the source is
+unavailable; the hosted test instance sets it with both UAT accounts.

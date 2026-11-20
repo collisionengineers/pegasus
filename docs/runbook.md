@@ -1048,10 +1048,14 @@ The approved release operator supplies these deployment inputs:
 | `BREGO_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-password`, that account's password. No default. |
 | `EXPERIAN_BASE_URI` | Experian Automotive API root, HTTPS on an `experian.com` host, as Experian supplies it with the credentials ([ADR-0089](adr/0089-experian-vehicle-history-check.md)). No default. |
 | `EXPERIAN_TOKEN_URI` | Experian's OAuth2 token endpoint, supplied with the same. No default. |
-| `EXPERIAN_CLIENT_ID_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-client-id`. No default. |
-| `EXPERIAN_CLIENT_SECRET_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-client-secret`. No default. |
-| `EXPERIAN_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-username`, the Experian account user name. No default. |
-| `EXPERIAN_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-password`, that account's password. No default. |
+| `EXPERIAN_HISTORY_CLIENT_ID_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-client-id`, the client ID of the Experian account Run Experian check signs in with (condition records, R1215). Becomes `Experian__HistoryAccount__ClientId`. No default. |
+| `EXPERIAN_HISTORY_CLIENT_SECRET_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-client-secret`, that account's client secret. No default. |
+| `EXPERIAN_HISTORY_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-username`, that account's user name. No default. |
+| `EXPERIAN_HISTORY_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-password`, that account's password. No default. |
+| `EXPERIAN_CAP_CLIENT_ID_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-client-id`, the client ID of the Experian account CAP's Get valuation signs in with (CAP valuations, R1207, R1215). Becomes `Experian__CapAccount__ClientId`. No default. |
+| `EXPERIAN_CAP_CLIENT_SECRET_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-client-secret`, that account's client secret. No default. |
+| `EXPERIAN_CAP_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-username`, that account's user name. No default. |
+| `EXPERIAN_CAP_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-password`, that account's password. No default. |
 | `PEGASUS_PHOTO_LINK_TEXT_FROM` | SMS-enabled UK mobile number in E.164, bought by hand in the portal on the `pegasus-prod-acs-` Communication Services resource; the Web App sends photo-link texts from it. Empty (the default) leaves texting unavailable. |
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
@@ -1078,7 +1082,7 @@ Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the six `Experian:*` keys among its Production
+`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the ten `Experian:*` keys among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
@@ -1086,10 +1090,10 @@ The Glass's valuation account is the one Glass's login held
 in deployment configuration: the release operator creates its two secrets in
 the deployment vault and grants the Web identity secret-read access at each
 secret's scope, and Bicep hands the Web App Key Vault references to them. The
-Cazana Companion account, the Brego valuation account and the Experian account are held the same way:
+Cazana Companion account, the Brego valuation account and the two Experian accounts are held the same way:
 `cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
-`brego-valuation-password`, `experian-client-id`, `experian-client-secret`,
-`experian-username` and `experian-password`, with the Web identity granted secret-read access at each secret's scope. Each
+`brego-valuation-password`, and `experian-history-client-id`, `-client-secret`,
+`-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
 and are held protected per staff account, never in deployment configuration.

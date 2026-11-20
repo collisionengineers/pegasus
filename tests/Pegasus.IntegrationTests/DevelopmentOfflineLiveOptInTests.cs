@@ -198,7 +198,8 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     /// <summary>
     /// Features:LiveExperian composes Experian's two acts on an offline host
     /// (the hosted test instance), as Production does: the vehicle history
-    /// check and CAP's guide valuation, on the one account (ADR-0089, R1201).
+    /// check and CAP's guide valuation, each on its own account (ADR-0089,
+    /// R1201, R1215).
     /// </summary>
     [Fact]
     [Trait("Category", "SqlServer")]

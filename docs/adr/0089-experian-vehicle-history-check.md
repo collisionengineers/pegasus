@@ -74,16 +74,22 @@ until a minute before `expires_in` and renews it once when Experian answers
 Experian's gateway takes it. If Experian's onboarding material names another
 shape, that one method and its test change. Each call is bounded at 30 s.
 
-**The account is deployment configuration.** The Web host reads
-`Experian:BaseUri`, `Experian:TokenUri` and `Experian:Account:ClientId`,
-`ClientSecret`, `Username` and `Password`.
-- The four account values are held in Key Vault as `experian-client-id`,
-  `experian-client-secret`, `experian-username` and `experian-password`.
-  Each reaches the Web App as a versioned Key Vault reference
-  (`EXPERIAN_*_SECRET_URI`) through its own secret-scoped grant.
+**The accounts are deployment configuration.** The Web host reads
+`Experian:BaseUri`, `Experian:TokenUri` and, for each of Experian's two
+accounts (amended 20 November 2026, R1215), `ClientId`, `ClientSecret`,
+`Username` and `Password` under `Experian:HistoryAccount` (condition records,
+this check) and `Experian:CapAccount` (CAP valuations). The
+[configuration reference](../engineering/configuration.md#experian-accounts)
+names each account's users.
+- The account values are held in Key Vault as `experian-history-client-id`,
+  `-client-secret`, `-username` and `-password`, and the same four under
+  `experian-cap-`. Each reaches the Web App as a versioned Key Vault
+  reference (`EXPERIAN_HISTORY_*_SECRET_URI`, `EXPERIAN_CAP_*_SECRET_URI`)
+  through its own secret-scoped grant.
 - The two addresses are plain settings (`EXPERIAN_BASE_URI`,
-  `EXPERIAN_TOKEN_URI`) and must be HTTPS on an `experian.com` host.
-- All six are Production required settings (R749). They are read on each
+  `EXPERIAN_TOKEN_URI`), shared by both accounts, and must be HTTPS on an
+  `experian.com` host.
+- All ten are Production required settings (R749). They are read on each
   check, never at startup, so an unresolved reference makes the check
   unavailable rather than stopping the host.
 - Neither the credentials, the token nor the registration reaches a URL or
@@ -99,12 +105,11 @@ is logged as `experian.history.not_found`.
 **CAP valuation is Experian's second act** (19 November 2026, R1201).
 Experian issues its permissions per account, and has set up two (R1207):
 `merceraapi` (production) and `merceraapiuat` (UAT) hold CAP valuations, and
-a second account holds condition records. `Experian:Account:*` is the first,
-so CAP signs in with it. Each act is composed with a client and an account of
-its own (`AddExperianCapValuation`, `AddExperianVehicleHistoryCheck`), each
-keeping its own token, so handing the history check the second account is a
-change to its account alone. Until that account's Key Vault entries and
-settings exist, the history check still reads `Experian:Account:*`.
+a second account (`pattersonaapi`, UAT `pattersonaapiuat`) holds condition
+records. CAP signs in with `Experian:CapAccount:*` and the history check with
+`Experian:HistoryAccount:*` (R1215). Each act is composed with a client and an
+account of its own (`AddExperianCapValuation`, `AddExperianVehicleHistoryCheck`),
+each keeping its own token, and neither reads the other's account.
 `ExperianCapValuationProvider` is the CAP guide source's provider behind
 `FetchGuideValuation`, as Glass's, Cazana and Brego have theirs. It sends a
 Custom Search, `{"vrm":…,"currentmileage":…,"data":{"cap":{"valuation":true}}}`,
@@ -119,9 +124,8 @@ missing setting is the card's unavailable notice (R1204), logged as
 `experian.cap.not_found`, `rejected`, `forbidden`, `throttled`,
 `provider_failed`, `unreadable`, `transport`, `configuration` or
 `mileage_unit`, with Experian's message ids where it sent any. It needs no
-setting, secret or grant beyond the six above, and no migration: `Cap` has
-been a stored valuation source since the baseline. The second account's
-entries are the history check's, not CAP's.
+setting, secret or grant beyond the ten above, and no migration: `Cap` has
+been a stored valuation source since the baseline.
 
 ## Consequences
 

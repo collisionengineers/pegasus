@@ -1081,7 +1081,8 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Connects Experian as the vehicle history check (ADR-0089). A host that
+    /// Connects Experian as the vehicle history check (ADR-0089) with the
+    /// Experian account that holds condition records (R1215). A host that
     /// does not call this has no provider, so the Vehicle history area says
     /// Experian is not connected and offers no Run Experian check. The account
     /// comes through a factory and is read on each check, because the platform

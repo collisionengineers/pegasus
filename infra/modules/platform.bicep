@@ -54,14 +54,20 @@ param cazanaCompanionPasswordSecretUri string
 // identity reads each secret through its own secret-scoped grant.
 param bregoValuationEmailSecretUri string
 param bregoValuationPasswordSecretUri string
-// ADR-0089. Experian's endpoints and the account Run Experian check signs in
-// with; the Web identity reads each secret through its own secret-scoped grant.
+// ADR-0089, R1215. Experian's endpoints and its two accounts: the history
+// account Run Experian check signs in with and the CAP account CAP's Get
+// valuation signs in with; the Web identity reads each secret through its own
+// secret-scoped grant.
 param experianBaseUri string
 param experianTokenUri string
-param experianClientIdSecretUri string
-param experianClientSecretSecretUri string
-param experianUsernameSecretUri string
-param experianPasswordSecretUri string
+param experianHistoryClientIdSecretUri string
+param experianHistoryClientSecretSecretUri string
+param experianHistoryUsernameSecretUri string
+param experianHistoryPasswordSecretUri string
+param experianCapClientIdSecretUri string
+param experianCapClientSecretSecretUri string
+param experianCapUsernameSecretUri string
+param experianCapPasswordSecretUri string
 param photoLinkTextFrom string = ''
 
 var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
@@ -529,13 +535,17 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         // ADR-0084 Brego valuation account, read on each Get valuation.
         { name: 'Brego__ValuationAccount__Email', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationEmailSecretUri})' }
         { name: 'Brego__ValuationAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${bregoValuationPasswordSecretUri})' }
-        // ADR-0089 Experian endpoints and account, read on each Run Experian check.
+        // ADR-0089 Experian endpoints and its two accounts (R1215), read on each call.
         { name: 'Experian__BaseUri', value: experianBaseUri }
         { name: 'Experian__TokenUri', value: experianTokenUri }
-        { name: 'Experian__Account__ClientId', value: '@Microsoft.KeyVault(SecretUri=${experianClientIdSecretUri})' }
-        { name: 'Experian__Account__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${experianClientSecretSecretUri})' }
-        { name: 'Experian__Account__Username', value: '@Microsoft.KeyVault(SecretUri=${experianUsernameSecretUri})' }
-        { name: 'Experian__Account__Password', value: '@Microsoft.KeyVault(SecretUri=${experianPasswordSecretUri})' }
+        { name: 'Experian__HistoryAccount__ClientId', value: '@Microsoft.KeyVault(SecretUri=${experianHistoryClientIdSecretUri})' }
+        { name: 'Experian__HistoryAccount__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${experianHistoryClientSecretSecretUri})' }
+        { name: 'Experian__HistoryAccount__Username', value: '@Microsoft.KeyVault(SecretUri=${experianHistoryUsernameSecretUri})' }
+        { name: 'Experian__HistoryAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${experianHistoryPasswordSecretUri})' }
+        { name: 'Experian__CapAccount__ClientId', value: '@Microsoft.KeyVault(SecretUri=${experianCapClientIdSecretUri})' }
+        { name: 'Experian__CapAccount__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${experianCapClientSecretSecretUri})' }
+        { name: 'Experian__CapAccount__Username', value: '@Microsoft.KeyVault(SecretUri=${experianCapUsernameSecretUri})' }
+        { name: 'Experian__CapAccount__Password', value: '@Microsoft.KeyVault(SecretUri=${experianCapPasswordSecretUri})' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

@@ -211,9 +211,9 @@ public sealed class ExperianVehicleHistoryProviderTests
     {
         var harness = Harness.Create(
             vehicle: _ => Json(HttpStatusCode.OK, CleanVehicle),
-            account: () => ExperianAccount.Create(key => key == "Experian:Account:Password"
+            account: () => ExperianAccount.Create(key => key == "Experian:HistoryAccount:Password"
                 ? "@Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/secrets/experian-password/1)"
-                : Setting(key)));
+                : Setting(key), ExperianAccount.HistoryAccountSection));
 
         await Assert.ThrowsAsync<VehicleHistoryCheckUnavailableException>(() =>
             harness.Provider.CheckAsync(Registration, default));
@@ -221,7 +221,7 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.Empty(harness.Requests);
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("experian.history.configuration", StringComparison.Ordinal)
-            && message.Contains("Experian:Account:Password", StringComparison.Ordinal));
+            && message.Contains("Experian:HistoryAccount:Password", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -231,20 +231,22 @@ public sealed class ExperianVehicleHistoryProviderTests
     public void TheAccountRefusesAnAddressThatIsNotHttpsExperian(string baseUri)
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            ExperianAccount.Create(key => key == "Experian:BaseUri" ? baseUri : Setting(key)));
+            ExperianAccount.Create(
+                key => key == "Experian:BaseUri" ? baseUri : Setting(key),
+                ExperianAccount.HistoryAccountSection));
 
         Assert.Equal("Experian:BaseUri must be an HTTPS Experian address.", exception.Message);
-        Assert.Equal(nameof(ExperianAccount), ExperianAccount.Create(Setting).ToString());
+        Assert.Equal(nameof(ExperianAccount), ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection).ToString());
     }
 
     private static string? Setting(string key) => key switch
     {
         "Experian:BaseUri" => BaseUri,
         "Experian:TokenUri" => TokenUri,
-        "Experian:Account:ClientId" => ClientId,
-        "Experian:Account:ClientSecret" => ClientSecret,
-        "Experian:Account:Username" => Username,
-        "Experian:Account:Password" => Password,
+        "Experian:HistoryAccount:ClientId" => ClientId,
+        "Experian:HistoryAccount:ClientSecret" => ClientSecret,
+        "Experian:HistoryAccount:Username" => Username,
+        "Experian:HistoryAccount:Password" => Password,
         _ => null,
     };
 
@@ -295,7 +297,7 @@ public sealed class ExperianVehicleHistoryProviderTests
                                 ? token?.Invoke() ?? Json(HttpStatusCode.OK, Token)
                                 : vehicle(request);
                         })),
-                        account ?? (() => ExperianAccount.Create(Setting)),
+                        account ?? (() => ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection)),
                         clock ?? new MovingClock(Now)),
                     logger),
                 logger,
