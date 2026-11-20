@@ -767,18 +767,20 @@ function Invoke-Migration {
         Glass__RepairProfileId = $values['GLASS_REPAIR_PROFILE_ID']
         Glass__ValuationAccount__Username = $placeholder
         Glass__ValuationAccount__Password = $placeholder
-        Glass__AutomationAccount__Username = $placeholder
-        Glass__AutomationAccount__Password = $placeholder
         Cazana__CompanionAccount__Email = $placeholder
         Cazana__CompanionAccount__Password = $placeholder
         Brego__ValuationAccount__Email = $placeholder
         Brego__ValuationAccount__Password = $placeholder
         Experian__BaseUri = $placeholder
         Experian__TokenUri = $placeholder
-        Experian__Account__ClientId = $placeholder
-        Experian__Account__ClientSecret = $placeholder
-        Experian__Account__Username = $placeholder
-        Experian__Account__Password = $placeholder
+        Experian__HistoryAccount__ClientId = $placeholder
+        Experian__HistoryAccount__ClientSecret = $placeholder
+        Experian__HistoryAccount__Username = $placeholder
+        Experian__HistoryAccount__Password = $placeholder
+        Experian__CapAccount__ClientId = $placeholder
+        Experian__CapAccount__ClientSecret = $placeholder
+        Experian__CapAccount__Username = $placeholder
+        Experian__CapAccount__Password = $placeholder
         GitHub__ProblemReports__Token = $placeholder
         GitHub__ProblemReports__Repository = $values['GITHUB_PROBLEM_REPORT_REPOSITORY']
     }

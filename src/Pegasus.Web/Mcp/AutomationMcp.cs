@@ -54,14 +54,6 @@ public static class AutomationMcp
     /// (operator, 7 October 2026; ADR-0064).
     /// </summary>
     public const string SendScope = "automation.send";
-
-    /// <summary>
-    /// The Automation's own Glass's sessions (operator, 18 November 2026;
-    /// R1177 to R1180): start, build, finish and close them under the login
-    /// the deployment holds for it. Its own scope with its own consent tick,
-    /// so a grant can hold casework without acting in Glass's.
-    /// </summary>
-    public const string GlassScope = "automation.glass";
     public const string GrantIdentityClaim = "pegasus_automation_grant";
 
     /// <summary>
@@ -78,7 +70,7 @@ public static class AutomationMcp
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
-        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope, GlassScope];
+        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope];
 
     /// <summary>
     /// The bearer-only automation surface a program calls: the token endpoint,

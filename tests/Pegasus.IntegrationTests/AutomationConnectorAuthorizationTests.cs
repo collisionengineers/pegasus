@@ -30,22 +30,6 @@ public sealed partial class AutomationConnectorAuthorizationTests
 {
     private const string State = "state-4c1c0d0f";
 
-    /// <summary>
-    /// Every scope the server lists has its consent sentence (FRD-10), so the
-    /// consent page never shows a raw key; the Glass's scope's is the
-    /// operator's (R1179).
-    /// </summary>
-    [Fact]
-    public void EveryScopeHasAConsentDescription()
-    {
-        Assert.All(
-            AutomationMcp.Scopes,
-            scope => Assert.False(string.IsNullOrWhiteSpace(AuthorizeModel.ScopeDescriptions.GetValueOrDefault(scope))));
-        Assert.Equal(
-            "Start, build, save and close Glass's estimates under the Automation's Glass's login; a saved estimate lands as a Draft repair spec.",
-            AuthorizeModel.ScopeDescriptions[AutomationMcp.GlassScope]);
-    }
-
     [Fact]
     public async Task AdministrationHealthReadsTheConfiguredClientRegistryAfterEachChange()
     {

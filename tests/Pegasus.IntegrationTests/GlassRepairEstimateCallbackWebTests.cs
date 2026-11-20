@@ -50,9 +50,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
     internal const string CallbackRoute = "/Integrations/Glass/Callback/";
     internal const string OpeningRoute = "/Integrations/Glass/Opening/";
     private const string FixtureAccount = "glass-fixture-account";
-
-    /// <summary>The Automation's own Glass's login on this host (R1177): a made-up username.</summary>
-    internal const string AutomationAccount = "glass-automation-fixture";
     private const string FixtureSecret = "glass-fixture-value-not-a-secret";
 
     /// <summary>A Glass's account key shaped like the one Stream A's store mints.</summary>
@@ -330,8 +327,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var html = await workspace.CaseHtmlAsync();
         Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
-        // Help is offered only on a session that is Active.
-        Assert.DoesNotContain("handler=GlassHelp", html, StringComparison.Ordinal);
         using var resumed = await workspace.PostGlassAsync("LaunchGlass", FormFor(html, "LaunchGlass"));
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         // The start went unanswered on a vehicle the session recorded, so it
@@ -374,114 +369,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     /// <summary>
-    /// A session the Automation owns shows on its Case with the existing
-    /// line and the Automation's words, and any member of staff who can open
-    /// the assessment closes it with a reason (R1180). On another login, the
-    /// staff member's own launch stays offered.
-    /// </summary>
-    [Fact]
-    public async Task TheAutomationsSessionShowsOnItsCaseAndStaffCloseItWithAReason()
-    {
-        await using var workspace = await Workspace.CreateAsync();
-        var sessionId = await workspace.SeedAutomationSessionAsync(
-            workspace.CaseId, GlassAccountKey.Of(AutomationAccount));
-        await workspace.ClaimLeaseAsync();
-
-        var html = await workspace.CaseHtmlAsync();
-
-        Assert.Contains("data-glass-owner=\"automation\"", html, StringComparison.Ordinal);
-        Assert.Contains(
-            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.AutomationStarted),
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.AutomationClosePrompt),
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("handler=LaunchGlass", html, StringComparison.Ordinal);
-        var close = FormFor(html, "CloseGlass");
-        Assert.Equal(sessionId.ToString("D"), close["sessionId"]);
-
-        close["reason"] = "The Automation stopped part-way.";
-        using (var closed = await workspace.PostAsync("CloseGlass", close))
-        {
-            Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
-        }
-
-        var session = Assert.Single(await workspace.SessionsAsync(), item => item.Id == sessionId);
-        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, session.State);
-        Assert.Equal(ActorKind.Automation, session.OwnerKind);
-        Assert.DoesNotContain("handler=CloseGlass", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// While the Automation holds the staff member's own login, every other
-    /// Case they open names the Case it is open on and offers no launch, and
-    /// its own Case offers its line and no launch (R1180).
-    /// </summary>
-    [Fact]
-    public async Task TheAutomationHoldingTheStaffLoginIsNamedAndNoLaunchIsOffered()
-    {
-        await using var workspace = await Workspace.CreateAsync();
-        var otherCaseId = await workspace.SeedOtherCaseAsync("GLAS31003");
-        await workspace.SeedAutomationSessionAsync(otherCaseId, GlassAccountKey.Of(FixtureAccount));
-        await workspace.ClaimLeaseAsync();
-
-        var html = await workspace.CaseHtmlAsync();
-
-        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
-        Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
-        Assert.Contains(
-            HtmlEncoder.Default.Encode(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HeldByAutomation),
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{otherCaseId:D}?section=estimate", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task TheAutomationHoldingTheStaffLoginOnThisCaseShowsItsLineAndNoLaunch()
-    {
-        await using var workspace = await Workspace.CreateAsync();
-        await workspace.SeedAutomationSessionAsync(workspace.CaseId, GlassAccountKey.Of(FixtureAccount));
-        await workspace.ClaimLeaseAsync();
-
-        var html = await workspace.CaseHtmlAsync();
-
-        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
-        Assert.Contains("data-glass-owner=\"automation\"", html, StringComparison.Ordinal);
-        Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
-        // Help is the Engineer's to give in their own session, not in the Automation's (R1170).
-        Assert.DoesNotContain("handler=GlassHelp", html, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The Case page with Glass's composed reads the session table at most
-    /// twice whatever the Automation holds (design 07 section 2): the Case's
-    /// sessions, the viewer's and the Automation's, in one statement, and who
-    /// holds the login. A ceiling, not a total.
-    /// </summary>
-    [Fact]
-    public async Task TheCasePageReadsTheSessionsAtMostTwiceWithAnAutomationSessionHeldElsewhere()
-    {
-        var counter = new SqlStatementCounter();
-        await using var workspace = await Workspace.CreateAsync(counter: counter);
-        var otherCaseId = await workspace.SeedOtherCaseAsync("GLAS31003");
-        await workspace.SeedAutomationSessionAsync(otherCaseId, GlassAccountKey.Of(FixtureAccount));
-        await workspace.SeedAutomationSessionAsync(
-            workspace.CaseId, GlassAccountKey.Of(AutomationAccount), GlassRepairEstimateSessionState.Cancelled);
-        _ = await workspace.CaseHtmlAsync();
-
-        counter.Reset();
-        var html = await workspace.CaseHtmlAsync();
-
-        Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
-        var sessionReads = counter.CountMentioning("[GlassRepairEstimateSessions]");
-        Assert.True(sessionReads <= 2, $"The page read the session table {sessionReads} times.");
-        var credentialReads = counter.CountMentioning("[UserExternalCredentials]");
-        Assert.True(credentialReads <= 1, $"The page read the credentials {credentialReads} times.");
-    }
-
-    /// <summary>
     /// An open session can be closed from its own Case by its owner, with
     /// the same confirmation as an uncertain one, and the account is then
     /// free for the next launch.
@@ -512,78 +399,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         _ = ReadEstimator(next);
         Assert.Equal(2, (await workspace.SessionsAsync()).Count);
-    }
-
-    /// <summary>
-    /// The owner's own open session offers "Let the Automation help"
-    /// (R1183). The post turns help on and moves neither the session's
-    /// version nor the Case's; the chip then says the window is not
-    /// connected until the window's key is held, and that help is on once it
-    /// is; the same control turns it off. A post naming another Engineer's
-    /// session is not found and changes nothing.
-    /// </summary>
-    [Fact]
-    public async Task TheOwnersOpenSessionOffersHelpAndItsChipSaysWhetherTheWindowIsConnected()
-    {
-        await using var workspace = await Workspace.CreateAsync();
-        await workspace.ClaimLeaseAsync();
-        using (var launched = await workspace.LaunchAsync())
-        {
-            _ = ReadEstimator(launched);
-        }
-        var session = Assert.Single(await workspace.SessionsAsync());
-        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
-        var caseVersion = await workspace.CaseVersionAsync();
-        var html = await workspace.CaseHtmlAsync();
-        Assert.Contains(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpStart, html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-glass-help=", html, StringComparison.Ordinal);
-        Assert.Contains("data-glass-help-form", html, StringComparison.Ordinal);
-        var form = FormFor(html, "GlassHelp");
-        Assert.Equal(session.Id.ToString("D"), form["sessionId"]);
-        Assert.Equal("true", form["on"]);
-
-        using (var turnedOn = await workspace.PostAsync("GlassHelp", form))
-        {
-            Assert.Equal(HttpStatusCode.Found, turnedOn.StatusCode);
-        }
-        var on = Assert.Single(await workspace.SessionsAsync());
-        Assert.NotNull(on.HelpOnAtUtc);
-        Assert.Equal(session.Version, on.Version);
-        Assert.Equal(caseVersion, await workspace.CaseVersionAsync());
-        html = await workspace.CaseHtmlAsync();
-        Assert.Contains("data-glass-help=\"not-connected\"", html, StringComparison.Ordinal);
-        Assert.Contains(Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpStop, html, StringComparison.Ordinal);
-
-        // The window hands its key over (made up), and the chip says help is on.
-        var options = workspace.Services.GetRequiredService<GlassRepairEstimateOptions>();
-        var keys = workspace.Services.GetRequiredService<GlassHelpKeys>();
-        var frame = keys.Read(GlassHelpFrameTests.FrameAddress(
-            GlassHelpFrameTests.Url0(options.CallbackFor(GlassHelpFrameTests.Token).AbsoluteUri)))
-            ?? throw new InvalidOperationException("The frame was not read.");
-        keys.Hold(session.Id, frame);
-        html = await workspace.CaseHtmlAsync();
-        Assert.Contains("data-glass-help=\"connected\"", html, StringComparison.Ordinal);
-        Assert.Contains(
-            ">" + Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.HelpOn + "</span>", html, StringComparison.Ordinal);
-
-        form = FormFor(html, "GlassHelp");
-        Assert.Equal("false", form["on"]);
-        using (var turnedOff = await workspace.PostAsync("GlassHelp", form))
-        {
-            Assert.Equal(HttpStatusCode.Found, turnedOff.StatusCode);
-        }
-        Assert.Null(Assert.Single(await workspace.SessionsAsync()).HelpOnAtUtc);
-        Assert.DoesNotContain("data-glass-help=", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
-
-        await workspace.SeedAnotherEngineersSessionAsync();
-        var others = Assert.Single(await workspace.SessionsAsync(), item => item.Id != session.Id);
-        form["sessionId"] = others.Id.ToString("D");
-        form["on"] = "true";
-        using (var foreign = await workspace.PostAsync("GlassHelp", form))
-        {
-            Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
-        }
-        Assert.Null(Assert.Single(await workspace.SessionsAsync(), item => item.Id == others.Id).HelpOnAtUtc);
     }
 
     // --------------------------------------------------------------- the page
@@ -1293,12 +1108,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         /// <summary>Holds every background launch until the test releases it.</summary>
         public TaskCompletionSource? LaunchGate { get; set; }
-
-        /// <summary>
-        /// Holds every launch's continuation, but not a build's, until the
-        /// test releases it: the reopen a build's own work makes waits here.
-        /// </summary>
-        public TaskCompletionSource? ContinueLaunchGate { get; set; }
     }
 
     /// <summary>A switch the test flips to make the host's Case read fault.</summary>
@@ -1336,23 +1145,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
             {
                 await gate.Task.WaitAsync(cancellationToken);
             }
-            if (fault.ContinueLaunchGate is { } held)
-            {
-                await held.Task.WaitAsync(cancellationToken);
-            }
 
             return await inner.ContinueLaunchAsync(request, cancellationToken);
-        }
-
-        public async Task<GlassRepairEstimateSession> ContinueBuildAsync(
-            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken)
-        {
-            if (fault.LaunchGate is { } gate)
-            {
-                await gate.Task.WaitAsync(cancellationToken);
-            }
-
-            return await inner.ContinueBuildAsync(request, cancellationToken);
         }
 
         public Task<GlassRepairEstimateStep> PrepareResumeAsync(
@@ -1404,42 +1198,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Task<Uri?> GetEstimatorUrlAsync(
             ActionActor actor, GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>
             inner.GetEstimatorUrlAsync(actor, material, cancellationToken);
-
-        public Task<GlassRepairEstimateStep> PrepareAutomationLaunchAsync(
-            GlassRepairEstimateLaunchRequest request, CancellationToken cancellationToken) =>
-            inner.PrepareAutomationLaunchAsync(request, cancellationToken);
-
-        public Task<GlassRepairEstimateSession> ContinueAutomationStartAsync(
-            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
-            inner.ContinueAutomationStartAsync(request, cancellationToken);
-
-        public Task<GlassRepairEstimateStep> PrepareAutomationFinishAsync(
-            GlassAutomationFinishRequest request, CancellationToken cancellationToken) =>
-            inner.PrepareAutomationFinishAsync(request, cancellationToken);
-
-        public Task<GlassRepairEstimateSession> ContinueAutomationFinishAsync(
-            GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken) =>
-            inner.ContinueAutomationFinishAsync(request, cancellationToken);
-
-        public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
-            ActionActor actor, Guid sessionId, GlassAutomationRead read, CancellationToken cancellationToken) =>
-            inner.ReadAutomationEstimateAsync(actor, sessionId, read, cancellationToken);
-
-        public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
-            GlassAutomationCatalogueQuery query, CancellationToken cancellationToken) =>
-            inner.SearchAutomationCatalogueAsync(query, cancellationToken);
-
-        public Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
-            GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>
-            inner.PreviewAutomationPositionAsync(request, cancellationToken);
-
-        public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
-            GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>
-            inner.PrepareAutomationPositionAsync(request, cancellationToken);
-
-        public Task<GlassAutomationPositionStep> ContinueAutomationPositionAsync(
-            GlassAutomationPositionContinueRequest request, CancellationToken cancellationToken) =>
-            inner.ContinueAutomationPositionAsync(request, cancellationToken);
     }
 
     /// <summary>
@@ -1471,25 +1229,16 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         public Guid CaseId { get; }
 
-        /// <summary>The host's own services, for a test that reads what the host holds in memory.</summary>
-        public IServiceProvider Services => factory.Services;
-
         public static async Task<Workspace> CreateAsync(
             bool credentialed = true,
             string role = StaffRoleNames.Engineer,
             GatewayFault? fault = null,
             CaseReadFault? caseReadFault = null,
-            bool liveGlass = true,
-            int editorPauseMilliseconds = 0,
-            TimeProvider? clock = null,
-            Microsoft.Extensions.Logging.ILoggerProvider? logs = null,
-            SqlStatementCounter? counter = null)
+            bool liveGlass = true)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
-            // The suite's fixed instant unless the test brings a clock of its own.
-            var baseFactory = new IntakeWebApplicationFactory(
-                "Development", true, clock, useIntegrationTestAuthentication: true, commandInterceptor: counter);
+            var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
             var factory = baseFactory.WithWebHostBuilder(builder =>
             {
                 // The offline host composes Glass's only when asked to, and it
@@ -1505,11 +1254,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ["Glass:RepairProfileId"] = GlassProviderFixture.ProfileId,
                     ["Glass:ExportPollSeconds"] = "1",
                     ["Glass:ExportTimeoutSeconds"] = "5",
-                    ["Glass:EditorPauseMilliseconds"] =
-                        editorPauseMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    // The Automation's own login (R1177); made-up values.
-                    ["Glass:AutomationAccount:Username"] = AutomationAccount,
-                    ["Glass:AutomationAccount:Password"] = "automation-synthetic-password",
                 })
                 {
                     builder.UseSetting(key, value);
@@ -1527,10 +1271,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         services.AddScoped<GlassRepairEstimateGateway>();
                         services.AddScoped<IGlassRepairEstimateGateway>(provider =>
                             new FaultingGateway(provider.GetRequiredService<GlassRepairEstimateGateway>(), fault));
-                    }
-                    if (logs is not null)
-                    {
-                        services.AddSingleton(logs);
                     }
                     if (caseReadFault is not null)
                     {
@@ -1782,17 +1522,15 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var reader = scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionReader>();
-            // Each session by its own id: a staff member's second session on
-            // the Case is read as itself, not as their newest one.
             var ids = await context.Set<GlassRepairEstimateSessionEntity>()
                 .AsNoTracking()
                 .OrderBy(entity => entity.CreatedAtUtc)
-                .Select(entity => new { entity.Id, entity.UserId })
+                .Select(entity => new { entity.CaseId, entity.UserId })
                 .ToArrayAsync();
             var sessions = new List<GlassRepairEstimateSession>();
             foreach (var id in ids)
             {
-                sessions.Add(await reader.GetOwnAsync(id.Id, id.UserId, CancellationToken.None)
+                sessions.Add(await reader.GetForCaseAsync(id.CaseId, id.UserId, CancellationToken.None)
                     ?? throw new InvalidOperationException("The recorded session could not be read back."));
             }
 
@@ -1810,65 +1548,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
                     "Set rate", $"rate-card-{Guid.NewGuid():N}"),
                 CancellationToken.None);
-        }
-
-        /// <summary>
-        /// A repair spec made outside Pegasus, Current on the Case and
-        /// belonging to no Glass's estimate: a special operation by its
-        /// Glass's name at a price of its own, and a part.
-        /// </summary>
-        public async Task<Guid> SeedOutsideSpecAsync()
-        {
-            await using var scope = factory.Services.CreateAsyncScope();
-            await using var context = await scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-                .CreateDbContextAsync();
-            var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
-            var specification = new CaseRepairSpecificationEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                Version = 1,
-                State = nameof(RepairSpecificationState.Draft),
-                SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
-                CreatedBy = actor,
-                CreationOperationKey = $"outside-estimate:{Guid.NewGuid():N}",
-                CreatedAtUtc = FixedUtcNow,
-                Name = "Repairer",
-                LabourRate = 60m,
-                VatPercent = 20m,
-                IsCurrent = true,
-            };
-            specification.Lines.Add(new CaseEstimateLineEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                RepairSpecification = specification,
-                Position = 1,
-                LineType = "specialist_fixed",
-                Description = ".Assessment Damage Appraisal Charge",
-                Price = 150m,
-                RecordedByKind = nameof(ActorKind.Staff),
-                RecordedBy = actor,
-                RecordedAtUtc = FixedUtcNow,
-            });
-            specification.Lines.Add(new CaseEstimateLineEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = CaseId,
-                RepairSpecification = specification,
-                Position = 2,
-                LineType = "new_part",
-                Description = "Bonnet",
-                Price = 310m,
-                Quantity = 1,
-                RecordedByKind = nameof(ActorKind.Staff),
-                RecordedBy = actor,
-                RecordedAtUtc = FixedUtcNow,
-            });
-            context.Set<CaseRepairSpecificationEntity>().Add(specification);
-            await context.SaveChangesAsync();
-            return specification.Id;
         }
 
         public async Task<IReadOnlyList<RepairSpecificationVersion>> EstimatesAsync()
@@ -1921,9 +1600,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         otherCaseId,
                         DevelopmentOfflineIdentity.AdministratorId,
                         CredentialGeneration: 1,
-                        // The login the session holds is this Engineer's own,
-                        // keyed by the one rule (GlassAccountKey).
-                        GlassAccountKey.Of(FixtureAccount),
+                        OtherAccountKey,
                         GlassRepairEstimateSessionState.Active,
                         Version: 0,
                         OperationKey: Guid.NewGuid().ToString("N"),
@@ -1936,45 +1613,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 CancellationToken.None);
             return otherCaseId;
         }
-
-        /// <summary>
-        /// A session the Automation owns on a Case (R1177): it names no member
-        /// of staff, and holds the login whose key it carries. Written through
-        /// the real store, so the row is the one the Automation's start writes.
-        /// </summary>
-        public async Task<Guid> SeedAutomationSessionAsync(
-            Guid caseId,
-            string accountKey,
-            GlassRepairEstimateSessionState state = GlassRepairEstimateSessionState.Active)
-        {
-            var sessionId = Guid.NewGuid();
-            await using var scope = factory.Services.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>().CreateAsync(
-                new GlassRepairEstimateSessionMaterial(
-                    new GlassRepairEstimateSession(
-                        sessionId,
-                        caseId,
-                        Guid.Empty,
-                        CredentialGeneration: 0,
-                        accountKey,
-                        state,
-                        Version: 0,
-                        OperationKey: "mcp:" + Guid.NewGuid().ToString("N"),
-                        FixedUtcNow,
-                        ProviderVehicleId: null,
-                        ProviderEstimateId: null,
-                        FailureCode: null)
-                    {
-                        OwnerKind = ActorKind.Automation,
-                    },
-                    protectedProviderState: "protected:fixture:not-a-secret",
-                    GlassRepairEstimateGateway.CallbackDigestOf(NewCorrelation())),
-                CancellationToken.None);
-            return sessionId;
-        }
-
-        /// <summary>Another Case on this host, for a session held elsewhere.</summary>
-        public Task<Guid> SeedOtherCaseAsync(string reference) => SeedCaseAsync(factory.Services, reference);
 
         public async Task<string> SeedAnotherEngineersSessionAsync()
         {
