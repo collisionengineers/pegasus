@@ -1,16 +1,22 @@
 // The Pegasus helper in Glass's editor frame (acofr.php), in the extension's own
 // world (R1170, ADR-0091). It asks the service worker to hand this frame's
-// address to Pegasus once, then to poll on the cadence each answer names. When
-// Pegasus has asked the window to show its selected list again (the Automation
-// added or removed a position), it reloads that one frame and says so a second
-// later, so Pegasus can tell the Automation the window shows it. It reads
-// nothing of Glass's pages but the paths of the editor's frames; the service
-// worker reads this frame's address.
+// address to Pegasus once, with the two cookies of Glass's load balancer, then
+// to poll on the cadence each answer names. When Pegasus has asked the window
+// to show its selected list again (the Automation added or removed a
+// position), it reloads that one frame and says so a second later, so Pegasus
+// can tell the Automation the window shows it. It reads nothing of Glass's
+// pages but the paths of the editor's frames and those two cookies; the
+// service worker reads this frame's address.
 'use strict';
 
 (() => {
     // Answers after which there is nothing more to do in this window.
     const STOP = new Set([400, 401, 403, 404, 409, 426]);
+    // The cookies Glass's load balancer sets. They name the one Glass's server
+    // that holds this window's editor session, and Pegasus must ask that same
+    // server; neither is a login. Pegasus's GlassHelpFrame.BalancerCookieNames
+    // must equal this list.
+    const BALANCER = ['AWSALB', 'AWSALBCORS'];
     // The refresh count last acted on; null until the first poll answers.
     let acted = null;
 
@@ -54,8 +60,22 @@
         selected.location.replace(address.href);
     }
 
+    // The load balancer's cookies as this frame's document holds them now, and
+    // no other cookie.
+    function balancerCookies() {
+        const found = {};
+        let all = '';
+        try { all = document.cookie || ''; } catch (_) { return found; }
+        for (const part of all.split(';')) {
+            const at = part.indexOf('=');
+            const name = at < 0 ? '' : part.slice(0, at).trim();
+            if (BALANCER.includes(name)) { found[name] = part.slice(at + 1).trim(); }
+        }
+        return found;
+    }
+
     async function handOver() {
-        const sent = await ask({ kind: 'key' });
+        const sent = await ask({ kind: 'key', cookies: balancerCookies() });
         return finished(sent) ? null : sent;
     }
 

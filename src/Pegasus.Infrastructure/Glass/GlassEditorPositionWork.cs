@@ -13,11 +13,62 @@ internal sealed record GlassEditorPositionDone(
     GlassAutomationAct Act, GlassEditorSession Opened, GlassEditorEstimate? After);
 
 /// <summary>
-/// The work on an open estimate that reads Glass's editor's lists, adds a
-/// position or removes one: shared by the Automation's own sessions
-/// (<c>GlassRepairEstimateGateway</c>) and its help in a member of staff's
-/// session (<see cref="GlassSessionHelp"/>), so both choose rows and post
-/// dialogs by the one rule (R1168, R1169, R1172, R1182).
+/// The rows an Automation add chose as the editor's click chooses them
+/// (R1206): the part's equipment question when it asks one, and once rows
+/// were chosen, the row pair, the value stored for the vehicle (null when
+/// none is stored), the values it changes and the part list's figures for
+/// the part (price and the time row's hours); for a head the vehicle's
+/// equipment hides, what hides it.
+/// </summary>
+internal sealed record GlassEditorEquipmentChoice(
+    GlassEquipmentQuestion? Question,
+    string? Rows = null,
+    string? Store = null,
+    IReadOnlyList<GlassEquipmentChange>? Changes = null,
+    GlassEstimateBuildFigures? Listed = null)
+{
+    public IReadOnlyList<GlassEquipmentHiding> HiddenBy { get; init; } = [];
+
+    /// <summary>
+    /// Each operation's time row in the editor's selection, as its repair
+    /// view gives them: a row pair of one operation is the part row and this
+    /// row (the recording of 19 November 2026 added remove-and-refit on each
+    /// side by <c>171|173</c> and <c>174|176</c>).
+    /// </summary>
+    public GlassEditorOperationTimes Operations { get; init; } = GlassEditorOperationTimes.None;
+}
+
+/// <summary>
+/// What one read of an open estimate left: what was read (the estimate,
+/// one position's figures or the calculation), or the <c>glass.*</c> code
+/// when Glass's did not answer, and the editor session after it.
+/// </summary>
+internal sealed record GlassEditorReadDone(
+    GlassEditorEstimate? Estimate,
+    GlassPositionFigures? Position,
+    GlassCalculation? Calculation,
+    string? Code,
+    GlassEditorSession Opened)
+{
+    /// <summary>The read as the Automation's tools answer it, with the session as the read left it.</summary>
+    public GlassAutomationEstimate For(GlassRepairEstimateSession session) =>
+        new(session, Estimate?.Positions, Estimate?.Codes)
+        {
+            Totals = Estimate?.Totals,
+            Position = Position,
+            Calculation = Calculation,
+            Code = Code,
+        };
+}
+
+/// <summary>
+/// The work on an open estimate that reads Glass's editor's lists, previews
+/// a dialog, adds a position or removes one: shared by the Automation's own
+/// sessions (<c>GlassRepairEstimateGateway</c>) and its help in a member of
+/// staff's session (<see cref="GlassSessionHelp"/>), so both choose rows and
+/// post dialogs by the one rule (R1168, R1169, R1172, R1206). The rebuild of
+/// an outside estimate shares <see cref="ChoosePartAsync"/> alone, and its
+/// lines keep that method's own rule.
 /// </summary>
 /// <remarks>
 /// It holds a logger and nothing else: no session store, no login, no
@@ -49,6 +100,12 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// <summary>The part dialog's Part button: the part as served, not painted.</summary>
     private const string PartButton = "BSS";
 
+    /// <summary>The part dialog's Paint button: the part's paint on its own (R1206).</summary>
+    private const string PaintButton = "BLL";
+
+    /// <summary>The part dialog's Part and Paint button (R1206).</summary>
+    private const string PartAndPaintButton = "BSL";
+
     private const string BothSides = "both";
 
     internal async Task StageAsync(GlassRepairEstimateSession session, string stage, Func<Task> action)
@@ -66,6 +123,13 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         {
             outcome = failure is GlassMvaStageException providerFailure
                 ? providerFailure.FailureCode : failure is OperationCanceledException ? "Cancelled" : "Failed";
+            if (failure is GlassMvaStageException { Detail: { } detail })
+            {
+                // A search or a read answers the caller its code alone; the
+                // detail (a page's name and length, a status) is said here.
+                LogStageDetail(logger, session.Id, session.CaseId, stage, detail);
+            }
+
             throw;
         }
         finally
@@ -88,8 +152,9 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// served; any other operation is chosen in the dialog, which then sends
     /// whatever price and hours it serves for it, none included (R1172):
     /// its question before sending no figures is answered OK (R1188).
-    /// A build's line and the Automation's add both choose their rows here,
-    /// by what the part is found by: its key and side.
+    /// A build's line chooses its rows here, by what the part is found by:
+    /// its key and side. The Automation's add chooses its rows as the
+    /// editor's own click does (<see cref="ChooseAutomationPartAsync"/>; R1206).
     /// </summary>
     internal async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChoosePartAsync(
         GlassRepairEstimateSession session,
@@ -157,10 +222,16 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// special list's "Free positions parts" group, the part list, or both,
     /// asked for once each and matched against each row's description, part
     /// code or part number, ignoring case. A part is answered by its list's
-    /// head row, the row an add takes. A side asked for keeps the parts of
-    /// that side and leaves the special list unread, as a special operation
-    /// has none. Nothing changes at Glass's. A list Glass's does not answer
-    /// answers no rows and its code.
+    /// head row, the row an add takes, with the equipment question its block
+    /// asks, when it asks one (R1206), built from the list alone. A side
+    /// asked for keeps the parts of that side and leaves the special list
+    /// unread, as a special operation has none. With <paramref name="row"/>
+    /// the part list alone is read and that one head row answered, with
+    /// every answer to its question that leads to a part, which reads the
+    /// row's equipment map as well. Nothing changes at Glass's. A list or a
+    /// map Glass's does not answer answers no rows and its code; a row that
+    /// is not a head of the part list answers no rows and
+    /// <see cref="GlassAutomationPositionPolicy.RowUnknownCode"/>.
     /// </summary>
     internal async Task<(IReadOnlyList<GlassAutomationCatalogueRow> Rows, string? Code, GlassEditorSession Opened)> SearchAsync(
         GlassRepairEstimateSession session,
@@ -169,20 +240,79 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         string term,
         GlassAutomationPositionKind? kind,
         string? side,
+        string? row,
+        GlassAutomationCatalogueList? list,
         CancellationToken cancellationToken)
     {
         var rows = new List<GlassAutomationCatalogueRow>();
         try
         {
+            if (list is { } chosen && chosen is not (GlassAutomationCatalogueList.Parts or GlassAutomationCatalogueList.SpecialOperations))
+            {
+                return await ListSearchAsync(session, editor, opened, term, chosen, cancellationToken);
+            }
+            if (list == GlassAutomationCatalogueList.Parts)
+            {
+                kind = GlassAutomationPositionKind.Part;
+            }
+            else if (list == GlassAutomationCatalogueList.SpecialOperations)
+            {
+                kind = GlassAutomationPositionKind.SpecialOperation;
+            }
+            if (row is not null)
+            {
+                var partList = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
+                    opened, PartListGroups, cancellationToken));
+                opened = partList.Session;
+                var at = IndexOfPart(partList.Value.Rows, row);
+                var head = at < 0 ? -1 : GlassEditorRows.HeadOf(partList.Value.Rows, at);
+                if (head < 0)
+                {
+                    return (Array.Empty<GlassAutomationCatalogueRow>(), GlassAutomationPositionPolicy.RowUnknownCode, opened);
+                }
+
+                // A variant row named by the row: its head, and the answers that lead to it (R1206).
+                var variant = at == head ? null : partList.Value.Rows[at];
+                var found = CatalogueRowOf(partList.Value.Rows[head]);
+                var question = GlassEditorRows.Build(partList.Value, head);
+                if (question.Asks || variant is not null)
+                {
+                    var map = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
+                        opened, partList.Value.Rows[head].Id, cancellationToken));
+                    opened = map.Session;
+                    if (!GlassEditorRows.IsMapOf(map.Value, partList.Value.Rows[head]))
+                    {
+                        return (Array.Empty<GlassAutomationCatalogueRow>(), GlassFailure.EditorAnswer, opened);
+                    }
+
+                    var answered = GlassEditorRows.WithAnswers(partList.Value, head, question, map.Value);
+                    found = found with
+                    {
+                        Equipment = question.Asks ? answered : null,
+                        Variant = variant is null
+                            ? null
+                            : new GlassCatalogueVariant(variant.Id, Present(variant.Number))
+                            {
+                                Answers = answered.Answers?
+                                    .Where(answer => answer.Rows.StartsWith(variant.Id + "|", StringComparison.Ordinal))
+                                    .ToList(),
+                            },
+                    };
+                }
+
+                rows.Add(found);
+                return (rows, null, opened);
+            }
+
             if (kind != GlassAutomationPositionKind.Part && side is null)
             {
                 var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
                     opened, SpecialOperationGroup, cancellationToken));
                 opened = specials.Session;
                 rows.AddRange(SpecialOperationsOf(specials.Value)
-                    .Where(row => Matches(term, row.Name, row.Code, null))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Code, GlassAutomationPositionKind.SpecialOperation, row.Name.Trim(),
+                    .Where(item => Matches(term, item.Name, item.Code, null))
+                    .Select(item => new GlassAutomationCatalogueRow(
+                        item.Code, GlassAutomationPositionKind.SpecialOperation, item.Name.Trim(),
                         PartCode: null, PartNumber: null, Side: null, Paintable: false)));
             }
             if (kind != GlassAutomationPositionKind.SpecialOperation)
@@ -190,36 +320,228 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                rows.AddRange(parts.Value
-                    .Where(row => row.IsHead
-                        && (side is null || string.Equals(SideOf(row), side, StringComparison.Ordinal))
-                        && Matches(term, row.Name, row.Code, row.Number))
-                    .Select(row => new GlassAutomationCatalogueRow(
-                        row.Id, GlassAutomationPositionKind.Part, row.Name.Trim(), row.Code,
-                        string.IsNullOrWhiteSpace(row.Number) ? null : row.Number, SideOf(row), row.Paintable)));
+                var partList = parts.Value;
+                for (var index = 0; index < partList.Rows.Count; index++)
+                {
+                    var part = partList.Rows[index];
+                    if (part.IsHead
+                        && (side is null || string.Equals(SideOf(part), side, StringComparison.Ordinal))
+                        && Matches(term, part.Name, part.Code, part.Number))
+                    {
+                        rows.Add(CatalogueRowOf(part) with { Equipment = GlassEditorRows.Question(partList, index)?.Asked });
+                        continue;
+                    }
+
+                    // A variant row's own part number finds its head, with the variant named (R1206).
+                    if (part.IsPart && !part.IsHead && Matches(term, null, null, part.Number)
+                        && GlassEditorRows.HeadOf(partList.Rows, index) is var head and >= 0
+                        && partList.Rows[head].Number != part.Number
+                        && (side is null || string.Equals(SideOf(partList.Rows[head]), side, StringComparison.Ordinal)))
+                    {
+                        rows.Add(CatalogueRowOf(partList.Rows[head]) with
+                        {
+                            Equipment = GlassEditorRows.Question(partList, head)?.Asked,
+                            Variant = new GlassCatalogueVariant(part.Id, Present(part.Number)),
+                        });
+                    }
+                }
             }
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
         {
-            // Reading a list changes nothing: no rows, and the code.
+            // Reading a list or a map changes nothing: no rows, and the code.
             return (Array.Empty<GlassAutomationCatalogueRow>(), CodeOf(failure), opened);
         }
 
         return (rows, null, opened);
     }
 
+    /// <summary>The Additional group each list is, as the editor's tree names it (R1206).</summary>
+    private static string? GroupOf(GlassAutomationCatalogueList list) => list switch
+    {
+        GlassAutomationCatalogueList.AdditionalLabour => "DS-AUXWORK-702",
+        GlassAutomationCatalogueList.UserDefinedPaint => "SS-FREEPAINT",
+        GlassAutomationCatalogueList.LabourDescriptions => "SS-FREETEXT",
+        GlassAutomationCatalogueList.Tyres => "SS-TYRES",
+        GlassAutomationCatalogueList.Bulbs => "SS-BULPS",
+        GlassAutomationCatalogueList.SpecialMetal => "SS-SPECMET",
+        GlassAutomationCatalogueList.SpecialPlastic => "SS-SPECPLA",
+        _ => null,
+    };
+
+    /// <summary>
+    /// A search of one list a person opens under Areas &gt; Additional or
+    /// Areas &gt; Paint (R1206): one <c>list_1G.php</c> with its group
+    /// opened, or one <c>list_paint.php</c>; each row whose text holds the
+    /// term, with the value an add takes it by, Glass's name, the list's own
+    /// name and the dialog it opens, chosen as the editor's
+    /// OpenCompDialogWindow chooses it: <c>part_paintable</c> for a row
+    /// marked L, <c>paint</c> for a code beginning L or AL, else
+    /// <c>part</c>. A list the account's tree does not hold answers no rows
+    /// and <see cref="GlassAutomationPositionPolicy.ListNotOfferedCode"/>.
+    /// </summary>
+    private async Task<(IReadOnlyList<GlassAutomationCatalogueRow> Rows, string? Code, GlassEditorSession Opened)> ListSearchAsync(
+        GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened, string term,
+        GlassAutomationCatalogueList list, CancellationToken cancellationToken)
+    {
+        var rows = new List<GlassAutomationCatalogueRow>();
+        if (list == GlassAutomationCatalogueList.PaintAreas)
+        {
+            var paint = await StageAsync(session, "EditorPaintList", () => editor.ReadPaintListAsync(opened, cancellationToken));
+            var area = string.Empty;
+            foreach (var item in paint.Value)
+            {
+                area = item.Count > 3 && item[3].Trim().Length > 0 ? item[3].Trim() : area;
+                if (item.Count > 2 && Matches(term, item[2], item[0], null))
+                {
+                    rows.Add(new GlassAutomationCatalogueRow(
+                        item[0], GlassAutomationPositionKind.Paint, item[2].Trim(), PaintCodeOf(item[0]), null, null, true)
+                    {
+                        Dialog = "paint",
+                        Group = area.Length == 0 ? null : area,
+                    });
+                }
+            }
+
+            return (rows, null, paint.Session);
+        }
+
+        var group = await StageAsync(session, "EditorAdditionalList", () => editor.ReadAdditionalListAsync(
+            opened, GroupOf(list)!, cancellationToken));
+        if (group.Value is not { } found)
+        {
+            return (rows, GlassAutomationPositionPolicy.ListNotOfferedCode, group.Session);
+        }
+
+        foreach (var item in found.Rows)
+        {
+            var name = item.Count > 8 && item[8].Trim().Length > 0 ? item[8] : item.Count > 2 ? item[2] : string.Empty;
+            if (!Matches(term, name, item[0], item.Count > 2 ? item[2] : null))
+            {
+                continue;
+            }
+
+            var dialog = item[1].Contains('L', StringComparison.Ordinal) ? "part_paintable"
+                : item[0].StartsWith('L') || item[0].StartsWith("AL", StringComparison.Ordinal) ? "paint"
+                : "part";
+            rows.Add(new GlassAutomationCatalogueRow(
+                item[0],
+                dialog == "paint" ? GlassAutomationPositionKind.Paint : GlassAutomationPositionKind.SpecialOperation,
+                name.Trim(),
+                dialog == "paint" ? PaintCodeOf(item[0]) : PartCodeOf(item[0]),
+                null, null, dialog != "part")
+            {
+                Dialog = dialog,
+                Group = found.Name,
+            });
+        }
+
+        return (rows, null, group.Session);
+    }
+
+    /// <summary>A part's head row as the search answers it.</summary>
+    private static GlassAutomationCatalogueRow CatalogueRowOf(GlassEditorPartRow row) =>
+        new(row.Id, GlassAutomationPositionKind.Part, row.Name.Trim(), row.Code,
+            string.IsNullOrWhiteSpace(row.Number) ? null : row.Number, SideOf(row), row.Paintable);
+
+    /// <summary>The index of the part row with this id, a head or a variant, or -1.</summary>
+    private static int IndexOfPart(IReadOnlyList<GlassEditorPartRow> rows, string id)
+    {
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (rows[index].IsPart && string.Equals(rows[index].Id, id, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string? Present(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    /// <summary>The index of the head row with this id, or -1.</summary>
+    private static int IndexOfHead(IReadOnlyList<GlassEditorPartRow> rows, string? id)
+    {
+        for (var index = 0; index < rows.Count; index++)
+        {
+            if (rows[index].IsHead && string.Equals(rows[index].Id, id, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// One read of an open estimate (R1206), one request to Glass's: the
+    /// positions and Glass's running totals (<c>selected.php</c>, stage
+    /// <c>EditorRead</c>), one position's figures (<c>mcode.php</c>, stage
+    /// <c>EditorPosition</c>) or Glass's calculation (<c>report.php</c>,
+    /// stage <c>EditorCalculation</c>). Reading changes nothing at Glass's:
+    /// a read Glass's did not answer answers nothing read and its code, and
+    /// the editor session as it was.
+    /// </summary>
+    internal async Task<GlassEditorReadDone> ReadAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationRead read,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        try
+        {
+            switch (read.Kind)
+            {
+                case GlassAutomationReadKind.Position:
+                    var positionId = read.PositionId
+                        ?? throw new ArgumentException("A position read names its position.", nameof(read));
+                    var position = await StageAsync(session, "EditorPosition", () => editor.ReadPositionAsync(
+                        opened, positionId, cancellationToken));
+                    return new(null, position.Value, null, null, position.Session);
+                case GlassAutomationReadKind.Calculation:
+                    var calculation = await StageAsync(session, "EditorCalculation", () => editor.ReadCalculationAsync(
+                        opened, cancellationToken));
+                    return new(null, null, calculation.Value, null, calculation.Session);
+                default:
+                    var estimate = await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(
+                        opened, cancellationToken));
+                    return new(estimate.Value, null, null, null, estimate.Session);
+            }
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return new(null, null, null, CodeOf(failure), opened);
+        }
+    }
+
     /// <summary>
     /// A claimed add's work (design 07 section 3.4): its row chosen as a
     /// build chooses one, from the open estimate's own lists, and refused
     /// with the reason and nothing sent when the row is not certain (R1169).
-    /// Before the post the code its position will carry and the positions
-    /// that carry it now are handed to <paramref name="record"/>, so a lost
-    /// answer can be settled by the next read. The dialog is posted as
-    /// Glass's serves it, nothing typed (R1168). The outcome, Glass's own
-    /// figures and the new positions (every position on the estimate after
-    /// the post that was not in <paramref name="before"/>) are handed to
-    /// <paramref name="record"/> last, with the editor session as it stands.
+    /// A part whose block asks Glass's equipment question is added as Part
+    /// only by the Automation's answer (R1206): its rows are the ones the
+    /// editor's own rule gives for it, and an add with no answer, or one the
+    /// dialog would not take or that leads to no part, is refused with the
+    /// question and nothing sent. Before the post the code its position will
+    /// carry, the positions that carry it now and the answer's rows and
+    /// changes are handed to <paramref name="record"/>, so a lost answer can
+    /// be settled by the next read. The answer is then stored for the vehicle
+    /// as the editor stores it, just before the dialog is asked for. The
+    /// dialog is posted as Glass's serves it with the button, operation,
+    /// answers and typed figures the Automation gave it (<see cref="Chosen"/>,
+    /// R1206), and nothing Pegasus types itself (R1168); the figures served
+    /// and sent are handed to <paramref name="record"/> just before the post;
+    /// with "Both" the other side's own dialog follows
+    /// (<see cref="OtherSideAsync"/>). The
+    /// outcome, Glass's own figures and the new positions (every position on
+    /// the estimate after the post that was not in <paramref name="before"/>)
+    /// are handed to <paramref name="record"/> last, with the editor session
+    /// as it stands.
     /// </summary>
     internal async Task<GlassEditorPositionDone> AddPositionAsync(
         GlassRepairEstimateSession session,
@@ -235,10 +557,17 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         ArgumentNullException.ThrowIfNull(record);
         GlassEditorAddRequest? request = null;
         string? reason = null;
+        GlassEditorEquipmentChoice? equipment = null;
+        GlassEditorPartList? partList = null;
         var row = act.Row ?? string.Empty;
         try
         {
-            if (act.Kind == GlassAutomationPositionKind.SpecialOperation)
+            if (ListRowRequest(act.Kind, row, act.Inputs) is { } listed)
+            {
+                // A row of another Additional list or a paint row (R1206): its dialog names it.
+                request = listed;
+            }
+            else if (act.Kind == GlassAutomationPositionKind.SpecialOperation)
             {
                 var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
                     opened, SpecialOperationGroup, cancellationToken));
@@ -251,8 +580,10 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 }
                 else
                 {
+                    // A special operation takes the Automation's typed figures and reason (R1206).
                     request = new GlassEditorAddRequest(
-                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code));
+                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code),
+                        Change: WithTyped(null, act.Inputs));
                 }
             }
             else
@@ -260,8 +591,17 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
                     opened, PartListGroups, cancellationToken));
                 opened = parts.Session;
-                (request, reason, opened) = await ChooseAutomationPartAsync(
+                partList = parts.Value;
+                (request, reason, opened, equipment) = await ChooseAutomationPartAsync(
                     session, editor, opened, parts.Value, act, cancellationToken);
+                if (request is not null)
+                {
+                    // The button, the operation and the answers the Automation gave the dialog (R1206).
+                    var (choices, refusedBy) = Chosen(request, act);
+                    request = refusedBy is null ? choices : null;
+                    reason = refusedBy ?? reason;
+                    equipment = refusedBy is null ? equipment : null;
+                }
             }
         }
         catch (Exception failure)
@@ -278,6 +618,8 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
             {
                 Outcome = GlassAutomationActOutcome.Refused,
                 Code = reason ?? GlassEstimateBuildPolicy.NoRowCode,
+                Equipment = equipment?.Question,
+                HiddenBy = equipment?.HiddenBy ?? [],
             };
             await record(act, opened);
             return new(act, opened, null);
@@ -285,21 +627,67 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
 
         // Before the post: the code the new position carries on the estimate
         // (A73 for AC0000073, C2020001 for part 2020001) and the positions
-        // that carry it now, so a lost answer is settled by the next read.
-        var expected = (adding.Dialog == GlassEditorDialog.SpecialOperation ? "A" : "C") + adding.ExpectedPartCode;
+        // that carry it now, so a lost answer is settled by the next read;
+        // and an equipment answer's rows, the values it changes and that it
+        // is about to be stored (R1206).
+        var expected = adding.Dialog switch
+        {
+            GlassEditorDialog.Paint => adding.ExpectedPartCode,
+            GlassEditorDialog.SpecialOperation => "A" + adding.ExpectedPartCode,
+            _ => "C" + adding.ExpectedPartCode,
+        };
         act = act with
         {
             ExpectedCode = expected,
             Before = before.Positions
                 .Where(id => string.Equals(GlassAutomationPositionPolicy.CodeOf(id), expected, StringComparison.Ordinal))
                 .ToList(),
+            RowPair = equipment?.Rows,
+            EquipmentChanged = equipment?.Changes ?? [],
+            EquipmentStored = equipment?.Store is not null,
         };
-        await record(act, opened);
+        if (equipment?.Store is { } store)
+        {
+            // Written before the answer is stored, so a refusal afterwards still says it was sent.
+            await record(act, opened);
+            try
+            {
+                var stored = await StageAsync(session, "EditorEquipmentAnswer", () => editor.StoreEquipmentAsync(
+                    opened, store, cancellationToken));
+                opened = stored.Session;
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                // Nothing was posted, but the answer may be stored: the act says so.
+                var refused = AsFailure(failure);
+                LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                    GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
+                act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
+                await record(act, opened);
+                return new(act, opened, null);
+            }
+        }
+
+        // The quick repair panel adds the part without its dialog (R1206).
+        if (act.Inputs?.Panel == true && partList is not null)
+        {
+            return await PanelAsync(session, editor, opened, act, adding, partList, before, record, cancellationToken);
+        }
+
+        // Just before the post, in the one write the post needs: the code above, and the figures
+        // the dialog served and those it is about to send (R1206).
+        async Task PostingAsync(GlassEditorSummary summary)
+        {
+            act = act with { DialogServed = ServedOf(summary), Sent = SentOf(summary) };
+            await record(act, opened);
+        }
+
         GlassEditorEstimate? after = null;
         try
         {
             var added = await StageAsync(session, "EditorAdd", () => editor.AddAsync(
-                opened, before, adding, cancellationToken));
+                opened, before, adding, PostingAsync, cancellationToken));
             opened = added.Session;
             after = added.Value.Estimate;
             act = act with
@@ -309,13 +697,24 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
                 PositionIds = added.Value.Added,
                 Description = added.Value.Summary.Description?.Trim(),
                 Served = FiguresOf(added.Value.Summary),
-                Listed = added.Value.Listed
-                    .Select(listed => new GlassAutomationListedPart(listed.Code, listed.Text, listed.Ticked))
-                    .ToList(),
+                DialogServed = ServedOf(added.Value.Summary),
+                Sent = SentOf(added.Value.Summary),
+                Listed = ListedOf(added.Value.Listed),
             };
+            if (equipment?.Listed is { } fromList && act.Served is { } served
+                && (fromList.Price != served.Price || fromList.Hours != served.Hours))
+            {
+                // Noted, not refused, until a live walk shows they always agree (design 10 section 2).
+                LogServedFigures(logger, session.Id, session.CaseId, equipment.Rows ?? string.Empty,
+                    fromList.Price, fromList.Hours, served.Price, served.Hours);
+            }
+            if (act.Inputs?.BothSides == true)
+            {
+                (act, opened, after) = await OtherSideAsync(
+                    session, editor, opened, act, adding, added.Value, partList, record, cancellationToken);
+            }
         }
-        catch (GlassMvaStageException refused)
-            when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
+        catch (GlassMvaStageException refused) when (RefusedBeforePost(refused.FailureCode))
         {
             // Refused before anything was posted.
             LogPositionAct(logger, session.Id, session.CaseId, act.Action,
@@ -337,40 +736,662 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     }
 
     /// <summary>
-    /// The rows an add of a part is placed by: the head row the search
-    /// answered, found in the estimate's part list, decided by the build's
-    /// own rule (<see cref="ChoosePartAsync"/>) for its code, its side and
-    /// the act's operation. A row that is not a head of the list, a row
-    /// serving both sides, and a side asked for that is not the row's own
-    /// are refused before anything is asked.
+    /// The rows an add of a part is placed by, as the editor's own click on
+    /// the head row the search answered chooses them (R1206): that row and
+    /// no other, so a part listed on several drawings is placed by the row
+    /// named. A row that is not a head of the list, a row serving both sides,
+    /// and a side asked for that is not the row's own are refused before
+    /// anything is asked; so is a head the vehicle's equipment hides, which
+    /// the editor does not show, with what hides it, and an answer given for
+    /// a head that asks nothing. The head's equipment map is then read. A
+    /// head whose block asks Glass's equipment question, a wheel's included,
+    /// takes the Automation's answer; with none it is refused with
+    /// <see cref="GlassEstimateBuildPolicy.EquipmentCode"/> and the question,
+    /// and with one the dialog would not take or that leads to no part, with
+    /// its own code and the question. Any operation is asked for by the same
+    /// row pair, as the editor asks it; the operation is chosen in the
+    /// dialog (<see cref="Chosen"/>). A rebuild never comes here: its lines
+    /// keep <see cref="ChoosePartAsync"/>'s own rule.
     /// </summary>
-    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened)> ChooseAutomationPartAsync(
+    private async Task<(GlassEditorAddRequest? Request, string? Reason, GlassEditorSession Opened, GlassEditorEquipmentChoice? Equipment)> ChooseAutomationPartAsync(
         GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened,
-        IReadOnlyList<GlassEditorPartRow> parts, GlassAutomationAct act, CancellationToken cancellationToken)
+        GlassEditorPartList parts, GlassAutomationAct act, CancellationToken cancellationToken)
     {
-        var row = parts.FirstOrDefault(item => item.IsHead && string.Equals(item.Id, act.Row, StringComparison.Ordinal));
-        if (row is null)
+        var head = IndexOfHead(parts.Rows, act.Row);
+        if (head < 0)
         {
-            return (null, GlassAutomationPositionPolicy.RowUnknownCode, opened);
-        }
-        if (row.Has('l') && row.Has('r'))
-        {
-            return (null, GlassAutomationPositionPolicy.BothSidesCode, opened);
-        }
-        if (act.Side is { } side && !string.Equals(side, row.Side, StringComparison.Ordinal))
-        {
-            return (null, GlassEstimateBuildPolicy.NoRowCode, opened);
+            return (null, GlassAutomationPositionPolicy.RowUnknownCode, opened, null);
         }
 
-        var operation = act.Operation switch
+        // A head marked both left and right is one row serving both sides:
+        // the editor clicks it on either side to the same rows, and its side
+        // is chosen in the dialog, so either side may be asked for (R1206).
+        var row = parts.Rows[head];
+        var bothSides = row.Has('l') && row.Has('r');
+        if (act.Side is { } side && !bothSides && !string.Equals(side, row.Side, StringComparison.Ordinal))
+        {
+            return (null, GlassEstimateBuildPolicy.NoRowCode, opened, null);
+        }
+
+        var answer = act.Inputs?.Equipment;
+        var question = GlassEditorRows.Build(parts, head);
+        if (!question.Asks && answer is not null)
+        {
+            return (null, GlassAutomationPositionPolicy.EquipmentNotAskedCode, opened, null);
+        }
+        if (GlassEditorRows.HiddenBy(parts, head) is { Count: > 0 } hiding)
+        {
+            return (null, GlassAutomationPositionPolicy.EquipmentHiddenCode, opened, new GlassEditorEquipmentChoice(null) { HiddenBy = hiding });
+        }
+
+        IReadOnlyList<IReadOnlyList<string>> map;
+        try
+        {
+            var read = await StageAsync(session, "EditorEquipment", () => editor.ReadEquipmentMapAsync(
+                opened, row.Id, cancellationToken));
+            opened = read.Session;
+            map = read.Value;
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return (null, CodeOf(failure), opened, null);
+        }
+
+        var asked = new GlassEditorEquipmentChoice(question.Asks ? question.Asked : null);
+        if (!GlassEditorRows.IsMapOf(map, row))
+        {
+            return (null, GlassFailure.EditorAnswer, opened, null);
+        }
+        if (question.Asks && answer is null)
+        {
+            return (null, GlassEstimateBuildPolicy.EquipmentCode, opened, asked);
+        }
+
+        var answered = GlassEditorRows.Answer(parts, head, question, map, answer ?? []);
+        if (answered is not { Part: { } part, Rows: { } rows })
+        {
+            return (null, answered.ReasonCode ?? GlassAutomationPositionPolicy.EquipmentNoPartCode, opened, asked);
+        }
+
+        // The dialog is the chosen part row's: comp.php when it can be painted.
+        // A row serving both sides has its side chosen in the dialog, so the
+        // side served is not checked.
+        var request = new GlassEditorAddRequest(
+            part.Paintable ? GlassEditorDialog.PaintablePart : GlassEditorDialog.Part,
+            rows,
+            row.Code,
+            Button: part.Paintable ? PartButton : null,
+            ExpectedSide: bothSides ? null : row.Side ?? string.Empty,
+            CheckRows: true,
+            ExpectedPartNumber: part.Number);
+        return (request, null, opened, asked with
+        {
+            Rows = rows,
+            Store = answered.Store,
+            Changes = answered.Changes,
+            Listed = new(Amount(part.Price), Amount(answered.Time?.Price)),
+            Operations = answered.Operations,
+        });
+    }
+
+    /// <summary>
+    /// The dialog an Automation add posts, with what it gave the dialog
+    /// (R1206), and the code that refuses it before anything is asked for, or
+    /// null. The button: <c>inputs.button</c>, else the act's operation (Part
+    /// and Paint, Paint, or Part); a part that cannot be painted has none, so
+    /// any but Part is refused with <see cref="GlassAutomationPositionPolicy.NotPaintableCode"/>.
+    /// The operation: <c>inputs.operation</c>, else Repair or remove-and-refit
+    /// for those operations, else the dialog's own. The question before a
+    /// part with no figures: <c>inputs.confirmNoFigures</c>, else answered OK
+    /// for Repair alone (R1188). "Both" on either dialog (R1206). The
+    /// optional parts to tick. The typed figures, fields and paint choices
+    /// (R1206); paint on a part that cannot be painted is refused. A rebuild never
+    /// comes here: its lines keep <see cref="ChoosePartAsync"/>'s own rule.
+    /// The request is answered with the choices even when refused, so a
+    /// preview still shows the dialog.
+    /// </summary>
+    private static (GlassEditorAddRequest Request, string? Refused) Chosen(GlassEditorAddRequest request, GlassAutomationAct act)
+    {
+        var inputs = act.Inputs;
+        var button = inputs?.Button ?? act.Operation switch
+        {
+            GlassAutomationPartOperation.PartAndPaint => GlassAutomationButton.PartAndPaint,
+            GlassAutomationPartOperation.Paint => GlassAutomationButton.Paint,
+            _ => GlassAutomationButton.Part,
+        };
+        var operation = inputs?.Operation?.Trim() ?? act.Operation switch
         {
             GlassAutomationPartOperation.Repair => GlassEditorRows.Repair,
             GlassAutomationPartOperation.RemoveAndRefit => GlassEditorRows.RemoveAndRefit,
-            _ => GlassEditorRows.Replace,
+            _ => null,
         };
-        return await ChoosePartAsync(
-            session, editor, opened, parts, GlassEstimateBuildKeyKind.PartCode, row.Code, row.Side, operation,
-            cancellationToken);
+        var confirm = inputs?.ConfirmNoFigures ?? operation == GlassEditorRows.Repair;
+        var paintable = request.Dialog == GlassEditorDialog.PaintablePart;
+        var both = inputs?.BothSides == true;
+        var chosen = request with
+        {
+            Button = !paintable ? null
+                : button switch
+                {
+                    GlassAutomationButton.PartAndPaint => PartAndPaintButton,
+                    GlassAutomationButton.Paint => PaintButton,
+                    _ => PartButton,
+                },
+            Change = WithPaint(
+                WithTyped(
+                    operation is null && !confirm && !both
+                        ? null
+                        : new GlassEditorChange(Operation: operation, Both: both, ConfirmNoFigures: confirm),
+                    inputs),
+                paintable ? inputs : null),
+            Ticks = inputs?.OptionalParts,
+            ExpectedSide = inputs?.Place ?? request.ExpectedSide,
+            EitherSideCode = inputs?.Place is not null,
+        };
+        var refused = !paintable && (button != GlassAutomationButton.Part || inputs?.Paint is not null)
+            ? GlassAutomationPositionPolicy.NotPaintableCode
+            : null;
+        return (chosen, refused);
+    }
+
+    /// <summary>
+    /// The parts a "Mandatory parts:" page listed, each ticked as it was
+    /// confirmed: by Glass's itself, or as an optional box the act named,
+    /// each with the id that names it (R1206).
+    /// </summary>
+    private static List<GlassAutomationListedPart> ListedOf(IReadOnlyList<GlassEditorListed> listed) =>
+        listed
+            .Select(item => new GlassAutomationListedPart(item.Code, item.Text, item.Ticked || item.Chosen)
+            {
+                Optional = item.Optional,
+                Id = item.Id,
+            })
+            .ToList();
+
+    /// <summary>
+    /// "Both" (R1206): after the first side's post, the other side's own
+    /// dialog, as the editor's list opens it when the answer calls its
+    /// <c>BothNext</c>: its rows from the answer, the dialog the list's row
+    /// for them opens (<c>part.php</c>, or <c>comp.php</c> for a part that can
+    /// be painted, pressed with the first side's button), the other side and
+    /// the code the first dialog names for it. It is posted as served, its
+    /// "Both" ticked and greyed by the editor so not sent, as the browser
+    /// posted it on 18 November 2026 and, for a painted part, on 19 November
+    /// 2026 (b #55, b #96: the first answer calls
+    /// <c>BothNext( p, '254|ER|2220|AE|2221', '2222|ER|2223|AE|2224', 'L', Params )</c>,
+    /// and the right-hand rows are asked for whole). Before its post the code its
+    /// position carries is recorded, so a lost answer is settled by the next
+    /// read. An answer that names no other side, extra parameters, a row that
+    /// is not such a part, or a dialog refused before its post leave the
+    /// first side added and the act's code
+    /// <see cref="GlassAutomationPositionPolicy.OtherSideNotAddedCode"/>.
+    /// </summary>
+    private async Task<(GlassAutomationAct Act, GlassEditorSession Opened, GlassEditorEstimate After)> OtherSideAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationAct act,
+        GlassEditorAddRequest first,
+        GlassEditorAdded added,
+        GlassEditorPartList? parts,
+        Func<GlassAutomationAct, GlassEditorSession, Task> record,
+        CancellationToken cancellationToken)
+    {
+        var after = added.Estimate;
+        var servedSide = (added.Summary.Side ?? string.Empty).Trim();
+        var otherCode = servedSide == "R" ? added.Summary.PartCode : added.Summary.RightPartCode;
+        var next = added.Next;
+        var head = next?.Rows.Split('|')[0];
+        var row = parts?.Rows.FirstOrDefault(item => item.IsPart && string.Equals(item.Id, head, StringComparison.Ordinal));
+        if (next is null || next.Parameters.Length > 0 || next.Side == servedSide || string.IsNullOrEmpty(otherCode)
+            || row is null || row.Paintable != (first.Dialog == GlassEditorDialog.PaintablePart))
+        {
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action, act.Outcome,
+                GlassAutomationPositionPolicy.OtherSideNotAddedCode, next is null ? "answer=no-other-side" : "other-side=not-a-part-dialog");
+            return (act with { Code = GlassAutomationPositionPolicy.OtherSideNotAddedCode }, opened, after);
+        }
+
+        var expected = "C" + otherCode;
+        act = act with
+        {
+            OtherSideCode = expected,
+            Before = act.Before
+                .Concat(after.Positions.Where(id => string.Equals(GlassAutomationPositionPolicy.CodeOf(id), expected, StringComparison.Ordinal)))
+                .ToList(),
+        };
+        await record(act, opened);
+        try
+        {
+            var second = await StageAsync(session, "EditorAddOtherSide", () => editor.AddAsync(
+                opened, after,
+                new GlassEditorAddRequest(
+                    first.Dialog, next.Rows, otherCode, first.Button, OtherSideChange(first.Change), first.Ticks, next.Side),
+                cancellationToken));
+            act = act with
+            {
+                PositionIds = act.PositionIds.Concat(second.Value.Added).Distinct(StringComparer.Ordinal).ToList(),
+                Listed = act.Listed.Concat(ListedOf(second.Value.Listed)).ToList(),
+            };
+            return (act, second.Session, second.Value.Estimate);
+        }
+        catch (GlassMvaStageException refused)
+            when (refused.FailureCode is GlassFailure.EditorDialog or GlassFailure.EditorRefused)
+        {
+            // The other side's dialog was refused before anything was posted for it.
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                act.Outcome, refused.FailureCode, refused.Detail ?? string.Empty);
+            return (act with { Code = GlassAutomationPositionPolicy.OtherSideNotAddedCode }, opened, after);
+        }
+        catch (Exception lost)
+            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+        {
+            // Posted, or perhaps posted: the next read of the estimate settles both sides.
+            var failure = AsFailure(lost);
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
+            return (act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode }, opened, after);
+        }
+    }
+
+    /// <summary>
+    /// An add through the quick repair panel (R1206): the head the add's own
+    /// rule chose, and with Both the same row on the other side, each pressed
+    /// as the panel presses it (<see cref="GlassEditorPanel"/>): New for Part,
+    /// Remove and Install, or Repair with its hours, and the paint area
+    /// chosen when the part is painted in more than one, whose levels the
+    /// paint list is then read for. A part the estimate already holds is
+    /// replaced as the panel replaces it (<see cref="GlassEditorPanel.Deletes"/>);
+    /// a press on an operation it already has, which would remove it, is
+    /// refused, as are a button the panel greys, an area it does not offer
+    /// and Both on a part with no other side. Each refusal is
+    /// <see cref="GlassAutomationPositionPolicy.PanelRefusedCode"/> before
+    /// anything is sent. The codes the new positions carry are recorded
+    /// before the first command; the positions are those the estimate holds
+    /// afterwards that it did not before.
+    /// </summary>
+    private async Task<GlassEditorPositionDone> PanelAsync(
+        GlassRepairEstimateSession session, GlassEditorClient editor, GlassEditorSession opened, GlassAutomationAct act,
+        GlassEditorAddRequest adding, GlassEditorPartList parts, GlassEditorEstimate before,
+        Func<GlassAutomationAct, GlassEditorSession, Task> record, CancellationToken cancellationToken)
+    {
+        var inputs = act.Inputs!;
+        var operation = act.Operation switch
+        {
+            GlassAutomationPartOperation.RemoveAndRefit => GlassEditorPanel.RemoveAndRefit,
+            GlassAutomationPartOperation.Repair => GlassEditorPanel.Repair,
+            _ => GlassEditorPanel.Replace,
+        };
+        var head = IndexOfHead(parts.Rows, adding.Rows.Split('|')[0]);
+        var items = new List<GlassPanelItem>();
+        string? problem = null;
+        if (GlassEditorPanel.ItemOf(parts.Rows, head) is { } first)
+        {
+            items.Add(first);
+        }
+        else
+        {
+            problem = "The row is not a part's head.";
+        }
+        if (problem is null && inputs.BothSides == true)
+        {
+            var other = parts.Rows[head].Has('T') ? IndexOfHead(parts.Rows, parts.Rows[head].OtherSide) : -1;
+            if (GlassEditorPanel.ItemOf(parts.Rows, other) is { } second)
+            {
+                items.Add(second);
+            }
+            else
+            {
+                problem = "The part has no other side the panel adds with Both.";
+            }
+        }
+        var deletes = new List<string?>();
+        for (var index = 0; problem is null && index < items.Count; index++)
+        {
+            var (delete, pressed) = GlassEditorPanel.Deletes(items[index], operation, before);
+            problem = pressed;
+            deletes.Add(delete);
+        }
+
+        Dictionary<string, string>? areas = null;
+        if (problem is null && items.Exists(item => item.Paintable && item.Zones.Count >= 2))
+        {
+            try
+            {
+                var read = await StageAsync(session, "EditorPaintList", () => editor.ReadPaintAreasAsync(opened, cancellationToken));
+                opened = read.Session;
+                areas = read.Value;
+            }
+            catch (Exception failure)
+                when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+            {
+                // Reading a list changes nothing: the act is refused with the code.
+                act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = CodeOf(failure) };
+                await record(act, opened);
+                return new(act, opened, null);
+            }
+        }
+
+        var values = new List<string>();
+        var hours = inputs.Hours is { } given ? GlassEditorPanel.HoursText(given) : null;
+        for (var index = 0; problem is null && index < items.Count; index++)
+        {
+            var (value, refused) = GlassEditorPanel.PartAdd(items[index], operation, hours, inputs.Paint?.Area?.Trim(), areas);
+            problem = refused;
+            if (value is not null)
+            {
+                values.Add(value);
+            }
+        }
+        if (problem is not null)
+        {
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.Refused, GlassAutomationPositionPolicy.PanelRefusedCode, problem);
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = GlassAutomationPositionPolicy.PanelRefusedCode };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        act = act with
+        {
+            ExpectedCode = "C" + items[0].Code,
+            OtherSideCode = items.Count > 1 ? "C" + items[1].Code : null,
+            Before = before.Positions
+                .Where(id => items.Exists(item => GlassAutomationPositionPolicy.CodeOf(id) == "C" + item.Code))
+                .ToList(),
+        };
+        await record(act, opened);
+        GlassEditorEstimate? after = null;
+        try
+        {
+            var added = await StageAsync(session, "EditorPanelAdd", () => editor.PanelAddAsync(
+                opened, before, GlassEditorPanel.Commands(values, deletes), parts.Rows[head].Name.Trim(), cancellationToken));
+            opened = added.Session;
+            after = added.Value.Estimate;
+            act = act with
+            {
+                Outcome = GlassAutomationActOutcome.Added,
+                Code = null,
+                PositionIds = added.Value.Added,
+                Description = parts.Rows[head].Name.Trim(),
+            };
+        }
+        catch (Exception lost)
+            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+        {
+            // Sent, or perhaps sent: the next read of the estimate settles it.
+            var failure = AsFailure(lost);
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.NotConfirmed, failure.FailureCode, failure.Detail ?? string.Empty);
+            act = act with { Outcome = GlassAutomationActOutcome.NotConfirmed, Code = failure.FailureCode };
+        }
+
+        await record(act, opened);
+        return new(act, opened, after);
+    }
+
+    /// <summary>
+    /// What the other side's dialog is given after "Both" (R1206): the
+    /// operation chosen on the first side and its answer to the question
+    /// before no figures, as a person gives them again; typed figures, fields
+    /// and paint choices go on one side at a time and are refused with Both.
+    /// Null, posting the dialog as served, when the first side chose none.
+    /// </summary>
+    private static GlassEditorChange? OtherSideChange(GlassEditorChange? first) =>
+        first is null || (first.Operation is null && !first.ConfirmNoFigures)
+            ? null
+            : new GlassEditorChange(Operation: first.Operation, ConfirmNoFigures: first.ConfirmNoFigures);
+
+    /// <summary>
+    /// A preview (R1206): the dialog an add of <paramref name="draft"/>'s row
+    /// would post, chosen exactly as the add chooses it from the estimate's
+    /// own lists and with the same choices, but with no equipment answer
+    /// stored and nothing posted; or a position on the estimate's dialog, as
+    /// a remove opens it. Answers the dialog as a form, or the code when no
+    /// dialog was read: a row the lists do not hold or that is not certain,
+    /// an equipment question with no answer, or a page Glass's did not
+    /// answer; an equipment question with no answer comes with the question.
+    /// A choice the add would refuse (a part that cannot be painted,
+    /// "Both" on a part that can) still shows the dialog, with the refusal as
+    /// <see cref="GlassDialogSend.Code"/>. Requests: a part, the part list,
+    /// its equipment map and the dialog; a special operation, the special
+    /// list and the dialog; a position, the estimate (whose groups say which
+    /// dialog the editor opens for it, R1206) and its dialog, with what a
+    /// change with the inputs would send.
+    /// </summary>
+    internal async Task<(GlassDialogPreview? Dialog, string? Code, GlassEditorSession Opened, GlassEditorEquipmentChoice? Equipment)> PreviewAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationAct draft,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        try
+        {
+            if (draft.Kind is null)
+            {
+                // A position on the estimate: its dialog as the editor's list opens it, with the
+                // change the inputs would make (R1206).
+                var positionId = draft.PositionId
+                    ?? throw new ArgumentException("A preview of a position names it.", nameof(draft));
+                var read = await StageAsync(session, "EditorRead", () => editor.ReadEstimateAsync(opened, cancellationToken));
+                opened = read.Session;
+                var (found, unshown) = PageOf(read.Value, positionId);
+                if (found is null)
+                {
+                    return (null, unshown, opened, null);
+                }
+
+                string page = found;
+                var (change, button, refusedChange) = ChangeOf(draft.Inputs, page);
+                var shown = await StageAsync(session, "EditorPreview", () => editor.PreviewPositionAsync(
+                    opened, positionId, page, button, draft.Inputs is null ? null : change, cancellationToken));
+                var shownDialog = refusedChange is not null && shown.Value.Sends is { } changeSends
+                    ? shown.Value with { Sends = changeSends with { Code = refusedChange } }
+                    : shown.Value;
+                return (shownDialog, null, shown.Session, null);
+            }
+
+            GlassEditorAddRequest? request = null;
+            string? reason = null;
+            string? refusedBy = null;
+            GlassEditorEquipmentChoice? equipment = null;
+            var row = draft.Row ?? string.Empty;
+            if (ListRowRequest(draft.Kind, row, draft.Inputs) is { } listed)
+            {
+                request = listed;
+            }
+            else if (draft.Kind == GlassAutomationPositionKind.SpecialOperation)
+            {
+                var specials = await StageAsync(session, "EditorSpecialList", () => editor.ReadSpecialOperationsAsync(
+                    opened, SpecialOperationGroup, cancellationToken));
+                opened = specials.Session;
+                var special = SpecialOperationsOf(specials.Value)
+                    .Find(item => string.Equals(item.Code, row, StringComparison.Ordinal));
+                request = special is null
+                    ? null
+                    : new GlassEditorAddRequest(
+                        GlassEditorDialog.SpecialOperation, special.Code, PartCodeOf(special.Code),
+                        Change: WithTyped(null, draft.Inputs));
+                reason = special is null ? GlassAutomationPositionPolicy.RowUnknownCode : null;
+            }
+            else
+            {
+                var parts = await StageAsync(session, "EditorPartList", () => editor.ReadPartListAsync(
+                    opened, PartListGroups, cancellationToken));
+                opened = parts.Session;
+                (request, reason, opened, equipment) = await ChooseAutomationPartAsync(
+                    session, editor, opened, parts.Value, draft, cancellationToken);
+                if (request is not null)
+                {
+                    (request, refusedBy) = Chosen(request, draft);
+                }
+            }
+
+            if (request is null)
+            {
+                return (null, reason ?? GlassEstimateBuildPolicy.NoRowCode, opened, equipment);
+            }
+
+            var previewed = await StageAsync(session, "EditorPreview", () => editor.PreviewAsync(
+                opened, request, cancellationToken));
+            var dialog = refusedBy is not null && previewed.Value.Sends is { } sends
+                ? previewed.Value with { Sends = sends with { Code = refusedBy } }
+                : previewed.Value;
+            return (dialog, null, previewed.Session, null);
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            // Reading a list, a map or a dialog changes nothing: no dialog, and the code.
+            return (null, CodeOf(failure), opened, null);
+        }
+    }
+
+    /// <summary>
+    /// The dialog page of a position on the estimate, by the editor's own
+    /// rule (<see cref="GlassEditorPages.DialogPage"/>), or why there is none
+    /// to change: a position the estimate does not hold
+    /// (<see cref="GlassAutomationPositionPolicy.RowUnknownCode"/>), a group
+    /// the list does not hold (<see cref="GlassFailure.EditorAnswer"/>). A
+    /// paint position's own dialog is <c>lack</c> (R1206).
+    /// </summary>
+    private static (string? Page, string? Code) PageOf(GlassEditorEstimate estimate, string positionId)
+    {
+        if (!estimate.Positions.Contains(positionId, StringComparer.Ordinal))
+        {
+            return (null, GlassAutomationPositionPolicy.RowUnknownCode);
+        }
+
+        return GlassEditorPages.DialogPage(positionId, estimate.Groups) switch
+        {
+            null => (null, GlassFailure.EditorAnswer),
+            { } page => (page, null),
+        };
+    }
+
+    /// <summary>
+    /// What a change gives a position's dialog (R1206): the typed figures and
+    /// reason on a <c>part.php</c> dialog, the OK to no figures, the button on
+    /// a <c>comp.php</c> one (null: the one the page shows); and the code that
+    /// refuses it before anything is posted: typed figures on a part with its
+    /// paint have no capture, and a paint button has no place on <c>part.php</c>.
+    /// </summary>
+    private static (GlassEditorChange Change, string? Button, string? Refused) ChangeOf(GlassAutomationInputs? inputs, string page)
+    {
+        var paintable = page == "comp";
+        var change = WithPaint(
+            WithTyped(new GlassEditorChange(Operation: inputs?.Operation?.Trim(), ConfirmNoFigures: inputs?.ConfirmNoFigures == true), inputs),
+            paintable || page == "lack" ? inputs : null)!;
+        var button = !paintable ? null
+            : inputs?.Button switch
+            {
+                GlassAutomationButton.Part => PartButton,
+                GlassAutomationButton.Paint => PaintButton,
+                GlassAutomationButton.PartAndPaint => PartAndPaintButton,
+                _ => null,
+            };
+        // A paint position's own dialog (lack.php) has its paint and one button (R1206).
+        var refused = page == "lack" ? (inputs?.Button is not null ? GlassAutomationPositionPolicy.NotPaintableCode : null)
+            : !paintable && (inputs?.Button is not null and not GlassAutomationButton.Part || inputs?.Paint is not null)
+                ? GlassAutomationPositionPolicy.NotPaintableCode
+            : null;
+        return (change, button, refused);
+    }
+
+    /// <summary>
+    /// A claimed change's work (R1206): it must name a position the estimate
+    /// holds, any position of it (as a remove may, R1185), or it is refused
+    /// and nothing is sent. Its dialog is the one the editor's list opens for
+    /// it (<see cref="PageOf"/>), built with the inputs (<see cref="ChangeOf"/>);
+    /// just before the post the code it carries and the figures served and
+    /// sent are handed to <paramref name="record"/>, so a lost answer is not
+    /// confirmed. The "Mandatory parts:" page is confirmed as an add's is, the
+    /// estimate read back and the position's own record read. The outcome is
+    /// handed to <paramref name="record"/> with the editor session as it stands.
+    /// </summary>
+    internal async Task<GlassEditorPositionDone> ChangePositionAsync(
+        GlassRepairEstimateSession session,
+        GlassEditorClient editor,
+        GlassEditorSession opened,
+        GlassAutomationAct act,
+        GlassEditorEstimate before,
+        Func<GlassAutomationAct, GlassEditorSession, Task> record,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(act);
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(record);
+        var positionId = act.PositionId ?? string.Empty;
+        var (found, unfound) = PageOf(before, positionId);
+        if (found is null)
+        {
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = unfound };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        string page = found;
+        var (change, button, refusedBy) = ChangeOf(act.Inputs, page);
+        if (refusedBy is not null)
+        {
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refusedBy };
+            await record(act, opened);
+            return new(act, opened, null);
+        }
+
+        // Just before the post: the code the position carries, and the figures served and sent.
+        async Task PostingAsync(GlassEditorSummary summary)
+        {
+            act = act with
+            {
+                ExpectedCode = GlassAutomationPositionPolicy.CodeOf(positionId),
+                DialogServed = ServedOf(summary),
+                Sent = SentOf(summary),
+            };
+            await record(act, opened);
+        }
+
+        GlassEditorEstimate? after = null;
+        try
+        {
+            var changed = await StageAsync(session, "EditorChange", () => editor.ChangeAsync(
+                opened, positionId, page, button, change, act.Inputs?.OptionalParts, PostingAsync, cancellationToken));
+            opened = changed.Session;
+            after = changed.Value.Estimate;
+            act = act with
+            {
+                Outcome = GlassAutomationActOutcome.Changed,
+                Code = null,
+                Description = changed.Value.Summary.Description?.Trim(),
+                Served = FiguresOf(changed.Value.Summary),
+                DialogServed = ServedOf(changed.Value.Summary),
+                Sent = SentOf(changed.Value.Summary),
+                Listed = ListedOf(changed.Value.Listed),
+                Position = changed.Value.Position,
+            };
+        }
+        catch (GlassMvaStageException refused) when (RefusedBeforePost(refused.FailureCode))
+        {
+            // Refused before anything was posted.
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action,
+                GlassAutomationActOutcome.Refused, refused.FailureCode, refused.Detail ?? string.Empty);
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = refused.FailureCode };
+        }
+        catch (Exception lost)
+            when (lost is GlassMvaStageException || IsTransportFailure(lost, cancellationToken))
+        {
+            // Posted, or perhaps posted: the position's own read settles it. Before the post
+            // began (no code recorded), nothing was sent and the change is refused.
+            var failure = AsFailure(lost);
+            var outcome = act.ExpectedCode is null ? GlassAutomationActOutcome.Refused : GlassAutomationActOutcome.NotConfirmed;
+            LogPositionAct(logger, session.Id, session.CaseId, act.Action, outcome, failure.FailureCode, failure.Detail ?? string.Empty);
+            act = act with { Outcome = outcome, Code = failure.FailureCode };
+        }
+
+        await record(act, opened);
+        return new(act, opened, after);
     }
 
     /// <summary>
@@ -393,22 +1414,21 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(record);
         var positionId = act.PositionId ?? string.Empty;
-        if (!before.Positions.Contains(positionId, StringComparer.Ordinal))
+        var (found, unfound) = PageOf(before, positionId);
+        if (found is null)
         {
-            act = act with
-            {
-                Outcome = GlassAutomationActOutcome.Refused,
-                Code = GlassAutomationPositionPolicy.RowUnknownCode,
-            };
+            act = act with { Outcome = GlassAutomationActOutcome.Refused, Code = unfound };
             await record(act, opened);
             return new(act, opened, null);
         }
 
+        // From the dialog the editor's own list opens for the position (R1206).
+        string page = found;
         GlassEditorEstimate? after = null;
         try
         {
             var removed = await StageAsync(session, "EditorRemove", () => editor.RemoveAsync(
-                opened, positionId, cancellationToken));
+                opened, positionId, page, cancellationToken));
             opened = removed.Session;
             after = removed.Value;
             act = act with { Outcome = GlassAutomationActOutcome.Removed, Code = null };
@@ -447,11 +1467,145 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
     /// The part code a special operation's dialog carries: its row code
     /// without the prefix and the leading zeros (<c>AC0000073</c> is 73).
     /// </summary>
-    internal static string PartCodeOf(string code) => code[SpecialOperationPrefix.Length..].TrimStart('0');
+    internal static string PartCodeOf(string code) =>
+        code[SpecialOperationPrefix.Length..].TrimStart('0') is { Length: > 0 } number ? number : "0";
+
+    /// <summary>
+    /// The add of a row the free positions parts' list does not hold (R1206):
+    /// a row of another Additional list (Additional Labour <c>AM…</c>, tyres
+    /// <c>AT…</c>, bulbs <c>AB…</c>, labour descriptions), whose
+    /// <c>part.php</c> in mode <c>A</c> names its code, so no list is read;
+    /// or a paint row (<c>AL…</c> of the special tables and user defined
+    /// paint, <c>Lxx…</c> of the paint areas), whose <c>lack.php</c> is
+    /// opened as the editor's OpenCompDialogWindow opens a row whose code
+    /// begins L or AL. A special operation's own row (<c>AC…</c>) keeps its
+    /// list read. Null for those and for a part.
+    /// </summary>
+    private static GlassEditorAddRequest? ListRowRequest(
+        GlassAutomationPositionKind? kind, string row, GlassAutomationInputs? inputs) => kind switch
+    {
+        GlassAutomationPositionKind.Paint when PaintCodeOf(row) is { } code =>
+            new GlassEditorAddRequest(
+                GlassEditorDialog.Paint, row, code, Change: WithPaint(WithTyped(null, inputs), inputs)),
+        GlassAutomationPositionKind.SpecialOperation
+            when row.Length > 2 && !row.StartsWith(SpecialOperationPrefix, StringComparison.Ordinal)
+                && row.StartsWith('A') && !row.StartsWith("AL", StringComparison.Ordinal) =>
+            new GlassEditorAddRequest(
+                GlassEditorDialog.SpecialOperation, row, PartCodeOf(row), Change: WithTyped(null, inputs)),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The code a paint row's position carries (R1206): <c>Lxx</c> and the
+    /// digits its row ends in before any area suffix, as the walk's
+    /// <c>AL0B8005</c> made <c>Lxx8005</c> and <c>Lxx4200.480</c> made
+    /// <c>Lxx4200</c>; the dialog's own record must name the same. Null for a
+    /// row that is not a paint row.
+    /// </summary>
+    internal static string? PaintCodeOf(string row)
+    {
+        if (!(row.StartsWith('L') || row.StartsWith("AL", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
+        var head = row.Split('.')[0];
+        var start = head.Length;
+        while (start > 0 && char.IsAsciiDigit(head[start - 1]))
+        {
+            start--;
+        }
+
+        return start == head.Length ? null : "Lxx" + head[start..];
+    }
 
     /// <summary>What the dialog served, a zero read as none so it compares with a line that has none.</summary>
     internal static GlassEstimateBuildFigures FiguresOf(GlassEditorSummary summary) =>
         new(Amount(summary.Price), Amount(summary.Hours));
+
+    /// <summary>The figures the dialog served for the operation it sends, before anything typed (R1206); a zero kept.</summary>
+    internal static GlassAutomationFigures ServedOf(GlassEditorSummary summary) =>
+        new(Figure(summary.ServedPrice ?? summary.Price), Figure(summary.ServedHours ?? summary.Hours), Figure(summary.ServedOverlapHours))
+        {
+            PaintCoats = summary.ServedPaintType,
+            PaintLevel = summary.ServedPaintLevel,
+            PaintPrice = Figure(summary.ServedPaintPrice),
+            PaintHours = Figure(summary.ServedPaintHours),
+            Surcharge = summary.ServedSurcharge,
+        };
+
+    /// <summary>The figures the post sends (R1206); a zero kept.</summary>
+    internal static GlassAutomationFigures SentOf(GlassEditorSummary summary) =>
+        new(Figure(summary.Price), Figure(summary.Hours), Figure(summary.OverlapHours))
+        {
+            PaintCoats = summary.PaintType,
+            PaintLevel = summary.PaintLevel,
+            PaintPrice = Figure(summary.PaintPrice),
+            PaintHours = Figure(summary.PaintHours),
+            Surcharge = summary.Surcharge,
+        };
+
+    private static decimal? Figure(string? text) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : null;
+
+    /// <summary>
+    /// A stage code that says the dialog was refused before anything was
+    /// posted: the editor's own refusal, or a typed input the dialog does
+    /// not take (R1206).
+    /// </summary>
+    internal static bool RefusedBeforePost(string code) =>
+        code is GlassFailure.EditorDialog or GlassFailure.EditorRefused
+            or GlassAutomationPositionPolicy.ReasonRequiredCode
+            or GlassAutomationPositionPolicy.ReasonNotAskedCode
+            or GlassAutomationPositionPolicy.OverlapAboveHoursCode
+            or GlassAutomationPositionPolicy.DeductionBelowZeroCode;
+
+    /// <summary>
+    /// The change with the act's typed figures and reason set as the dialog
+    /// takes them (R1206): each figure as <see cref="GlassAutomationPositionPolicy.TypedText"/>
+    /// gives it, the reason as given. The change as it was when none is typed.
+    /// </summary>
+    private static GlassEditorChange? WithTyped(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
+        inputs is null || (!inputs.Typed && !inputs.Fields && inputs.Renew is null)
+            ? change
+            : (change ?? new GlassEditorChange()) with
+            {
+                Price = TypedOf(inputs.Price),
+                Hours = TypedOf(inputs.Hours),
+                OverlapHours = TypedOf(inputs.OverlapHours),
+                Reason = inputs.Reason,
+                Place = inputs.Place,
+                Trade = inputs.Trade?.Trim(),
+                PartNumber = inputs.PartNumber,
+                LabourDescription = inputs.LabourDescription,
+                Description = inputs.Description,
+                OutsideWork = inputs.OutsideWork == true,
+                OverlapFull = inputs.OverlapFull == true,
+                OldForNew = inputs.Renew is { } renew
+                    ? new GlassEditorOldForNew(
+                        string.Empty, TypedOf(renew.PriceDeduction), KindOf(renew.PriceDeduction, renew.PriceAmount),
+                        TypedOf(renew.HoursDeduction), KindOf(renew.HoursDeduction, renew.HoursAmount), TypedOf(renew.PaintDeduction))
+                    : null,
+            };
+
+    /// <summary>The window's deduction kind: <c>*</c> for an amount, <c>%</c> for a percentage, or as served.</summary>
+    private static string? KindOf(decimal? deduction, bool amount) =>
+        deduction is null ? null : amount ? "*" : "%";
+
+    private static string? TypedOf(decimal? value) =>
+        value is { } given ? GlassAutomationPositionPolicy.TypedText(given) : null;
+
+    /// <summary>The change with the act's paint choices (R1206), paint hours as typed text; the change as it was when none is given.</summary>
+    private static GlassEditorChange? WithPaint(GlassEditorChange? change, GlassAutomationInputs? inputs) =>
+        inputs?.Paint is not { } paint
+            ? change
+            : (change ?? new GlassEditorChange()) with
+            {
+                Paint = new GlassEditorPaint(
+                    paint.Coats?.Trim(), paint.Level?.Trim(), paint.Surcharge, TypedOf(paint.Hours), paint.Area?.Trim(),
+                    paint.Procedure?.Trim(), paint.Method?.Trim(), paint.ColouredClear, paint.ScratchResistant,
+                    TypedOf(paint.Price), paint.Reason),
+            };
 
     private static decimal? Amount(string? served) =>
         decimal.TryParse(served, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value != 0m
@@ -489,6 +1643,17 @@ internal sealed partial class GlassEditorPositionWork(ILogger logger)
         Message = "Glass's attempt {SessionId}/{Version} case {CaseId} stage {Stage} outcome {Outcome} in {ElapsedMs} ms")]
     private static partial void LogStage(ILogger logger, Guid sessionId, Guid caseId, long version,
         string stage, string outcome, double elapsedMs);
+
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Glass's attempt {SessionId} case {CaseId} stage {Stage} was answered {Detail}")]
+    private static partial void LogStageDetail(ILogger logger, Guid sessionId, Guid caseId, string stage, string detail);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Glass's session {SessionId} for case {CaseId} rows {Rows} served price {ServedPrice} hours {ServedHours}, the part list gives {ListedPrice} and {ListedHours}")]
+    private static partial void LogServedFigures(
+        ILogger logger, Guid sessionId, Guid caseId, string rows, decimal? listedPrice, decimal? listedHours,
+        decimal? servedPrice, decimal? servedHours);
 
     [LoggerMessage(
         Level = LogLevel.Warning,

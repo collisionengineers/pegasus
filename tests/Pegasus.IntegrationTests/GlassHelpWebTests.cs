@@ -27,6 +27,13 @@ public sealed class GlassHelpWebTests
     private const string FirstKey = "TESTKEYD1000000000000000000001";
     private const string SecondKey = "TESTKEYD1000000000000000000002";
 
+    /// <summary>The load balancer's cookies as a window's helper hands them over; made up.</summary>
+    private static readonly Dictionary<string, string> WindowsCookies = new()
+    {
+        ["AWSALB"] = "madeUpWindowOne",
+        ["AWSALBCORS"] = "madeUpWindowTwo",
+    };
+
     /// <summary>
     /// A fresh holder has no key, so the first poll says one is needed. The
     /// owner's hand-off is held, a second one replaces it, and the poll says
@@ -62,6 +69,11 @@ public sealed class GlassHelpWebTests
             Assert.Equal(10_000, answer.RootElement.GetProperty("next").GetInt32());
         }
         Assert.Equal(FirstKey, keys.Session(session.Id)?.Key);
+        // The load balancer's cookies came with the key, and no other cookie.
+        var cookies = keys.Session(session.Id)?.Cookies;
+        Assert.Equal(2, cookies?.Count);
+        Assert.Equal("madeUpWindowOne", cookies?["AWSALB"]);
+        Assert.Equal("madeUpWindowTwo", cookies?["AWSALBCORS"]);
 
         using (var replaced = await workspace.Client.SendAsync(Key(FrameFor(correlation, SecondKey))))
         {
@@ -157,6 +169,8 @@ public sealed class GlassHelpWebTests
             ("a frame on another host", Key(frame.Replace("https://ere.test/", "https://other.test/", StringComparison.Ordinal)), HttpStatusCode.BadRequest),
             ("no frame", Post(KeyRoute, new { v = HelpModel.Protocol }), HttpStatusCode.BadRequest),
             ("an unknown protocol", Post(KeyRoute, new { v = HelpModel.Protocol + 1, frame, version = "9.0.0" }), HttpStatusCode.UpgradeRequired),
+            ("the helper from before it handed over the load balancer's cookies", Post(KeyRoute, new { v = 1, frame, version = "1.1.0" }), HttpStatusCode.UpgradeRequired),
+            ("cookies that are not a list of names and values", Post(KeyRoute, new { v = HelpModel.Protocol, frame, cookies = "AWSALB=madeUp", version = "1.2.0" }), HttpStatusCode.BadRequest),
             ("a poll for an unknown token", Poll(NewCorrelation()), HttpStatusCode.NotFound),
             ("a poll that names no token", Poll("not-a-token"), HttpStatusCode.BadRequest),
             ("a poll from a page", Poll(correlation, origin: "https://ere.test"), HttpStatusCode.Forbidden),
@@ -230,9 +244,10 @@ public sealed class GlassHelpWebTests
     }
 
     /// <summary>
-    /// The host log says a key was handed over, for which session, and that
-    /// an unknown protocol was refused; it never carries the key, the token,
-    /// the frame address or the return address.
+    /// The host log says a key was handed over, for which session and with
+    /// how many of the load balancer's cookies, and that an unknown protocol
+    /// was refused; it never carries the key, the token, the frame address,
+    /// the return address or a cookie.
     /// </summary>
     [Fact]
     public async Task TheLogNamesTheSessionAndNeverTheKeyOrTheToken()
@@ -262,7 +277,9 @@ public sealed class GlassHelpWebTests
 
         var entries = logs.Entries;
         var help = entries.Where(entry => entry.Category == typeof(HelpModel).FullName).ToList();
-        Assert.Contains(help, entry => entry.Message.Contains(session.Id.ToString("D"), StringComparison.Ordinal));
+        Assert.Contains(help, entry => entry.Message.Contains(session.Id.ToString("D"), StringComparison.Ordinal)
+            && entry.Message.Contains("with 2 load balancer cookies", StringComparison.Ordinal));
+        Assert.DoesNotContain(entries, entry => entry.Message.Contains("madeUpWindow", StringComparison.Ordinal));
         Assert.Contains(help, entry => entry.Message.Contains("unreadable", StringComparison.Ordinal));
         Assert.DoesNotContain(entries, entry => entry.Message.Contains(FirstKey, StringComparison.Ordinal));
         Assert.DoesNotContain(entries, entry => entry.Message.Contains(frame, StringComparison.Ordinal));
@@ -279,9 +296,23 @@ public sealed class GlassHelpWebTests
                 GlassEditorFixture.NoCookies),
             TimeProvider.System).Frame;
 
+    /// <summary>
+    /// A hand-off as the helper sends it: the frame's address and the cookies
+    /// it read there, of which Pegasus keeps the load balancer's two.
+    /// </summary>
     private static HttpRequestMessage Key(
         string frame, string? origin = ExtensionOrigin, string mediaType = "application/json") =>
-        Post(KeyRoute, new { v = HelpModel.Protocol, frame, version = "1.0.0" }, origin, mediaType);
+        Post(
+            KeyRoute,
+            new
+            {
+                v = HelpModel.Protocol,
+                frame,
+                cookies = new Dictionary<string, string>(WindowsCookies) { ["PHPSESSID"] = "madeUpWindowLogin" },
+                version = "1.2.0",
+            },
+            origin,
+            mediaType);
 
     /// <summary>A poll as the helper sends it: without the staff cookie.</summary>
     private static HttpRequestMessage Poll(string token, string? origin = ExtensionOrigin, long seen = 0)

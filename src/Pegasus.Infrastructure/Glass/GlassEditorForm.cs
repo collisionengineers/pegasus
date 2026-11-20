@@ -635,4 +635,37 @@ internal sealed class GlassEditorFields
     }
 
     public void Delete(string name) => entries.RemoveAll(entry => entry.Key == name);
+
+    /// <summary>
+    /// Sets a field as a browser posts it once a script has enabled or
+    /// ticked it (R1206): in place when present, otherwise in the form's
+    /// order of <paramref name="order"/>, before the first field the form
+    /// holds after it.
+    /// </summary>
+    public void Place(string name, string value, IReadOnlyList<string?> order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        if (Has(name))
+        {
+            Set(name, value);
+            return;
+        }
+
+        var position = IndexOf(order, name);
+        var at = entries.FindIndex(entry => IndexOf(order, entry.Key) > position);
+        entries.Insert(at < 0 ? entries.Count : at, KeyValuePair.Create(name, value));
+    }
+
+    private static int IndexOf(IReadOnlyList<string?> order, string name)
+    {
+        for (var index = 0; index < order.Count; index++)
+        {
+            if (order[index] == name)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
 }
