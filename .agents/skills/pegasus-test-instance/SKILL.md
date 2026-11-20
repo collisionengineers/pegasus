@@ -81,7 +81,7 @@ together, with a ruling.
 
 | Step | Needs | Why |
 | --- | --- | --- |
-| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads fourteen Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
+| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads twelve Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
 | OCR role assignment, once | the operator; approved 11 November 2026 (R931) | `Cognitive Services User` on production's Document Intelligence resource `pegasus-prod-ocr-252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write OCR needs; recorded in operations |

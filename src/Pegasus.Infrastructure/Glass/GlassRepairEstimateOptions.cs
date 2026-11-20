@@ -41,13 +41,6 @@ public sealed record GlassRepairEstimateOptions(
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// The pause between two requests to Glass's editor, a browser's pace
-    /// (ADR-0091). <c>Glass:EditorPauseMilliseconds</c> changes it, and a
-    /// test host sets it to nothing.
-    /// </summary>
-    public TimeSpan EditorPause { get; init; } = GlassEditorClient.DefaultPause;
-
-    /// <summary>
     /// The Pegasus page the provider's <c>caller</c> is rewritten to. The
     /// one-use correlation token is the last path segment, matching the
     /// callback route B publishes at <c>/Integrations/Glass/Callback/{correlation}</c>.
@@ -75,8 +68,6 @@ public sealed record GlassRepairEstimateOptions(
             RequirePositive(read, "Glass:MaximumExportBytes", GlassEstimateXmlParser.MaximumDocumentBytes))
         {
             RequestTimeout = TimeSpan.FromSeconds(RequirePositive(read, "Glass:RequestTimeoutSeconds", 30)),
-            EditorPause = TimeSpan.FromMilliseconds(RequireNotNegative(
-                read, "Glass:EditorPauseMilliseconds", (int)GlassEditorClient.DefaultPause.TotalMilliseconds)),
         };
     }
 
@@ -137,19 +128,6 @@ public sealed record GlassRepairEstimateOptions(
         return value.All(char.IsAsciiDigit)
             ? value
             : throw new InvalidOperationException($"{key} must be the numeric MVA repair profile id.");
-    }
-
-    private static int RequireNotNegative(Func<string, string?> read, string key, int fallback)
-    {
-        var value = read(key);
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return fallback;
-        }
-
-        return int.TryParse(value, out var parsed) && parsed >= 0
-            ? parsed
-            : throw new InvalidOperationException($"{key} must be a whole number of zero or more.");
     }
 
     private static int RequirePositive(Func<string, string?> read, string key, int fallback)

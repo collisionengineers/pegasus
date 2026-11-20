@@ -103,11 +103,7 @@ internal static class V1FoundationModelConfiguration
             e.ToTable("GlassRepairEstimateSessions"); e.HasKey(x => x.Id); e.HasIndex(x => x.OperationKey).IsUnique();
             e.HasIndex(x => x.ActiveAccountKey).IsUnique().HasFilter("[ActiveAccountKey] IS NOT NULL");
             e.HasIndex(x => x.CallbackDigest);
-            // An Automation session names no member of staff (UserId empty), so
-            // UserId carries no key to the staff accounts; its index stays.
-            e.HasIndex(x => x.UserId);
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(40);
-            e.Property(x => x.OwnerKind).HasMaxLength(20).HasDefaultValue(GlassSessionOwner.Staff);
             e.Property(x => x.CallbackDigest).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
@@ -159,6 +155,7 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<UserExternalCredentialEntity>().HasOne<PegasusIdentityUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GlassRepairEstimateSessionEntity>().HasOne<CaseEntity>().WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<GlassRepairEstimateSessionEntity>().HasOne<PegasusIdentityUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<CaseReportGenerationEntity>().HasOne<CaseEntity>().WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GeneratedCaseArtifactEntity>().HasOne<CaseReportGenerationEntity>().WithMany().HasForeignKey(x => x.GenerationId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GeneratedCaseArtifactEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.VersionId).OnDelete(DeleteBehavior.Restrict);

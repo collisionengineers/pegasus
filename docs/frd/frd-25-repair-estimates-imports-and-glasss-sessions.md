@@ -12,10 +12,7 @@
   **Use repair spec** switches back to another one.
 - A Glass's estimate belongs to its repair spec. **Glass's** on that spec
   reopens the same estimate, and its saved return updates that spec. On any
-  other spec it starts a new estimate. On a spec with lines made outside
-  Pegasus it first asks whether to import that spec into Glass's; the
-  import lands as a new Glass's spec beside it and opens in the same Glass's
-  window (18 November 2026; R1171).
+  other spec it starts a new estimate.
 - An imported spec takes the Standard labour-rate card. AI and
   automation material stays a Draft until a staff member presses
   **Use repair spec**.
@@ -24,16 +21,7 @@
 - Estimate PDFs need readable embedded text. An unreadable or ambiguous
   source refuses the whole import, with no OCR and no partial spec.
 - A Glass's answer that was lost stays `Unknown` and holds the account until
-  the owning staff member closes the session with a reason. A session the
-  Automation owns may be closed by any member of staff who can open the
-  Case's assessment (18 November 2026; R1180).
-- The Automation Actor runs Glass's sessions of its own, under a Glass's
-  login the deployment holds for it. A session it finishes lands as a Draft
-  (18 November 2026; R1177).
-- An Engineer may let the Automation help in their own open Glass's session
-  from the Case page. The Automation then adds and removes positions there;
-  the Engineer's own Save & Exit brings the estimate back as any return
-  does (18 November 2026; R1170, R1183 to R1185).
+  the owning staff member closes the session with a reason.
 - Glass's launch and return run in the background. The Glass's window waits,
   then opens the estimator or reports the outcome on the Case.
 
@@ -301,13 +289,6 @@ version.
 - On a repair spec that belongs to a Glass's estimate, it reopens that
   estimate in a new session, under the pressing staff member's own account.
   No vehicle is made.
-- On a spec with lines that belongs to no Glass's estimate, it first asks
-  "Import into Glass's?": "This estimate was made outside Pegasus. Import it
-  into Glass's and open it there?" (18 November 2026; R1171). **Import and
-  open** rebuilds the spec in Glass's (below). **Open an empty estimate** is
-  the press the next item describes, and **Cancel** closes the question.
-  Every such spec is asked, whatever route it came by, and the outside
-  estimate's vehicle is not checked against the Case.
 - On any other spec, on **New repair spec**, or with no spec, it starts a new
   estimate on a new stock vehicle. This is how a Case comes to hold a second
   Glass's spec.
@@ -316,91 +297,6 @@ A fresh estimate for a spec comes from clearing its lines inside the
 estimator, or from discarding the spec. The portal's own Reset Repair Estimate
 is not supported: the vehicle then shows no estimate and the reopen is refused
 at `glass.details.profile`.
-
-**Rebuilding an estimate made outside Pegasus (18 November 2026; R1168,
-R1169, R1171, R1173).** **Import and open** starts a new estimate on a new
-stock vehicle, as any first press does. Pegasus then opens Glass's editor
-itself, adds the spec's lines as Glass's own dialogs serve them, saves, and
-brings the estimate back through the return path, so it lands as a new
-Glass's repair spec beside the outside one. The same work then reopens that
-spec's estimate for the staff member, as **Glass's** on that spec reopens
-it, and the Glass's window opens it with no second press (18 November 2026;
-R1171). A reopen that does not open leaves the new spec on the Case, where
-**Glass's** reopens it; no line is sent to Glass's again. No figure is
-typed: a rebuilt line carries Glass's own figures (R1168). A line Glass's
-has no row for is left off and listed (R1169). In this version a Specialist line is added
-when exactly one row of Glass's special-operation list has exactly its
-name; an included operation and paint preparation are not sent, because
-Glass's adds them itself; every other line is left off and listed as not
-built in this version.
-
-A new part is added too (18 November 2026; R1172), pressed **Part** in its
-own dialog, when Glass's part list gives its row without an equipment
-question. A Glass's export's part is found by its part code and the side its
-description names, and an Audatex sheet's by its part number. Where Glass's
-lists the same part (the same number, price and hours) on more than one
-drawing, the first is used. It is left off and listed:
-
-- as waiting on an equipment answer, when the row Glass's would give depends
-  on the vehicle's equipment (variants of the part, time rows by equipment,
-  or a part shown only with some equipment), or the number is a variant's;
-- as having no row, when Glass's part list has none with that code and side,
-  or that number, or the row offers no Replace;
-- as having more than one row, when the code or number finds rows that are
-  not the same part;
-- as having no Glass's part code or part number, when the line has neither
-  (a spec typed in, drafted or imported as JSON);
-- as a refused dialog, when the dialog Glass's serves is for another part or
-  another side. Nothing is posted for it.
-
-A Glass's export's repair and remove-and-refit lines are sent too, with
-whatever hours Glass's serves for them (18 November 2026; R1172). Each is
-found by its part code and side as a new part is, and left off for the same
-reasons. Its row must also offer the line's operation. Glass's must have at
-most one time row of that operation for the part; more than one is listed as
-having more than one row. Its dialog is the one Glass's serves for the part,
-with the operation changed to R (Repair) or UI (Uninstall and install) as a
-person changes it, and is pressed **Part**, or **OK** for a part that cannot
-be painted. Nothing is typed (R1168). Glass's often serves no price and no
-hours, as it does for Repair in every dialog captured. The dialog then asks
-whether to go on without a price or a time, the question is answered OK, and
-the line lands with no figures; the Engineer types the hours in Glass's
-(18 November 2026; R1188). A dialog that would ask for a reason
-(more hours than Glass's own), reload itself or open another dialog for the
-operation is a refused dialog. A repair or remove-and-refit line from any
-other route has no Glass's part code and is left off as not built in this
-version. So is a Glass's PDF's partial repair (PR), which is not the Repair
-the build sends.
-
-A Glass's calculation PDF prints a labour guide (`S0503XRX`, `NN`), not the
-part code, so its parts find no row. A paint line is left off and listed as
-not built in this version even beside its part: a Glass's export's paint row
-carries a paint code (`1640` for a bonnet), not its part's code, so nothing
-on the spec ties the two.
-
-- A line whose dialog Glass's refuses before anything is sent is left off
-  and listed, and the build goes on.
-- A line whose answer is lost is listed as not confirmed, and nothing more is
-  added. What Glass's saved is brought back, and its export decides what the
-  new spec holds.
-- When Glass's editor cannot be opened, or nothing could be placed, nothing
-  is saved, and the staff member gets the empty estimate **Open an empty
-  estimate** gives. The Case's Glass's line then says "The estimate could not
-  be imported into Glass's, so an empty estimate was opened." to the staff
-  member who ran the build, beside the code it stopped at, while that session
-  is the one the page shows them (18 November 2026; R1186). A build a restart
-  interrupted is continued as a launch and says nothing of it.
-- A save whose outcome cannot be known leaves the session `Unknown`,
-  holding the account, as any lost answer does; a save Glass's reports as
-  not made leaves it `Failed`. Nothing is imported either way.
-
-The staff member who ran the build sees, on the new spec, the list of the
-outside estimate's lines: what was sent, or why not, and Glass's price or
-hours where they differ from the outside estimate's. The reopen in the
-same window is part of the build, so the list stays until the staff
-member's next press of **Glass's** on the Case (18 November 2026; R1173).
-The list's headings, outcomes and reasons are the operator's (18 November
-2026; R1187).
 
 **Any staff member who holds the Case edit may reopen a spec's estimate.**
 While a colleague holds the edit, nobody else can press Glass's. After a
@@ -414,15 +310,9 @@ arrives with the next return.
 reopen and a continued session check the Case authority, the account and the
 vehicle, record the session, and answer at once. The provider work then runs in the background
 ([ADR-0058](../adr/0058-glass-provider-work-in-the-web-host.md)). The Glass's
-window says "Preparing Glass's…" while it runs. While a build runs it says
-"Building the estimate in Glass's… 12 of 34", the lines tried so far of
-those it tries (18 November 2026; R1171). Once the build's return is brought
-back, the window waits on the reopen of the new spec and opens the
-estimator; if that reopen did not open, it reports the build's outcome on the
-Case as after any return. When the
-estimator is ready, the window refreshes the Case's Glass's controls and
-opens the estimator. If the launch did not open, the window hands the
-outcome back to the Case.
+window says "Preparing Glass's…" while it runs. When the estimator is ready,
+the window refreshes the Case's Glass's controls and opens the estimator. If
+the launch did not open, the window hands the outcome back to the Case.
 
 The provider's return is the same. It is checked and claimed at once: a
 stranger is refused before the one-use token is spent. The window then says
@@ -430,39 +320,8 @@ stranger is refused before the one-use token is spent. The window then says
 run. The finished outcome is reported on the Case as before. The same return
 delivered again while the import runs waits on the same work.
 
-Only the owning staff member sees the window or its progress. A session the
-Automation owns has no window. The estimator address is never shown on the
-page or in its progress answer.
-
-**Automation help in an Engineer's open session (operator, 18 November
-2026; R1170, R1182 to R1185).** The Glass's session line of the owner's own
-open (`Active`) session offers **Let the Automation help** beside Close,
-while no work runs for it. Once pressed, the line shows the chip
-"Automation help on" and the button **Stop Automation help** (R1183). While
-the Engineer's Glass's window has not handed its editor key to Pegasus, the
-chip reads "Automation help on · Glass's window not connected": the Pegasus
-helper is missing or out of date, or the window is closed (R1183). Help is
-per session and off for every new session; the stall retry continues the
-same session, so help stays on. Turning it on or off changes nothing on the
-Case and asks for no Case version or edit lease, as Close does not; it never
-moves the session's version, and each toggle is a history row on the
-session. Other staff on the Case see nothing of it.
-
-While help is on, the Automation's Glass's tools find the session by its
-Case ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#help-in-an-engineers-open-session)).
-They may read the estimate, search its lists, add the same positions as a
-rebuild, posted as Glass's dialog serves them with nothing typed (R1182),
-and remove any position of the estimate, because the Engineer asked for the
-help and watches the window (R1185). One Automation act runs at a time, and
-each is a history row on the session as the Automation's. After an add or a
-removal the helper reloads Glass's own selected list. The Engineer sees that
-refresh and the chip, and nothing else is drawn: the smallest build, decided
-by the lead without a ruling. The Automation never saves, exits or closes
-the Engineer's session and never reads their Glass's login. The Engineer's
-own Save & Exit brings the estimate back as any return does: the spec is
-Current at once, the Save & Exit being the staff act that puts it in use
-(R1184). Once the session leaves `Active` the tools refuse and Pegasus
-forgets the window's key.
+Only the owning staff member sees the window or its progress. The estimator
+address is never shown on the page or in its progress answer.
 
 While a session's work runs it cannot be closed. The Close control is absent,
 and a Close posted anyway is refused with a reason, so nothing the work creates
@@ -507,19 +366,14 @@ and do not need credentials reset.
 
 **An estimator that does not open (issue 1065).** Glass's editor sometimes
 stalls at start-up inside its own frames, before any pane loads; the stall is
-the provider's. Pegasus changes none of Glass's files or requests. The Pegasus
-helper extension, which an Engineer installs, defines the framing page's
-dialog helper before Glass's own script asks for it, with Glass's own class,
-so the stall does not happen in a browser that has it (operator, 18 November
-2026; R1170). The helper reads only the editor frame's own address, hands it
-to Pegasus, and asks for the selected list again when Pegasus says a position
-was added or removed. The Case page keeps the estimator window in view after the handoff:
-it may read how deep the window's frames nest and whether it is closed,
-nothing more. When the frames have not grown past the provider's skeleton
-within 30 seconds, the page presses **Glass's** again once itself, which is
-the same continuation as the staff member's press. If that start stalls too,
-or the window is closed without a return while the session is open, the page
-says so and the next press is the staff member's (operator, 10 October 2026).
+the provider's and Pegasus patches none of its code. The Case page keeps the
+estimator window in view after the handoff: it may read how deep the window's
+frames nest and whether it is closed, nothing more. When the frames have not
+grown past the provider's skeleton within 30 seconds, the page presses
+**Glass's** again once itself, which is the same continuation as the staff
+member's press. If that start stalls too, or the window is closed without a
+return while the session is open, the page says so and the next press is the
+staff member's (operator, 10 October 2026).
 
 **Interrupted background work.** Work can stop part-way: the host restarts,
 or the work runs past its time limit. A session found waiting with no work
@@ -528,10 +382,7 @@ running for it is settled when the window next asks:
 - Prepared never reached the provider. It stays Prepared and can be
   continued, and the Case says the estimate did not start.
 - Launching or a claimed import may have reached the provider. It becomes
-  `Unknown`, keeps the account, and follows the Unknown rule below. A build
-  is Launching until its own return is claimed. One stopped part-way is not
-  taken up again: pressing **Glass's** continues the session as a launch, so
-  no line is sent twice (18 November 2026; R1171).
+  `Unknown`, keeps the account, and follows the Unknown rule below.
 - A claimed import keeps the provider's return with its claim. If the relay
   back to Glass's had not begun, continuing the session makes it once. If
   it had begun, continuing looks the export up again and never relays again.
@@ -659,24 +510,6 @@ provider may return any of them. Checkpoints and explicit closure are audited
 permanently without provider credentials, callback tokens or document
 content.
 
-**The Automation's sessions (18 November 2026; R1177, R1180).** The Automation
-Actor runs Glass's sessions of its own through its tools
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#glasss-sessions)), under
-a Glass's login the deployment holds for it; Pegasus never reads a staff
-member's stored login for it. Its session starts a new estimate. A finished
-one lands as a Draft repair spec that records its Glass's estimate; only
-staff press **Use repair spec**. On its Case, while the session holds
-the login or once it has failed, the session line reads "Glass's session ·
-Open · the Automation, started 10:42". Any member of staff who can open the
-Case's assessment may press **Close session** on it, with a reason; the dialog
-says "The Automation is building this Glass's estimate. Closing ends its
-session without saving, and the Glass's account is free again." Close is
-absent, and refused, while the session's work runs, as for staff. A member of
-staff whose own stored login the Automation's session holds sees, on every
-other Case, "The Glass's account is in use by the Automation" and "Open on
-{reference}" instead of a launch. A session the Automation owns has no
-lifetime either.
-
 ### Inspection location and estimate sources
 
 Every Collision Engineers assessment is a desktop inspection. A physical
@@ -753,7 +586,7 @@ operator, 22 October 2026).
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) until discarded, which deletes it. At most one spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | prepared (work running in the background), launched, building (a launch that rebuilds a spec made outside Pegasus, held as launching until its own return is claimed; 18 November 2026, R1171), `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. A session the Automation Actor owns is started, finished as a Draft, or closed by it or by staff with a reason (18 November 2026, R1177, R1180). A staff member's `Active` session may have Automation help on, which its owner turns on and off; it is an attribute of the session, not a state, and acts only while the session is `Active` (18 November 2026, R1170, R1183). Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
+| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), continued, closed by the owning staff member with a reason, or ended when a colleague holding the Case reopens the same estimate. Interrupted work settles Prepared as resumable and anything past it as `Unknown`. A `Failed` session whose export was unreadable, or could not be fetched after a successful relay, can fetch that estimate again |
 
 ## Edge cases and fail-closed behaviour
 
@@ -763,9 +596,7 @@ operator, 22 October 2026).
   labour rate, cannot generate a report.
 - The Current repair spec cannot be discarded; switch to another one first.
 - A lost Glass's answer stays `Unknown` and holds the account until the
-  owning staff member closes it with a reason, or, for a session the
-  Automation owns, any member of staff who can open the Case's assessment
-  (18 November 2026; R1180).
+  owning staff member closes it with a reason.
 - A **Glass's** press against a Case that changed since the page rendered, or
   whose edit lease ended, is refused with "The Case changed. Reload it and
   retry." It is not an error page.
@@ -816,28 +647,6 @@ recorded in operations as it passes:
     return; busy buttons on the Glass's paths; and a changed registration
     refused on a real stock vehicle while a session with no recorded vehicle
     follows the Case.
-13. Glass's on a spec imported from another system with Specialist lines
-    named as Glass's special operations and new parts: the question,
-    **Import and open**, the window's progress, and a new Glass's spec beside
-    the outside one with its list, opened in the same window, a part whose
-    row needs no equipment answer added at Glass's own price and hours and
-    one that does listed as waiting on an equipment answer; then **Open an
-    empty estimate** on the same spec gives a new empty estimate (18 November
-    2026; R1171 to R1173).
-14. The Automation starts a session on a Case, adds positions and finishes:
-    a Draft repair spec lands, linked to its estimate, and **Use repair
-    spec** stays staff's. Staff see the Automation's line on that Case, and
-    a member of staff closes a second Automation session with a reason
-    (18 November 2026; R1177 to R1180).
-15. Automation help (walk E4): with the Pegasus helper loaded, the Engineer
-    opens Glass's and presses **Let the Automation help**, and the chip says
-    help is on. The Automation searches the lists and adds a special
-    operation, and the window shows it within about 2 seconds. The Engineer
-    adds a position with a Glass's dialog open while the Automation adds
-    one: both are on the estimate. The Automation removes a position the
-    Engineer added. Save & Exit brings it all back in use; the tools then
-    refuse with `glass.help.not_active`, and the history rows are read back
-    (18 November 2026; R1170, R1182 to R1185).
 
 Manual export/import does not satisfy this integration's acceptance.
 Supplier startup failures remain open until that journey passes

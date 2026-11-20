@@ -572,8 +572,6 @@ public static class DependencyInjection
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         services.AddScoped<IGlassRepairEstimateSessionReader>(provider =>
             provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
-        services.AddScoped<IGlassSessionHelpStore>(provider =>
-            provider.GetRequiredService<EfGlassRepairEstimateSessionStore>());
         // The Glass's gateway itself is composed by the host, which decides
         // whether this process reaches the provider at all (AddGlassRepairEstimates
         // or AddUnavailableGlassRepairEstimates). The session store and the
@@ -1482,24 +1480,16 @@ public static class DependencyInjection
     /// provider. The options arrive as a value, not a factory: none of them is
     /// a secret, so a malformed or missing <c>Glass:*</c> setting fails at host
     /// build naming its key, as <see cref="GlassRepairEstimateOptions"/> promises,
-    /// rather than at an Engineer's Launch on a Case record. The Automation's
-    /// own login (<see cref="GlassAutomationAccount"/>) is a secret, so it
-    /// comes through a factory read on each Automation act; a host that names
-    /// none refuses those acts naming the missing key.
+    /// rather than at an Engineer's Launch on a Case record.
     /// </summary>
     public static IServiceCollection AddGlassRepairEstimates(
         this IServiceCollection services,
-        GlassRepairEstimateOptions options,
-        Func<IServiceProvider, GlassAutomationAccount>? automationAccount = null)
+        GlassRepairEstimateOptions options)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
 
         services.AddSingleton(options);
-        services.AddSingleton(provider => new GlassAutomationAccountSource(
-            () => automationAccount is null
-                ? GlassAutomationAccount.Create(static _ => null)
-                : automationAccount(provider)));
         services.AddSingleton(GlassRepairEstimateAvailability.Configured);
         // The handler must not follow redirects and must not manage cookies: a
         // Glass's session's cookie jar is per session and durable, so the adapter
@@ -1512,12 +1502,6 @@ public static class DependencyInjection
                 UseCookies = false,
             });
         services.AddScoped<IGlassRepairEstimateGateway, GlassRepairEstimateGateway>();
-        // The editor keys the Pegasus helper hands over live in this host's
-        // memory alone (R1170): one holder for the process.
-        services.AddSingleton<GlassHelpKeys>();
-        // The Automation's help in a member of staff's open session: the keys,
-        // an editor client and the help store's history rows, nothing more.
-        services.AddScoped<GlassSessionHelp>();
         return services;
     }
 

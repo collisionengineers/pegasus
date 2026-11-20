@@ -89,12 +89,6 @@
     "glassValuationPasswordSecretUri": {
       "value": "${GLASS_VALUATION_PASSWORD_SECRET_URI}"
     },
-    "glassAutomationUsernameSecretUri": {
-      "value": "${GLASS_AUTOMATION_USERNAME_SECRET_URI}"
-    },
-    "glassAutomationPasswordSecretUri": {
-      "value": "${GLASS_AUTOMATION_PASSWORD_SECRET_URI}"
-    },
     "cazanaCompanionEmailSecretUri": {
       "value": "${CAZANA_COMPANION_EMAIL_SECRET_URI}"
     },
