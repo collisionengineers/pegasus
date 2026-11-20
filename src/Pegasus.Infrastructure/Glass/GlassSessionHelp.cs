@@ -17,8 +17,8 @@ public sealed record GlassSessionHelpOutcome(
 /// <summary>
 /// The Automation's help in a member of staff's open Glass's session
 /// (operator, 18 November 2026; R1170, R1182, R1185; design 08 sections 5
-/// and 6): it reads the estimate, searches its lists, previews a dialog,
-/// adds a position, changes one (R1206) and removes one, on the editor key the Pegasus helper handed over
+/// and 6): it reads the estimate, searches its lists, adds a position and
+/// removes one, on the editor key the Pegasus helper handed over
 /// (<see cref="GlassHelpKeys"/>), and nothing else.
 /// </summary>
 /// <remarks>
@@ -32,16 +32,16 @@ public sealed record GlassSessionHelpOutcome(
 /// <para>
 /// Every call needs the session <c>Active</c> with help on, no other help
 /// act holding it, and a key held; each is refused with its
-/// <c>glass.help.*</c> code before anything is sent. An add gives the
-/// dialog what the Automation's own session gives it, its inputs included
-/// (R1206); a remove takes any position of the estimate (R1185); nothing is
-/// typed (R1168); a preview posts nothing. An add or a remove reads the estimate first. Afterwards the
+/// <c>glass.help.*</c> code before anything is sent. What may be added is
+/// <see cref="GlassAutomationPositionPolicy.Sends"/>, unchanged (R1182);
+/// a remove takes any position of the estimate (R1185); nothing is typed
+/// (R1168). An add or a remove reads the estimate first. Afterwards the
 /// window is asked to show its selected list again, and each act is a
 /// history row on the session as the Automation's. No Case lease is taken
 /// and the session's version does not move.
 /// </para>
 /// </remarks>
-public sealed partial class GlassSessionHelp(
+public sealed class GlassSessionHelp(
     GlassHelpKeys keys,
     IHttpClientFactory httpClientFactory,
     GlassRepairEstimateOptions options,
@@ -53,22 +53,28 @@ public sealed partial class GlassSessionHelp(
 
     private GlassEditorPositionWork? work;
 
-    /// <summary>
-    /// One read of the estimate, asked of Glass's with one request, as the
-    /// Automation's own session has it (R1206): its positions and Glass's
-    /// running totals, one position's figures, or Glass's calculation.
-    /// Nothing changes at Glass's; a read it did not answer answers its code.
-    /// </summary>
+    /// <summary>The positions the estimate holds, asked of Glass's with one request; none when it did not answer.</summary>
     public async Task<GlassAutomationEstimate> ReadAsync(
-        ActionActor actor, GlassRepairEstimateSession session, GlassAutomationRead read,
-        CancellationToken cancellationToken)
+        ActionActor actor, GlassRepairEstimateSession session, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(read);
         Require(actor, session);
         using var turn = Enter(session);
-        var done = await Work.ReadAsync(session, turn.Editor, turn.Opened, read, cancellationToken);
-        Keep(session, turn.Editor, done.Opened);
-        return done.For(session);
+        try
+        {
+            var read = await Work.StageAsync(session, "EditorRead", () => turn.Editor.ReadEstimateAsync(
+                turn.Opened, cancellationToken));
+            Keep(session, turn.Editor, read.Session);
+            return read.Value.Found
+                ? new(session, read.Value.Positions, read.Value.Codes)
+                : new(session, null, null);
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException
+                || GlassEditorPositionWork.IsTransportFailure(failure, cancellationToken))
+        {
+            Keep(session, turn.Editor, turn.Opened);
+            return new(session, null, null);
+        }
     }
 
     /// <summary>The catalogue search of the estimate's lists, as the Automation's own session has it; nothing changes at Glass's.</summary>
@@ -76,16 +82,11 @@ public sealed partial class GlassSessionHelp(
         GlassAutomationCatalogueQuery query, GlassRepairEstimateSession session, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
-        if (string.IsNullOrWhiteSpace(query.Row))
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
-        }
-
+        ArgumentException.ThrowIfNullOrWhiteSpace(query.Term);
         Require(query.Actor, session);
         using var turn = Enter(session);
         var (rows, code, opened) = await Work.SearchAsync(
-            session, turn.Editor, turn.Opened, query.Term.Trim(), query.Kind, query.Side,
-            string.IsNullOrWhiteSpace(query.Row) ? null : query.Row.Trim(), query.List, cancellationToken);
+            session, turn.Editor, turn.Opened, query.Term.Trim(), query.Kind, query.Side, cancellationToken);
         Keep(session, turn.Editor, opened);
         return new(session, rows, code);
     }
@@ -100,11 +101,6 @@ public sealed partial class GlassSessionHelp(
         GlassAutomationPositionRequest request, GlassRepairEstimateSession session, CancellationToken cancellationToken) =>
         ActAsync(request, session, GlassAutomationActAction.Remove, cancellationToken);
 
-    /// <summary>Changes any position of the estimate through its own dialog, as in the Automation's own session (R1206).</summary>
-    public Task<GlassSessionHelpOutcome> ChangeAsync(
-        GlassAutomationPositionRequest request, GlassRepairEstimateSession session, CancellationToken cancellationToken) =>
-        ActAsync(request, session, GlassAutomationActAction.Change, cancellationToken);
-
     private async Task<GlassSessionHelpOutcome> ActAsync(
         GlassAutomationPositionRequest request, GlassRepairEstimateSession session, GlassAutomationActAction action,
         CancellationToken cancellationToken)
@@ -117,11 +113,6 @@ public sealed partial class GlassSessionHelp(
             throw new ArgumentException("The act names another action or another session.", nameof(request));
         }
 
-        if (request.Action == GlassAutomationActAction.Preview)
-        {
-            throw new ArgumentException("A preview is not an act.", nameof(request));
-        }
-
         Require(request.Actor, session);
         if (session.Version != request.ExpectedVersion)
         {
@@ -132,6 +123,11 @@ public sealed partial class GlassSessionHelp(
         }
 
         var act = Claimed(request);
+        if (act.Outcome != GlassAutomationActOutcome.Pending)
+        {
+            // Refused before anything is asked of Glass's (R1182).
+            return await RecordAsync(request.Actor, session, new(act, [], null, false));
+        }
 
         using var turn = Enter(session);
         var editor = turn.Editor;
@@ -172,19 +168,16 @@ public sealed partial class GlassSessionHelp(
             return Task.CompletedTask;
         }
 
-        var done = action switch
-        {
-            GlassAutomationActAction.Remove => await Work.RemovePositionAsync(session, editor, opened, act, before, Record, cancellationToken),
-            GlassAutomationActAction.Change => await Work.ChangePositionAsync(session, editor, opened, act, before, Record, cancellationToken),
-            _ => await Work.AddPositionAsync(session, editor, opened, act, before, Record, cancellationToken),
-        };
+        var done = action == GlassAutomationActAction.Remove
+            ? await Work.RemovePositionAsync(session, editor, opened, act, before, Record, cancellationToken)
+            : await Work.AddPositionAsync(session, editor, opened, act, before, Record, cancellationToken);
         var (settled, alsoNew) = Split(done, before);
 
         // The window is asked to show its selected list again whenever the
         // estimate may have changed, a change not confirmed included.
         var shown = false;
         if (settled.Outcome is GlassAutomationActOutcome.Added or GlassAutomationActOutcome.Removed
-            or GlassAutomationActOutcome.Changed or GlassAutomationActOutcome.NotConfirmed)
+            or GlassAutomationActOutcome.NotConfirmed)
         {
             shown = await keys.ShownAsync(session.Id, keys.Refresh(session.Id), CancellationToken.None);
         }
@@ -194,34 +187,41 @@ public sealed partial class GlassSessionHelp(
     }
 
     /// <summary>
-    /// The act as asked (<see cref="GlassAutomationPositionPolicy.Draft"/>):
-    /// Pending, as in the Automation's own session (R1206).
+    /// The act as asked, Pending; or, for an add the Automation may not send
+    /// (R1182), Refused with its reason, and nothing is sent.
     /// </summary>
-    private GlassAutomationAct Claimed(GlassAutomationPositionRequest request) =>
-        GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
-
-    /// <summary>
-    /// A preview in the Engineer's session (R1206), as the Automation's own
-    /// session has it: the dialog an add would post, or a position on the
-    /// estimate is shown by, read as a form. Nothing is posted, no act or
-    /// history row is recorded, and the window is not asked to redraw.
-    /// </summary>
-    public async Task<GlassAutomationPreview> PreviewAsync(
-        GlassAutomationPositionRequest request, GlassRepairEstimateSession session, CancellationToken cancellationToken)
+    private GlassAutomationAct Claimed(GlassAutomationPositionRequest request)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(session);
-        if (request.Action != GlassAutomationActAction.Preview || request.SessionId != session.Id)
+        var act = new GlassAutomationAct(
+            request.OperationKey.Trim(), request.Action, GlassAutomationActOutcome.Pending, timeProvider.GetUtcNow());
+        if (request.Action == GlassAutomationActAction.Remove)
         {
-            throw new ArgumentException("The request is not a preview of this session.", nameof(request));
+            if (string.IsNullOrWhiteSpace(request.PositionId))
+            {
+                throw new ArgumentException("A remove names a position.", nameof(request));
+            }
+
+            return act with { PositionId = request.PositionId.Trim() };
         }
 
-        var draft = GlassAutomationPositionPolicy.Draft(request, timeProvider.GetUtcNow());
-        Require(request.Actor, session);
-        using var turn = Enter(session);
-        var (dialog, code, opened, equipment) = await Work.PreviewAsync(session, turn.Editor, turn.Opened, draft, cancellationToken);
-        Keep(session, turn.Editor, opened);
-        return new(session, dialog, code) { Equipment = equipment?.Question, HiddenBy = equipment?.HiddenBy ?? [] };
+        var kind = request.Kind ?? throw new ArgumentException("An add names its kind of position.", nameof(request));
+        if (string.IsNullOrWhiteSpace(request.Row)
+            || (kind == GlassAutomationPositionKind.Part) != request.Operation.HasValue)
+        {
+            throw new ArgumentException(
+                "An add names its row, and an operation for a part and only for a part.", nameof(request));
+        }
+
+        act = act with
+        {
+            Kind = kind,
+            Row = request.Row.Trim(),
+            Operation = request.Operation,
+            Side = string.IsNullOrWhiteSpace(request.Side) ? null : request.Side.Trim(),
+        };
+        return GlassAutomationPositionPolicy.Sends(kind, request.Operation)
+            ? act
+            : act with { Outcome = GlassAutomationActOutcome.Refused, Code = GlassEstimateBuildPolicy.NotBuiltCode };
     }
 
     /// <summary>
@@ -241,8 +241,8 @@ public sealed partial class GlassSessionHelp(
         }
 
         var fresh = after.Positions.Where(id => !before.Positions.Contains(id, StringComparer.Ordinal)).ToList();
-        var own = act.Action == GlassAutomationActAction.Add && act.ExpectedCode is not null
-            ? fresh.Where(id => GlassAutomationPositionPolicy.Carries(act, id)).ToList()
+        var own = act.Action == GlassAutomationActAction.Add && act.ExpectedCode is { } expected
+            ? fresh.Where(id => string.Equals(GlassAutomationPositionPolicy.CodeOf(id), expected, StringComparison.Ordinal)).ToList()
             : new List<string>();
         IReadOnlyList<string> alsoNew = fresh.Where(id => !own.Contains(id, StringComparer.Ordinal)).ToList();
         if (act.Action != GlassAutomationActAction.Add || act.Outcome != GlassAutomationActOutcome.Added)

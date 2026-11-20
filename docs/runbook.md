@@ -1578,10 +1578,7 @@ it stopped.
   instead settles `Failed` with the same code and cannot be continued.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
-  **Fetch again** reads the same estimate once the reader is fixed. An unseen
-  repair kind no longer refuses an export; it lands as an Other line that
-  names it (R1209). A position type that begins with none of `Part_`,
-  `Free_` and `Paint_` still does, and the warning names the type.
+  **Fetch again** reads the same estimate once the reader is fixed.
 - `glass.identity.registration`, `glass.identity.mileage`,
   `glass.identity.natcode` and `glass.export.empty` mean the export came back
   for another vehicle or with no estimate in it. The XML is kept on the Case in
@@ -1700,45 +1697,21 @@ it stopped.
     that operation), `glass.build.ambiguous_row` (more than one special
     operation has the name, the part number names different parts, or the
     part has more than one time row of the line's operation),
-    `glass.build.equipment` (the part's row waits on an equipment answer;
-    for the Automation's add or preview, it gave none, and the act or the
-    preview carries the question), `glass.build.no_key` (a new part, or a Glass's export's repair or
+    `glass.build.equipment` (the part's row waits on an equipment answer),
+    `glass.build.no_key` (a new part, or a Glass's export's repair or
     remove-and-refit line, with no Glass's part code or part number),
     `glass.build.stopped` (not sent after a line that was not confirmed). A
     part whose dialog served another side or another part, did not offer the
     line's operation, or would ask for a reason for more hours than Glass's
     own, is `glass.editor.refused`.
-    The Automation's equipment answer (R1206) is refused, with nothing sent,
-    as `glass.build.equipment_unknown` (a code that is no option),
-    `glass.build.equipment_greyed` (an option Glass's greys out),
-    `glass.build.equipment_repeated` (a code named twice),
-    `glass.build.equipment_same_group` (two options of one group),
-    `glass.build.equipment_no_part` (it leads to no part or no time row)
-    or `glass.build.equipment_not_asked` (the row asks nothing).
-    The Automation's add or preview of a part the vehicle's equipment hides
-    is refused, with nothing sent, as `glass.build.equipment_hidden`; its
-    `hiddenBy` names the stored values that hide it (19 November 2026;
-    R1206). Its other adds are decided as a person's click on the row named
-    decides them, so `glass.build.ambiguous_row` and the rebuild's
-    `glass.build.equipment` for wheels, parts that offer no Replace and
-    parts with unasked variants do not come back to it, and neither does
-    `glass.row.both_sides`, which is retired. An
-    act whose `equipmentStored` is true sent the answer to Glass's, which
-    keeps it for the vehicle even when the add was then refused.
     `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
     nothing was saved and an empty estimate was opened; `glass.interrupted`
     there means the build stopped part-way and the session was continued as
     a launch.
 - Automation help in an Engineer's open session (R1170, R1183 to R1185)
   logs the same editor stages under the Engineer's session id, and "The
-  Glass's helper handed over the editor key for session … with 2 load
-  balancer cookies." when the window's key arrives. With 0 the helper found
-  none in the frame, and Pegasus's requests reach the Glass's server that
-  holds the session only by chance. A search or a read that answers
-  `glass.editor.answer` logs "stage … was answered page=… length=…": the
-  page asked for and how long Glass's answer was. The editor's own lists run
-  to tens of thousands of characters; a short answer is a server that does
-  not hold the session. Each act is a `glass_session_help_act` history row
+  Glass's helper handed over the editor key for session …" when the
+  window's key arrives. Each act is a `glass_session_help_act` history row
   on the session and each toggle a `glass_session_help` row. The chip
   "Automation help on · Glass's window not connected" means this Web host
   holds no key for the session: the Pegasus helper is missing or out of date
@@ -1756,75 +1729,11 @@ it stopped.
   - `glass.help.no_window`: no key is held, as the chip says.
     `glass.help.not_automation_session`: start, finish and close are the
     Automation's own session's only.
-  The Automation's read (`pegasus_glass_session_get` with `read`, R1206),
-  in its own session or with help, logs one stage: `EditorRead` (the
-  positions and Glass's totals), `EditorPosition` (one position's record)
-  or `EditorCalculation` (the calculation report). A read Glass's does not
-  answer logs its code at that stage; an answer that is not the page asked
-  for also logs "stage … was answered page=… length=…", the page being
-  `selected`, `position` or `calculation`. The tool answers the code as
-  `readCode` and the session stays as it was. A read sends nothing that
-  changes the estimate.
   An add or a removal that comes back `not_confirmed` carries the editor's
   code (`glass.editor.answer` when the answer was lost, or when Glass's
   answered but no new position carries the dialog's code). Read the
   estimate before acting again; the Automation never removes a position to
   tidy up.
-  A preview (`pegasus_glass_position_act` with `preview`, R1206) logs the
-  list and map stages an add logs, then `EditorPreview` for the dialog; one
-  of a position on the estimate logs `EditorRead`, then `EditorPreview`,
-  because the estimate's groups say which dialog the editor opens. It posts
-  nothing and records no act or history row; a page Glass's does not answer
-  gives its code as `previewCode`. An add's own inputs (R1206) are refused
-  with `glass.row.not_paintable` when a paint button is asked for a part
-  that cannot be painted, and with `glass.build.not_built` when Both is
-  asked for one that can. An operation that reloads the dialog (DD, R1206)
-  posts the form to `comp.php` or `part.php` with `frl=1` inside stage
-  `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
-  answer is `glass.editor.request`. A search with `list` reads one
-  `list_1G.php` (stage `EditorAdditionalList`, `tyres` about 6 MB) or one
-  `list_paint.php` (stage `EditorPaintList`); `glass.list.not_offered`
-  means the account's tree has no such group. A paint row's add opens
-  `lack.php`. An add with `inputs.panel` sends
-  `service.php?…&partadd=…&addpart2g=1` once per side in stage
-  `EditorPanelAdd` (reading `list_paint.php` first in stage
-  `EditorPaintList` when the part is painted in more than one area), then
-  reads the estimate; `glass.panel.refused` means nothing was sent. Renew (AN) asks for `oldfrnew.php` before the
-  post on a part with its paint, or when a deduction is given; a window
-  Glass's does not answer is `glass.editor.request`, and deductions that
-  leave a negative figure are `glass.build.deduction_below_zero` with
-  nothing posted. An operation the dialog does
-  not offer, or one served with no price and no hours without
-  `inputs.confirmNoFigures` (Repair answers by itself), is
-  `glass.editor.refused`. With Both, the other side's own dialog logs stage
-  `EditorAddOtherSide`; an act `added` with `glass.row.other_side_not_added`
-  added the first side only, because Glass's did not go on to the other
-  side's dialog, or that dialog was not the one expected. Its warning line
-  names the reason.
-  Typed figures (R1206) are refused before anything is posted with
-  `glass.build.reason_required` (hours above Glass's own and no
-  `inputs.reason`), `glass.build.reason_not_asked` (a reason where the
-  dialog asks for none) and `glass.build.overlap_above_hours` (more overlap
-  hours than hours, which the return could not read back); the act's
-  warning line names the dialog's own reason. Each act records the figures
-  the dialog served and those sent, just before the post, as `served` and
-  `sent`.
-  Paint choices (`inputs.paint`, R1206) are refused with
-  `glass.editor.refused` when the
-  dialog would not take them: an area, paint type, procedure, method or
-  level it does not offer there, Surcharge or Coloured clear where the
-  paint state fixes it, scratch-resistant clear where it is greyed, or a
-  button the page hides. The
-  warning line names which.
-  A change (`pegasus_glass_position_act` with `change`, R1206) logs
-  `EditorRead`, then `EditorChange` for the position's own dialog, its post,
-  its "Mandatory parts:" confirm, the estimate and the position's record.
-  It is `changed` when Glass's took it and the estimate still holds the
-  position; `glass.row.unknown` names a position the estimate does not
-  hold, `glass.editor.answer` a group the estimate does not list, and
-  `glass.build.not_built` a paint position's own dialog. A `not_confirmed`
-  change carries the editor's code: read the position before changing it
-  again.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.

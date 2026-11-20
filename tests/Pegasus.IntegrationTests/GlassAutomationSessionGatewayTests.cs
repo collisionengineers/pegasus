@@ -58,7 +58,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var session = await AutomationStartAsync(harness);
 
         var read = await harness.Gateway.ReadAutomationEstimateAsync(
-            harness.Automation, session.Id, GlassAutomationRead.Positions, CancellationToken.None);
+            harness.Automation, session.Id, CancellationToken.None);
 
         Assert.NotNull(read);
         Assert.NotNull(read.PositionIds);
@@ -69,7 +69,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(2, harness.Mva.Count("GET /ere/aco/selected.php"));
         // A member of staff reads nothing of it: the session is the Automation's.
         await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Gateway.ReadAutomationEstimateAsync(
-            harness.Engineer, session.Id, GlassAutomationRead.Positions, CancellationToken.None));
+            harness.Engineer, session.Id, CancellationToken.None));
     }
 
     /// <summary>

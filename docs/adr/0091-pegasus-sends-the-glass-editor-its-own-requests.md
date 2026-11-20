@@ -70,27 +70,21 @@ works with no browser at all: a program followed the editor's address to a
 key, read the estimate and the part list, added a special operation and a
 part, saved and exited, and Pegasus's own return path imported the result. A
 second client holding only the key was also let into a session a browser had
-open. That was one trial: the first live session, on 19 November 2026, showed
-the key alone reaches the server that holds the session only by chance
-(decision 5).
+open.
 
 ## Decision
 
 1. **An editor client beside the portal client.** `GlassEditorClient` in
    `src/Pegasus.Infrastructure/Glass/` opens an editor session from the launch
    address, reads the estimate and the editor's lists, adds and removes
-   positions, and saves and exits. It also stores a part's equipment answer
-   for the vehicle as the editor's list stores it, just before the part's
-   dialog, when the Automation gives one (19 November 2026; R1206). It asks only the editor's host
+   positions, and saves and exits. It asks only the editor's host
    (`GlassRepairEstimateOptions.EstimatorBaseUri`), one request at a time
    with a pause between them, and follows no redirect.
 2. **It posts what the page serves.** A position is added by asking for its
    dialog page and posting that page's own form, changed only in the ways the
    dialog's own script changes it. Pegasus makes up no price, time, part
-   number or code. A price or time the Automation types is the Automation's
-   input, as a person's would be, and never Pegasus's own (19 November 2026;
-   R1206); so is the reason Glass's asks for above its own hours. Where a
-   page is not the one the client knows, it refuses and posts nothing.
+   number or code. Where a page is not the one the client knows, it refuses
+   and posts nothing.
 3. **Pinned to what a browser sent.** Every address the client builds and
    every post it makes is compared in tests with the address or body a browser
    sent for the same page. The test pages are cut from browser sessions, with
@@ -103,13 +97,7 @@ the key alone reaches the server that holds the session only by chance
    caller of the provider's pages, as the portal client is. In a staff
    member's browser the Pegasus helper extension (`src/pegasus-glass-helper/`)
    reads the editor frame's own address and hands it to Pegasus when that
-   member of staff's session is theirs (the cookie) and is `Active`. With it
-   go the two cookies of Glass's load balancer the frame holds (`AWSALB`,
-   `AWSALBCORS`; 19 November 2026): one of Glass's servers holds an editor
-   session, those cookies name it, and a request on the key alone reaches
-   whichever server the balancer picks. In the first live session 7 of 8
-   requests on the key alone were answered 200 with a page that had none of
-   the editor's lists. Neither cookie is a login. The helper
+   member of staff's session is theirs (the cookie) and is `Active`. It
    defines the framing page's `dialog` early. It reloads the selected list
    when asked. It does nothing else. The rule that the Case page may read only
    the estimator window's frame depth is unchanged.

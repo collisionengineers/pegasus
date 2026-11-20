@@ -53,68 +53,6 @@ public sealed class GlassHelpFrameTests
         Assert.DoesNotContain(GlassEditorFixture.Key, frame.Session.ToString(), StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// The load balancer's cookies the helper read in the frame are kept with
-    /// the session, in the order a browser sends them, so Pegasus's first
-    /// request reaches the Glass's server the window is on. No other cookie
-    /// is kept, whatever the hand-off names. Every value is made up.
-    /// </summary>
-    [Fact]
-    public void TheLoadBalancersCookiesAreKeptWithTheSessionAndNoOther()
-    {
-        var handedOver = new Dictionary<string, string>
-        {
-            ["PHPSESSID"] = "madeUpLogin",
-            ["AWSALBCORS"] = "madeUpTwo+/=",
-            ["AWSALB"] = "madeUpOne+/=",
-            ["awsalb"] = "madeUpLowerCase",
-        };
-
-        var frame = GlassEditorPages.HelpFrame(OwnFrame(), Options, handedOver);
-
-        Assert.NotNull(frame);
-        Assert.Equal(GlassHelpFrame.BalancerCookieNames, frame.Session.Cookies.Keys);
-        Assert.Equal("madeUpOne+/=", frame.Session.Cookies["AWSALB"]);
-        Assert.Equal("madeUpTwo+/=", frame.Session.Cookies["AWSALBCORS"]);
-        Assert.Equal(2, frame.BalancerCookies);
-        Assert.DoesNotContain("madeUp", frame.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain("madeUp", frame.Session.ToString(), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A value that is not of the alphabet the balancer writes is left out,
-    /// so nothing a sender chose reaches a request's header; the key is still
-    /// held, with the cookies that are.
-    /// </summary>
-    [Theory]
-    [InlineData("")]
-    [InlineData("made up")]
-    [InlineData("madeUp; Other=1")]
-    [InlineData("madeUp\r\nX-Other: 1")]
-    [InlineData("made-up")]
-    [InlineData("madeUp%3D")]
-    public void ACookieValueThatIsNotTheBalancersIsLeftOut(string value)
-    {
-        var handedOver = new Dictionary<string, string> { ["AWSALB"] = value, ["AWSALBCORS"] = "madeUpTwo" };
-
-        var frame = GlassEditorPages.HelpFrame(OwnFrame(), Options, handedOver);
-
-        Assert.NotNull(frame);
-        Assert.Equal("madeUpTwo", Assert.Single(frame.Session.Cookies).Value);
-        Assert.Equal(1, frame.BalancerCookies);
-    }
-
-    /// <summary>A value longer than any the balancer writes is left out, and a hand-off with no cookies holds none.</summary>
-    [Fact]
-    public void AnOverlongValueIsLeftOutAndNoCookiesAreNone()
-    {
-        var overlong = new Dictionary<string, string> { ["AWSALB"] = new string('A', 513) };
-
-        Assert.Empty(GlassEditorPages.HelpFrame(OwnFrame(), Options, overlong)!.Session.Cookies);
-        Assert.Empty(GlassEditorPages.HelpFrame(OwnFrame(), Options, new Dictionary<string, string>())!.Session.Cookies);
-        Assert.Equal(0, GlassEditorPages.HelpFrame(OwnFrame(), Options)!.BalancerCookies);
-    }
-
     public static TheoryData<string, string?> Refused()
     {
         var url0 = Url0(Options.CallbackFor(Token).AbsoluteUri);

@@ -11,19 +11,14 @@ In Glass's editor frame (`acofr.php`) it does three things and nothing else:
   "ERROR dialog not found" (FRD-25, issue 1065). It changes none of Glass's
   files or requests.
 - `helper.js`, in the extension's own world, asks the service worker to hand
-  the frame's own address to Pegasus once, with the two cookies of Glass's
-  load balancer it reads in the frame's own document (`AWSALB`, `AWSALBCORS`,
-  and no other cookie). They name the Glass's server that holds the window's
-  editor session, so Pegasus asks that same server; neither is a login. It
-  then polls on the cadence each
+  the frame's own address to Pegasus once, then to poll on the cadence each
   answer names (every 2 seconds while the Engineer has Automation help on,
   every 10 otherwise). When the Automation has added or removed a position,
   Pegasus's answer asks for it, and it reloads the editor's selected list
   (`selected.php`) and reports that on a poll a second later (`seen`), so the
   Automation hears that the window shows the change.
 - `background.js`, the service worker, answers only this extension's script in
-  the editor frame, reads the frame's address from the sender, passes on only
-  those two cookies of what the script sent, and posts only
+  the editor frame, reads the frame's address from the sender, and posts only
   to a Pegasus origin listed in `host_permissions`:
   `POST /Integrations/Glass/Help/Key` with the staff cookie, and
   `POST /Integrations/Glass/Help/Poll` without it.
@@ -61,16 +56,13 @@ copy `background.js` as well, or the folder does not load.
    new and continued sessions. No start-up alert.
 2. In `chrome://extensions` open the extension's service worker (**Inspect**)
    and watch its Network panel:
-   - `Key`'s request body names `cookies` with `AWSALB` and `AWSALBCORS`. An
-     empty `cookies` means the frame's document held neither.
    - `Key` answers **200** with `"key":"held"`. This settles whether Chrome
      sends the SameSite=Strict staff cookie from the service worker: **401**
      means it did not; **403** means the request carried no extension
      `Origin` or was not JSON.
    - `Poll` answers 200 every 10 seconds.
 3. The host log says "The Glass's helper handed over the editor key for
-   session … with 2 load balancer cookies." with the session id and nothing
-   else.
+   session …" with the session id and nothing else.
 4. Restart the instance's Web host with the window open: the next poll says
    `"key":"needed"` and the next `Key` is 200.
 5. Close the window: the polls stop.

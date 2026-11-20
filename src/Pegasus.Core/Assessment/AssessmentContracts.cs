@@ -383,64 +383,6 @@ public static class GlassPaintLevels
 }
 
 /// <summary>
-/// The one table that says what a Glass's repair operation is: the code the
-/// calculation sheet prints, the name the export writes as <c>RepairKind</c>,
-/// and the operation the row lands as (R1209). Both Glass's readers use it, so
-/// the same row lands as the same line whichever document it came from. The
-/// codes and labels are those Glass's dialogs offer. The export's names do not
-/// follow the labels (<c>Old for New</c> is Renew, <c>Air out</c> is Remove
-/// air, <c>Control</c> is Control and adjustment), so an operation is matched
-/// by the name exports have shown and by the dialog's label, without regard to
-/// case. Partial renew and Synthetics repair normal both print <c>PN</c>, so
-/// a printed <c>PN</c> cannot say which and is Other. A name or code outside
-/// the table is not known here; each reader lands that row as Other and says
-/// which one Glass's named.
-/// </summary>
-public static class GlassOperations
-{
-    private sealed record Kind(string? Printed, string? Name, EstimateOperation Operation);
-
-    private static readonly Kind[] Kinds =
-    [
-        new("RP", "Replace", EstimateOperation.Replace),
-        new("RN", "Old for New", EstimateOperation.Replace),
-        new("RN", "Renew", EstimateOperation.Replace),
-        new(null, "Partial renew", EstimateOperation.Replace),
-        new("UI", "Uninstall and install", EstimateOperation.RemoveAndRefit),
-        new("DM", "Dismantle and assemble", EstimateOperation.RemoveAndRefit),
-        new("R", "Repair", EstimateOperation.Repair),
-        new("PR", "Partial repair", EstimateOperation.Repair),
-        new("DP", "Paintless dent repair", EstimateOperation.Repair),
-        new(null, "Synthetics repair normal", EstimateOperation.Repair),
-        new("PS", "Synthetics repair serious", EstimateOperation.Repair),
-        new("PN", null, EstimateOperation.Other),
-        new("A", "Adjust", EstimateOperation.Other),
-        new("A", "Adjustments", EstimateOperation.Other),
-        new("S", "Sealing", EstimateOperation.Other),
-        new("CA", "Control", EstimateOperation.Other),
-        new("CA", "Control and adjustment", EstimateOperation.Other),
-        new("RA", "Air out", EstimateOperation.Other),
-        new("RA", "Remove air", EstimateOperation.Other),
-        new("HO", "Cavity wax protection", EstimateOperation.Other),
-        new("D", "Diagnostic", EstimateOperation.Other),
-        new("UN", "Underbody coating", EstimateOperation.Other),
-        new("WB", "Wheel balancing", EstimateOperation.Other),
-        new("EC", "Extra costs", EstimateOperation.Specialist),
-        new("EC", "Surcharge", EstimateOperation.Specialist),
-    ];
-
-    /// <summary>The operation of an export's <c>RepairKind</c>, or null when the name is not in the table.</summary>
-    public static EstimateOperation? OfExport(string? repairKind) => Kinds
-        .FirstOrDefault(entry => entry.Name is not null
-            && string.Equals(entry.Name, repairKind?.Trim(), StringComparison.OrdinalIgnoreCase))?.Operation;
-
-    /// <summary>The operation of a code as the calculation sheet prints it, or null when the code is not in the table.</summary>
-    public static EstimateOperation? OfPrinted(string? printed) => Kinds
-        .FirstOrDefault(entry => entry.Printed is not null
-            && string.Equals(entry.Printed, printed, StringComparison.Ordinal))?.Operation;
-}
-
-/// <summary>
 /// One caller-supplied estimate line. A save that carries lines replaces the
 /// whole ordered collection, matching the screen's estimate-section save; the
 /// permanent history keeps the collection it replaced.

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Pegasus.Infrastructure.Glass;
 using Pegasus.Web.Pages.Integrations.Glass;
 
 namespace Pegasus.ArchitectureTests;
@@ -98,31 +97,6 @@ public sealed partial class GlassHelperExtensionContractTests
         Assert.Contains("kind: 'poll', seen:", helper, StringComparison.Ordinal);
         Assert.Contains("if (shown) { showSelectedAgain(); }", helper, StringComparison.Ordinal);
         Assert.Contains("seen: Number.isSafeInteger(message.seen) ? message.seen : 0", background, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The hand-off carries the cookies of Glass's load balancer, which name
-    /// the Glass's server the window's editor session is on, and no other
-    /// cookie: the helper reads only those names in the frame, the service
-    /// worker passes on only those names, and they are the names Pegasus
-    /// keeps (first live session, 19 November 2026).
-    /// </summary>
-    [Fact]
-    public void TheHandOverCarriesTheLoadBalancersCookiesAndNoOther()
-    {
-        var helper = File.ReadAllText(Path.Combine(Folder(), "helper.js"));
-        var background = File.ReadAllText(Path.Combine(Folder(), "background.js"));
-        var names = "const BALANCER = ["
-            + string.Join(", ", GlassHelpFrame.BalancerCookieNames.Select(name => "'" + name + "'")) + "];";
-
-        Assert.Contains(names, helper, StringComparison.Ordinal);
-        Assert.Contains(names, background, StringComparison.Ordinal);
-        Assert.Contains("kind: 'key', cookies: balancerCookies()", helper, StringComparison.Ordinal);
-        Assert.Contains("if (BALANCER.includes(name)) { found[name] =", helper, StringComparison.Ordinal);
-        Assert.Contains("cookies: balancer(message)", background, StringComparison.Ordinal);
-        Assert.Contains("for (const name of BALANCER) {", background, StringComparison.Ordinal);
-        // Read in the frame's own document: the manifest still asks for no permission.
-        Assert.DoesNotContain("chrome.cookies", helper + background, StringComparison.Ordinal);
     }
 
     private static string Folder() => Path.Combine(RepositoryRoot.Find(), "src", "pegasus-glass-helper");

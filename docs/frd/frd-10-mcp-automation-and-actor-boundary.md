@@ -742,292 +742,18 @@ compose Glass's, each tool is refused with "Glass's is not available."
 - `pegasus_glass_session_get` answers the session (state, version, failure
   code, whether work is running, and the Draft spec a finish landed as),
   and whether the Glass's login is free or which Case holds it, by staff or
-  by the Automation, naming no member of staff. A session left waiting on
-  work that nothing runs is settled first, as the Glass's window's poll
-  settles it.
-- **19 November 2026; R1206.** With `read`, `pegasus_glass_session_get` asks
-  Glass's once for what its editor shows a user, and nothing changes at
-  Glass's. `positions` answers the positions the open estimate holds and
-  Glass's running totals from the same page, each with Glass's own label
-  (such as Parts, Paint material, Body, Paint, Total (£), VAT (20.00 %) and
-  Amount due (£)); Glass's lists only the totals the estimate has.
-  `position`, with a `positionId` from that list, answers the position's
-  repair type, price, hours, side, part number and, when it has paint, its
-  paint price and labour time. `calculation` answers the Summary of Glass's
-  calculation: each trade's labour rate, labour time, labour costs and
-  material costs, then Total Labour, Total Material, Repair costs excl. VAT,
-  VAT and Repair costs incl. VAT. A figure Glass's does not give is absent,
-  never zero. A read Glass's does not answer gives its `glass.*` code as
-  `readCode` and nothing read, and leaves the session as it was. This
-  replaces `readEstimate`.
+  by the Automation, naming no member of staff. With `readEstimate`, Glass's
+  is asked once for the positions the open estimate holds. A session left
+  waiting on work that nothing runs is settled first, as the Glass's
+  window's poll settles it.
 - `pegasus_glass_catalogue_search` reads the open session's part list and
   special operations, and changes nothing. `pegasus_glass_position_act`
   `add` adds a position by a row the search returned, posted as Glass's
-  dialog serves it with nothing typed, and only where the row is certain
+  dialog serves it with nothing typed, and only where the row is certain:
+  the set a rebuild sends, special operations, a part as Part, and repair
+  and remove-and-refit. Paint on its own is refused with its reason
   (18 November 2026; R1182, as R1168 and R1172 for a rebuild). `remove`
   removes a position by its id.
-- **19 November 2026; R1206.** `pegasus_glass_catalogue_search` takes
-  `list`, one of the lists a person opens: `parts`, `special_operations`
-  (Free positions parts, the user defined parts), and under Areas >
-  Additional `additional_labour`, `user_defined_paint`,
-  `labour_descriptions`, `tyres`, `bulbs`, `special_metal` and
-  `special_plastic`, each one `list_1G.php` with its group opened after the
-  free positions parts, as the editor asks for it; and under Areas > Paint
-  `paint_areas`, one `list_paint.php`. Each row answers the value an add
-  takes it by, Glass's name, the list's name and the dialog it opens, as
-  the editor's own OpenCompDialogWindow chooses it (`paint` for a code
-  beginning L or AL, else `part`). A list the account's tree does not hold
-  answers no rows and `glass.list.not_offered`. `add`, `preview`, `change`
-  and `remove` take every such row: kind `special_operation` for a
-  `part.php` row (no list is read for one outside the free positions parts;
-  its dialog names it), with the description, price, hours and fields a
-  person types there, the free part ***Special*** among them; kind `paint`
-  for a special table, user defined paint or paint area row, through its
-  `lack.php` (mode A, or L for a paint area), with its paint. Each is read
-  back by the code its position carries (the walk's bulb made A0, its
-  special table metal row Lxx8005 and its paint area Lxx4200). Judged
-  offline on 19 November 2026 against the walk's own posts: the free part
-  .Yard Charge (#1127), the bulb with a typed price (#1275), the special
-  table metal row (#1326) and the paint area (#1504).
-- **19 November 2026; R1206.** In place of R1182's set, `add` gives a
-  part's dialog what a person gives it without typing, in both kinds of
-  live session. Paint on its own and Part and Paint are sent: the button is
-  pressed on the dialog of a part that can be painted, and the paint section
-  is sent as Glass's serves it. `inputs.operation` chooses any other
-  operation the dialog offers, by Glass's own code, with the price and
-  hours its own script sets for it. No operation is refused for the
-  return's sake: the return reads every repair kind Glass's exports (issue
-  2155). An operation that reloads the dialog, Paintless dent repair (DD)
-  and any the script's `SubClassMap` marks `WS`, is followed as the editor
-  follows it: the form its ChangeRepart submits is posted to the address
-  the script names, and the dialog Glass's answers is posted with the rest
-  of the inputs; `preview` shows the reload as a question and does not
-  follow it. An operation the script holds no figures for (the bonnet's
-  NL) is sent with 0.00 in each box, as CheckSubmit writes them, once the
-  question before no figures is answered. Both were judged offline on 19
-  November 2026 on the bonnet (#745). Renew (AN) opens its old-for-new
-  window, which Pegasus asks for as the dialog does and answers with
-  `inputs.renew`: a deduction from the original price and from the
-  original hours, each a percentage or an amount (pounds or hours), and on
-  a part with its paint a percentage from the paint. The window's own sums
-  and reason are sent. Deductions that leave a negative figure are refused
-  with `glass.build.deduction_below_zero`, because the return could not
-  read that position back. Six posts were judged offline on 19 November
-  2026: the walk's door (#894, window #916, the walk's own #929) and the
-  roof panel cleaner (n #689, window n #731). Repair answers OK to the
-  dialog's question before a part with no price and no hours (R1188); any
-  other operation does so only with `inputs.confirmNoFigures`, and is
-  refused without it. `inputs.button` presses Part, Paint or Part and Paint;
-  a part that cannot be painted has no paint button and is refused with
-  `glass.row.not_paintable`. `inputs.side` `both` ticks Both where the
-  dialog offers it, on a part that can be painted as well (19 November
-  2026, b #55 and b #96, the browser's own pair of posts); the other
-  side's own dialog, which the editor opens next, is pressed with the same
-  button and given the same operation, and is otherwise posted as served.
-  Typed figures, the dialog's fields and paint choices go on one side at a
-  time. If the other dialog does not come as expected the first side stays
-  added with `glass.row.other_side_not_added`.
-  `inputs.optionalParts` names the optional parts to tick on the
-  "Mandatory parts:" page, one box each as a person ticks them: by the id
-  its listing carries on an earlier act, a code the page lists twice being
-  two boxes (`1102450.ER.#2` is the second), or by its code, which ticks
-  the first optional box of that code. The top-level `operation` keeps its meaning;
-  `inputs.operation` and `inputs.button` are given with `part` only. Every
-  input given is kept on the act, beside the figures Glass's served.
-  The server's rebuild of an outside estimate is unchanged (R1168, R1169,
-  R1172).
-- **19 November 2026; R1206.** `inputs.hours`, `inputs.price` and
-  `inputs.overlapHours` type the labour hours, the price and the overlap
-  hours in the dialog of a special operation or of a part, whether it can
-  be painted or not, one side at a time, in both kinds of live session. A value the Automation types is its own input, as a person's
-  would be. Pegasus sends each with two decimal places after a full stop
-  (`2.80`, `1234.00`), as a person types it; the dialog posts the text
-  typed unchanged. A negative figure, one with more than two decimal
-  places, hours or overlap hours above 1,000 and a price above 999999.99
-  are refused before anything is asked of Glass's. Hours above Glass's own,
-  where Glass's has hours of its own for the operation, need a reason: the
-  Automation writes it in `inputs.reason`, 1 to 150 characters, and Glass's
-  keeps it on the position. Pegasus never writes a reason. An add above
-  Glass's hours with no reason is refused with
-  `glass.build.reason_required` before anything is posted, and a reason
-  given where the dialog asks for none with `glass.build.reason_not_asked`.
-  Overlap hours above the hours sent are refused with
-  `glass.build.overlap_above_hours`, because the return refuses a whole
-  export with such a position. On a part that can be painted the reason
-  rule runs for Part and for Part and Paint, as its CheckSubmit runs it.
-  The act keeps every input beside the figures the
-  dialog served and the figures sent, recorded just before the post.
-- **19 November 2026; R1206.** `inputs.panel` adds a part through the
-  quick repair panel under the editor's drawing instead of its dialog, as
-  a person does with one press: New for `part`, Remove and Install for
-  `remove_and_refit`, Repair for `repair` with `inputs.hours` as its repair
-  hours (one decimal place). With `inputs.side` `both` it adds each side in
-  turn, one command each, as the panel's own Both does. On a part that can
-  be painted the panel adds the paint too, at the level it chooses itself;
-  `inputs.paint.area` chooses the paint area where its paint box offers
-  more than one, and the paint list is then read for that area's levels.
-  The panel sets no price, typed figures, reason, labour type, part number,
-  overlap hours, optional parts, paint type, Surcharge or clear coats; the
-  dialog route does. On a part already on the estimate the panel replaces
-  it as it does for a person (New every position of the part, Remove and
-  Install or Repair its New position, `deletepartid`). A press on an
-  operation the part already has, which would remove it, a button the
-  panel greys, an area it does not offer and Both on a part with no other
-  side are refused with `glass.panel.refused` before anything is sent. Judged offline on 19
-  November 2026: the panel's own script (glasss2missing.har #295, #296)
-  sent #536 and #537 byte for byte, and 16 commands over seven parts.
-- **19 November 2026; R1206.** The dialog's own fields are given as a
-  person gives them, in both kinds of live session: `inputs.place` ticks the
-  side boxes where the dialog lets its side be changed (left or right, and
-  on a special row front or rear), and the dialog then reads its figures and
-  part number for that side; `inputs.trade` chooses the labour type;
-  `inputs.partNumber` and `inputs.labourDescription` are typed, the labour
-  description as a person types it or picks it in Glass's picker
-  (`freetxt.php`, which only writes the box); `inputs.description` types a
-  special operation's own description, 3 to 250 characters as its dialog
-  wants at least 3; `inputs.outsideWork` ticks outside work on a special
-  operation's dialog, which then chooses ZK and greys the hours and overlap
-  hours; `inputs.overlapFull` presses Full, which copies the hours into the
-  overlap hours. Each was judged offline on 19 November 2026 on the walk's
-  door glass (#643), door shell (#894), yard charge (#1109) and bulb row
-  (#1257), seven posts identical to the dialog's own script's and pinned.
-  No captured dialog offers a quantity box, so none is built.
-- **19 November 2026; R1206.** `change` changes a position already on the
-  estimate, any position of it as `remove` takes any (R1185), in both kinds
-  of live session. It takes the position's id and `inputs`: the typed
-  figures and reason, the paint choices, the OK to no figures, the button
-  and the optional parts to tick, and another operation the reopened dialog
-  offers, a reload or Renew's window followed as on an add (19 November
-  2026). Its equipment answer and Both stay as the
-  position has them. It reads the estimate first and opens the dialog the
-  editor's own list opens for the position: `part.php` for a part with no
-  paint or a special row, `comp.php` for a part with its paint, and
-  `lack.php` for a paint position of its own, whose paint choices, typed
-  paint figures and reason and side boxes are given as on `comp.php` and
-  posted with its OK (19 November 2026: eleven posts of the walk's two
-  paint dialogs, #1310 and #1488, identical to their own script's, the
-  served two the browser's #1326 and #1504; `preview` answers its kind as
-  `paint`). A position the estimate does not hold is refused with
-  `glass.row.unknown`. The
-  dialog must be the position's own. It is posted with the change, its
-  "Mandatory parts:" page is confirmed as an add's is, the estimate is read
-  back and must still hold the position, which keeps its id, and the
-  position's own figures are read. An empty answer to that read leaves them
-  unread. The act is `changed`, with the figures served and sent; a post
-  whose answer is lost is `not_confirmed`, and the position's own read
-  settles it. `preview` of a position takes the same inputs, reads the
-  estimate to choose the dialog, and says what the change would send.
-  `remove` opens the dialog the editor's own list opens for the position,
-  `part.php`, `comp.php` or `lack.php`, before its Delete.
-- **19 November 2026; R1206.** `inputs.paint` makes every paint choice a
-  person makes in the dialog of a part that can be painted, where Paint or
-  Part and Paint is pressed, or in a `change`: the paint area, the paint
-  type (`coats`), the procedure, the method, the level (a plastic part's as
-  well as a metal one's), Surcharge, Coloured clear, scratch-resistant
-  clear, and the typed paint price, paint hours and paint reason. Pegasus
-  makes them in that order, each with the dialog's own handler as its
-  script runs it: the area rebuilds the paint types and levels, picks the
-  area's default level and sets the price and hours; the paint type sets
-  the paint state and its tick boxes; the procedure and the method each set
-  the paint state the script picks for them, its price, hours and tick
-  boxes. Glass's asks no reason for paint hours; the paint reason window
-  (`reason.php?lreason=`) only writes the box, so the Automation's reason is
-  sent as given, its line breaks as bars. Coloured clear is posted as the
-  paint state sets it, greyed or not, as the dialog posts it. A value the
-  dialog does not offer there, Surcharge or Coloured clear where the paint
-  state fixes it, scratch-resistant clear where the area or paint type greys
-  it, and a button the page hides are refused before anything is posted.
-  Each was judged offline on 19 November 2026 on the bonnet (#745), the left
-  front door shell (#894) and the front bumper (#552), the dialog's own
-  script's post pinned. `preview` names the input of every paint box, gives
-  each paint type and level the area offers with Glass's price and hours,
-  and says when the figures are the position's own.
-- **19 November 2026; R1206.** `preview` asks Glass's for the dialog an
-  `add` with the same row and inputs would post, chosen as the add chooses
-  it, or for the dialog of a position on the estimate by its id, and
-  answers it as a form. It posts nothing, stores no equipment answer,
-  records no act and takes no session version. It gives the dialog's kind,
-  description, part number, part code and side; each operation it offers
-  with the price, hours and Glass's own hours it serves, and whether
-  Pegasus may choose it; each field a person sees with Glass's own label,
-  its served value, its choices and whether Pegasus may change it; the
-  paint section; the buttons; and, for the inputs given, what the add would
-  send, each question on the way, and the code the add would be refused
-  with. Each box the Automation may type in names the input that changes it, and
-  the hours box gives Glass's own hours, above which a reason is needed.
-  Glass's own labels and texts pass through unchanged. Which
-  mandatory parts Glass's lists after a post cannot be known before it.
-- **19 November 2026; R1208.** The Automation changes no setting of the
-  estimate as a whole or of the Glass's account: not Preferences, not the
-  paint settings, not the Overlap-time deductions. What it gives are the
-  inputs of adding or changing one position.
-- A part whose block in Glass's part list asks Glass's equipment question
-  is added as Part with the Actor's answer (19 November 2026; R1206, in
-  place of R1182's "parts whose row needs no equipment answer").
-  `inputs.equipment` names the option codes it ticks, or none, and is the
-  whole answer: an option the vehicle has that it does not name is
-  unticked. The search gives each such part its question, built from the
-  part list alone: Glass's own option names, which are ticked now, which are
-  greyed, their radio groups, and Glass's own "Criteria affects other
-  parts!". With `row` it answers that one row and every answer that leads to
-  a part, with the row pair, part number, price and hours the part list
-  gives; above 256 answers it gives the map's own part and hours entries
-  instead.
-- An add on such a part with no answer is refused with
-  `glass.build.equipment` and the question. An answer that names a code
-  that is no option (`glass.build.equipment_unknown`) or a greyed one
-  (`glass.build.equipment_greyed`), names a code twice
-  (`glass.build.equipment_repeated`) or two options of one group
-  (`glass.build.equipment_same_group`), leads to no part
-  (`glass.build.equipment_no_part`), or is given for a row that asks
-  nothing (`glass.build.equipment_not_asked`) is refused with its code.
-  Nothing is sent for any of them. Otherwise the answer is stored at
-  Glass's as the editor stores it, just before the dialog is asked for, and
-  Glass's keeps it for the vehicle. The dialog must serve the row pair the
-  answer leads to and that row's part number before it is posted as
-  served. The act keeps the answer, the row pair and the stored values it
-  changed, and says when the answer was stored though the add was then
-  refused. The server's rebuild of an outside estimate answers no question
-  (R1168, R1169, R1172).
-- Every part a person can add the Actor can add (19 November 2026; R1206,
-  the operator: "claude should be able to essentially independantly do an
-  estimate"). An add is decided as a person's click on the row named
-  decides it, by the editor's own rule, and by that row alone: a part
-  Glass's lists on several drawings is added by the row the Actor names,
-  and nothing is refused as having more than one row. That rule covers
-  heads that ask nothing, heads shown on their drawing by equipment the
-  vehicle has, parts whose rows have variants Glass's does not ask about,
-  parts that offer no Replace (asked for with their remove-and-refit time
-  row, as the editor asks them), and wheels: a wheel's question is its
-  rims, a person's choice in Glass's wheel selector, and the answer names
-  the wheel's own criteria. An equipment answer is taken with any
-  operation, as the editor asks a part's dialog by one row pair whatever
-  the operation; the operation is chosen in the dialog. A variant row's
-  own part number finds its head in the search, with the variant named,
-  and the search for that variant's row gives each answer that leads to
-  it. Judged offline against the editor's own code on both captured part
-  lists, for every head the vehicle's equipment shows and every answer to
-  those that ask: the same row pair for all 1,752 answers on the SEAT's
-  list and all 2,675 on the BMW's where the editor gives a part, both
-  refusing the rest, the same stored answer for all 1,077 and 1,821, and
-  the same question for all 20 wheels; on a third list (the operator's
-  recording of 19 November 2026) all 1,205 pairs, 271 stored answers and
-  4 wheels. A head marked both left and right is one row serving both
-  sides: the editor clicks it to the same rows on either side, so either
-  side may be asked for and the side is chosen in the dialog. A part whose
-  block has no time row is asked for alone, as the editor asks it. Neither
-  shape is on a captured list; both were judged on real blocks altered to
-  have them. Each operation's time row is the one Glass's repair view
-  gives, as the recording's remove-and-refit on each side
-  (`171|173`, `174|176`) shows.
-- A part the vehicle's equipment hides on its drawing is not shown by
-  Glass's editor, so a person cannot click it either. It is refused with
-  `glass.build.equipment_hidden`, naming each stored value that hides it
-  (Glass's code and name, whether the vehicle has it or lacks it) and the
-  heads of the same drawing whose question offers it, where an answer
-  would change it. For the Actor `glass.build.equipment` means only that
-  the row asks Glass's equipment question and no answer was given, and an
-  add or a preview always carries the question with it.
 - A session the Automation owns has no lifetime, as any Glass's session.
   Staff see it on its Case, and any member of staff who can open the Case's
   assessment may close it with a reason (R1180;
@@ -1045,14 +771,9 @@ session with help on. With more than one, the call names one by
 `sessionId`, which `pegasus_glass_session_get` lists; no member of staff is
 named.
 
-- In an Engineer's session the Actor reads the estimate as in its own
-  session (R1206), searches its lists, previews a dialog and
-  adds the same positions with the same inputs as in its own session,
-  posted as Glass's dialog serves them with nothing typed (R1182; 19
-  November 2026, R1206), adds a part whose equipment question it
-  answers as in its own session, the answer stored for the vehicle and any
-  option the vehicle has unticked if the answer leaves it out (19 November
-  2026; R1206), and removes any position of the estimate
+- In an Engineer's session the Actor reads the estimate, searches its lists,
+  adds the same positions as a rebuild, posted as Glass's dialog serves them
+  with nothing typed (R1182), and removes any position of the estimate
   (R1185): the Engineer asked for the help and watches the window. It never
   saves, exits or closes the session and never reads the Engineer's Glass's
   login; it works on the editor key the Pegasus helper handed over
@@ -1163,10 +884,10 @@ its one command when none is given.
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
-| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `read` the open estimate's positions and Glass's running totals, one position's figures, or Glass's calculation (R1206; [Glass's sessions](#glasss-sessions)) | none |
+| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `readEstimate` the positions the open estimate holds ([Glass's sessions](#glasss-sessions)) | none |
 | `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
-| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, or with `list` one list a person opens under Areas > Additional or Areas > Paint (R1206), each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
-| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment`, with the dialog's own choices in `inputs`: another operation, the paint buttons, Both and optional parts (R1206); `remove` one by its id (R1185); `preview` a dialog as a form, posting nothing (R1206); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key; `preview` key only |
+| `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, each row with the value `pegasus_glass_position_act` adds it by; the Automation's own session or an Engineer's with help on | none |
+| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182); `remove` one by its id (R1185); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key |
 
 ## States and transitions
 

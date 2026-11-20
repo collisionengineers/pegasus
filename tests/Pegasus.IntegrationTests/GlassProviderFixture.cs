@@ -245,28 +245,19 @@ internal static class GlassProviderFixture
     private const string CapturedCallback =
         "https://pegasus.test/Integrations/Glass/Callback/TESTTOKEN0000000000000000000000000000000000";
 
+    private const string EmptyEstimate = "<script>\nvar Partids = [ '' ];\nvar CheckIds = [  ];\n</script>\n";
+
     /// <summary>
     /// Glass's editor on the estimator's host, answering from the pages cut
     /// from browser sessions (<c>GlassEditorPages/</c>): the launch page, the
-    /// two opening pages, the estimate with its totals (empty until a
-    /// position is posted), the records of the positions the fixtures hold
-    /// (<c>mcode.php</c>; any other is not found), the calculation report,
+    /// two opening pages, the estimate (empty until a position is posted),
     /// the special list, the dialogs and answers of two special operations
     /// (<c>AC0000073</c> and <c>AC0000075</c>), the part list
-    /// (<see cref="BuildPartList"/>), the captured equipment maps of rows 0,
-    /// 274, 682 and 821 and one with no variants for any other row, the
-    /// answer to a stored equipment answer (<c>globcrit</c>), the left front
-    /// door's dialog for its rows <c>771|772</c> and for the right door's
-    /// <c>790|791</c> (so that one serves the wrong side), cut with the
-    /// script values a changed operation reads, its "Mandatory parts:" page
-    /// and answer, the front bumper lining's dialog for any pair of its row 0
-    /// (captured for <c>0|5</c>, so any other is the wrong variant) with its
-    /// "Mandatory parts:" page and answer, the left mirror's dialog for
-    /// <c>822|829</c> and its answer, the front bumper side reinforcement's
-    /// left dialog (<see cref="ReinforcementLeft"/>), whose answer to a post
-    /// with "Both" ticked sends the list to the right one
-    /// (<see cref="ReinforcementRight"/>), each with its captured answer
-    /// (NEWHAR of 18 November 2026), and Save and Exit's three
+    /// (<see cref="BuildPartList"/>), an equipment map with no variants for
+    /// any row, the left front door's dialog for its rows <c>771|772</c> and
+    /// for the right door's <c>790|791</c> (so that one serves the wrong side),
+    /// cut with the script values a changed operation reads, its "Mandatory
+    /// parts:" page and answer, and Save and Exit's three
     /// pages. One scripted editor for the editor client's own tests is
     /// <see cref="ScriptedEditor"/>; this one is the gateway's, on the same
     /// provider as the portal, so a build runs end to end.
@@ -284,181 +275,40 @@ internal static class GlassProviderFixture
         glass.Set("GET /ere/aco/aco.php", Editor("<html><body></body></html>"));
         glass.Respond("GET /ere/aco/aco2.php", _ => EditorPage("aco2.html", null));
         glass.Respond("GET /ere/aco/selected.php", _ => glass.Count("POST /ere/aco/compproc.php") == 0
-            ? EditorPage("selected_empty.html", null)
+            ? Editor(EmptyEstimate)
             : EditorPage("selected.html", null));
-        glass.Respond("GET /ere/aco/mcode.php", request => PositionRecord(QueryValue(request.Query, "partid")));
-        glass.Respond("GET /ere/aco/report.php", _ => EditorPage("report.html", null));
         glass.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("special_list.html", null));
         glass.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList()));
-        glass.Respond("GET /ere/aco/part.php", request => QueryValue(request.Query, "mcode") switch
-        {
-            "822|829" => EditorPage("mirror_left.dialog.html", null),
-            ReinforcementLeft => EditorPage("reinforcement_left_both.dialog.html", null),
-            ReinforcementRight => EditorPage("reinforcement_right.dialog.html", null),
-            _ => SpecialOperation(request.Query, "dialog"),
-        });
-        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") switch
-        {
-            "771|772" or "790|791" => EditorPage("door_left_operations.dialog.html", null),
-            { } rows when rows.StartsWith("0|", StringComparison.Ordinal) => EditorPage("bumper_part.dialog.html", null),
-            _ => new Reply(HttpStatusCode.NotFound, string.Empty),
-        });
+        glass.Respond("GET /ere/aco/part.php", request => SpecialOperation(request.Query, "dialog"));
+        glass.Respond("GET /ere/aco/comp.php", request => QueryValue(request.Query, "mcode") is "771|772" or "790|791"
+            ? EditorPage("door_left_operations.dialog.html", null)
+            : new Reply(HttpStatusCode.NotFound, string.Empty));
         glass.Respond("POST /ere/aco/compproc.php", request => QueryValue(request.Query, "mcode") switch
         {
             "771|772" => EditorPage(
                 QueryValue(request.Query, "BX") is null ? "door_left_part.answer.html" : "door_left_part.confirm_answer.html", null),
-            "0|5" => EditorPage(
-                QueryValue(request.Query, "BX") is null ? "bumper_part.answer.html" : "bumper_part.confirm_answer.html", null),
-            "822|829" => EditorPage("mirror_left.answer.html", null),
-            ReinforcementLeft => EditorPage("reinforcement_left_both.answer.html", null),
-            ReinforcementRight => EditorPage("reinforcement_right.answer.html", null),
             _ => SpecialOperation(request.Query, "answer"),
         });
-        glass.Respond("GET /ere/aco/service.php", request =>
-            QueryValue(request.Query, "globcrit") is not null ? EditorPage("globcrit.answer.html", null)
-            : QueryValue(request.Query, "rowid") is { } row ? EquipmentMap(row)
+        glass.Respond("GET /ere/aco/service.php", request => QueryValue(request.Query, "rowid") is { } row
+            ? Editor(EquipmentMapWithNoVariants(row))
             : EditorPage("save.answer.html", null));
         glass.Respond("GET /ere/aco/close.php", _ => EditorPage("close.html", callback));
     }
 
     /// <summary>
     /// The part list the scripted editor serves: the blocks cut from the list
-    /// of 7 September 2026 (<c>part_list.html</c>, with that page's criteria),
-    /// then three blocks made for this script in the same row format: the
-    /// left and right front door shells, whose dialog the captures hold for
-    /// the left one only (rows <c>771|772</c>, code 2020001, 18 November
-    /// 2026), the BMW's left mirror (<see cref="MirrorRows"/>) and its roof
-    /// panel (<see cref="RoofRows"/>). Each
-    /// door's block needs no equipment, and the door can be painted (marked
-    /// <c>L</c>), as the browser's use of <c>comp.php</c> for it shows.
+    /// of 7 September 2026 (<c>part_list.html</c>), then two blocks made for
+    /// this script in the same row format, the left and right front door
+    /// shells, whose dialog the captures hold for the left one only (rows
+    /// <c>771|772</c>, code 2020001, 18 November 2026). Each door's block
+    /// needs no equipment, and the door can be painted (marked <c>L</c>), as
+    /// the browser's use of <c>comp.php</c> for it shows.
     /// </summary>
     public static string BuildPartList() =>
         GlassEditorFixture.Text("part_list.html").Replace(
             "\n</script>",
-            "\n" + string.Join('\n', DoorRows.Concat(MirrorRows).Concat(ReinforcementRows).Concat(RoofRows).Concat(ShapeRows).Select(row => "partlist.addPart(\"" + row + "\");"))
-            + "\n" + string.Join('\n', MirrorCriteria.Select(line => "partlist.addCrit(\"" + line + "\");")) + "\n</script>",
+            "\n" + string.Join('\n', DoorRows.Select(row => "partlist.addPart(\"" + row + "\");")) + "\n</script>",
             StringComparison.Ordinal);
-
-    /// <summary>
-    /// The BMW's left mirror (code 2027021), made for this script in the
-    /// list's row format, as no BMW part list is captured (design 10 section
-    /// 5): the head 821, its part variants 822 to 828 as its captured map
-    /// (<c>equipment_821.html</c>) names them, and its Replace and refit
-    /// time rows. Row 822's number and price and row 829's hours are those
-    /// its captured dialog (<c>822|829</c>, 18 November 2026) serves; every
-    /// other number and figure is made up. None can be painted, as the
-    /// browser's use of <c>part.php</c> for it shows.
-    /// </summary>
-    private static readonly string[] MirrorRows =
-    [
-        "821|pbclTId|HTB3-202_809|701300250101|40|2027021||51167459045|350.00|ERAEI |||||||Front Door Ext Mirror (Elec/Htd)|||||||||||KS|||||830|0|0.0.0.10",
-        "822|plTI|||||21115|51167459047|383.48|ERAEI |||||||||||||||||||||||831|0|0.0.0.10",
-        "823|plTI|||||21115_21117|51167459048|390.00|ERAEI |||||||||||||||||||||||832|0|0.0.0.10",
-        "824|plTI|||||21115_21117_85142|51167459049|395.00|ERAEI |||||||||||||||||||||||833|0|0.0.0.10",
-        "825|plTI|||||21115_85142|51167459050|385.00|ERAEI |||||||||||||||||||||||834|0|0.0.0.10",
-        "826|plTI|||||21117|51167459051|360.00|ERAEI |||||||||||||||||||||||835|0|0.0.0.10",
-        "827|plTI|||||21117_85142|51167459052|365.00|ERAEI |||||||||||||||||||||||836|0|0.0.0.10",
-        "828|plTI|||||85142|51167459053|355.00|ERAEI |||||||||||||||||||||||837|0|0.0.0.10",
-        "829|tlTI|||||||0.80|ER|||||||||||||||||||||||838|0|0.0.0.10",
-        "830|tlTI|||||||0.60|AE|||||||||||||||||||||||839|0|0.0.0.10",
-    ];
-
-    /// <summary>The rows the left reinforcement's dialog is asked for: its head and its Replace time row.</summary>
-    public const string ReinforcementLeft = "193|196";
-
-    /// <summary>The rows the left dialog's answer names for the right side, as the editor's list asks for them (NEWHAR #1248).</summary>
-    public const string ReinforcementRight = "1783|ER|1786|AE|1792";
-
-    /// <summary>
-    /// The BMW's front bumper side reinforcement (codes 1012401 left and
-    /// 1012402 right), made for this script in the list's row format: each
-    /// side's head and its Replace time row. The row ids, codes, numbers,
-    /// price and hours are those its captured dialogs serve (NEWHAR #1224 and
-    /// #1248, 18 November 2026); the rest is made up. Neither side can be
-    /// painted, as the browser's use of <c>part.php</c> for them shows.
-    /// </summary>
-    private static readonly string[] ReinforcementRows =
-    [
-        "193|pbclTId|HTB3-202_809|701300250101|41|1012401||51117266193|38.68|ERAEI |||||||Front Bumper Side Reinforcement|||||||||||KS|||||1783|0|0.0.0.11",
-        "196|tlTI|||||||2.20|ER|||||||||||||||||||||||1786|0|0.0.0.11",
-        "1783|pbcrTId|HTB3-202_809|701300250203|41|1012402||51117266194|38.68|ERAEI |||||||Front Bumper Side Reinforcement|||||||||||KS|||||193|0|0.0.0.11",
-        "1786|trTI|||||||2.20|ER|||||||||||||||||||||||196|0|0.0.0.11",
-    ];
-
-    /// <summary>The BMW's criteria the mirror's block names, as its <c>reqglobcrit2g</c> served them (r18 #745).</summary>
-    /// <summary>
-    /// The BMW's roof panel as its part list served it on 19 November 2026
-    /// (operatorwalkglass.har #369), byte for byte: two heads of one part
-    /// (rows 525 and 2697), each hidden by the panoramic roof (20011, field
-    /// 11) and asking no question, with their Replace and refit time rows.
-    /// The editor's own click asks for <c>525|526</c> and <c>2697|2698</c>.
-    /// </summary>
-    internal static readonly string[] RoofRows =
-    [
-        "525|pbcdLg|STA5-201_204||105|2010000||41007494007|1179.04|ERAEI ||20011|||||Roof Panel|Part made of steel||||||||||ST|E2341BSI2341BS|||272|2697||0.0.0.42",
-        "526|t|||||||12.50|ER|||||||||||||||||||||||2698||0.0.0.42",
-        "527|t|||||||12.50|AE|||||||||||||||||||||||2699||0.0.0.42",
-        "2697|pbcdLg|STA5-201_204||2|2010000||41007494007|1179.04|ERAEI ||20011|||||Roof Panel|Part made of steel||||||||||ST|E2341BSI2341BS|||272|525||0.3.0.3",
-        "2698|t|||||||12.50|ER|||||||||||||||||||||||526||0.3.0.3",
-        "2699|t|||||||12.50|AE|||||||||||||||||||||||527||0.3.0.3",
-    ];
-
-    /// <summary>
-    /// The two shapes no captured list holds, made by altering real blocks of
-    /// the list of 19 November 2026 (glasss2missing.har #373), as the offline
-    /// run of the editor's own code altered them (shape-dump.mjs): the front
-    /// door lower seal (row 177, code 2021981) marked both left and right
-    /// (<c>pbclTId</c> to <c>pbclrTId</c>, its time rows 178 and 179
-    /// <c>tlTI</c> to <c>tlrTI</c>, its right twin's rows 180 to 182 left
-    /// out), one row serving both sides, which the editor clicks to
-    /// <c>177|178</c> on either side; and the front bumper lower air guide
-    /// (row 51, code 1017150) with its two time rows (52 and 53) left out,
-    /// which the editor asks its dialog for alone (<c>51</c>).
-    /// </summary>
-    internal static readonly string[] ShapeRows =
-    [
-        "177|pbclrTId|HTB3-202_809||51|2021981||72328TV0E01|103.77|ERAEI |||||||Front Door Lower Seal|Part made of plastic||||||||||KS|||||1911|180|0.0.0.36",
-        "178|tlrTI|||||||0.10|ER|||||||||||||||||||||||1912|181|0.0.0.36",
-        "179|tlrTI|||||||0.10|AE|||||||||||||||||||||||1913|182|0.0.0.36",
-        "51|pbcd|HTB3-107_108_109||82|1017150||71181TV0E10|72.70|ERAEI |||||||Front Bumper Lower Air Guide|Part made of plastic||||||||||KS|||||633||0.0.0.9",
-    ];
-
-    /// <summary>The panoramic roof as that list served it: the vehicle does not have it, so the roof panel is shown.</summary>
-    internal const string NoPanoramicRoof = "20011|IgNtp|0|_|0|Panoramic Roof|0|0|140|340|0|";
-
-    /// <summary>The same line for a vehicle that has the panoramic roof, which hides the roof panel.</summary>
-    internal const string PanoramicRoof = "20011|IgNtp|1|_|0|Panoramic Roof|0|0|140|340|0|";
-
-    /// <summary>
-    /// The panoramic roof as the SEAT's list (<c>part_list.html</c>) already
-    /// carries it, not set. The scripted list keeps that line: a vehicle's
-    /// criteria are read first line first, so a second line for 20011 would
-    /// never be read.
-    /// </summary>
-    internal const string SeatNoPanoramicRoof = "20011|IgNpt|0|_|0|Panoramic Roof|0|0|123|123|0|";
-
-    /// <summary>The SEAT's line set: a vehicle with the panoramic roof, which hides the roof panel.</summary>
-    internal const string SeatPanoramicRoof = "20011|IgNpt|1|_|0|Panoramic Roof|0|0|123|123|0|";
-
-    private static readonly string[] MirrorCriteria =
-    [
-        "21115|pNg|0|_|0|Outside Mirrors Automatic Dimming|0|0|240|239|0|",
-        "21117|pNg|0|_|0|Outside Mirrors with Memory|0|0|240|240|0|",
-        "85142|pNg|0|_|0|Window Mouldings Gloss Black|0|0|160|160|1|",
-    ];
-
-    /// <summary>The rows whose captured equipment map the scripted editor serves, by row.</summary>
-    private static readonly Dictionary<string, string> CapturedMaps = new(StringComparer.Ordinal)
-    {
-        ["0"] = "equipment_0.html",
-        ["274"] = "equipment_274.html",
-        ["682"] = "equipment_682.html",
-        ["821"] = "equipment_821.html",
-    };
-
-    /// <summary>A row's equipment map: its captured one, or one with no variants.</summary>
-    private static Reply EquipmentMap(string row) =>
-        CapturedMaps.TryGetValue(row, out var file) ? EditorPage(file, null) : Editor(EquipmentMapWithNoVariants(row));
 
     /// <summary>The two door blocks of <see cref="BuildPartList"/>: the head row, its Replace time row, its refit time row.</summary>
     private static readonly string[] DoorRows =
@@ -502,20 +352,6 @@ internal static class GlassProviderFixture
     /// <summary>An editor answer, sent as windows-1252 as the editor sends it.</summary>
     public static Reply Editor(string body) =>
         new(HttpStatusCode.OK, body, Bytes: GlassEditorText.Encode(body));
-
-    /// <summary>The fixtures' position records by their ids (<c>position</c>, <c>positionLeft</c>, …).</summary>
-    private static readonly string[] PositionPages = ["position", "positionLeft", "positionPaint", "positionSpecial"];
-
-    /// <summary>The record of a position the fixtures hold, as <c>mcode.php</c> answers it, or a 404 for any other.</summary>
-    private static Reply PositionRecord(string? positionId)
-    {
-        var page = PositionPages
-            .Select(GlassEditorFixture.Page)
-            .FirstOrDefault(candidate => candidate.GetProperty("id").GetString() == positionId);
-        return page.ValueKind == System.Text.Json.JsonValueKind.Object
-            ? new(HttpStatusCode.OK, GlassEditorFixture.Text(page.GetProperty("file").GetString()!), ContentType: "application/json")
-            : new(HttpStatusCode.NotFound, string.Empty);
-    }
 
     /// <summary>The dialog or the answer of the special operation a request names, or a 404 for any other.</summary>
     private static Reply SpecialOperation(string query, string page) =>

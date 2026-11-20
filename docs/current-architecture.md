@@ -47,8 +47,8 @@ The Pegasus helper for Glass's (`src/pegasus-glass-helper`, a Chrome and
 Edge extension an Engineer loads, named as R1183 rules, R1170) is not a
 composition root either. In Glass's editor frame it defines the framing
 page's `dialog` early (`patch-dialog.js`), and its service worker hands the
-frame's own address and the load balancer's two cookies to the Web host's
-`Pages/Integrations/Glass/Help.cshtml.cs` and polls it, reloading the selected list when the poll's refresh count
+frame's own address to the Web host's `Pages/Integrations/Glass/Help.cshtml.cs`
+and polls it, reloading the selected list when the poll's refresh count
 rises and reporting it shown (`seen`); its protocol is `HelpModel.Protocol`,
 pinned with its manifest by
 `tests/Pegasus.ArchitectureTests/GlassHelperExtensionContractTests.cs`.

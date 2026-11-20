@@ -21,22 +21,6 @@ Release 124 are one line each in [operations history](operations-history.md).
   allows one web session per user, so the stored `brego-session` may have
   ended; that is not read.
 
-## Test instance Automation help, first live session - 19 November 2026
-
-- The instance served `f0459c9a6`. An Engineer's Glass's session on
-  a.PCH26059-p, opened at 08:03 UTC, had Automation help on; the helper
-  (protocol 1) handed its key over once and the Automation's tools said the
-  window was connected.
-- Of Pegasus's 8 requests to the editor on that key, 7 were answered 200
-  with a page that had none of the editor's lists (`glass.editor.answer`: 6
-  of `list_1G.php`, 1 of `selected.php`), four of them within 45 ms; the
-  last `selected.php` was read. Nothing was added or removed. The Engineer's own
-  Save & Exit returned the estimate as usual.
-- Read: the browser's requests carry the load balancer's cookies and
-  Pegasus's did not, so each reached whichever Glass's server the balancer
-  picked ([ADR-0091](adr/0091-pegasus-sends-the-glass-editor-its-own-requests.md),
-  decision 5). Not yet shown live with the cookies handed over.
-
 ## Third CI runner - 18 November 2026
 
 - On R1174, `pegasus-a` (id 59485411) joined `pegasus-wsl` and

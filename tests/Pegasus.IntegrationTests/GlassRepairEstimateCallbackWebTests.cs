@@ -1422,16 +1422,12 @@ public sealed class GlassRepairEstimateCallbackWebTests
             inner.ContinueAutomationFinishAsync(request, cancellationToken);
 
         public Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
-            ActionActor actor, Guid sessionId, GlassAutomationRead read, CancellationToken cancellationToken) =>
-            inner.ReadAutomationEstimateAsync(actor, sessionId, read, cancellationToken);
+            ActionActor actor, Guid sessionId, CancellationToken cancellationToken) =>
+            inner.ReadAutomationEstimateAsync(actor, sessionId, cancellationToken);
 
         public Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
             GlassAutomationCatalogueQuery query, CancellationToken cancellationToken) =>
             inner.SearchAutomationCatalogueAsync(query, cancellationToken);
-
-        public Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
-            GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>
-            inner.PreviewAutomationPositionAsync(request, cancellationToken);
 
         public Task<GlassAutomationPositionStep?> PrepareAutomationPositionAsync(
             GlassAutomationPositionRequest request, CancellationToken cancellationToken) =>

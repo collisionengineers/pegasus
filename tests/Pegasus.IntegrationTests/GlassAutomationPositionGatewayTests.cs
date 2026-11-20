@@ -7,9 +7,7 @@ namespace Pegasus.IntegrationTests;
 
 // The Automation's catalogue search and position acts in its own Glass's
 // session (design 07 sections 3.3, 3.4 and 7, slices C2 and C3; operator,
-// 18 November 2026, R1168, R1169, R1182, R1185; 19 November 2026, R1206:
-// preview, paint buttons, any served operation, Both and optional parts),
-// through the gateway against
+// 18 November 2026, R1168, R1169, R1182, R1185), through the gateway against
 // the scripted editor of GlassProviderFixture: a search changes nothing, an
 // add is claimed before Glass's is asked and posted as the dialog serves it,
 // a row that is not certain is refused and nothing is sent, a lost answer is
@@ -32,34 +30,6 @@ public sealed partial class GlassRepairEstimateGatewayTests
     [
         "900|pbclTIdLg|HTB3-202_809|701300250101|37|2020001||41009628759|600.00|ERAEI |||||||Front Door Shell|||||||||||KS|||||790|0|0.0.0.9",
         "901|tlTI|||||||2.90|ER|||||||||||||||||||||||792|0|0.0.0.9",
-    ];
-
-    /// <summary>The lining's three options (glasses7 #356, row 0).</summary>
-    private static readonly string[] LiningOptions = ["12000", "24119", "90109"];
-
-    /// <summary>The door handle's two keyless variants found by their shared part number: left 275, then 276.</summary>
-    private static readonly string[] KeylessRows = ["275", "276"];
-
-    /// <summary>The answers that lead to the left handle's keyless variant, row 276.</summary>
-    private static readonly string[] KeylessAnswers = ["85161", "800_85161"];
-
-    /// <summary>An answer that ticks nothing.</summary>
-    private static readonly string[] NothingTicked = [];
-
-    /// <summary>
-    /// An answered add's requests after the estimate's read (design 10
-    /// section 2): the part list, the row's map, the stored answer, the
-    /// dialog, its post and the "Mandatory parts:" confirm, the estimate.
-    /// </summary>
-    private static readonly string[] AnsweredAdd =
-    [
-        "GET /ere/aco/list.php",
-        "GET /ere/aco/service.php",
-        "GET /ere/aco/service.php",
-        "GET /ere/aco/comp.php",
-        "POST /ere/aco/compproc.php",
-        "POST /ere/aco/compproc.php",
-        "GET /ere/aco/selected.php",
     ];
 
     /// <summary>
@@ -104,119 +74,6 @@ public sealed partial class GlassRepairEstimateGatewayTests
         Assert.Equal(1, harness.Mva.Count("GET /ere/aco/list_1G.php"));
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
         Assert.Equal(GlassRepairEstimateSessionState.Active, right.Session.State);
-    }
-
-    /// <summary>
-    /// The search's lists (R1206): each Additional list is one
-    /// <c>list_1G.php</c> with its group opened after the free positions
-    /// parts, as the editor asks for it (walk #1146 to #1294), and its rows
-    /// answer the value an add takes, Glass's name, the list's name and the
-    /// dialog they open; the paint areas are one <c>list_paint.php</c>; a list
-    /// the account's tree does not hold answers its code.
-    /// </summary>
-    [Fact]
-    public async Task EachListAPersonOpensIsSearchedWithItsOwnRequest()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Respond("GET /ere/aco/list_1G.php", _ => EditorPage("additional_list.html", null));
-        harness.Mva.Respond("GET /ere/aco/list_paint.php", _ => EditorPage("panel_paint.html", null));
-
-        var bulbs = await ListAsync(harness, session.Id, "H1", GlassAutomationCatalogueList.Bulbs);
-        var metal = await ListAsync(harness, session.Id, "Bumper", GlassAutomationCatalogueList.SpecialMetal);
-        var labour = await ListAsync(harness, session.Id, "Engine", GlassAutomationCatalogueList.AdditionalLabour);
-        var areas = await ListAsync(harness, session.Id, "Front Door", GlassAutomationCatalogueList.PaintAreas);
-        var texts = await ListAsync(harness, session.Id, "a", GlassAutomationCatalogueList.LabourDescriptions);
-
-        var bulb = Assert.Single(bulbs.Rows, row => row.Row == "AB0000000");
-        Assert.Equal(GlassAutomationPositionKind.SpecialOperation, bulb.Kind);
-        Assert.Equal("6/55 H1 Headlamp/Driving Lamp", bulb.Description);
-        Assert.Equal("part", bulb.Dialog);
-        Assert.Equal("Bulbs", bulb.Group);
-        var table = Assert.Single(metal.Rows, row => row.Row == "AL0B8005");
-        Assert.Equal(GlassAutomationPositionKind.Paint, table.Kind);
-        Assert.Equal("paint", table.Dialog);
-        Assert.Equal("Lxx8005", table.PartCode);
-        Assert.Contains(labour.Rows, row => row.Row == "AM7021600" && row.Group == "Additional Labour");
-        Assert.All(areas.Rows, row => Assert.Equal(GlassAutomationPositionKind.Paint, row.Kind));
-        Assert.Contains(areas.Rows, row => row.Row == "Lxx2010.80");
-        Assert.Empty(texts.Rows);
-        Assert.Equal(GlassAutomationPositionPolicy.ListNotOfferedCode, texts.Code);
-        Assert.Contains(harness.Mva.Requests, request => request.Path == "/ere/aco/list_1G.php"
-            && Uri.UnescapeDataString(request.Query).Contains("&tcode=SS-FREEPART|SS-BULPS", StringComparison.Ordinal));
-        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/list_paint.php"));
-    }
-
-    /// <summary>
-    /// A row of another Additional list is added by its own <c>part.php</c>
-    /// in mode A with no list read, and a paint row by its <c>lack.php</c>
-    /// (R1206): the walk's bulb with a typed price (#1257, #1275) and its
-    /// special table metal row (#1310, #1326), each read back by the code its
-    /// position carries (A0, Lxx8005).
-    /// </summary>
-    [Fact]
-    public async Task ARowOfEveryListIsAddedByTheDialogItOpens()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Respond("GET /ere/aco/part.php", _ => EditorPage("bulb_price.dialog.html", null));
-        harness.Mva.Respond("GET /ere/aco/lack.php", _ => EditorPage("lack_a.dialog.html", null));
-        harness.Mva.Respond("POST /ere/aco/compproc.php", _ => EditorPage("bulb_price.answer.html", null));
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(harness.Mva.Count("POST /ere/aco/compproc.php") switch
-        {
-            0 => NoPositions,
-            1 => "<script>\nvar Partids = [ '', 'A421433.15.A0.A0' ];\nvar CheckIds = [ 'A0' ];\n</script>\n",
-            _ => "<script>\nvar Partids = [ '', 'A421433.15.A0.A0', 'L421474.16.Lxx8005.Lxx8005' ];\nvar CheckIds = [ 'A0', 'Lxx8005' ];\n</script>\n",
-        }));
-
-        var bulb = await PositionAsync(harness, Add(harness, session, "mcp:bulb-1",
-            GlassAutomationPositionKind.SpecialOperation, "AB0000000", inputs: new GlassAutomationInputs(Price: 1234m)));
-        var table = await PositionAsync(harness, Add(harness, bulb.Session, "mcp:table-1",
-            GlassAutomationPositionKind.Paint, "AL0B8005"));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, bulb.Act.Outcome);
-        Assert.Equal("A0", bulb.Act.ExpectedCode);
-        Assert.Equal("A421433.15.A0.A0", Assert.Single(bulb.Act.PositionIds));
-        Assert.Equal(GlassAutomationActOutcome.Added, table.Act.Outcome);
-        Assert.Equal("Lxx8005", table.Act.ExpectedCode);
-        Assert.Equal("L421474.16.Lxx8005.Lxx8005", Assert.Single(table.Act.PositionIds));
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/list_1G.php"));
-        var posts = DialogPosts(harness);
-        Assert.Contains("&Price=1234.00&", posts[0], StringComparison.Ordinal);
-        Assert.Equal(GlassEditorFixture.Text("c7_lack_a_served.post.txt"), posts[1]);
-    }
-
-    /// <summary>
-    /// A paint row's position is previewed and changed through its own
-    /// <c>lack.php</c> (R1206): the estimate's group for it holds L alone,
-    /// so the editor's LoadGraph opens <c>lack</c>, and its paint type is
-    /// changed as the walk's dialog's own script changes it (#1310).
-    /// </summary>
-    [Fact]
-    public async Task APaintRowsPositionIsPreviewedAndChangedThroughItsOwnDialog()
-    {
-        const string Table = "L421474.16.Lxx8005.Lxx8005";
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        var held = "<script>\nvar Partids = [ '', '" + Table + "' ];\nvar CheckIds = [ 'Lxx8005' ];\nvar Groups = [ "
-            + string.Join(", ", Enumerable.Repeat("'L'", 20)) + " ];\n</script>\n";
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(held));
-        harness.Mva.Respond("GET /ere/aco/lack.php", _ => EditorPage("lack_a.dialog.html", null));
-        harness.Mva.Respond("POST /ere/aco/compproc.php", _ => EditorPage("bulb_price.answer.html", null));
-
-        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
-            new GlassAutomationPositionRequest(harness.Automation, session.Id, 0, "mcp:table-preview", GlassAutomationActAction.Preview)
-            {
-                PositionId = Table,
-            },
-            CancellationToken.None);
-        var changed = await PositionAsync(harness, Change(harness, preview!.Session, "mcp:table-change", Table,
-            new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "3"))));
-
-        Assert.Equal("paint", preview.Dialog?.Kind);
-        Assert.Contains("partid=" + Table, Asked(harness, "GET", "lack.php")[0], StringComparison.Ordinal);
-        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
-        Assert.Equal(GlassEditorFixture.Text("c7_lack_a_coats3.post.txt"), Assert.Single(DialogPosts(harness)));
     }
 
     /// <summary>A list Glass's does not answer answers no rows and its code; the session stays open.</summary>
@@ -347,19 +204,13 @@ public sealed partial class GlassRepairEstimateGatewayTests
             GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part));
         Assert.Equal(GlassAutomationActOutcome.Refused, equipment.Act.Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, equipment.Act.Code);
-        // Given no answer, the add carries the question its map was read for (R1206).
-        Assert.NotNull(equipment.Act.Equipment);
-        Assert.Equal(LiningOptions, equipment.Act.Equipment.Options.Select(option => option.Code));
-        Assert.False(equipment.Act.EquipmentStored);
         Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
 
         var side = await PositionAsync(harness, Add(harness, equipment.Session, "mcp:side-1",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part, side: "R"));
         Assert.Equal(GlassAutomationActOutcome.Refused, side.Act.Outcome);
         Assert.Equal(GlassEstimateBuildPolicy.NoRowCode, side.Act.Code);
-        // Only the lining's map was read.
-        Assert.Equal(1, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
-        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("globcrit=", StringComparison.Ordinal)));
+        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
 
         var unknown = await PositionAsync(harness, Add(harness, side.Session, "mcp:unknown-1",
             GlassAutomationPositionKind.SpecialOperation, "AC9999999"));
@@ -378,317 +229,11 @@ public sealed partial class GlassRepairEstimateGatewayTests
     }
 
     /// <summary>
-    /// A part whose row asks Glass's equipment question is added as Part by
-    /// the Automation's answer (R1206): the list and the row's map are read,
-    /// the answer is stored for the vehicle as the editor stores it
-    /// (<c>encodeURIComponent</c>-encoded) just before the dialog of the row
-    /// pair it leads to is asked for, and the dialog is posted as served. The
-    /// act keeps the answer, the pair and the values it changed.
+    /// Two head rows for one line that are not the same part are ambiguous:
+    /// refused, both maps read, and no dialog asked for.
     /// </summary>
     [Fact]
-    public async Task AnAnsweredPartIsStoredThenAddedAsServed()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        var before = harness.Mva.Requests.Count;
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:lining-1",
-            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part, equipment: LiningOptions));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        Assert.Equal("C1010800", step.Act.ExpectedCode);
-        Assert.Equal("0|5", step.Act.RowPair);
-        Assert.True(step.Act.EquipmentStored);
-        Assert.Equal(LiningOptions, step.Act.Inputs?.Equipment);
-        Assert.Equal(LiningOptions, step.Act.EquipmentChanged.Select(change => change.Code));
-        Assert.All(step.Act.EquipmentChanged, change => Assert.True(change.Ticked));
-        Assert.Null(step.Act.Equipment);
-        Assert.Equal(new GlassEstimateBuildFigures(379.00m, 1.80m), step.Act.Served);
-        Assert.Contains("C350955.31.C1010800.1580", step.Act.PositionIds);
-        var asked = harness.Mva.Requests.Skip(before).Select(request => request.Method + " " + request.Path).ToList();
-        Assert.Equal("GET /ere/aco/selected.php", asked[0]);
-        Assert.Equal(AnsweredAdd, asked.Skip(1));
-        var stored = Assert.Single(harness.Mva.Requests, request => request.Query.Contains("globcrit=", StringComparison.Ordinal));
-        Assert.Contains(
-            "&globcrit=12000%7C1%7C1%7C24119%7C1%7C1%7C90109%7C1%7C1&updatecrit2g=1&", stored.Query, StringComparison.Ordinal);
-        Assert.Contains("rowid=0&reqcritmap3=1", Assert.Single(
-            Asked(harness, "GET", "service.php"), query => query.Contains("reqcritmap3", StringComparison.Ordinal)), StringComparison.Ordinal);
-        Assert.Contains("mcode=0|5", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
-        var recorded = Assert.Single(harness.Store.Material(session.Id).Session.Automation!.Acts);
-        Assert.Equal("0|5", recorded.RowPair);
-        Assert.True(recorded.EquipmentStored);
-    }
-
-    /// <summary>
-    /// A dialog Glass's serves for another variant than the answer's rows
-    /// is refused before its post (R1206): the answer that ticks nothing
-    /// leads to <c>0|1</c>, and the scripted editor serves the dialog of
-    /// <c>0|5</c>. The answer was stored first, and the act says so.
-    /// </summary>
-    [Fact]
-    public async Task AnotherVariantsDialogIsRefusedAndTheActSaysTheAnswerWasStored()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:lining-1",
-            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Part, equipment: NothingTicked));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassFailure.EditorRefused, step.Act.Code);
-        Assert.Equal("0|1", step.Act.RowPair);
-        Assert.True(step.Act.EquipmentStored);
-        Assert.Empty(step.Act.EquipmentChanged);
-        Assert.Contains("globcrit=12000|0|1|24119|0|1|90109|0|1&updatecrit2g=1", Assert.Single(
-            Asked(harness, "GET", "service.php"), query => query.Contains("globcrit=", StringComparison.Ordinal)), StringComparison.Ordinal);
-        Assert.Contains("mcode=0|1", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-    }
-
-    /// <summary>
-    /// An answer the dialog would not take, or one given for a row that asks
-    /// nothing, is refused with its code and nothing is sent: no answer is
-    /// stored and no dialog asked for (R1206). The lining's refusals carry
-    /// its question.
-    /// </summary>
-    [Theory]
-    [InlineData("0", "99999", GlassAutomationPositionPolicy.EquipmentUnknownCode, 1)]
-    [InlineData("0", "12000,12000", GlassAutomationPositionPolicy.EquipmentRepeatedCode, 1)]
-    [InlineData("771", "12000", GlassAutomationPositionPolicy.EquipmentNotAskedCode, 0)]
-    public async Task AnAnswerTheDialogWouldNotTakeIsRefusedAndNothingIsSent(string row, string equipment, string code, int maps)
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:answer-1",
-            GlassAutomationPositionKind.Part, row, GlassAutomationPartOperation.Part, equipment: equipment.Split(',')));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(code, step.Act.Code);
-        Assert.Equal(maps == 1, step.Act.Equipment is not null);
-        Assert.False(step.Act.EquipmentStored);
-        Assert.Equal(maps, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
-        Assert.Equal(0, Asked(harness, "GET", "service.php").Count(query => query.Contains("globcrit=", StringComparison.Ordinal)));
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-    }
-
-    /// <summary>
-    /// The BMW's roof panel asks no question and the panoramic roof it is
-    /// hidden by is not on the car, so the editor shows it and a click opens
-    /// its dialog (R1206): the Automation's add asks for the pair that click
-    /// asks for, after reading the map of the row named, and the part's other
-    /// head, named, asks for its own pair. No roof
-    /// dialog is captured, so the scripted editor serves the door's, whose
-    /// part code refuses it before anything is posted. The preview asks for
-    /// the same pair.
-    /// </summary>
-    [Fact]
-    public async Task AHeadItsEquipmentShowsIsAddedWithoutAQuestion()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:roof-1",
-            GlassAutomationPositionKind.Part, "525", GlassAutomationPartOperation.Part));
-        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
-        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, step.Session, "525", GlassAutomationPartOperation.Part, null), CancellationToken.None);
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassFailure.EditorRefused, step.Act.Code);
-        Assert.Null(step.Act.Equipment);
-        Assert.NotNull(preview);
-        Assert.NotEqual(GlassEstimateBuildPolicy.EquipmentCode, preview.Code);
-        var asked = Asked(harness, "GET", "comp.php");
-        Assert.Equal(2, asked.Count);
-        Assert.All(asked, query => Assert.Contains("mcode=525|526", query, StringComparison.Ordinal));
-        // The row named is clicked: its own map alone is read.
-        Assert.DoesNotContain(Asked(harness, "GET", "service.php"), query => query.Contains("rowid=2697&", StringComparison.Ordinal));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-
-        // The preview wrote the session after the add, so the next act starts from its version.
-        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("door_left_part.dialog.html", null));
-        await PositionAsync(harness, Add(harness, preview.Session, "mcp:roof-2",
-            GlassAutomationPositionKind.Part, "2697", GlassAutomationPartOperation.Part));
-        Assert.Contains("mcode=2697|2698", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// On a car with the panoramic roof the roof panel is hidden, as the
-    /// editor hides it: the add and the preview are refused with
-    /// glass.build.equipment_hidden by the list alone, naming the panoramic
-    /// roof that hides it, with no question and nothing more asked (R1206).
-    /// </summary>
-    [Fact]
-    public async Task AHeadItsEquipmentHidesIsRefusedWithItsOwnCode()
-    {
-        var harness = Harness.Create();
-        var hidden = BuildPartList().Replace(SeatNoPanoramicRoof, SeatPanoramicRoof, StringComparison.Ordinal);
-        Assert.Contains(SeatPanoramicRoof, hidden, StringComparison.Ordinal);
-        harness.Mva.Respond("GET /ere/aco/list.php", _ => Editor(hidden));
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:roof-1",
-            GlassAutomationPositionKind.Part, "525", GlassAutomationPartOperation.Part));
-        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, step.Session, "525", GlassAutomationPartOperation.Part, null), CancellationToken.None);
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, step.Act.Code);
-        Assert.Null(step.Act.Equipment);
-        var panoramic = Assert.Single(step.Act.HiddenBy);
-        Assert.Equal("20011", panoramic.Code);
-        Assert.Equal("Panoramic Roof", panoramic.Name);
-        Assert.True(panoramic.Has);
-        Assert.NotNull(preview);
-        // Member by member: the record's AnsweredOn list compares by reference.
-        var previewed = Assert.Single(preview.HiddenBy);
-        Assert.Equal(panoramic.Code, previewed.Code);
-        Assert.Equal(panoramic.Name, previewed.Name);
-        Assert.Equal(panoramic.Has, previewed.Has);
-        Assert.Equal(panoramic.AnsweredOn, previewed.AnsweredOn);
-        Assert.Equal(GlassAutomationPositionPolicy.EquipmentHiddenCode, preview.Code);
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
-    }
-
-    /// <summary>
-    /// Repair on a part whose row asks Glass's equipment question takes the
-    /// answer as Part does (R1206): with none it is refused with the question;
-    /// with one its dialog is asked for by the rows the answer leads to, as
-    /// the editor asks it whatever the operation, and the operation is chosen
-    /// in the dialog.
-    /// </summary>
-    [Fact]
-    public async Task ARepairOnAPartThatAsksTakesTheAnswerAsPartDoes()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var unanswered = await PositionAsync(harness, Add(harness, session, "mcp:lining-repair-1",
-            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Repair));
-        var answered = await PositionAsync(harness, Add(harness, unanswered.Session, "mcp:lining-repair-2",
-            GlassAutomationPositionKind.Part, "0", GlassAutomationPartOperation.Repair, equipment: LiningOptions));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, unanswered.Act.Outcome);
-        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, unanswered.Act.Code);
-        Assert.NotNull(unanswered.Act.Equipment);
-        Assert.Equal("0|5", answered.Act.RowPair);
-        Assert.Contains("mcode=0|5", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
-        Assert.NotEqual(GlassEstimateBuildPolicy.EquipmentCode, answered.Act.Code);
-    }
-
-    /// <summary>
-    /// A row serving both sides is added on either side asked for, by the
-    /// rows the editor's click gives on both (<c>177|178</c>), and a part
-    /// whose block has no time row is asked for alone (<c>51</c>), as the
-    /// editor asks them (R1206). No dialog of either is captured, so the
-    /// scripted editor serves the mirror's, whose part code refuses it
-    /// before anything is posted.
-    /// </summary>
-    [Fact]
-    public async Task ARowServingBothSidesAndAPartWithNoTimeRowAreAskedFor()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Enqueue("GET /ere/aco/part.php",
-            EditorPage("mirror_left.dialog.html", null), EditorPage("mirror_left.dialog.html", null), EditorPage("mirror_left.dialog.html", null));
-
-        var left = await PositionAsync(harness, Add(harness, session, "mcp:seal-l",
-            GlassAutomationPositionKind.Part, "177", GlassAutomationPartOperation.Part, side: "L"));
-        var right = await PositionAsync(harness, Add(harness, left.Session, "mcp:seal-r",
-            GlassAutomationPositionKind.Part, "177", GlassAutomationPartOperation.Part, side: "R"));
-        var guide = await PositionAsync(harness, Add(harness, right.Session, "mcp:guide",
-            GlassAutomationPositionKind.Part, "51", GlassAutomationPartOperation.Part));
-
-        var asked = Asked(harness, "GET", "part.php");
-        Assert.Equal(3, asked.Count);
-        Assert.Contains("mcode=177|178&", asked[0], StringComparison.Ordinal);
-        Assert.Contains("mcode=177|178&", asked[1], StringComparison.Ordinal);
-        Assert.Contains("mcode=51&", asked[2], StringComparison.Ordinal);
-        Assert.All(new[] { left, right, guide }, step => Assert.Equal(GlassFailure.EditorRefused, step.Act.Code));
-        Assert.Equal("177|178", left.Act.RowPair);
-        Assert.Equal("51", guide.Act.RowPair);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-    }
-
-    /// <summary>
-    /// A variant row's own part number finds its head, with the variant
-    /// named, from the list alone; asked for by the variant's row, the
-    /// search answers the head with each answer that leads to that variant
-    /// (R1206): the door handle's keyless variant (row 276, 5G0837205NGRU)
-    /// by Keyless Entry and Start, with or without Primed.
-    /// </summary>
-    [Fact]
-    public async Task AVariantsPartNumberFindsItsHeadAndTheAnswersThatLeadToIt()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var found = await SearchAsync(harness, session.Id, "5G0837205NGRU", GlassAutomationPositionKind.Part, null);
-        var variant = await harness.Gateway.SearchAutomationCatalogueAsync(
-            new(harness.Automation, session.Id, string.Empty, null, null) { Row = "276" }, CancellationToken.None);
-
-        Assert.Equal(2, found.Rows.Count);
-        Assert.All(found.Rows, row => Assert.Equal("274", row.Row));
-        Assert.Equal(KeylessRows, found.Rows.Select(row => row.Variant?.Row));
-        Assert.All(found.Rows, row => Assert.Equal("5G0837205NGRU", row.Variant?.PartNumber));
-        Assert.NotNull(variant);
-        var head = Assert.Single(variant.Rows);
-        Assert.Equal("274", head.Row);
-        var keyless = head.Variant;
-        Assert.NotNull(keyless);
-        Assert.NotNull(keyless.Answers);
-        Assert.Equal(KeylessAnswers, keyless.Answers.Select(answer => string.Join('_', answer.Ticked)));
-        Assert.All(keyless.Answers, answer => Assert.Equal("276|277", answer.Rows));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-    }
-
-    /// <summary>
-    /// The search answers each part whose block asks with its question,
-    /// from the list alone; with a row it reads that row's map too and
-    /// answers every answer that leads to a part (R1206). A row that is not
-    /// a head of the list answers no rows and its code. Nothing is sent.
-    /// </summary>
-    [Fact]
-    public async Task TheSearchCarriesTheQuestionAndARowAsksForItsAnswers()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var linings = await SearchAsync(harness, session.Id, "bumper lining", GlassAutomationPositionKind.Part, null);
-        var doors = await SearchAsync(harness, session.Id, "door shell", GlassAutomationPositionKind.Part, null);
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/service.php"));
-        var lining = await harness.Gateway.SearchAutomationCatalogueAsync(
-            new(harness.Automation, session.Id, string.Empty, null, null) { Row = "0" }, CancellationToken.None);
-        var unknown = await harness.Gateway.SearchAutomationCatalogueAsync(
-            new(harness.Automation, session.Id, string.Empty, null, null) { Row = "99999" }, CancellationToken.None);
-
-        Assert.Equal(2, linings.Rows.Count);
-        Assert.All(linings.Rows, row => Assert.Equal(LiningOptions, row.Equipment?.Options.Select(option => option.Code)));
-        Assert.All(linings.Rows, row => Assert.Null(row.Equipment?.Answers));
-        Assert.All(doors.Rows, row => Assert.Null(row.Equipment));
-        Assert.NotNull(lining);
-        var answered = Assert.Single(lining.Rows);
-        Assert.Equal("0", answered.Row);
-        Assert.Equal(8, answered.Equipment?.Answers?.Count);
-        Assert.Contains(answered.Equipment!.Answers!, answer => answer.Rows == "0|5" && answer.Ticked.SequenceEqual(LiningOptions));
-        Assert.Equal(1, harness.Mva.Count("GET /ere/aco/service.php"));
-        Assert.NotNull(unknown);
-        Assert.Empty(unknown.Rows);
-        Assert.Equal(GlassAutomationPositionPolicy.RowUnknownCode, unknown.Code);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-    }
-
-    /// <summary>
-    /// Two head rows of one part code that are not the same part: a person
-    /// clicks one on its drawing, and the Automation's add uses the row it
-    /// names, its map alone read (R1206); nothing is refused as ambiguous.
-    /// </summary>
-    [Fact]
-    public async Task TwoHeadsThatAreNotTheSamePartArePlacedByTheRowNamed()
+    public async Task TwoHeadsThatAreNotTheSamePartAreRefusedAsAmbiguous()
     {
         var harness = Harness.Create();
         harness.Mva.Respond("GET /ere/aco/list.php", _ => Editor(BuildPartList().Replace(
@@ -703,646 +248,37 @@ public sealed partial class GlassRepairEstimateGatewayTests
         var step = await PositionAsync(harness, Add(harness, session, "mcp:door-1",
             GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part));
 
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        Assert.Equal("771|772", step.Act.RowPair);
-        Assert.Equal(1, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
-        Assert.Contains("mcode=771|772", Assert.Single(Asked(harness, "GET", "comp.php")), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Paint on its own and Part and Paint are sent (R1206): the button
-    /// pressed on the dialog of a part that can be painted, the paint section
-    /// as Glass's serves it, and the act recorded with Glass's own figures.
-    /// </summary>
-    [Theory]
-    [InlineData(GlassAutomationPartOperation.Paint, "&BLL=Paint&")]
-    [InlineData(GlassAutomationPartOperation.PartAndPaint, "&BSL=Part+and+Paint&")]
-    public async Task PaintAndPartAndPaintArePostedWithTheirButtons(GlassAutomationPartOperation operation, string button)
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:paint-1",
-            GlassAutomationPositionKind.Part, "771", operation));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        Assert.Null(step.Act.Code);
-        Assert.Equal(new GlassEstimateBuildFigures(545.24m, 2.90m), step.Act.Served);
-        var posted = Assert.Single(DialogPosts(harness));
-        Assert.Contains(button, posted, StringComparison.Ordinal);
-        Assert.Contains("&Repart=ER&", posted, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A paint button on a part that cannot be painted (part.php, the
-    /// reinforcement) is refused before its dialog is asked for.
-    /// </summary>
-    [Fact]
-    public async Task PaintOnAPartThatCannotBePaintedIsRefusedAndNothingIsSent()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:paint-2",
-            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Paint));
-
         Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.NotPaintableCode, step.Act.Code);
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/part.php"));
+        Assert.Equal(GlassEstimateBuildPolicy.AmbiguousRowCode, step.Act.Code);
+        Assert.Equal(2, Asked(harness, "GET", "service.php").Count(query => query.Contains("reqcritmap3=1", StringComparison.Ordinal)));
+        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
         Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
     }
 
     /// <summary>
-    /// An operation the dialog offers and the return reads back is chosen by
-    /// Glass's own code (R1206) and posted exactly as the dialog's own script
-    /// posted it offline (manifest operations): Uninstall and install with
-    /// its own hours; Sealing, served with no figures, only with the OK
-    /// given; Repair with Part and Paint, answered OK by itself (R1188).
-    /// Every input is kept on the act.
-    /// </summary>
-    [Fact]
-    public async Task AnOperationTheDialogOffersIsPostedAsItsScriptPostsIt()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var adjust = await PositionAsync(harness, Add(harness, session, "mcp:op-ae",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "AE")));
-        var unanswered = await PositionAsync(harness, Add(harness, adjust.Session, "mcp:op-ad-1",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "AD")));
-        var answered = await PositionAsync(harness, Add(harness, unanswered.Session, "mcp:op-ad-2",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "AD", ConfirmNoFigures: true)));
-        var repaired = await PositionAsync(harness, Add(harness, answered.Session, "mcp:op-i",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "I", Button: GlassAutomationButton.PartAndPaint)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, adjust.Act.Outcome);
-        Assert.Equal(new GlassEstimateBuildFigures(null, 0.40m), adjust.Act.Served);
-        Assert.Equal("AE", adjust.Act.Inputs?.Operation);
-        Assert.Equal(GlassAutomationActOutcome.Refused, unanswered.Act.Outcome);
-        Assert.Equal(GlassFailure.EditorRefused, unanswered.Act.Code);
-        Assert.Equal(GlassAutomationActOutcome.Added, answered.Act.Outcome);
-        Assert.True(answered.Act.Inputs?.ConfirmNoFigures);
-        Assert.Equal(GlassAutomationActOutcome.Added, repaired.Act.Outcome);
-        Assert.Equal(GlassAutomationButton.PartAndPaint, repaired.Act.Inputs?.Button);
-        List<string?> judged =
-        [
-            GlassEditorFixture.Text("door_left_refit.post.txt"),
-            GlassEditorFixture.Text("door_left_ad.post.txt"),
-            GlassEditorFixture.Text("door_left_repair_part_and_paint.post.txt"),
-        ];
-        Assert.Equal(judged, DialogPosts(harness));
-    }
-
-    /// <summary>
-    /// Every operation the dialog offers goes through (R1206): the return
-    /// reads every repair kind Glass's exports (issue 2155). Dismantle and
-    /// assemble, with the question before no figures answered, and
-    /// Adjustments are each posted as the door's own script posted them.
+    /// Paint on its own and Part and Paint are not sent (R1182): the act is
+    /// recorded refused with its reason when it is claimed, and Glass's is
+    /// asked nothing.
     /// </summary>
     [Theory]
-    [InlineData("Z", "door_left_z.post.txt")]
-    [InlineData("E", "door_left_e.post.txt")]
-    public async Task EveryOperationTheDialogOffersIsPostedAsItsScriptPostsIt(string operation, string post)
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:op-" + operation,
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: operation, ConfirmNoFigures: true)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        Assert.Equal(GlassEditorFixture.Text(post), Assert.Single(DialogPosts(harness)));
-    }
-
-    /// <summary>
-    /// The optional parts named are ticked on the "Mandatory parts:" page, as
-    /// the browser ticked them (bumper and door captures), and the act lists
-    /// each part as it was confirmed.
-    /// </summary>
-    [Fact]
-    public async Task TheOptionalPartsNamedAreTickedOnTheMandatoryPartsPage()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:ticks-1",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(OptionalParts: TrimSupportKit)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        var confirm = harness.Mva.Requests.Single(request => request.Method == "POST"
-            && request.Query.Contains("BX=1", StringComparison.Ordinal));
-        Assert.Equal(GlassEditorFixture.Text("door_left_part.confirm.txt"), confirm.Body);
-        var kit = Assert.Single(step.Act.Listed, listed => listed.Code == "8099801.ER.");
-        Assert.True(kit.Ticked);
-        Assert.True(kit.Optional);
-        Assert.False(Assert.Single(step.Act.Listed, listed => listed.Code == "2029301.ER.").Ticked);
-    }
-
-    /// <summary>
-    /// "Both" (R1206): the left reinforcement's dialog posted with Both
-    /// ticked, as the browser posted it; its answer sends the list to the
-    /// right one, whose own dialog is then asked for and posted as served,
-    /// as the browser posted it; each side's code is recorded before its
-    /// post, and the act holds both sides' positions.
-    /// </summary>
-    [Fact]
-    public async Task BothSidesPostsTheOtherSidesOwnDialogAfterTheFirst()
-    {
-        var harness = Harness.Create();
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(Reinforced(harness.Mva.Count("POST /ere/aco/compproc.php"))));
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:both-1",
-            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(BothSides: true)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        Assert.Null(step.Act.Code);
-        Assert.Equal("C1012401", step.Act.ExpectedCode);
-        Assert.Equal("C1012402", step.Act.OtherSideCode);
-        List<string> bothSides = [LeftReinforcement, RightReinforcement];
-        Assert.Equal(bothSides, step.Act.PositionIds);
-        List<string?> judged =
-        [
-            GlassEditorFixture.Text("reinforcement_left_both.post.txt"),
-            GlassEditorFixture.Text("reinforcement_right.post.txt"),
-        ];
-        Assert.Equal(judged, DialogPosts(harness));
-        List<string> dialogs = [ReinforcementLeft, ReinforcementRight];
-        Assert.Equal(
-            dialogs,
-            Asked(harness, "GET", "part.php").Select(query => query.Split('&').Single(part => part.StartsWith("mcode=", StringComparison.Ordinal))[6..]));
-    }
-
-    /// <summary>
-    /// Typed figures (R1206): hours above Glass's own with no reason are
-    /// refused with their code before anything is posted, and Pegasus writes
-    /// none; with the Automation's own reason they are posted with it. A
-    /// typed price and overlap hours are posted as the canonical text. Each
-    /// act keeps the inputs beside the figures Glass's served and those sent.
-    /// </summary>
-    [Fact]
-    public async Task TypedFiguresArePostedWithTheAutomationsOwnReason()
-    {
-        var harness = Harness.Create();
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(Reinforced(harness.Mva.Count("POST /ere/aco/compproc.php"))));
-        var session = await AutomationStartAsync(harness);
-
-        var unreasoned = await PositionAsync(harness, Add(harness, session, "mcp:typed-1",
-            GlassAutomationPositionKind.SpecialOperation, "AC0000075", inputs: new GlassAutomationInputs(Hours: 0.8m)));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, unreasoned.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.Act.Code);
-        Assert.Equal(0.8m, unreasoned.Act.Inputs?.Hours);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-
-        var reasoned = await PositionAsync(harness, Add(harness, unreasoned.Session, "mcp:typed-2",
-            GlassAutomationPositionKind.SpecialOperation, "AC0000075",
-            inputs: new GlassAutomationInputs(Hours: 0.8m, Reason: "Seized bolts")));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, reasoned.Act.Outcome);
-        var post = Assert.Single(DialogPosts(harness));
-        Assert.Contains("&Time=0.80&", post, StringComparison.Ordinal);
-        Assert.Contains("&Reason=Seized+bolts&", post, StringComparison.Ordinal);
-        Assert.Equal(new GlassAutomationFigures(0m, 0.50m, 0.00m), reasoned.Act.DialogServed);
-        Assert.Equal(new GlassAutomationFigures(0m, 0.80m, 0.00m), reasoned.Act.Sent);
-        Assert.Equal("Seized bolts", reasoned.Act.Inputs?.Reason);
-
-        var priced = await PositionAsync(harness, Add(harness, reasoned.Session, "mcp:typed-3",
-            GlassAutomationPositionKind.SpecialOperation, "AC0000073", inputs: new GlassAutomationInputs(Price: 150m)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, priced.Act.Outcome);
-        Assert.Contains("&Price=150.00&", DialogPosts(harness)[^1], StringComparison.Ordinal);
-        Assert.Equal(150.00m, priced.Act.Sent?.Price);
-
-        var overlapped = await PositionAsync(harness, Add(harness, priced.Session, "mcp:typed-4",
-            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(OverlapHours: 0.4m)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, overlapped.Act.Outcome);
-        Assert.Contains("&Ctime=0.40&", DialogPosts(harness)[^1], StringComparison.Ordinal);
-        Assert.Equal(new GlassAutomationFigures(38.68m, 2.20m, 0.40m), overlapped.Act.Sent);
-        Assert.Equal(3, DialogPosts(harness).Count);
-    }
-
-    /// <summary>
-    /// Typed figures on the dialog of a part that can be painted (R1206) are
-    /// posted as typed: the left front door's price and hours.
-    /// </summary>
-    [Fact]
-    public async Task TypedFiguresOnAPaintablePartArePosted()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:typed-5",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Hours: 2m, Price: 500m)));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        var post = Assert.Single(DialogPosts(harness));
-        Assert.Contains("&Price=500.00&", post, StringComparison.Ordinal);
-        Assert.Contains("&Time=2.00&", post, StringComparison.Ordinal);
-        Assert.Equal(2.90m, step.Act.DialogServed?.Hours);
-        Assert.Equal(2.00m, step.Act.Sent?.Hours);
-    }
-
-    /// <summary>
-    /// Renew on a part with its paint (R1206): the old-for-new window is
-    /// asked for with the dialog's own figures and answered with the
-    /// deductions given; deductions that leave a negative figure are refused
-    /// with their code and nothing is posted. The scripted editor serves the
-    /// walk's window (#916).
-    /// </summary>
-    [Fact]
-    public async Task RenewIsAnsweredThroughItsOldForNewWindow()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Respond("GET /ere/aco/oldfrnew.php", _ => EditorPage("door_shell_oldfrnew.html", null));
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:renew-1",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "AN", Renew: new GlassAutomationRenew(PriceDeduction: 10m))));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        var window = Assert.Single(harness.Mva.Requests, request => request.Path == "/ere/aco/oldfrnew.php");
-        Assert.Contains("nprice=545.24", window.Query, StringComparison.Ordinal);
-        var post = Assert.Single(DialogPosts(harness));
-        Assert.Contains("&Repart=AN&", post, StringComparison.Ordinal);
-        Assert.Contains("&Price=511.97&", post, StringComparison.Ordinal);
-        Assert.Equal(511.97m, step.Act.Sent?.Price);
-
-        var other = Harness.Create();
-        var otherSession = await AutomationStartAsync(other);
-        other.Mva.Respond("GET /ere/aco/oldfrnew.php", _ => EditorPage("door_shell_oldfrnew.html", null));
-        var below = await PositionAsync(other, Add(other, otherSession, "mcp:renew-2",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(
-                Operation: "AN", Renew: new GlassAutomationRenew(HoursDeduction: 5m, HoursAmount: true))));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, below.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.DeductionBelowZeroCode, below.Act.Code);
-        Assert.Empty(DialogPosts(other));
-    }
-
-    /// <summary>
-    /// Paintless dent repair reloads the dialog (R1206): the form its
-    /// ChangeRepart submits is posted to the address its script names, and
-    /// the dialog the editor answers is posted with the rest of the inputs.
-    /// The scripted editor answers the reload with the door's own dialog.
-    /// </summary>
-    [Fact]
-    public async Task AnOperationThatReloadsTheDialogIsFollowedAsTheEditorFollowsIt()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        var reloadedPage = GlassEditorFixture.Text("door_left_operations.dialog.html").Replace(
-            "</body>",
-            "<script language=\"JavaScript\">\ndocument.Part.action = \"comp.php?ksid=" + GlassEditorFixture.Key
-                + "&cml=C&mcode=771|772&frl=1\";\n</script>\n</body>",
-            StringComparison.Ordinal);
-        harness.Mva.Enqueue("GET /ere/aco/comp.php", Editor(reloadedPage));
-        harness.Mva.Respond("POST /ere/aco/comp.php", _ => EditorPage("door_left_operations.dialog.html", null));
-
-        var step = await PositionAsync(harness, Add(harness, session, "mcp:dd-1",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Operation: "DD")));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, step.Act.Outcome);
-        var reload = Assert.Single(harness.Mva.Requests, request => request.Method == "POST" && request.Path == "/ere/aco/comp.php");
-        Assert.Contains("&Repart=DD&", reload.Body, StringComparison.Ordinal);
-        Assert.Contains("&Craft=D&", reload.Body, StringComparison.Ordinal);
-        Assert.Contains("frl=1", reload.Query, StringComparison.Ordinal);
-        Assert.True(harness.Mva.IndexOf("/ere/aco/comp.php") < harness.Mva.Requests.FindIndex(request => request.Path == "/ere/aco/compproc.php"));
-        Assert.Single(DialogPosts(harness));
-    }
-
-    /// <summary>
-    /// The dialog's own fields (R1206): a special operation's description,
-    /// labour type, part number and labour description, posted as typed;
-    /// the left reinforcement's side ticked to the right, its figures and
-    /// part number then read for that side, as the dialog's own script does.
-    /// </summary>
-    [Fact]
-    public async Task TheDialogsOwnFieldsArePostedAsAPersonGivesThem()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var special = await PositionAsync(harness, Add(harness, session, "mcp:fields-1",
-            GlassAutomationPositionKind.SpecialOperation, "AC0000073",
-            inputs: new GlassAutomationInputs(
-                Description: "Storage charge", Trade: "M", PartNumber: "PN-1", LabourDescription: "Collected from site")));
-        var right = await PositionAsync(harness, Add(harness, special.Session, "mcp:fields-2",
-            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.Part,
-            inputs: new GlassAutomationInputs(Place: "R")));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, special.Act.Outcome);
-        var posts = DialogPosts(harness);
-        Assert.Contains("Descr=Storage+charge&", posts[0], StringComparison.Ordinal);
-        Assert.Contains("&Craft=M&", posts[0], StringComparison.Ordinal);
-        Assert.Contains("&EtnrTxt=PN-1&", posts[0], StringComparison.Ordinal);
-        Assert.Contains("&Wdesc=Collected+from+site&", posts[0], StringComparison.Ordinal);
-        Assert.Equal(GlassAutomationActOutcome.Added, right.Act.Outcome);
-        Assert.Contains("&Place_R=", posts[1], StringComparison.Ordinal);
-        Assert.Contains("&Place=R&", posts[1], StringComparison.Ordinal);
-        Assert.DoesNotContain("Place_L=", posts[1], StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// A preview (R1206) reads the part list, the row's map and its dialog,
-    /// posts nothing and records no act. It answers the dialog as a form,
-    /// with Glass's own labels and texts, and for the inputs given what an
-    /// add would send and the question it would meet.
-    /// </summary>
-    [Fact]
-    public async Task APreviewAnswersTheDialogAsAFormAndPostsNothing()
+    [InlineData(GlassAutomationPartOperation.Paint)]
+    [InlineData(GlassAutomationPartOperation.PartAndPaint)]
+    public async Task PaintIsRefusedWhenItIsClaimed(GlassAutomationPartOperation operation)
     {
         var harness = Harness.Create();
         var session = await AutomationStartAsync(harness);
         var requests = harness.Mva.Requests.Count;
 
-        var preview = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AD")),
+        var step = await harness.Gateway.PrepareAutomationPositionAsync(
+            Add(harness, session, "mcp:paint-1", GlassAutomationPositionKind.Part, "771", operation),
             CancellationToken.None);
 
-        Assert.NotNull(preview);
-        Assert.Null(preview.Code);
-        var dialog = preview.Dialog;
-        Assert.NotNull(dialog);
-        Assert.Equal("part_paintable", dialog.Kind);
-        Assert.Equal("Front Door Shell", dialog.Description);
-        Assert.Equal("L", dialog.Side);
-        var replace = Assert.Single(dialog.Operations, item => item.Code == "ER");
-        Assert.Equal("RP (Replace)", replace.Text);
-        Assert.Equal(545.24m, replace.Price);
-        Assert.Equal(2.90m, replace.Hours);
-        Assert.True(replace.Served);
-        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AD").Changeable);
-        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "Z").Changeable);
-        Assert.True(Assert.Single(dialog.Operations, item => item.Code == "AN").Changeable);
-        var repairType = Assert.Single(dialog.Fields, field => field.Name == "Repart");
-        Assert.Equal("Repair type", repairType.Label);
-        Assert.True(repairType.Changeable);
-        // A painted part's price is typed in its dialog as on part.php (R1206).
-        var typedPrice = Assert.Single(dialog.Fields, field => field.Name == "Price");
-        Assert.True(typedPrice.Changeable);
-        Assert.Equal("inputs.price", typedPrice.Input);
-        Assert.NotNull(dialog.Paint);
-        Assert.Equal("Front Door, Complete K", dialog.Paint.Area?.Text);
-        Assert.Contains(dialog.Buttons, button => button is { Value: "BSL", Text: "Part and Paint" });
-        var sends = dialog.Sends;
-        Assert.NotNull(sends);
-        Assert.Equal("AD", sends.Operation);
-        Assert.Equal(GlassFailure.EditorRefused, sends.Code);
-        var question = Assert.Single(sends.Questions, item => item.Kind == "no_figures");
-        Assert.False(question.Answered);
-        Assert.StartsWith("You have not entered a price or a Labour time.", question.Text, StringComparison.Ordinal);
-        Assert.Contains(sends.Questions, item => item.Kind == "mandatory_parts");
-        Assert.Equal(requests + 3, harness.Mva.Requests.Count);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-        Assert.Equal(session.Version + 1, preview.Session.Version);
-        Assert.Null(harness.Store.Material(session.Id).Session.Automation);
-
-        var unread = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, preview.Session, "771", GlassAutomationPartOperation.Part, new GlassAutomationInputs(Operation: "AN")),
-            CancellationToken.None);
-        Assert.Equal("AN", unread?.Dialog?.Sends?.Operation);
-        Assert.Contains(unread!.Dialog!.Sends!.Questions, item => item is { Kind: "old_for_new", Answered: true });
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/oldfrnew.php"));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
+        Assert.NotNull(step);
+        Assert.False(step.Owed);
+        Assert.Equal(GlassAutomationActOutcome.Refused, step.Act.Outcome);
+        Assert.Equal(GlassEstimateBuildPolicy.NotBuiltCode, step.Act.Code);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
     }
-
-    /// <summary>
-    /// A preview of a special operation reads its list and its dialog; one
-    /// of a position on the estimate reads the estimate, whose groups say
-    /// which dialog the editor opens for it (R1206), and that dialog; a
-    /// part whose row asks its equipment question with no answer answers the
-    /// code and no dialog. Nothing is posted.
-    /// </summary>
-    [Fact]
-    public async Task APreviewOfASpecialOperationOrAPositionAsksOnlyForItsDialog()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(CapturedWithGroups));
-        var requests = harness.Mva.Requests.Count;
-
-        var special = await harness.Gateway.PreviewAutomationPositionAsync(
-            new GlassAutomationPositionRequest(harness.Automation, session.Id, 0, "mcp:preview-2", GlassAutomationActAction.Preview)
-            {
-                Kind = GlassAutomationPositionKind.SpecialOperation,
-                Row = "AC0000073",
-            },
-            CancellationToken.None);
-        Assert.NotNull(special?.Dialog);
-        Assert.Equal("special_operation", special.Dialog.Kind);
-        Assert.All(special.Dialog.Operations, item => Assert.False(item.Changeable));
-        Assert.Equal(requests + 2, harness.Mva.Requests.Count);
-
-        harness.Mva.Enqueue("GET /ere/aco/part.php", EditorPage("mirror_left.dialog.html", null));
-        var position = await harness.Gateway.PreviewAutomationPositionAsync(
-            new GlassAutomationPositionRequest(harness.Automation, session.Id, 0, "mcp:preview-3", GlassAutomationActAction.Preview)
-            {
-                PositionId = CapturedPosition,
-            },
-            CancellationToken.None);
-        Assert.NotNull(position?.Dialog);
-        Assert.Equal("part", position.Dialog.Kind);
-        Assert.Null(position.Dialog.Sends);
-        Assert.Contains("partid=" + CapturedPosition, Asked(harness, "GET", "part.php")[^1], StringComparison.Ordinal);
-        Assert.Equal(requests + 4, harness.Mva.Requests.Count);
-
-        var unanswered = await harness.Gateway.PreviewAutomationPositionAsync(
-            Preview(harness, session, "0", GlassAutomationPartOperation.Part, null), CancellationToken.None);
-        Assert.NotNull(unanswered);
-        Assert.Null(unanswered.Dialog);
-        Assert.Equal(GlassEstimateBuildPolicy.EquipmentCode, unanswered.Code);
-        // The bare code always comes with the question (R1206).
-        Assert.NotNull(unanswered.Equipment);
-        Assert.Equal(LiningOptions, unanswered.Equipment.Options.Select(option => option.Code));
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/comp.php"));
-    }
-
-    /// <summary>The captured position on an estimate whose groups put it in a group of parts with no paint (made up).</summary>
-    private static readonly string CapturedWithGroups =
-        "<script>\nvar Partids = [ '', '" + CapturedPosition + "' ];\nvar CheckIds = [ 'C2027021' ];\nvar Groups = [ "
-        + string.Join(", ", Enumerable.Repeat("'C'", 28)) + " ];\n</script>\n";
-
-    /// <summary>The windscreen on the estimate of the operator's walk of 19 November 2026 (#776).</summary>
-    private const string Windscreen = "C421260.10.C1100400.2205";
-
-    /// <summary>The bonnet with its paint on the same estimate.</summary>
-    private const string Bonnet = "C421280.12.C1060000.2102";
-
-    /// <summary>The walk's estimate, its dialogs for the windscreen and the bonnet and the posts' answers, as the editor served them.</summary>
-    private static void ScriptWalk(ScriptedGlass glass)
-    {
-        glass.Respond("GET /ere/aco/selected.php", _ => EditorPage("selected_before_change.html", null));
-        glass.Respond("GET /ere/aco/part.php", _ => EditorPage("windscreen_change_hours.dialog.html", null));
-        glass.Respond("GET /ere/aco/comp.php", _ => EditorPage("bonnet_change_paint.dialog.html", null));
-        glass.Respond("POST /ere/aco/compproc.php", request =>
-        {
-            var walked = request.Query.Contains("partid=" + Bonnet, StringComparison.Ordinal) ? "bonnet_change_paint" : "windscreen_change_hours";
-            return EditorPage(walked + (request.Query.Contains("BX=1", StringComparison.Ordinal) ? ".confirm_answer.html" : ".answer.html"), null);
-        });
-        // The bonnet's record read after its change (#890); the windscreen's was answered empty, as #946 was: it is not read.
-        glass.Respond("GET /ere/aco/mcode.php", request => request.Query.Contains("partid=" + Bonnet, StringComparison.Ordinal)
-            ? new Reply(HttpStatusCode.OK, GlassEditorFixture.Text("position_bonnet_changed.json"), ContentType: "application/json")
-            : Editor(string.Empty));
-    }
-
-    /// <summary>The requests of a change of a position with no paint: the estimate, its dialog, the post, the confirm, the estimate, the record.</summary>
-    private static readonly string[] ChangeRequests =
-    [
-        "GET /ere/aco/selected.php",
-        "GET /ere/aco/part.php",
-        "POST /ere/aco/compproc.php",
-        "POST /ere/aco/compproc.php",
-        "GET /ere/aco/selected.php",
-        "GET /ere/aco/mcode.php",
-    ];
-
-    /// <summary>
-    /// A change of a position already on the estimate (R1206), the walk's
-    /// windscreen: its hours typed above Glass's own with no reason are
-    /// refused before anything is posted; with the Automation's reason its
-    /// own dialog, the one the editor's list opens for it, is posted as the
-    /// browser posted it, and its "Mandatory parts:" page confirmed as the
-    /// browser confirmed it. The position keeps its id; an empty record read
-    /// afterwards is not read. A position the estimate does not hold, and
-    /// a paint button on a part with no paint, are refused with only the
-    /// estimate read.
-    /// </summary>
-    [Fact]
-    public async Task APositionOnTheEstimateIsChangedThroughItsOwnDialog()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        ScriptWalk(harness.Mva);
-
-        var unreasoned = await PositionAsync(harness, Change(harness, session, "mcp:change-1", Windscreen,
-            new GlassAutomationInputs(Hours: 2.8m)));
-
-        Assert.Equal(GlassAutomationActOutcome.Refused, unreasoned.Act.Outcome);
-        Assert.Equal(GlassAutomationPositionPolicy.ReasonRequiredCode, unreasoned.Act.Code);
-        Assert.Null(unreasoned.Act.ExpectedCode);
-        Assert.Equal(0, harness.Mva.Count("POST /ere/aco/compproc.php"));
-        var before = harness.Mva.Requests.Count;
-
-        var changed = await PositionAsync(harness, Change(harness, unreasoned.Session, "mcp:change-2", Windscreen,
-            new GlassAutomationInputs(Hours: 2.8m, Reason: "test")));
-
-        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
-        Assert.Null(changed.Act.Code);
-        Assert.Equal(GlassAutomationActAction.Change, changed.Act.Action);
-        Assert.Equal(Windscreen, changed.Act.PositionId);
-        Assert.Equal("C1100400", changed.Act.ExpectedCode);
-        Assert.Equal(1.80m, changed.Act.DialogServed?.Hours);
-        Assert.Equal(2.80m, changed.Act.Sent?.Hours);
-        Assert.Null(changed.Act.Position);
-        Assert.Equal(5, changed.Act.Listed.Count);
-        Assert.Equal(
-            ChangeRequests,
-            harness.Mva.Requests.Skip(before).Select(request => request.Method + " " + request.Path));
-        Assert.Contains("cml=C&partid=" + Windscreen + "&dialogCodePage", Asked(harness, "GET", "part.php")[^1], StringComparison.Ordinal);
-        var posts = harness.Mva.Requests.Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").ToList();
-        Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.post.txt"), posts[0].Body);
-        Assert.Equal(GlassEditorFixture.Text("windscreen_change_hours.confirm.txt"), posts[1].Body);
-        Assert.Contains("partid=" + Windscreen, Uri.UnescapeDataString(posts[0].Query), StringComparison.Ordinal);
-        var stored = GlassAutomationPositionPolicy.Find(harness.Store.Material(session.Id).Session.Automation, "mcp:change-2");
-        Assert.Equal(GlassAutomationActOutcome.Changed, stored?.Outcome);
-        var requests = harness.Mva.Requests.Count;
-
-        var unheld = await PositionAsync(harness, Change(harness, changed.Session, "mcp:change-3", CapturedPosition,
-            new GlassAutomationInputs(Price: 10m)));
-        var painted = await PositionAsync(harness, Change(harness, unheld.Session, "mcp:change-4", Windscreen,
-            new GlassAutomationInputs(Button: GlassAutomationButton.Paint)));
-
-        Assert.Equal(GlassAutomationPositionPolicy.RowUnknownCode, unheld.Act.Code);
-        Assert.Equal(GlassAutomationPositionPolicy.NotPaintableCode, painted.Act.Code);
-        Assert.Equal(GlassAutomationActOutcome.Refused, painted.Act.Outcome);
-        // Only the estimate was read for each.
-        Assert.Equal(requests + 2, harness.Mva.Requests.Count);
-    }
-
-    /// <summary>
-    /// The paint of a position on the estimate (R1206), the walk's bonnet:
-    /// its own dialog is comp.php with Part and Paint the one button shown,
-    /// posted with 2 Coat and level II as the browser posted it (#867), and
-    /// confirmed as the browser confirmed it (#873). The act keeps the paint
-    /// served and sent, and the bonnet's record read afterwards.
-    /// </summary>
-    [Fact]
-    public async Task APositionsPaintIsChangedAsTheBrowserChangedIt()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-        ScriptWalk(harness.Mva);
-
-        var changed = await PositionAsync(harness, Change(harness, session, "mcp:paint-1", Bonnet,
-            new GlassAutomationInputs(Paint: new GlassAutomationPaint(Coats: "2", Level: "2"))));
-
-        Assert.Equal(GlassAutomationActOutcome.Changed, changed.Act.Outcome);
-        var posts = harness.Mva.Requests.Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php").ToList();
-        Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.post.txt"), posts[0].Body);
-        Assert.Equal(GlassEditorFixture.Text("bonnet_change_paint.confirm.txt"), posts[1].Body);
-        Assert.Contains("partid=" + Bonnet + "&cml=C&dialogCodePage", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
-        Assert.Equal("3", changed.Act.DialogServed?.PaintCoats);
-        Assert.Equal(4.10m, changed.Act.DialogServed?.PaintHours);
-        Assert.Equal("2", changed.Act.Sent?.PaintCoats);
-        Assert.Equal("2", changed.Act.Sent?.PaintLevel);
-        Assert.Equal(393.90m, changed.Act.Sent?.PaintPrice);
-        Assert.Equal(1.40m, changed.Act.Sent?.PaintHours);
-        Assert.Equal(Bonnet, changed.Act.Position?.PositionId);
-    }
-
-    /// <summary>
-    /// Paint chosen with an add (R1206): the left door pressed with Part and
-    /// Paint at level I with Surcharge ticked, both sent as its own script
-    /// sets them; paint on a part that cannot be painted is refused and
-    /// nothing is sent.
-    /// </summary>
-    [Fact]
-    public async Task PaintIsChosenWithAnAddOnAPartThatCanBePainted()
-    {
-        var harness = Harness.Create();
-        var session = await AutomationStartAsync(harness);
-
-        var painted = await PositionAsync(harness, Add(harness, session, "mcp:paint-2",
-            GlassAutomationPositionKind.Part, "771", GlassAutomationPartOperation.PartAndPaint,
-            inputs: new GlassAutomationInputs(Paint: new GlassAutomationPaint(Level: "1", Surcharge: true))));
-        var plain = await PositionAsync(harness, Add(harness, painted.Session, "mcp:paint-3",
-            GlassAutomationPositionKind.Part, "193", GlassAutomationPartOperation.PartAndPaint,
-            inputs: new GlassAutomationInputs(Paint: new GlassAutomationPaint(Level: "1"))));
-
-        Assert.Equal(GlassAutomationActOutcome.Added, painted.Act.Outcome);
-        var post = Assert.Single(DialogPosts(harness));
-        Assert.Contains("&Lackstufe=1&", post, StringComparison.Ordinal);
-        Assert.Contains("&Zuschlag=1&", post, StringComparison.Ordinal);
-        Assert.Contains("&BSL=Part+and+Paint&", post, StringComparison.Ordinal);
-        Assert.Equal("1", painted.Act.Sent?.PaintLevel);
-        Assert.True(painted.Act.Sent?.Surcharge);
-        Assert.Equal(GlassAutomationPositionPolicy.NotPaintableCode, plain.Act.Code);
-        Assert.Single(DialogPosts(harness));
-    }
-
-    private static GlassAutomationPositionRequest Change(
-        Harness harness, GlassRepairEstimateSession session, string operationKey, string positionId,
-        GlassAutomationInputs inputs) =>
-        new(harness.Automation, session.Id, session.Version, operationKey, GlassAutomationActAction.Change)
-        {
-            PositionId = positionId,
-            Inputs = inputs,
-        };
 
     /// <summary>A dialog the editor refuses before anything is posted refuses the act with the editor's code.</summary>
     [Fact]
@@ -1394,7 +330,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
     /// <summary>
     /// A lost answer the estimate does not bear out is settled as refused,
     /// with its code, by the next read, here the one pegasus_glass_session_get
-    /// makes with read positions.
+    /// makes with readEstimate.
     /// </summary>
     [Fact]
     public async Task ALostAnswerTheEstimateDoesNotBearOutIsSettledAsRefused()
@@ -1407,8 +343,7 @@ public sealed partial class GlassRepairEstimateGatewayTests
             GlassAutomationPositionKind.SpecialOperation, "AC0000073"));
         Assert.Equal(GlassAutomationActOutcome.NotConfirmed, lost.Act.Outcome);
 
-        var read = await harness.Gateway.ReadAutomationEstimateAsync(
-            harness.Automation, session.Id, GlassAutomationRead.Positions, CancellationToken.None);
+        var read = await harness.Gateway.ReadAutomationEstimateAsync(harness.Automation, session.Id, CancellationToken.None);
 
         Assert.NotNull(read);
         var settled = GlassAutomationPositionPolicy.Find(read.Session.Automation, "mcp:add-1");
@@ -1565,15 +500,6 @@ public sealed partial class GlassRepairEstimateGatewayTests
         return found;
     }
 
-    private static async Task<GlassAutomationCatalogue> ListAsync(
-        Harness harness, Guid sessionId, string term, GlassAutomationCatalogueList list)
-    {
-        var found = await harness.Gateway.SearchAutomationCatalogueAsync(
-            new(harness.Automation, sessionId, term, null, null) { List = list }, CancellationToken.None);
-        Assert.NotNull(found);
-        return found;
-    }
-
     private static GlassAutomationPositionRequest Add(
         Harness harness,
         GlassRepairEstimateSession session,
@@ -1581,54 +507,14 @@ public sealed partial class GlassRepairEstimateGatewayTests
         GlassAutomationPositionKind kind,
         string row,
         GlassAutomationPartOperation? operation = null,
-        string? side = null,
-        IReadOnlyList<string>? equipment = null,
-        GlassAutomationInputs? inputs = null) =>
+        string? side = null) =>
         new(harness.Automation, session.Id, session.Version, operationKey, GlassAutomationActAction.Add)
         {
             Kind = kind,
             Row = row,
             Operation = operation,
             Side = side,
-            Inputs = inputs ?? (equipment is null ? null : new GlassAutomationInputs(equipment)),
         };
-
-    private static GlassAutomationPositionRequest Preview(
-        Harness harness, GlassRepairEstimateSession session, string row, GlassAutomationPartOperation operation,
-        GlassAutomationInputs? inputs) =>
-        new(harness.Automation, session.Id, 0, "mcp:preview-1", GlassAutomationActAction.Preview)
-        {
-            Kind = GlassAutomationPositionKind.Part,
-            Row = row,
-            Operation = operation,
-            Inputs = inputs,
-        };
-
-    /// <summary>The bodies of the dialog posts, in order: every post but a "Mandatory parts:" confirm.</summary>
-    private static List<string?> DialogPosts(Harness harness) =>
-        harness.Mva.Requests
-            .Where(request => request.Method == "POST" && request.Path == "/ere/aco/compproc.php"
-                && !request.Query.Contains("BX=", StringComparison.Ordinal))
-            .Select(request => request.Body)
-            .ToList();
-
-    /// <summary>The left reinforcement's position as the estimate lists it once posted; made up.</summary>
-    private const string LeftReinforcement = "C350990.36.C1012401.1768";
-
-    /// <summary>The right reinforcement's position as the estimate lists it once posted; made up.</summary>
-    private const string RightReinforcement = "C350991.37.C1012402.1769";
-
-    /// <summary>The door's optional trim support kit, as its "Mandatory parts:" page lists it.</summary>
-    private static readonly string[] TrimSupportKit = ["8099801.ER."];
-
-    /// <summary>The estimate after none, one or both of the reinforcement's posts.</summary>
-    private static string Reinforced(int posts) => posts switch
-    {
-        0 => NoPositions,
-        1 => "<script>\nvar Partids = [ '', '" + LeftReinforcement + "' ];\nvar CheckIds = [ 'C1012401' ];\n</script>\n",
-        _ => "<script>\nvar Partids = [ '', '" + LeftReinforcement + "', '" + RightReinforcement
-            + "' ];\nvar CheckIds = [ 'C1012401', 'C1012402' ];\n</script>\n",
-    };
 
     private static GlassAutomationPositionRequest Remove(
         Harness harness, GlassRepairEstimateSession session, string operationKey, string positionId) =>
@@ -1636,31 +522,6 @@ public sealed partial class GlassRepairEstimateGatewayTests
         {
             PositionId = positionId,
         };
-
-    /// <summary>
-    /// A position is removed from the dialog the editor's own list opens for
-    /// it (R1206): the captured bonnet, a part with its paint, from comp.php.
-    /// </summary>
-    [Fact]
-    public async Task APartWithItsPaintIsRemovedFromItsOwnDialog()
-    {
-        const string CapturedBonnet = "C350898.20.C1060000.2464";
-        var harness = Harness.Create();
-        var captured = GlassEditorFixture.Text("selected.html");
-        harness.Mva.Respond("GET /ere/aco/selected.php", _ => Editor(
-            harness.Mva.Count("GET /ere/aco/compproc.php") == 0
-                ? captured
-                : captured.Replace("'" + CapturedBonnet + "', ", string.Empty, StringComparison.Ordinal)));
-        harness.Mva.Enqueue("GET /ere/aco/comp.php", EditorPage("bonnet_change_paint.dialog.html", null));
-        harness.Mva.Enqueue("GET /ere/aco/compproc.php", EditorPage("removed.answer.html", null));
-        var session = await AutomationStartAsync(harness);
-
-        var removed = await PositionAsync(harness, Remove(harness, session, "mcp:remove-bonnet", CapturedBonnet));
-
-        Assert.Equal(GlassAutomationActOutcome.Removed, removed.Act.Outcome);
-        Assert.Contains("partid=" + CapturedBonnet + "&cml=C", Asked(harness, "GET", "comp.php")[^1], StringComparison.Ordinal);
-        Assert.Equal(0, harness.Mva.Count("GET /ere/aco/part.php"));
-    }
 
     /// <summary>A position act's prepare half, then its provider work inline, as the tool's queue runs it.</summary>
     private static async Task<GlassAutomationPositionStep> PositionAsync(

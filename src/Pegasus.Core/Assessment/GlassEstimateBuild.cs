@@ -165,9 +165,7 @@ public static class GlassEstimateBuildPolicy
     /// <summary>
     /// A part whose row in Glass's waits on an equipment answer Pegasus does
     /// not have (R1172): Glass's would ask which variant of the vehicle it is
-    /// before it gives the row. For the Automation's add of a part as Part,
-    /// the answer is the Automation's to give (R1206): an add that gives
-    /// none is refused with this code and the question.
+    /// before it gives the row.
     /// </summary>
     public const string EquipmentCode = "glass.build.equipment";
 

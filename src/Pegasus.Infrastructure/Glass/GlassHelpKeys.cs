@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Pegasus.Infrastructure.Glass;
@@ -8,69 +7,21 @@ namespace Pegasus.Infrastructure.Glass;
 /// An editor's main-frame address the Pegasus helper handed over, read
 /// (<see cref="GlassEditorPages.HelpFrame"/>): the return token its
 /// <c>caller</c> names, which finds the session, and the editor session the
-/// address opens, with the cookies of Glass's load balancer the helper read
-/// in that frame. All are secrets; <see cref="ToString"/> says none.
+/// address opens. Both are secrets; <see cref="ToString"/> says neither.
 /// </summary>
 public sealed class GlassHelpFrame
 {
-    /// <summary>The longest load balancer cookie kept; Glass's own are 124 characters.</summary>
-    private const int MaximumBalancerCookie = 512;
-
     internal GlassHelpFrame(string token, GlassEditorSession session)
     {
         Token = token;
         Session = session;
     }
 
-    /// <summary>
-    /// The cookies Glass's load balancer sets, in the order a browser sends
-    /// them. They name the one Glass's server that holds a window's editor
-    /// session; a request without them reaches whichever server the balancer
-    /// picks, and any other answers a page with none of the editor's lists
-    /// (first live session, 19 November 2026). Neither is a login. The
-    /// helper's own list must equal this one
-    /// (<c>GlassHelperExtensionContractTests</c>).
-    /// </summary>
-    public static IReadOnlyList<string> BalancerCookieNames { get; } = ["AWSALB", "AWSALBCORS"];
-
     /// <summary>The session's one-use return token, read from the address and never sent beside it.</summary>
     public string Token { get; }
 
-    /// <summary>
-    /// The editor session the address opens: its base, <c>url0</c> and key,
-    /// and the load balancer's cookies the helper handed over beside it.
-    /// </summary>
+    /// <summary>The editor session the address opens: its base, <c>url0</c> and key, and no cookie.</summary>
     internal GlassEditorSession Session { get; }
-
-    /// <summary>How many of the load balancer's cookies came with the key: all the host log says of them.</summary>
-    public int BalancerCookies => Session.Cookies.Count;
-
-    /// <summary>
-    /// What is kept of the cookies a hand-off names: the load balancer's own
-    /// (<see cref="BalancerCookieNames"/>), each a value of the base64
-    /// alphabet as the balancer writes it. Any other name or value is left
-    /// out, so nothing a sender chose reaches a request's header.
-    /// </summary>
-    internal static ReadOnlyDictionary<string, string> Balancer(IReadOnlyDictionary<string, string>? handedOver)
-    {
-        var kept = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (handedOver is not null)
-        {
-            foreach (var name in BalancerCookieNames)
-            {
-                if (handedOver.TryGetValue(name, out var value) && IsBalancerValue(value))
-                {
-                    kept[name] = value;
-                }
-            }
-        }
-
-        return kept.AsReadOnly();
-    }
-
-    private static bool IsBalancerValue([NotNullWhen(true)] string? value) =>
-        value is { Length: > 0 and <= MaximumBalancerCookie }
-        && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '+' or '/' or '=');
 
     /// <summary>
     /// Whether the text is a return token as a launch mints it: 64
@@ -102,9 +53,8 @@ public readonly record struct GlassHelpPoll(bool Held, long Refresh);
 /// host restarts; the helper's next poll then hears that a key is needed.
 /// </para>
 /// <para>
-/// Beside each key it keeps the load balancer's cookies, first as the helper
-/// handed them over and then as Glass's set them again on Pegasus's own
-/// requests, and when Pegasus last sent one, how many times Pegasus has
+/// Beside each key it keeps the cookies Glass's set for Pegasus's own
+/// requests on it and when Pegasus last sent one, how many times Pegasus has
 /// asked the window to show its selected list again, and the last of those
 /// asks the window says it has shown. One help act at a time holds a
 /// session (<see cref="TryEnter"/>), so Pegasus never sends two requests on
@@ -140,13 +90,8 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
 
     private readonly ConcurrentDictionary<Guid, byte> busy = new();
 
-    /// <summary>
-    /// The handed-over address read, with the load balancer's cookies the
-    /// helper read beside it (<see cref="GlassHelpFrame.Balancer"/>), or null
-    /// when the address is not this host's editor frame.
-    /// </summary>
-    public GlassHelpFrame? Read(string? frameAddress, IReadOnlyDictionary<string, string>? balancerCookies = null) =>
-        GlassEditorPages.HelpFrame(frameAddress, options, balancerCookies);
+    /// <summary>The handed-over address read, or null when it is not this host's editor frame.</summary>
+    public GlassHelpFrame? Read(string? frameAddress) => GlassEditorPages.HelpFrame(frameAddress, options);
 
     /// <summary>
     /// Keeps the frame's key for the session, replacing any older one. The

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pegasus helper for Glass's",
-  "version": "1.2.0",
+  "version": "1.1.0",
   "description": "Stops the Glass's start-up \"dialog not found\" alert, and links Glass's editor to Pegasus so the Automation's help shows in it.",
   "host_permissions": [
     "https://pegasus-prod-web-252ow37gij.azurewebsites.net/*",

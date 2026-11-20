@@ -42,18 +42,6 @@ public sealed class GlassEstimateXmlParserTests
         "paint_prep|Sample colour creation",
     ];
 
-    /// <summary>The line type of each of <see cref="GlassExport.RefusedExportShapes"/>, in order.</summary>
-    private static readonly string[] RefusedExportLineTypes =
-    [
-        "new_part", "check_labour", "new_part", "new_part", "new_part",
-        "check_labour", "check_labour", "check_labour", "check_labour", "check_labour", "check_labour", "check_labour",
-        "new_part", "new_part", "new_part", "new_part", "new_part",
-        "check_labour", "check_labour",
-        "new_part", "new_part", "specialist_wu",
-        "paint_repair", "paint_repair", "paint_repair",
-        "paint_prep", "paint_prep", "paint_prep",
-    ];
-
     private readonly GlassEstimateXmlParser parser = new();
 
     [Theory]
@@ -219,102 +207,13 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Null(line.Materials);
     }
 
-    /// <summary>
-    /// R1209: a repair kind Pegasus has not seen no longer refuses the export.
-    /// The row is an Other line with its own price and hours, and its note
-    /// names the kind in the calculation PDF reader's words.
-    /// </summary>
-    [Theory]
-    [InlineData("Part_SparePart")]
-    [InlineData("Free_Part")]
-    public void AnUnseenRepairKindIsAnOtherLineThatNamesIt(string posType)
-    {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position(posType, "Overhaul", "Wing", price: "12.50", time: "1.00"))).Lines);
-
-        Assert.Equal("check_labour", line.Type);
-        Assert.Equal(1.00m, line.WorkUnits);
-        Assert.Equal(12.50m, line.Price);
-        Assert.Equal("Printed operation: Overhaul.", line.Justification);
-    }
-
-    /// <summary>
-    /// The note naming an unseen kind comes first, then the row's own notes,
-    /// as the calculation PDF reader writes its printed operation first.
-    /// </summary>
     [Fact]
-    public void AnUnseenRepairKindIsNamedBeforeTheRowsOwnNote()
+    public void AnAdditionalOperationWithAnUnknownRepairKindIsStillRefused()
     {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position("Part_SparePart", "Straighten", "Wing", time: "1.20",
-                guideTime: "1.00", timeMarker: true, reason: "Additional work (0.20): ..."))).Lines);
+        var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
+            positions: GlassExport.Position("Free_Part", "Overhaul", "Wing", time: "1.00"))));
 
-        Assert.Equal(
-            "Printed operation: Straighten. Modified source value: time 1.20 h, guide 1.00 h. Additional work (0.20): ...",
-            line.Justification);
-    }
-
-    /// <summary>
-    /// R1209: an Old for New position (the editor's RN, Renew) is a new part at
-    /// the price and hours the export states, which are already net of the
-    /// deduction. The guide figures and Glass's own reason are its note, as for
-    /// any changed guide value; nothing is added in Pegasus's words.
-    /// </summary>
-    [Fact]
-    public void AnOldForNewPositionIsANewPartAtTheNetFiguresWithGlassesReason()
-    {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(positions: GlassExport.OldForNewPosition)).Lines);
-
-        Assert.Equal("new_part", line.Type);
-        Assert.Equal("Front Door Shell (L)", line.Description);
-        Assert.Equal(450.00m, line.Price);
-        Assert.Equal(2.70m, line.WorkUnits);
-        Assert.Equal("PN-DOOR-1", line.PartNumber);
-        Assert.Null(line.Betterment);
-        Assert.Equal(
-            "Modified source value: time 2.70 h, guide 3.00 h. Modified source value: price 450.00 GBP, guide 500.00 GBP. "
-            + GlassExport.OldForNewReason,
-            line.Justification);
-    }
-
-    /// <summary>
-    /// The operations Glass's offers, by the name exports have shown and by
-    /// the dialog's label, without regard to case (R1209). None of them is
-    /// unseen, so none carries a note.
-    /// </summary>
-    [Theory]
-    [InlineData("Old for New", "new_part")]
-    [InlineData("OLD FOR NEW", "new_part")]
-    [InlineData("Renew", "new_part")]
-    [InlineData("Partial renew", "new_part")]
-    [InlineData("Partial repair", "repair")]
-    [InlineData("Paintless dent repair", "repair")]
-    [InlineData("Synthetics repair normal", "repair")]
-    [InlineData("Synthetics repair serious", "repair")]
-    [InlineData("Dismantle and assemble", "rnr")]
-    [InlineData("uninstall and install", "rnr")]
-    [InlineData("Adjust", "check_labour")]
-    [InlineData("Adjustments", "check_labour")]
-    [InlineData("Sealing", "check_labour")]
-    [InlineData("Control", "check_labour")]
-    [InlineData("Control and adjustment", "check_labour")]
-    [InlineData("Air out", "check_labour")]
-    [InlineData("Remove air", "check_labour")]
-    [InlineData("Cavity wax protection", "check_labour")]
-    [InlineData("Diagnostic", "check_labour")]
-    [InlineData("Underbody coating", "check_labour")]
-    [InlineData("Wheel balancing", "check_labour")]
-    [InlineData("Extra costs", "specialist_wu")]
-    [InlineData("Surcharge", "specialist_wu")]
-    public void EachRepairKindGlassesOffersLandsAsItsLine(string repairKind, string expected)
-    {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position("Part_SparePart", repairKind, "Panel", price: "10.00", time: "1.00"))).Lines);
-
-        Assert.Equal(expected, line.Type);
-        Assert.Equal(1.00m, line.WorkUnits);
-        Assert.Equal(10.00m, line.Price);
-        Assert.Null(line.Justification);
+        Assert.Contains("'Overhaul'", rejected.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -837,130 +736,29 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Null(result.Lines[2].Justification);
     }
 
-    /// <summary>
-    /// R1209: a free paint row (special table metal and plastic, user defined
-    /// paint) is read exactly as a painted part is: its level is its line
-    /// type, its price materials and its time paint time.
-    /// </summary>
     [Theory]
-    [InlineData("B", "0", "paint_repair")]
-    [InlineData("B", "3", "paint_new")]
-    [InlineData("K", "5", "paint_blend")]
-    public void AFreePaintRowIsAPaintLineByItsLevel(string materialKind, string level, string expected)
-    {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(positions: GlassExport.Position(
-            "Free_Paint", "Replace", "Front Bumper Reinforcement", price: "77.20", time: "0.40",
-            paintMatKind: materialKind, paintLevel: level))).Lines);
-
-        Assert.Equal(expected, line.Type);
-        Assert.Equal(77.20m, line.Materials);
-        Assert.Equal(0.40m, line.PaintWorkUnits);
-        Assert.Null(line.Price);
-        Assert.Null(line.WorkUnits);
-    }
-
-    [Fact]
-    public void AFreePaintRowOutsideThePaintTableIsRefusedAsAPaintedPartIs()
-    {
-        var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position("Free_Paint", "Replace", "Panel", price: "10.00", time: "1.00",
-                paintMatKind: "B", paintLevel: "5"))));
-
-        Assert.Contains("unknown paint level", rejected.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// R1209: a position type not seen yet is read by its prefix. A
-    /// <c>Paint_</c> type is paint preparation, as the six known preparation
-    /// types are; a <c>Part_</c> or <c>Free_</c> type is a part row whose
-    /// repair kind chooses its line.
-    /// </summary>
-    [Theory]
-    [InlineData("Paint_Blend", "Replace", "paint_prep")]
-    [InlineData("Paint_Something", "Repair", "paint_prep")]
-    [InlineData("Part_Wheel", "Replace", "new_part")]
-    [InlineData("Part_Labour", "Repair", "repair")]
-    [InlineData("Free_Labour", "Extra costs", "specialist_wu")]
-    public void AnUnseenPaintPartOrFreeTypeIsReadByItsPrefix(string posType, string repairKind, string expected)
-    {
-        var line = Assert.Single(Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position(posType, repairKind, "Wing", price: "20.00", time: "1.00"))).Lines);
-
-        Assert.Equal(expected, line.Type);
-        if (expected == "paint_prep")
-        {
-            Assert.Equal(20.00m, line.Materials);
-            Assert.Equal(1.00m, line.PaintWorkUnits);
-            Assert.Null(line.Price);
-        }
-        else
-        {
-            Assert.Equal(20.00m, line.Price);
-            Assert.Equal(1.00m, line.WorkUnits);
-            Assert.Null(line.Materials);
-        }
-    }
-
-    /// <summary>
-    /// A type that begins with none of <c>Part_</c>, <c>Free_</c> and
-    /// <c>Paint_</c> says nothing about what it charges, so it still refuses
-    /// the export, and the reason names it.
-    /// </summary>
-    [Theory]
-    [InlineData("Labour_Text")]
-    [InlineData("Tyre")]
-    [InlineData("Text Line")]
-    public void AnUnseenTypeOfNoKnownKindIsStillRefusedAndNamed(string posType)
+    [InlineData("Part_Wheel")]
+    [InlineData("Paint_Blend")]
+    // Only the free part row the reference exports carry is read.
+    [InlineData("Free_Paint")]
+    [InlineData("")]
+    public void AnUnknownPositionTypeIsRefusedAndNeverGuessed(string posType)
     {
         var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
             positions: GlassExport.Position(posType, "Replace", "Wing", time: "1.00"))));
 
-        Assert.Contains(
-            $"Position 1 carries the unknown position type '{posType}'", rejected.Message, StringComparison.Ordinal);
+        Assert.Contains("Position 1", rejected.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void APositionWithNoPositionTypeIsRefused()
+    [Theory]
+    [InlineData("Overhaul")]
+    [InlineData("")]
+    public void AnUnknownRepairKindIsRefusedAndNeverGuessed(string repairKind)
     {
         var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position("", "Replace", "Wing", time: "1.00"))));
+            positions: GlassExport.Position("Part_SparePart", repairKind, "Wing", time: "1.00"))));
 
-        Assert.Contains("Position 1 names no position type", rejected.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void APositionWithNoRepairKindIsStillRefused()
-    {
-        var rejected = Assert.Throws<EstimateParseRejectedException>(() => Parse(GlassExport.BuildXml(
-            positions: GlassExport.Position("Part_SparePart", "", "Wing", time: "1.00"))));
-
-        Assert.Contains("Position 1 names no repair kind", rejected.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Every position shape of the export refused on 19 November 2026 (issue
-    /// 2155), in its order, with this fixture's own identity and figures:
-    /// parts with criteria, overlap and changed guide values, the included
-    /// operations under them, the Old for New door, a free part with a typed
-    /// price, a free Extra costs row, two painted parts, the free paint row and
-    /// the three preparation rows. All 28 are read, and none is refused.
-    /// </summary>
-    [Fact]
-    public void EveryPositionShapeOfTheRefusedExportIsRead()
-    {
-        var result = Parse(GlassExport.BuildXml(positions: GlassExport.RefusedExportShapes));
-
-        Assert.Equal(28, result.Lines.Count);
-        Assert.Equal(RefusedExportLineTypes, result.Lines.Select(line => line.Type).ToArray());
-        Assert.Equal("Included in row 1; no separate charge.", result.Lines[1].Justification);
-        Assert.Equal("Included in row 17; no separate charge.", result.Lines[17].Justification);
-        Assert.Equal(450.00m, result.Lines[16].Price);
-        Assert.Equal(2.70m, result.Lines[16].WorkUnits);
-        Assert.Equal(1250.00m, result.Lines[20].Price);
-        Assert.Equal(1.00m, result.Lines[21].WorkUnits);
-        Assert.Equal(77.20m, result.Lines[24].Materials);
-        Assert.Equal(0.40m, result.Lines[24].PaintWorkUnits);
-        Assert.DoesNotContain(result.Lines, line => line.Justification?.StartsWith("Printed operation", StringComparison.Ordinal) == true);
+        Assert.Contains("Position 1", rejected.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -1299,82 +1097,6 @@ public sealed class GlassEstimateXmlParserTests
             Position("Paint_ColourMixing", "Replace", "Colour mixing", time: "0.20", materialCode: "6"),
             Position("Paint_ColourSample", "Replace", "Sample colour creation",
                 price: "10.00", time: "0.10", materialCode: "7"));
-
-        /// <summary>The reason Glass's writes on an Old for New position, with this fixture's figures.</summary>
-        internal const string OldForNewReason =
-            "Original price 500.00 [£] Less 10.00 [%]; Original labour hours 3.00 [Hour] Less 10.00 [%]";
-
-        /// <summary>
-        /// An Old for New position as the 19 November 2026 export writes it
-        /// (issue 2155): the price and time already net of the deduction, the
-        /// guide figures before it, both markers set and Glass's own reason.
-        /// </summary>
-        internal static string OldForNewPosition { get; } = Position(
-            "Part_SparePart", "Old for New", "Front Door Shell", price: "450.00", time: "2.70",
-            materialCode: "2020001", oemPartNo: "PN-DOOR-1", place: "L", guidePrice: "500.00", guideTime: "3.00",
-            priceMarker: true, timeMarker: true, reason: OldForNewReason);
-
-        /// <summary>
-        /// The 28 position shapes of the export refused on 19 November 2026
-        /// (issue 2155), in its order. Only the shapes are that export's: the
-        /// part numbers, figures and every document field are this fixture's.
-        /// </summary>
-        internal static string RefusedExportShapes { get; } = string.Concat(
-            Position("Part_SparePart", "Replace", "Front Bumper Lining", price: "600.00", time: "2.30",
-                materialCode: "1010800", oemPartNo: "PN-0001", timeMarker: true, criteria: ["Parking Sensors"]),
-            Position("Part_InclusiveSparePart", "Replace", "Front Bumper Distance-Sensor Kit", time: "1.60",
-                materialCode: "1019200", guideTime: "0.00"),
-            Position("Part_SparePart", "Replace", "Front Bumper Lining Screw", price: "0.80", materialCode: "1019810",
-                oemPartNo: "PN-0002"),
-            Position("Part_SparePart", "Replace", "Bonnet", price: "600.00", time: "1.00", overlapTime: "0.30",
-                materialCode: "1060000", oemPartNo: "PN-0003", timeAnnot: "Time includes adjustment"),
-            Position("Part_SparePart", "Replace", "Windscreen (Tinted)", price: "400.00", time: "2.80", overlapTime: "0.50",
-                materialCode: "1100400", oemPartNo: "PN-0004", guideTime: "1.80", timeMarker: true,
-                reason: "Additional work (1.00): test"),
-            Position("Part_InclusiveSparePart", "Uninstall and install", "Windscreen Rain Sensor", time: "0.40",
-                materialCode: "1101700", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Replace", "Windscreen Side Moulding", time: "0.20",
-                materialCode: "1104601", place: "L", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Replace", "Windscreen Side Moulding", time: "0.20",
-                materialCode: "1104602", place: "R", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Replace", "Interior Rear View Mirror", time: "0.30",
-                materialCode: "1108600", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Replace", "Scuttle Grille", time: "0.50",
-                materialCode: "1116000", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Uninstall and install", "A-Post Upper Interior Trim", time: "0.30",
-                materialCode: "8021101", place: "L", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Uninstall and install", "A-Post Upper Interior Trim", time: "0.30",
-                materialCode: "8021102", place: "R", guideTime: "0.00"),
-            Position("Part_SparePart", "Replace", "Windscreen Repair/Bonding Kit", price: "70.00",
-                materialCode: "1102400", oemPartNo: "PN-0005"),
-            Position("Part_SparePart", "Replace", "Windscreen Activator", price: "15.00",
-                materialCode: "1102430", oemPartNo: "PN-0006"),
-            Position("Part_SparePart", "Replace", "Windscreen Additional Cartridge", price: "20.00",
-                materialCode: "1102450", oemPartNo: "PN-0007"),
-            Position("Part_SparePart", "Replace", "Windscreen Spacing Block", price: "2.50",
-                materialCode: "1102550", oemPartNo: "PN-0008"),
-            OldForNewPosition,
-            Position("Part_InclusiveSparePart", "Replace", "Front Door Window Guide", time: "1.40",
-                materialCode: "2023061", place: "L", guideTime: "0.00"),
-            Position("Part_InclusiveSparePart", "Uninstall and install", "Front Door Electric Window Regulator",
-                time: "1.20", materialCode: "2025581", place: "L", guideTime: "0.00"),
-            Position("Part_SparePart", "Replace", "Front Door Glass (Tinted)", price: "150.00", time: "0.50",
-                materialCode: "2023241", oemPartNo: "PN-0009", place: "L", guideTime: "0.90", timeMarker: true),
-            Position("Free_Part", "Replace", "Bulbs 6V 55W", price: "1250.00", materialCode: "0", guidePrice: "0.00",
-                priceMarker: true),
-            Position("Free_Part", "Extra costs", ".Yard Charge", time: "1.00", materialCode: "83"),
-            Position("Paint_Part", "Replace", "Bonnet", price: "400.00", time: "1.40", materialCode: "1640",
-                paintMatKind: "B", paintLevel: "0", timeAnnot: "Part made from aluminium"),
-            Position("Paint_Part", "Replace", "Side of Vehicle", price: "700.00", time: "3.90", materialCode: "4200",
-                paintMatKind: "B", paintLevel: "0"),
-            Position("Free_Paint", "Replace", "Front Bumper Reinforcement", price: "77.20", time: "0.40",
-                materialCode: "8005", paintMatKind: "B", paintLevel: "0"),
-            Position("Paint_PreparationMetal", "Replace", "Prep. metal (on vehicle without pre-painting)",
-                price: "120.00", time: "0.70", materialCode: "2", guidePrice: "0.00", guideTime: "0.00"),
-            Position("Paint_ColourMixing", "Replace", "Colour mixing (1)", time: "0.30", materialCode: "6",
-                guideTime: "0.00"),
-            Position("Paint_ColourSample", "Replace", "Sample colour creation (1)", price: "12.00", time: "0.30",
-                materialCode: "7", guidePrice: "0.00", guideTime: "0.00"));
 
         /// <summary>
         /// The rows of EVA's Glass's calculation for the Honda Jazz front end

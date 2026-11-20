@@ -595,14 +595,12 @@ public interface IGlassRepairEstimateGateway
         GlassRepairEstimateContinueRequest request, CancellationToken cancellationToken);
 
     /// <summary>
-    /// One read of the Automation's open estimate, asked of Glass's with one
-    /// request (R1206): its positions and Glass's running totals, one
-    /// position's figures, or Glass's calculation. Null when its editor is
-    /// not open. Nothing changes at Glass's; the editor's cookies and pace
-    /// are kept, so the session's version moves.
+    /// The positions the Automation's open estimate holds, asked of Glass's
+    /// with one request; null when its editor is not open. The editor's
+    /// cookies and pace are kept, so the session's version moves.
     /// </summary>
     Task<GlassAutomationEstimate?> ReadAutomationEstimateAsync(
-        ActionActor actor, Guid sessionId, GlassAutomationRead read, CancellationToken cancellationToken);
+        ActionActor actor, Guid sessionId, CancellationToken cancellationToken);
 
     /// <summary>
     /// The Automation's catalogue search of its open estimate (design 07
@@ -611,16 +609,6 @@ public interface IGlassRepairEstimateGateway
     /// </summary>
     Task<GlassAutomationCatalogue?> SearchAutomationCatalogueAsync(
         GlassAutomationCatalogueQuery query, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// A preview in the Automation's open estimate (R1206): the dialog an add
-    /// of the request's row and inputs would post, or a position on the
-    /// estimate is shown by, read as a form. Nothing is posted and no act is
-    /// recorded; the editor's cookies and pace are kept, so the session's
-    /// version moves. Null when its editor is not open.
-    /// </summary>
-    Task<GlassAutomationPreview?> PreviewAutomationPositionAsync(
-        GlassAutomationPositionRequest request, CancellationToken cancellationToken);
 
     /// <summary>
     /// A position act's prepare half (design 07 section 3.4): the act claimed
@@ -640,28 +628,13 @@ public interface IGlassRepairEstimateGateway
 }
 
 /// <summary>
-/// What one read of an open Glass's estimate answered (R1206), with the
-/// session as the read left it. A positions read answers each position's id
-/// and the codes on the estimate, as the editor's <c>selected.php</c> lists
-/// them, and Glass's running totals from the same page; a position read
-/// answers <see cref="Position"/>; a calculation read answers
-/// <see cref="Calculation"/>. When Glass's did not answer, nothing read is
-/// answered and <see cref="Code"/> is the <c>glass.*</c> code, as a
-/// catalogue search answers it.
+/// What an Automation session's open estimate holds, as the editor's
+/// <c>selected.php</c> lists it: each position's id and the codes on the
+/// estimate; the page carries no more. Both are null when Glass's did not
+/// answer, and the session, as the read left it, carries the code.
 /// </summary>
 public sealed record GlassAutomationEstimate(
-    GlassRepairEstimateSession Session, IReadOnlyList<string>? PositionIds, IReadOnlyList<string>? Codes)
-{
-    /// <summary>Glass's running totals in the page's order; null when the page holds none it can be read by.</summary>
-    public IReadOnlyList<GlassEstimateTotal>? Totals { get; init; }
-
-    public GlassPositionFigures? Position { get; init; }
-
-    public GlassCalculation? Calculation { get; init; }
-
-    /// <summary>The <c>glass.*</c> code of a read Glass's did not answer.</summary>
-    public string? Code { get; init; }
-}
+    GlassRepairEstimateSession Session, IReadOnlyList<string>? PositionIds, IReadOnlyList<string>? Codes);
 
 /// <summary>
 /// Whether this host composes Glass's at all. A host without the provider's
