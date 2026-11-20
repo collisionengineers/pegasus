@@ -268,6 +268,23 @@ button. Below 980px the identity panel becomes a strip above the card with
 the 64px mark. The sign-in password field carries a Show / Hide control
 (`password-reveal`), shipped hidden and revealed by `site.js`.
 
+### Unidentified record frame
+
+The Unidentified record (`/Unidentified/{id}`) uses the Case record frame
+(operator, 20 November 2026; [R1213](../rulings.md)). It has no page header. Its
+sticky block is the 56px ribbon alone: the reference as the page's heading
+under "Unidentified", Received, Kind, Source and Needs attention, the state
+chip, then Back to Cases and Refresh. Under it the `workspace` holds the
+retained material in the wide column, each a panel: the retained e-mail or
+files as one dense row a file, with Open file, Open message, Reply or Request
+again in the panel head; Extracted photographs, the count in the head and the
+tiles at 180px or wider; Registration readings; and History. The 285px aside
+holds one card: **Resolve** while the item is open, its actions one even
+column with Link to Case first and Close with reason set apart at the bottom,
+or the outcome with Reopen once it is not. Below 1441px the aside folds above
+the column as in the Case record and its actions run in a row. The styles are
+`unidentified.css`, scoped to `.unidentified-record`.
+
 ### Keyboard and dialog contract
 
 | Key | Action |
