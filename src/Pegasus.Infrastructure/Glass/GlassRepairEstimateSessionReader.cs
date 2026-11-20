@@ -38,6 +38,34 @@ public interface IGlassRepairEstimateSessionReader
         Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="GetForCaseAsync"/>'s session, for the Case page, with the
+    /// build whose list the staff member sees there
+    /// (<see cref="GlassRepairEstimateSessionPolicy.ListedBuild"/>, R1173),
+    /// and the Case's newest session the Automation owns: one query, reading
+    /// their two newest sessions on the Case and that one. Null when there is
+    /// none of them.
+    /// </summary>
+    Task<GlassRepairEstimateCaseSession?> GetForCaseWithBuildAsync(
+        Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Case's newest session the Automation owns, or null when it has
+    /// none: what the Automation's own tools act on, and what staff may close
+    /// from the Case.
+    /// </summary>
+    Task<GlassRepairEstimateSession?> GetAutomationForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The sessions of a Case the Automation's Glass's tools choose from
+    /// (<see cref="GlassSessionHelpPolicy.Find"/>): its newest Automation
+    /// session, and the staff sessions that are <c>Active</c> or have had
+    /// help on. One query on the Case.
+    /// </summary>
+    Task<GlassSessionHelpCandidates> FindHelpableForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// The session a one-use correlation names, found by the fingerprint the
     /// launch recorded rather than by the token itself — the token is never
     /// stored. Null when nothing was launched under it.
@@ -46,13 +74,14 @@ public interface IGlassRepairEstimateSessionReader
         string correlation, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The staff member's session that holds an external account now, on
-    /// whichever Case it was launched from, or null when none does. The
-    /// Estimate section reads it so a Case that cannot launch says where the
-    /// account is rather than refusing after the fact.
+    /// The session that holds a Glass's login now, on whichever Case and
+    /// whoever's it is, or null when none does: the store's own read
+    /// (<see cref="IGlassRepairEstimateSessionStore.FindLiveForAccountAsync"/>).
+    /// The Estimate section reads it so a Case that cannot launch says where
+    /// the login is held rather than refusing after the fact.
     /// </summary>
-    Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
-        Guid pegasusUserId, CancellationToken cancellationToken);
+    Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+        string normalizedExternalAccountKey, CancellationToken cancellationToken);
 
     /// <summary>
     /// The session with this id when it belongs to the staff member, or null.
@@ -70,9 +99,30 @@ public interface IGlassRepairEstimateSessionReader
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The state of <see cref="GetOwnAsync"/>'s session alone, for the window's
-    /// poll; null under the same rule.
+    /// The state of <see cref="GetOwnAsync"/>'s session and its build, for the
+    /// window's poll; null under the same rule. Nothing protected is read.
     /// </summary>
-    Task<GlassRepairEstimateSessionState?> GetOwnStateAsync(
+    Task<GlassRepairEstimateSessionProgress?> GetOwnProgressAsync(
         Guid sessionId, Guid pegasusUserId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether pressing Glass's on this repair spec first asks to import it
+    /// (operator, 18 November 2026; R1171): the spec has lines and belongs to
+    /// no Glass's estimate. Asked only where the press would start a new
+    /// estimate, so it is the one read the question costs.
+    /// </summary>
+    Task<bool> OffersBuildAsync(Guid specificationId, CancellationToken cancellationToken);
 }
+
+/// <summary>What the Glass's window's poll reads of its session: the state and the build, if any.</summary>
+public sealed record GlassRepairEstimateSessionProgress(
+    GlassRepairEstimateSessionState State, GlassEstimateBuild? Build);
+
+/// <summary>
+/// The staff member's newest Glass's session on a Case, if any, and the build
+/// whose list they see there, which may be the session's own or, while that
+/// session is a build's reopen, the build's (R1173); and the Case's newest
+/// session the Automation owns, if any.
+/// </summary>
+public sealed record GlassRepairEstimateCaseSession(
+    GlassRepairEstimateSession? Session, GlassEstimateBuild? Build, GlassRepairEstimateSession? Automation = null);

@@ -767,6 +767,8 @@ function Invoke-Migration {
         Glass__RepairProfileId = $values['GLASS_REPAIR_PROFILE_ID']
         Glass__ValuationAccount__Username = $placeholder
         Glass__ValuationAccount__Password = $placeholder
+        Glass__AutomationAccount__Username = $placeholder
+        Glass__AutomationAccount__Password = $placeholder
         Cazana__CompanionAccount__Email = $placeholder
         Cazana__CompanionAccount__Password = $placeholder
         Brego__ValuationAccount__Email = $placeholder

@@ -90,6 +90,10 @@ param glassRepairProfileId string
 param glassValuationUsernameSecretUri string
 @description('Versioned Key Vault secret URI containing the Glass valuation account password (ADR-0060).')
 param glassValuationPasswordSecretUri string
+@description('Versioned Key Vault secret URI containing the user name of the Glass account the Automation repair-estimate sessions sign in with.')
+param glassAutomationUsernameSecretUri string
+@description('Versioned Key Vault secret URI containing the password of the Glass account the Automation repair-estimate sessions sign in with.')
+param glassAutomationPasswordSecretUri string
 @description('Versioned Key Vault secret URI containing the Cazana Companion account e-mail (ADR-0079).')
 param cazanaCompanionEmailSecretUri string
 @description('Versioned Key Vault secret URI containing the Cazana Companion account password (ADR-0079).')
@@ -173,6 +177,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     glassRepairProfileId: glassRepairProfileId
     glassValuationUsernameSecretUri: glassValuationUsernameSecretUri
     glassValuationPasswordSecretUri: glassValuationPasswordSecretUri
+    glassAutomationUsernameSecretUri: glassAutomationUsernameSecretUri
+    glassAutomationPasswordSecretUri: glassAutomationPasswordSecretUri
     cazanaCompanionEmailSecretUri: cazanaCompanionEmailSecretUri
     cazanaCompanionPasswordSecretUri: cazanaCompanionPasswordSecretUri
     bregoValuationEmailSecretUri: bregoValuationEmailSecretUri

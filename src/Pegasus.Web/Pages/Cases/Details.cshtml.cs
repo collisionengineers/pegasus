@@ -862,8 +862,12 @@ public sealed partial class DetailsModel(
         var otherHistory = generated && OtherReportGeneration is not null
             ? reads.Start(token => reportSendHistory.GetAsync(id, otherWork, token))
             : null;
+        // Whether Glass's asks first (R1171) needs the spec on the screen and
+        // this staff member's session, both known only now.
+        var buildOffer = reads.Start(token => ReadGlassBuildOfferAsync(token));
         await reads.WhenAllAsync();
 
+        AsksGlassBuild = await buildOffer;
         ApplyEstimateSnapshots(snapshotRead is null ? [] : await snapshotRead, dialog);
         ReportSendHistory = history is null
             ? CaseReportSendHistory.None

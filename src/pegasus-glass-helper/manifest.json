@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Pegasus helper for Glass's",
+  "version": "1.1.0",
+  "description": "Stops the Glass's start-up \"dialog not found\" alert, and links Glass's editor to Pegasus so the Automation's help shows in it.",
+  "host_permissions": [
+    "https://pegasus-prod-web-252ow37gij.azurewebsites.net/*",
+    "https://cemattypc-1.tail432b53.ts.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://repairestimate.autovistagroup.com/ere/aco/acofr.php*"],
+      "js": ["patch-dialog.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://repairestimate.autovistagroup.com/ere/aco/acofr.php*"],
+      "js": ["helper.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

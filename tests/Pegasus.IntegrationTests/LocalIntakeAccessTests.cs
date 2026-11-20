@@ -106,6 +106,8 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:RepairProfileId")]
     [InlineData("Glass:ValuationAccount:Username")]
     [InlineData("Glass:ValuationAccount:Password")]
+    [InlineData("Glass:AutomationAccount:Username")]
+    [InlineData("Glass:AutomationAccount:Password")]
     [InlineData("Cazana:CompanionAccount:Email")]
     [InlineData("Cazana:CompanionAccount:Password")]
     [InlineData("Brego:ValuationAccount:Email")]
@@ -150,6 +152,8 @@ public sealed class LocalIntakeAccessTests
             ["Glass:RepairProfileId"] = "4063",
             ["Glass:ValuationAccount:Username"] = "valuation-test",
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
+            ["Glass:AutomationAccount:Username"] = "automation-test",
+            ["Glass:AutomationAccount:Password"] = "synthetic-automation-password",
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",
