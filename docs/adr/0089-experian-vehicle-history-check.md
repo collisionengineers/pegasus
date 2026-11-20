@@ -48,9 +48,15 @@ sandbox host, `sandbox-uk-api.experian.com`.
 **Ask for the condition block alone.** `ExperianVehicleHistoryProvider` sends
 a Custom Search, `{"vrm":…,"data":{"condition":true}}`, with no template
 (R741). It reads `vehicle.provenance.condition[]` and drops each record with a
-`dateremoved` (R743). An answer without that array is unavailable, not clean,
-and the log names Experian's message ids (R747; 18 November 2026, after UAT
-answered message 100, "Permission to view ConditionRecords was denied"). A record's category is its `losstype`, else its
+`dateremoved` (R743). An answer in which message 100 refuses ConditionRecords is unavailable, not
+clean, and the log names Experian's message ids (R747; 18 November 2026,
+after UAT answered message 100, "Permission to view ConditionRecords was
+denied"). Experian omits the block for a vehicle with no records, so an answer
+without the block and without that refusal is clean (amended 20 November
+2026, R1217, after UAT answered SW15CWX, SC15ZXZ and MT73GGO with the vehicle
+alone and OV08ESN with its record). Message 13 ("Plate Change") marks a plate
+change on record, which the wording reports without asking for the
+PlateChanges block (R1217). A record's category is its `losstype`, else its
 `status`. Its cause is the schema's `causeofdamage` code in the schema's own
 word, and its loss date is the calendar date Experian wrote. Its insurer is
 `insurername` and its claim is `claimnumber`. Core's

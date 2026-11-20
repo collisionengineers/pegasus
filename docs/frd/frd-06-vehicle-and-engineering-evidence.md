@@ -343,6 +343,11 @@ answer is the Vehicle history text, which the report prints verbatim.
   {cause}, loss date {dd/MM/yyyy}, {insurer}, claim {number}", leaving an
   absent value out (R742). A record the insurer has removed is left out, so a
   vehicle whose only records were removed reads as clean (R743).
+- When Experian's answer says a plate change is on record (its message 13,
+  "Plate Change"), the text is never the clean sentence: after the lead
+  sentence and any write-off lines it records "There is a plate change on
+  record. See plate change details." (operator, 20 November 2026, in the
+  words of the operator's EVA report; R1217).
 - The answer replaces whatever the Vehicle history text held, through the
   same save, history and report staleness as a staff edit; staff may edit it
   afterwards (R744). It never ticks Previous total loss (R745).
@@ -350,10 +355,14 @@ answer is the Vehicle history text, which the report prints verbatim.
   cannot check this vehicle: it holds no data for its registration." (R748).
   A check that could not answer writes nothing and says "The Experian check
   is unavailable. Contact an administrator or report a problem." (R747).
-  An answer without the condition records, such as Experian's message 100
-  "Permission to view ConditionRecords was denied", is a check that could not
+  An answer in which Experian refuses the condition records (its message 100
+  "Permission to view ConditionRecords was denied") is a check that could not
   answer, never a clean vehicle (operator, 18 November 2026: "we cant have
-  this - its literally putting incorrect info in"; R747).
+  this - its literally putting incorrect info in"; R747). Experian leaves the
+  condition records out of an answer for a vehicle that has none, so an answer
+  without them and without that refusal has no write-off records (amended 20
+  November 2026, R1217); any other Experian message, including a refusal of
+  another block, does not change the answer.
 - Staff and the Automation Actor may run it (ADR-0064). A host without
   Experian composed offers no check.
 
