@@ -20,17 +20,21 @@ public sealed record VehicleWriteOffRecord(
 
 /// <summary>
 /// A history check's answer: the vehicle was found, with its write-off
-/// records (none for a clean vehicle), or the provider holds no vehicle for
-/// the registration.
+/// records (none for a clean vehicle) and whether the provider says a plate
+/// change is on record (R1217), or the provider holds no vehicle for the
+/// registration.
 /// </summary>
 public sealed record VehicleHistoryCheckResult(
     bool VehicleFound,
-    IReadOnlyList<VehicleWriteOffRecord> WriteOffs)
+    IReadOnlyList<VehicleWriteOffRecord> WriteOffs,
+    bool PlateChangeOnRecord = false)
 {
     public static VehicleHistoryCheckResult NotFound { get; } = new(false, []);
 
-    public static VehicleHistoryCheckResult Found(IReadOnlyList<VehicleWriteOffRecord> writeOffs) =>
-        new(true, writeOffs ?? throw new ArgumentNullException(nameof(writeOffs)));
+    public static VehicleHistoryCheckResult Found(
+        IReadOnlyList<VehicleWriteOffRecord> writeOffs,
+        bool plateChangeOnRecord = false) =>
+        new(true, writeOffs ?? throw new ArgumentNullException(nameof(writeOffs)), plateChangeOnRecord);
 }
 
 /// <summary>
@@ -74,17 +78,25 @@ public static class VehicleHistoryCheckNarrative
     public const string FoundLead =
         "We confirm having checked this vehicle on the Experian database, which records:";
 
+    /// <summary>
+    /// The line for a plate change on record, in the operator's EVA report's
+    /// words (operator, 20 November 2026; R1217).
+    /// </summary>
+    public const string PlateChangeLine = "There is a plate change on record. See plate change details.";
+
     private const string WriteOffLabel = "Write-off: ";
 
     /// <summary>
     /// The clean sentence, or the lead sentence and one line per write-off:
     /// <c>Write-off: {category}, {cause}, loss date {dd/MM/yyyy}, {insurer},
-    /// claim {number}</c>, an absent value left out with its comma (R742).
+    /// claim {number}</c>, an absent value left out with its comma (R742),
+    /// then the plate change line when one is on record. A plate change on
+    /// record is never the clean sentence (R1217).
     /// </summary>
-    public static string Compose(IReadOnlyList<VehicleWriteOffRecord> writeOffs)
+    public static string Compose(IReadOnlyList<VehicleWriteOffRecord> writeOffs, bool plateChangeOnRecord = false)
     {
         ArgumentNullException.ThrowIfNull(writeOffs);
-        if (writeOffs.Count == 0)
+        if (writeOffs.Count == 0 && !plateChangeOnRecord)
         {
             return Clean;
         }
@@ -108,6 +120,11 @@ public static class VehicleHistoryCheckNarrative
             }
 
             text.Append('\n').Append(WriteOffLabel).Append(string.Join(", ", parts));
+        }
+
+        if (plateChangeOnRecord)
+        {
+            text.Append('\n').Append(PlateChangeLine);
         }
 
         return text.ToString();
@@ -200,7 +217,7 @@ public sealed class RunVehicleHistoryCheck(
                 request.EditLeaseToken,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.HistoryCheck] = VehicleHistoryCheckNarrative.Compose(result.WriteOffs),
+                    [AssessmentVocabulary.HistoryCheck] = VehicleHistoryCheckNarrative.Compose(result.WriteOffs, result.PlateChangeOnRecord),
                 }),
             cancellationToken);
         return VehicleHistoryCheckOutcome.Recorded;

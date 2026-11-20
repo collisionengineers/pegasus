@@ -49,7 +49,7 @@ public sealed partial class ExperianVehicleHistoryProvider(
                     throw new ExperianFailure("vehicle", status, null);
                 }
 
-                return VehicleHistoryCheckResult.Found(WriteOffs(body));
+                return Answer(body);
             }
         }
         catch (Exception exception) when (exception is ExperianFailure or InvalidOperationException)
@@ -64,15 +64,25 @@ public sealed partial class ExperianVehicleHistoryProvider(
         }
     }
 
+    /// <summary>Experian's message for a plate change on record ("Plate Change").</summary>
+    internal const string PlateChangeMessageId = "13";
+
+    /// <summary>Experian's message refusing a block the account may not see.</summary>
+    internal const string PermissionDeniedMessageId = "100";
+
     /// <summary>
-    /// <c>vehicle.provenance.condition[]</c>, without the records the insurer
-    /// has removed (R743). Category is <c>losstype</c>, else <c>status</c>.
-    /// An answer without the condition array has not answered the check (for
-    /// example message 100, "Permission to view ConditionRecords was
-    /// denied"), so it is unavailable (R747), never a clean vehicle; the log
-    /// names Experian's message ids.
+    /// The vehicle's answer (R747, R1217). <c>vehicle.provenance.condition[]</c>
+    /// holds its write-off records, without the ones the insurer has removed
+    /// (R743); category is <c>losstype</c>, else <c>status</c>. Experian
+    /// leaves the condition block out when the vehicle has none, so an answer
+    /// without it has no write-off records, unless message 100 refuses
+    /// ConditionRecords ("Permission to view ConditionRecords was denied"):
+    /// that check could not answer, so it is unavailable, never a clean
+    /// vehicle, and the log names Experian's message ids. Message 13 ("Plate
+    /// Change") is a plate change on record. Other messages, including a
+    /// refusal of another block, do not change the answer.
     /// </summary>
-    internal static IReadOnlyList<VehicleWriteOffRecord> WriteOffs(JsonDocument? body)
+    internal static VehicleHistoryCheckResult Answer(JsonDocument? body)
     {
         if (body?.RootElement is not { ValueKind: JsonValueKind.Object } root
             || !root.TryGetProperty("vehicle", out var vehicle)
@@ -81,32 +91,71 @@ public sealed partial class ExperianVehicleHistoryProvider(
             throw new ExperianFailure("vehicle", null, "vehicle=absent");
         }
 
-        if (!vehicle.TryGetProperty("provenance", out var provenance)
-            || provenance.ValueKind != JsonValueKind.Object
-            || !provenance.TryGetProperty("condition", out var conditions)
-            || conditions.ValueKind != JsonValueKind.Array)
+        var messages = Messages(root);
+        if (messages.Any(message => message.Id == PermissionDeniedMessageId
+            && message.Title.Contains("ConditionRecords", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new ExperianFailure("vehicle", null, "condition=absent" + ExperianClient.MessageIds(root));
+            throw new ExperianFailure("vehicle", null, "condition=refused" + ExperianClient.MessageIds(root));
         }
 
         var records = new List<VehicleWriteOffRecord>();
-        foreach (var condition in conditions.EnumerateArray())
+        if (vehicle.TryGetProperty("provenance", out var provenance))
         {
-            if (condition.ValueKind != JsonValueKind.Object
-                || !string.IsNullOrWhiteSpace(Text(condition, "dateremoved")))
+            if (provenance.ValueKind != JsonValueKind.Object)
             {
-                continue;
+                throw new ExperianFailure("vehicle", null, "provenance=unreadable" + ExperianClient.MessageIds(root));
             }
 
-            records.Add(new(
-                Text(condition, "losstype") ?? Text(condition, "status"),
-                Cause(Text(condition, "causeofdamage")),
-                Date(Text(condition, "lossdate")),
-                Text(condition, "insurername"),
-                Text(condition, "claimnumber")));
+            if (provenance.TryGetProperty("condition", out var conditions))
+            {
+                if (conditions.ValueKind != JsonValueKind.Array)
+                {
+                    throw new ExperianFailure("vehicle", null, "condition=unreadable" + ExperianClient.MessageIds(root));
+                }
+
+                foreach (var condition in conditions.EnumerateArray())
+                {
+                    if (condition.ValueKind != JsonValueKind.Object
+                        || !string.IsNullOrWhiteSpace(Text(condition, "dateremoved")))
+                    {
+                        continue;
+                    }
+
+                    records.Add(new(
+                        Text(condition, "losstype") ?? Text(condition, "status"),
+                        Cause(Text(condition, "causeofdamage")),
+                        Date(Text(condition, "lossdate")),
+                        Text(condition, "insurername"),
+                        Text(condition, "claimnumber")));
+                }
+            }
         }
 
-        return records;
+        return VehicleHistoryCheckResult.Found(
+            records,
+            messages.Any(message => message.Id == PlateChangeMessageId));
+    }
+
+    /// <summary>Experian's top-level messages, each id with its title.</summary>
+    private static List<(string Id, string Title)> Messages(JsonElement root)
+    {
+        var messages = new List<(string Id, string Title)>();
+        if (!root.TryGetProperty("messages", out var list) || list.ValueKind != JsonValueKind.Array)
+        {
+            return messages;
+        }
+
+        foreach (var message in list.EnumerateArray())
+        {
+            if (message.ValueKind == JsonValueKind.Object
+                && message.TryGetProperty("id", out var id)
+                && id.ValueKind is JsonValueKind.String or JsonValueKind.Number)
+            {
+                messages.Add((id.ToString().Trim(), Text(message, "title") ?? string.Empty));
+            }
+        }
+
+        return messages;
     }
 
     private static string? Text(JsonElement item, string name) =>

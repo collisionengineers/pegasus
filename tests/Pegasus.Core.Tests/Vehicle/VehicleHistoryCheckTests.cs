@@ -40,6 +40,29 @@ public sealed class VehicleHistoryCheckTests
     }
 
     [Fact]
+    public void APlateChangeOnRecordIsItsOwnLineAndNeverTheCleanSentence()
+    {
+        Assert.Equal(
+            "We confirm having checked this vehicle on the Experian database, which records:\n"
+            + "There is a plate change on record. See plate change details.",
+            VehicleHistoryCheckNarrative.Compose([], plateChangeOnRecord: true));
+    }
+
+    [Fact]
+    public void APlateChangeFollowsTheWriteOffs()
+    {
+        var text = VehicleHistoryCheckNarrative.Compose(
+            [new("Category N", "Accident", new DateOnly(2025, 9, 6), "First Central", null)],
+            plateChangeOnRecord: true);
+
+        Assert.Equal(
+            "We confirm having checked this vehicle on the Experian database, which records:\n"
+            + "Write-off: Category N, Accident, loss date 06/09/2025, First Central\n"
+            + "There is a plate change on record. See plate change details.",
+            text);
+    }
+
+    [Fact]
     public void AnAbsentValueIsLeftOutWithItsComma()
     {
         var text = VehicleHistoryCheckNarrative.Compose([new("Category S", null, null, " Aviva ", " ")]);
@@ -68,6 +91,19 @@ public sealed class VehicleHistoryCheckTests
         Assert.Equal(
             VehicleHistoryCheckNarrative.FoundLead + "\nWrite-off: Category S, Fire, loss date 01/02/2020, Aviva",
             field.Value);
+    }
+
+    [Fact]
+    public async Task APlateChangeOnRecordIsRecordedWithTheVehicleHistory()
+    {
+        var store = new RecordingAssessmentStore();
+        var check = Check(new AnsweringProvider(VehicleHistoryCheckResult.Found([], plateChangeOnRecord: true)), store);
+
+        await check.ExecuteAsync(Request(), default);
+
+        Assert.Equal(
+            VehicleHistoryCheckNarrative.FoundLead + "\n" + VehicleHistoryCheckNarrative.PlateChangeLine,
+            Assert.Single(Assert.Single(store.Saves).Fields).Value);
     }
 
     [Fact]
