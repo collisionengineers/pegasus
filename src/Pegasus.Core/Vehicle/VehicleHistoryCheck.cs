@@ -7,34 +7,47 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Vehicle;
 
 /// <summary>
-/// One write-off (condition) record a history check found, as the provider
-/// names it. Any value may be absent. A record the insurer has since removed
-/// is never carried (R743).
+/// One MIAFTR (condition) entry a history check found, as the provider names
+/// it: its category, its theft status and its loss date (R1218). Any value may
+/// be absent. An entry the insurer has since removed is never carried (R743).
 /// </summary>
 public sealed record VehicleWriteOffRecord(
     string? Category,
-    string? Cause,
-    DateOnly? LossDate,
-    string? Insurer,
-    string? ClaimNumber);
+    string? TheftStatus,
+    DateOnly? LossDate);
 
 /// <summary>
-/// A history check's answer: the vehicle was found, with its write-off
-/// records (none for a clean vehicle) and whether the provider says a plate
-/// change is on record (R1217), or the provider holds no vehicle for the
-/// registration.
+/// A vehicle imported from outside the EU, with the year it was first
+/// registered in the UK and its year of manufacture where known (R1218).
+/// </summary>
+public sealed record VehicleImportRecord(int? FirstRegisteredInUkYear, int? ManufactureYear);
+
+/// <summary>
+/// A history check's answer: the vehicle was found, with its MIAFTR entries
+/// (none for a clean vehicle), whether a plate change is on record (R1217),
+/// whether it was imported from outside the EU and whether it has no DVLA
+/// registration (R1218); or the provider holds no vehicle for the registration.
 /// </summary>
 public sealed record VehicleHistoryCheckResult(
     bool VehicleFound,
     IReadOnlyList<VehicleWriteOffRecord> WriteOffs,
-    bool PlateChangeOnRecord = false)
+    bool PlateChangeOnRecord = false,
+    VehicleImportRecord? ImportedFromOutsideEu = null,
+    bool NoDvlaRegistration = false)
 {
     public static VehicleHistoryCheckResult NotFound { get; } = new(false, []);
 
     public static VehicleHistoryCheckResult Found(
         IReadOnlyList<VehicleWriteOffRecord> writeOffs,
-        bool plateChangeOnRecord = false) =>
-        new(true, writeOffs ?? throw new ArgumentNullException(nameof(writeOffs)), plateChangeOnRecord);
+        bool plateChangeOnRecord = false,
+        VehicleImportRecord? importedFromOutsideEu = null,
+        bool noDvlaRegistration = false) =>
+        new(
+            true,
+            writeOffs ?? throw new ArgumentNullException(nameof(writeOffs)),
+            plateChangeOnRecord,
+            importedFromOutsideEu,
+            noDvlaRegistration);
 }
 
 /// <summary>
@@ -65,8 +78,10 @@ public enum VehicleHistoryCheckOutcome
 }
 
 /// <summary>
-/// The Vehicle history text a check records (operator, 6 November 2026;
-/// R742). It is Case data, printed by the report verbatim.
+/// The Vehicle history text a check records (operator, 20 November 2026;
+/// R1218, replacing R742's lines). It is Case data, printed by the report
+/// verbatim, and carries none of Experian's guidance to look at another part
+/// of its answer.
 /// </summary>
 public static class VehicleHistoryCheckNarrative
 {
@@ -74,68 +89,120 @@ public static class VehicleHistoryCheckNarrative
     public const string Clean =
         "We confirm having checked this vehicle on the Experian database and there is no record of any adverse history.";
 
-    /// <summary>The lead sentence when records were found (R742).</summary>
-    public const string FoundLead =
-        "We confirm having checked this vehicle on the Experian database, which records:";
+    /// <summary>The lead sentence when anything was found (R1218).</summary>
+    public const string FoundLead = "According to the Experian database:";
+
+    /// <summary>A plate change on record (R1217, without Experian's guidance; R1218).</summary>
+    public const string PlateChangeLine = "There is a plate change on record.";
+
+    /// <summary>A vehicle with no DVLA registration, Experian's message 29 (R1218).</summary>
+    public const string NoDvlaRegistrationLine = "There is no DVLA registration for this vehicle.";
+
+    private const string ImportLine = "The vehicle was imported from outside the EU.";
 
     /// <summary>
-    /// The line for a plate change on record, in the operator's EVA report's
-    /// words (operator, 20 November 2026; R1217).
+    /// The clean sentence when nothing was found; otherwise the lead sentence,
+    /// then the MIAFTR entries newest first: one entry as
+    /// <c>An entry exists on the MIAFTR register: {entry}</c>, several under
+    /// <c>There are {n} entries on the MIAFTR register, the most recent with a
+    /// loss dated {dd/MM/yyyy}:</c>, each entry as
+    /// <c>{Category} - {Theft status} - loss dated {dd/MM/yyyy}.</c> with an
+    /// absent value left out; then the plate change, import and no DVLA
+    /// registration lines that apply (R1218).
     /// </summary>
-    public const string PlateChangeLine = "There is a plate change on record. See plate change details.";
-
-    private const string WriteOffLabel = "Write-off: ";
-
-    /// <summary>
-    /// The clean sentence, or the lead sentence and one line per write-off:
-    /// <c>Write-off: {category}, {cause}, loss date {dd/MM/yyyy}, {insurer},
-    /// claim {number}</c>, an absent value left out with its comma (R742),
-    /// then the plate change line when one is on record. A plate change on
-    /// record is never the clean sentence (R1217).
-    /// </summary>
-    public static string Compose(IReadOnlyList<VehicleWriteOffRecord> writeOffs, bool plateChangeOnRecord = false)
+    public static string Compose(VehicleHistoryCheckResult result)
     {
-        ArgumentNullException.ThrowIfNull(writeOffs);
-        if (writeOffs.Count == 0 && !plateChangeOnRecord)
+        ArgumentNullException.ThrowIfNull(result);
+        var lines = new List<string>();
+        var entries = result.WriteOffs
+            .OrderByDescending(record => record.LossDate ?? DateOnly.MinValue)
+            .ToList();
+        if (entries.Count == 1)
         {
-            return Clean;
+            lines.Add("An entry exists on the MIAFTR register: " + Entry(entries[0]));
+        }
+        else if (entries.Count > 1)
+        {
+            lines.Add(entries[0].LossDate is { } latest
+                ? string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"There are {entries.Count} entries on the MIAFTR register, the most recent with a loss dated {Date(latest)}:")
+                : string.Create(CultureInfo.InvariantCulture, $"There are {entries.Count} entries on the MIAFTR register:"));
+            lines.AddRange(entries.Select(Entry));
         }
 
-        var text = new StringBuilder(FoundLead);
-        foreach (var record in writeOffs)
+        if (result.PlateChangeOnRecord)
         {
-            ArgumentNullException.ThrowIfNull(record);
-            var parts = new List<string>(5);
-            Add(parts, record.Category);
-            Add(parts, record.Cause);
-            if (record.LossDate is { } lossDate)
+            lines.Add(PlateChangeLine);
+        }
+
+        if (result.ImportedFromOutsideEu is { } import)
+        {
+            var line = new StringBuilder(ImportLine);
+            if (import.FirstRegisteredInUkYear is { } registered && import.ManufactureYear is { } made)
             {
-                parts.Add("loss date " + lossDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+                line.Append(CultureInfo.InvariantCulture, $" It was first registered in the UK in {registered}; its year of manufacture is {made}.");
+            }
+            else if (import.FirstRegisteredInUkYear is { } registeredOnly)
+            {
+                line.Append(CultureInfo.InvariantCulture, $" It was first registered in the UK in {registeredOnly}.");
+            }
+            else if (import.ManufactureYear is { } madeOnly)
+            {
+                line.Append(CultureInfo.InvariantCulture, $" Its year of manufacture is {madeOnly}.");
             }
 
-            Add(parts, record.Insurer);
-            if (!string.IsNullOrWhiteSpace(record.ClaimNumber))
-            {
-                parts.Add("claim " + record.ClaimNumber.Trim());
-            }
-
-            text.Append('\n').Append(WriteOffLabel).Append(string.Join(", ", parts));
+            lines.Add(line.ToString());
         }
 
-        if (plateChangeOnRecord)
+        if (result.NoDvlaRegistration)
         {
-            text.Append('\n').Append(PlateChangeLine);
+            lines.Add(NoDvlaRegistrationLine);
         }
 
-        return text.ToString();
+        return lines.Count == 0 ? Clean : FoundLead + "\n" + string.Join('\n', lines);
     }
 
-    private static void Add(List<string> parts, string? value)
+    private static string Entry(VehicleWriteOffRecord record)
     {
-        if (!string.IsNullOrWhiteSpace(value))
+        ArgumentNullException.ThrowIfNull(record);
+        var parts = new List<string>(3);
+        if (Words(record.Category) is { } category)
         {
-            parts.Add(value.Trim());
+            parts.Add(category);
         }
+
+        if (Words(record.TheftStatus) is { } theft)
+        {
+            parts.Add(theft);
+        }
+
+        if (record.LossDate is { } lossDate)
+        {
+            parts.Add("loss dated " + Date(lossDate));
+        }
+
+        return string.Join(" - ", parts) + ".";
+    }
+
+    private static string Date(DateOnly date) => date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Experian's capitals in the reports' case: "CAT S STRUCTURAL DAMAGE" is
+    /// "Cat S Structural Damage", "NON-STRUCTURE" is "Non-Structure"; a
+    /// one-letter word stays a capital.
+    /// </summary>
+    private static string? Words(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return string.Join(' ', value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(word =>
+            string.Join('-', word.Split('-').Select(part => part.Length <= 1
+                ? part.ToUpperInvariant()
+                : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()))));
     }
 }
 
@@ -217,7 +284,7 @@ public sealed class RunVehicleHistoryCheck(
                 request.EditLeaseToken,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.HistoryCheck] = VehicleHistoryCheckNarrative.Compose(result.WriteOffs, result.PlateChangeOnRecord),
+                    [AssessmentVocabulary.HistoryCheck] = VehicleHistoryCheckNarrative.Compose(result),
                 }),
             cancellationToken);
         return VehicleHistoryCheckOutcome.Recorded;

@@ -57,11 +57,15 @@ without the block and without that refusal is clean (amended 20 November
 alone and OV08ESN with its record). Message 13 ("Plate Change") marks a plate
 change on record, which the wording reports without asking for the
 PlateChanges block (R1217). A record's category is its `losstype`, else its
-`status`. Its cause is the schema's `causeofdamage` code in the schema's own
-word, and its loss date is the calendar date Experian wrote. Its insurer is
-`insurername` and its claim is `claimnumber`. Core's
-`VehicleHistoryCheckNarrative` turns the records into the approved wording
-(R742).
+`status`, beside its `theftindicator` and the calendar date of its `lossdate`
+(R1218; cause, insurer and the claim number, which Experian sends as
+"Redacted", are not used). Message 20 or `vehicle.status.imported` "NonEU"
+is an import from outside the EU, with `summary.dateoffirstreginuk` and
+`yearofmanufacture` (else `dateofmanufacture`), and message 29 is no DVLA
+registration (R1218). Messages' `guidance` ("See condition details", "See the
+additional DVLA data") points at other parts of Experian's answer and is never
+written. Core's `VehicleHistoryCheckNarrative` turns the answer into the
+approved wording (R742, R1218).
 
 **Record through the assessment save.** `RunVehicleHistoryCheck` requires
 casework, refuses a registration other than the current work's accepted one,

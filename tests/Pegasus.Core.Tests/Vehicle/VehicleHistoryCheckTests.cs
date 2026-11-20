@@ -20,54 +20,90 @@ public sealed class VehicleHistoryCheckTests
     {
         Assert.Equal(
             "We confirm having checked this vehicle on the Experian database and there is no record of any adverse history.",
-            VehicleHistoryCheckNarrative.Compose([]));
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found([])));
     }
 
+    /// <summary>SV20VXT as UAT answered it on 20 November 2026 (R1218).</summary>
     [Fact]
-    public void EachWriteOffIsOneLineUnderTheLeadSentence()
+    public void OneEntryIsOneSentenceInTheReportsCase()
     {
-        var text = VehicleHistoryCheckNarrative.Compose(
-        [
-            new("Category S", "Accident", new DateOnly(2021, 3, 12), "Aviva", "123456"),
-            new("Category N", "Water", new DateOnly(2023, 1, 5), "Direct Line", "CL-9"),
-        ]);
+        Assert.Equal(
+            "According to the Experian database:\n"
+            + "An entry exists on the MIAFTR register: Cat S Structural Damage - Not Stolen - loss dated 09/04/2022.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+                [new("CAT S STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2022, 4, 9))])));
+    }
+
+    /// <summary>
+    /// SA15HNH as UAT answered it, its entries in Experian's order reversed:
+    /// newest first under a count and the latest loss date, then the plate
+    /// change, without Experian's guidance (R1218).
+    /// </summary>
+    [Fact]
+    public void SeveralEntriesAreCountedAndListedNewestFirst()
+    {
+        var text = VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+            [
+                new("CAT D VEHICLE DAMAGED", "NOT STOLEN", new DateOnly(2016, 7, 2)),
+                new("CAT N NON STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2023, 10, 5)),
+            ],
+            plateChangeOnRecord: true));
 
         Assert.Equal(
-            "We confirm having checked this vehicle on the Experian database, which records:\n"
-            + "Write-off: Category S, Accident, loss date 12/03/2021, Aviva, claim 123456\n"
-            + "Write-off: Category N, Water, loss date 05/01/2023, Direct Line, claim CL-9",
+            "According to the Experian database:\n"
+            + "There are 2 entries on the MIAFTR register, the most recent with a loss dated 05/10/2023:\n"
+            + "Cat N Non Structural Damage - Not Stolen - loss dated 05/10/2023.\n"
+            + "Cat D Vehicle Damaged - Not Stolen - loss dated 02/07/2016.\n"
+            + "There is a plate change on record.",
             text);
     }
 
+    /// <summary>WV10WPY's recovered entry keeps its hyphenated words (R1218).</summary>
     [Fact]
-    public void APlateChangeOnRecordIsItsOwnLineAndNeverTheCleanSentence()
+    public void ARecoveredEntryReadsAsTheReportsDid()
     {
-        Assert.Equal(
-            "We confirm having checked this vehicle on the Experian database, which records:\n"
-            + "There is a plate change on record. See plate change details.",
-            VehicleHistoryCheckNarrative.Compose([], plateChangeOnRecord: true));
+        Assert.EndsWith(
+            "An entry exists on the MIAFTR register: Recovered - Non-Structure Damage - Recovered - loss dated 16/03/2026.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+                [new("RECOVERED - NON-STRUCTURE DAMAGE", "RECOVERED", new DateOnly(2026, 3, 16))])),
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void APlateChangeFollowsTheWriteOffs()
+    public void APlateChangeAloneIsNeverTheCleanSentence()
     {
-        var text = VehicleHistoryCheckNarrative.Compose(
-            [new("Category N", "Accident", new DateOnly(2025, 9, 6), "First Central", null)],
-            plateChangeOnRecord: true);
-
         Assert.Equal(
-            "We confirm having checked this vehicle on the Experian database, which records:\n"
-            + "Write-off: Category N, Accident, loss date 06/09/2025, First Central\n"
-            + "There is a plate change on record. See plate change details.",
-            text);
+            "According to the Experian database:\nThere is a plate change on record.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found([], plateChangeOnRecord: true)));
+    }
+
+    /// <summary>BP60XUK's import and AB12ABC's missing DVLA registration (R1218).</summary>
+    [Fact]
+    public void AnImportAndNoDvlaRegistrationEachHaveTheirLine()
+    {
+        Assert.Equal(
+            "According to the Experian database:\n"
+            + "The vehicle was imported from outside the EU. It was first registered in the UK in 2020; its year of manufacture is 2010.\n"
+            + "There is no DVLA registration for this vehicle.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+                [],
+                importedFromOutsideEu: new VehicleImportRecord(2020, 2010),
+                noDvlaRegistration: true)));
+        Assert.EndsWith(
+            "\nThe vehicle was imported from outside the EU.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+                [], importedFromOutsideEu: new VehicleImportRecord(null, null))),
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public void AnAbsentValueIsLeftOutWithItsComma()
+    public void AnAbsentValueIsLeftOutWithItsDash()
     {
-        var text = VehicleHistoryCheckNarrative.Compose([new("Category S", null, null, " Aviva ", " ")]);
-
-        Assert.EndsWith("\nWrite-off: Category S, Aviva", text, StringComparison.Ordinal);
+        Assert.EndsWith(
+            "register: Cat S Structural Damage - loss dated 09/04/2022.",
+            VehicleHistoryCheckNarrative.Compose(VehicleHistoryCheckResult.Found(
+                [new("CAT S STRUCTURAL DAMAGE", " ", new DateOnly(2022, 4, 9))])),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -75,7 +111,7 @@ public sealed class VehicleHistoryCheckTests
     {
         var store = new RecordingAssessmentStore();
         var check = Check(new AnsweringProvider(VehicleHistoryCheckResult.Found(
-            [new("Category S", "Fire", new DateOnly(2020, 2, 1), "Aviva", null)])), store);
+            [new("CAT S STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2020, 2, 1))])), store);
 
         var outcome = await check.ExecuteAsync(Request(), default);
 
@@ -89,7 +125,8 @@ public sealed class VehicleHistoryCheckTests
         var field = Assert.Single(save.Fields);
         Assert.Equal(AssessmentVocabulary.HistoryCheck, field.Key);
         Assert.Equal(
-            VehicleHistoryCheckNarrative.FoundLead + "\nWrite-off: Category S, Fire, loss date 01/02/2020, Aviva",
+            VehicleHistoryCheckNarrative.FoundLead
+            + "\nAn entry exists on the MIAFTR register: Cat S Structural Damage - Not Stolen - loss dated 01/02/2020.",
             field.Value);
     }
 

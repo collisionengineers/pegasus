@@ -67,7 +67,7 @@ public sealed class ExperianVehicleHistoryProviderTests
     {
         const string answer = """
             {"vehicle":{"provenance":{"condition":[
-              {"losstype":"Category S","status":"Written off","causeofdamage":"A","lossdate":"2021-03-12T00:00:00","insurername":"Aviva","claimnumber":"123456"},
+              {"losstype":"Category S","status":"Written off","theftindicator":"NOT STOLEN","causeofdamage":"A","lossdate":"2021-03-12T00:00:00","insurername":"Aviva","claimnumber":"123456"},
               {"losstype":"Category N","causeofdamage":"F","lossdate":"2019-01-02T00:00:00","insurername":"Direct Line","dateremoved":"2019-06-01T00:00:00"},
               {"status":"Category C","causeofdamage":"Z"}
             ]}}}
@@ -79,8 +79,8 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.True(result.VehicleFound);
         Assert.Collection(
             result.WriteOffs,
-            first => Assert.Equal(new VehicleWriteOffRecord("Category S", "Accident", new DateOnly(2021, 3, 12), "Aviva", "123456"), first),
-            second => Assert.Equal(new VehicleWriteOffRecord("Category C", "Z", null, null, null), second));
+            first => Assert.Equal(new VehicleWriteOffRecord("Category S", "NOT STOLEN", new DateOnly(2021, 3, 12)), first),
+            second => Assert.Equal(new VehicleWriteOffRecord("Category C", null, null), second));
     }
 
     [Fact]
@@ -246,16 +246,67 @@ public sealed class ExperianVehicleHistoryProviderTests
         var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
             {"messages":[{"id":"53","title":"Total Loss Claim, Non Structural Damage"}],
              "vehicle":{"provenance":{"condition":[
-               {"losstype":null,"status":"CAT N NON STRUCTURAL DAMAGE","lossdate":"2025-09-06T00:00:00Z","causeofdamage":"A","dateremoved":null,"insurername":"First Central Underwriting Lim","claimnumber":"Redacted"}
+               {"losstype":null,"status":"CAT N NON STRUCTURAL DAMAGE","theftindicator":"NOT STOLEN","lossdate":"2025-09-06T00:00:00Z","causeofdamage":"A","dateremoved":null,"insurername":"First Central Underwriting Lim","claimnumber":"Redacted"}
              ]}}}
             """));
 
         var result = await harness.Provider.CheckAsync(Registration, default);
 
         Assert.Equal(
-            new VehicleWriteOffRecord("CAT N NON STRUCTURAL DAMAGE", "Accident", new DateOnly(2025, 9, 6), "First Central Underwriting Lim", "Redacted"),
+            new VehicleWriteOffRecord("CAT N NON STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2025, 9, 6)),
             Assert.Single(result.WriteOffs));
         Assert.False(result.PlateChangeOnRecord);
+        Assert.Null(result.ImportedFromOutsideEu);
+        Assert.False(result.NoDvlaRegistration);
+    }
+
+    /// <summary>
+    /// BP60XUK as UAT answered it on 20 November 2026: message 20 and
+    /// <c>status.imported</c> "NonEU", with the summary's first UK
+    /// registration and manufacture dates (R1218).
+    /// </summary>
+    [Fact]
+    public async Task AnImportFromOutsideTheEuCarriesItsYears()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"20","title":"Vehicle Imported From Outside EU","guidance":"See the additional DVLA data"}],
+             "vehicle":{"status":{"imported":"NonEU"},
+                        "summary":{"dateoffirstreginuk":"2020-10-06T00:00:00Z","dateofmanufacture":"2010-12-31T00:00:00Z","yearofmanufacture":null}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.Equal(new VehicleImportRecord(2020, 2010), result.ImportedFromOutsideEu);
+        Assert.Empty(result.WriteOffs);
+    }
+
+    /// <summary>LW15GWG-like: the status alone marks the import, without message 20.</summary>
+    [Fact]
+    public async Task TheImportStatusAloneIsAnImport()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(
+            HttpStatusCode.OK,
+            """{"vehicle":{"status":{"imported":"NonEU"},"summary":{"yearofmanufacture":2015}}}"""));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.Equal(new VehicleImportRecord(null, 2015), result.ImportedFromOutsideEu);
+    }
+
+    /// <summary>AB12ABC as UAT answered it on 20 November 2026: message 29 (R1218).</summary>
+    [Fact]
+    public async Task NoDvlaRegistrationIsCarried()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"29","title":"No DVLA Registration"}],
+             "vehicle":{"status":{"imported":"NotImported"},"summary":{"vrm":"AB12ABC"}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.True(result.NoDvlaRegistration);
+        Assert.Null(result.ImportedFromOutsideEu);
+        Assert.Empty(result.WriteOffs);
     }
 
     [Fact]

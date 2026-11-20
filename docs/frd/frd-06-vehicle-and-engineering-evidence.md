@@ -336,18 +336,30 @@ answer is the Vehicle history text, which the report prints verbatim.
 
 - The check asks Experian for the write-off (condition) records of the
   current work's accepted registration and nothing else (R741).
-- With no current record it records "We confirm having checked this vehicle
-  on the Experian database and there is no record of any adverse history."
-  Otherwise it records "We confirm having checked this vehicle on the Experian
-  database, which records:" and one line per record, "Write-off: {category},
-  {cause}, loss date {dd/MM/yyyy}, {insurer}, claim {number}", leaving an
-  absent value out (R742). A record the insurer has removed is left out, so a
-  vehicle whose only records were removed reads as clean (R743).
-- When Experian's answer says a plate change is on record (its message 13,
-  "Plate Change"), the text is never the clean sentence: after the lead
-  sentence and any write-off lines it records "There is a plate change on
-  record. See plate change details." (operator, 20 November 2026, in the
-  words of the operator's EVA report; R1217).
+- With nothing found it records "We confirm having checked this vehicle on the
+  Experian database and there is no record of any adverse history." (R742).
+  Otherwise it records "According to the Experian database:" and then, each
+  on its own line (operator, 20 November 2026, close to the reference reports
+  without Experian's guidance to see another part of its answer; R1218,
+  replacing R742's record lines and R1217's plate change sentence):
+  - one MIAFTR entry: "An entry exists on the MIAFTR register: {entry}";
+  - several: "There are {n} entries on the MIAFTR register, the most recent
+    with a loss dated {dd/MM/yyyy}:" and one line per entry, newest first;
+  - each entry: "{Category} - {Theft status} - loss dated {dd/MM/yyyy}.", in
+    the reports' case ("Cat S Structural Damage - Not Stolen - …"), an absent
+    value left out;
+  - a plate change on record (Experian's message 13; R1217): "There is a
+    plate change on record.";
+  - an import from outside the EU (message 20, or the vehicle's import status
+    "NonEU"): "The vehicle was imported from outside the EU. It was first
+    registered in the UK in {year}; its year of manufacture is {year}.", a
+    year Experian does not give left out with its clause;
+  - no DVLA registration (message 29): "There is no DVLA registration for
+    this vehicle."
+
+  An entry the insurer has removed is left out, so a vehicle whose only
+  entries were removed and with none of the other facts reads as clean
+  (R743).
 - The answer replaces whatever the Vehicle history text held, through the
   same save, history and report staleness as a staff edit; staff may edit it
   afterwards (R744). It never ticks Previous total loss (R745).
