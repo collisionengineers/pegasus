@@ -512,7 +512,7 @@ public sealed class CaseVehicleWebTests
         var assessments = new RecordingAssessmentSaves();
         using var workspace = await EnterEditModeAsync(store, services => ConnectExperian(
             services, store, assessments, new ScriptedHistoryCheck(VehicleHistoryCheckResult.Found(
-                [new("Category S", "Accident", new DateOnly(2021, 3, 12), "Aviva", "123456")]))));
+                [new("CAT S STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2021, 3, 12))]))));
 
         using var checkedResponse = await workspace.PostAsync(
             "Vehicle?handler=RunExperianCheck",
@@ -526,7 +526,8 @@ public sealed class CaseVehicleWebTests
         Assert.Equal("experian-check", save.OperationKey);
         Assert.Equal(RunVehicleHistoryCheck.Reason, save.Reason);
         Assert.Equal(
-            VehicleHistoryCheckNarrative.FoundLead + "\nWrite-off: Category S, Accident, loss date 12/03/2021, Aviva, claim 123456",
+            VehicleHistoryCheckNarrative.FoundLead
+            + "\nAn entry exists on the MIAFTR register: Cat S Structural Damage - Not Stolen - loss dated 12/03/2021.",
             Assert.Single(save.Fields, field => field.Key == AssessmentVocabulary.HistoryCheck).Value);
     }
 
