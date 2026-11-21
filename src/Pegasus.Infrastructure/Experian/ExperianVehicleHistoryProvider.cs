@@ -67,20 +67,30 @@ public sealed partial class ExperianVehicleHistoryProvider(
     /// <summary>Experian's message for a plate change on record ("Plate Change").</summary>
     internal const string PlateChangeMessageId = "13";
 
+    /// <summary>Experian's message for a vehicle imported from outside the EU.</summary>
+    internal const string ImportedOutsideEuMessageId = "20";
+
+    /// <summary>Experian's message for a vehicle with no DVLA registration.</summary>
+    internal const string NoDvlaRegistrationMessageId = "29";
+
     /// <summary>Experian's message refusing a block the account may not see.</summary>
     internal const string PermissionDeniedMessageId = "100";
 
     /// <summary>
     /// The vehicle's answer (R747, R1217). <c>vehicle.provenance.condition[]</c>
-    /// holds its write-off records, without the ones the insurer has removed
-    /// (R743); category is <c>losstype</c>, else <c>status</c>. Experian
+    /// holds its MIAFTR entries, without the ones the insurer has removed
+    /// (R743): category is <c>losstype</c>, else <c>status</c>, with the
+    /// entry's <c>theftindicator</c> and <c>lossdate</c> (R1218). Experian
     /// leaves the condition block out when the vehicle has none, so an answer
     /// without it has no write-off records, unless message 100 refuses
     /// ConditionRecords ("Permission to view ConditionRecords was denied"):
     /// that check could not answer, so it is unavailable, never a clean
     /// vehicle, and the log names Experian's message ids. Message 13 ("Plate
-    /// Change") is a plate change on record. Other messages, including a
-    /// refusal of another block, do not change the answer.
+    /// Change") is a plate change on record; message 20, or
+    /// <c>vehicle.status.imported</c> "NonEU", an import from outside the EU
+    /// with the summary's first UK registration and manufacture years; message
+    /// 29 no DVLA registration (R1218). Other messages, including a refusal of
+    /// another block, do not change the answer.
     /// </summary>
     internal static VehicleHistoryCheckResult Answer(JsonDocument? body)
     {
@@ -123,17 +133,40 @@ public sealed partial class ExperianVehicleHistoryProvider(
 
                     records.Add(new(
                         Text(condition, "losstype") ?? Text(condition, "status"),
-                        Cause(Text(condition, "causeofdamage")),
-                        Date(Text(condition, "lossdate")),
-                        Text(condition, "insurername"),
-                        Text(condition, "claimnumber")));
+                        Text(condition, "theftindicator"),
+                        Date(Text(condition, "lossdate"))));
                 }
             }
         }
 
         return VehicleHistoryCheckResult.Found(
             records,
-            messages.Any(message => message.Id == PlateChangeMessageId));
+            messages.Any(message => message.Id == PlateChangeMessageId),
+            messages.Any(message => message.Id == ImportedOutsideEuMessageId) || ImportedNonEu(vehicle)
+                ? Import(vehicle)
+                : null,
+            messages.Any(message => message.Id == NoDvlaRegistrationMessageId));
+    }
+
+    private static bool ImportedNonEu(JsonElement vehicle) =>
+        vehicle.TryGetProperty("status", out var status)
+        && status.ValueKind == JsonValueKind.Object
+        && string.Equals(Text(status, "imported"), "NonEU", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The import's years from <c>vehicle.summary</c>, where Experian gives them.</summary>
+    private static VehicleImportRecord Import(JsonElement vehicle)
+    {
+        if (!vehicle.TryGetProperty("summary", out var summary) || summary.ValueKind != JsonValueKind.Object)
+        {
+            return new(null, null);
+        }
+
+        int? manufactured = summary.TryGetProperty("yearofmanufacture", out var year)
+            && year.ValueKind == JsonValueKind.Number
+            && year.TryGetInt32(out var value)
+            ? value
+            : Date(Text(summary, "dateofmanufacture"))?.Year;
+        return new(Date(Text(summary, "dateoffirstreginuk"))?.Year, manufactured);
     }
 
     /// <summary>Experian's top-level messages, each id with its title.</summary>
@@ -163,18 +196,6 @@ public sealed partial class ExperianVehicleHistoryProvider(
             && !string.IsNullOrWhiteSpace(value.GetString())
             ? value.GetString()!.Trim()
             : null;
-
-    /// <summary>The schema's <c>causeofdamage</c> codes in its own words; any other value as sent.</summary>
-    private static string? Cause(string? code) => code?.ToUpperInvariant() switch
-    {
-        null => null,
-        "F" => "Fire",
-        "A" => "Accident",
-        "W" => "Water",
-        "V" => "Vandalism",
-        "U" => "Unknown",
-        _ => code,
-    };
 
     /// <summary>The calendar date as Experian wrote it, whatever time or offset follows.</summary>
     private static DateOnly? Date(string? value) =>
