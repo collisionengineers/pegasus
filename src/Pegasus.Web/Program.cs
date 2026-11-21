@@ -254,13 +254,17 @@ if (productionProfile)
         // Brego valuation account (ADR-0084), read on each Get valuation.
         "Brego:ValuationAccount:Email",
         "Brego:ValuationAccount:Password",
-        // Experian's account and endpoints (ADR-0089), read on each check.
+        // Experian's endpoints and its two accounts (ADR-0089, R1215), read on each call.
         "Experian:BaseUri",
         "Experian:TokenUri",
-        "Experian:Account:ClientId",
-        "Experian:Account:ClientSecret",
-        "Experian:Account:Username",
-        "Experian:Account:Password",
+        "Experian:HistoryAccount:ClientId",
+        "Experian:HistoryAccount:ClientSecret",
+        "Experian:HistoryAccount:Username",
+        "Experian:HistoryAccount:Password",
+        "Experian:CapAccount:ClientId",
+        "Experian:CapAccount:ClientSecret",
+        "Experian:CapAccount:Username",
+        "Experian:CapAccount:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -893,14 +897,19 @@ if (productionProfile || liveGuideValuation)
 // Features:LiveExperian; any other offline host says Experian is not
 // connected and its CAP card is unavailable. Each act is handed its account,
 // read on each call for the same unresolved-Key-Vault-reference reason as
-// Box's. Experian:Account:* is the account with CAP valuations (R1207), and
-// the history check reads it too until its own account's entries exist.
+// Box's. Experian issues an account per permission: the history check signs
+// in with Experian:HistoryAccount:* (condition records) and CAP with
+// Experian:CapAccount:* (CAP valuations); neither reads the other's (R1215).
 if (productionProfile || liveExperian)
 {
     builder.Services.AddExperianVehicleHistoryCheck(
-        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(
+            key => builder.Configuration[key],
+            Pegasus.Infrastructure.Experian.ExperianAccount.HistoryAccountSection));
     builder.Services.AddExperianCapValuation(
-        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(key => builder.Configuration[key]));
+        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(
+            key => builder.Configuration[key],
+            Pegasus.Infrastructure.Experian.ExperianAccount.CapAccountSection));
 }
 
 builder.Services.AddPegasusReportRendering();

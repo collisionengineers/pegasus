@@ -336,13 +336,30 @@ answer is the Vehicle history text, which the report prints verbatim.
 
 - The check asks Experian for the write-off (condition) records of the
   current work's accepted registration and nothing else (R741).
-- With no current record it records "We confirm having checked this vehicle
-  on the Experian database and there is no record of any adverse history."
-  Otherwise it records "We confirm having checked this vehicle on the Experian
-  database, which records:" and one line per record, "Write-off: {category},
-  {cause}, loss date {dd/MM/yyyy}, {insurer}, claim {number}", leaving an
-  absent value out (R742). A record the insurer has removed is left out, so a
-  vehicle whose only records were removed reads as clean (R743).
+- With nothing found it records "We confirm having checked this vehicle on the
+  Experian database and there is no record of any adverse history." (R742).
+  Otherwise it records "According to the Experian database:" and then, each
+  on its own line (operator, 20 November 2026, close to the reference reports
+  without Experian's guidance to see another part of its answer; R1218,
+  replacing R742's record lines and R1217's plate change sentence):
+  - one MIAFTR entry: "An entry exists on the MIAFTR register: {entry}";
+  - several: "There are {n} entries on the MIAFTR register, the most recent
+    with a loss dated {dd/MM/yyyy}:" and one line per entry, newest first;
+  - each entry: "{Category} - {Theft status} - loss dated {dd/MM/yyyy}.", in
+    the reports' case ("Cat S Structural Damage - Not Stolen - …"), an absent
+    value left out;
+  - a plate change on record (Experian's message 13; R1217): "There is a
+    plate change on record.";
+  - an import from outside the EU (message 20, or the vehicle's import status
+    "NonEU"): "The vehicle was imported from outside the EU. It was first
+    registered in the UK in {year}; its year of manufacture is {year}.", a
+    year Experian does not give left out with its clause;
+  - no DVLA registration (message 29): "There is no DVLA registration for
+    this vehicle."
+
+  An entry the insurer has removed is left out, so a vehicle whose only
+  entries were removed and with none of the other facts reads as clean
+  (R743).
 - The answer replaces whatever the Vehicle history text held, through the
   same save, history and report staleness as a staff edit; staff may edit it
   afterwards (R744). It never ticks Previous total loss (R745).
@@ -350,10 +367,14 @@ answer is the Vehicle history text, which the report prints verbatim.
   cannot check this vehicle: it holds no data for its registration." (R748).
   A check that could not answer writes nothing and says "The Experian check
   is unavailable. Contact an administrator or report a problem." (R747).
-  An answer without the condition records, such as Experian's message 100
-  "Permission to view ConditionRecords was denied", is a check that could not
+  An answer in which Experian refuses the condition records (its message 100
+  "Permission to view ConditionRecords was denied") is a check that could not
   answer, never a clean vehicle (operator, 18 November 2026: "we cant have
-  this - its literally putting incorrect info in"; R747).
+  this - its literally putting incorrect info in"; R747). Experian leaves the
+  condition records out of an answer for a vehicle that has none, so an answer
+  without them and without that refusal has no write-off records (amended 20
+  November 2026, R1217); any other Experian message, including a refusal of
+  another block, does not change the answer.
 - Staff and the Automation Actor may run it (ADR-0064). A host without
   Experian composed offers no check.
 

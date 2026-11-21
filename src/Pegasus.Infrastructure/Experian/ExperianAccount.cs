@@ -1,9 +1,13 @@
 namespace Pegasus.Infrastructure.Experian;
 
 /// <summary>
-/// The Experian Automotive API account Run Experian check signs in with, and
-/// where it signs in: Collision Engineers' client and user credentials,
-/// delivered from Key Vault, and the two endpoint addresses (ADR-0089).
+/// One Experian Automotive API account and where it signs in: Collision
+/// Engineers' client and user credentials, delivered from Key Vault, and the
+/// two endpoint addresses (ADR-0089). Experian issues an account per
+/// permission, so each act is handed its own: <c>Experian:HistoryAccount</c>
+/// holds condition records for Run Experian check and
+/// <c>Experian:CapAccount</c> holds CAP valuations (R1207, R1215). The
+/// addresses are shared.
 ///
 /// <para>
 /// A class rather than a record on purpose: a record's generated
@@ -42,23 +46,30 @@ public sealed class ExperianAccount
 
     public string Password { get; }
 
+    /// <summary>The account Run Experian check signs in with: condition records (R1215).</summary>
+    public const string HistoryAccountSection = "Experian:HistoryAccount";
+
+    /// <summary>The account CAP's Get valuation signs in with: CAP valuations (R1207, R1215).</summary>
+    public const string CapAccountSection = "Experian:CapAccount";
+
     /// <summary>
-    /// A host hands over its own configuration lookup, so which keys the
-    /// account needs is decided here. A value the platform left as an
-    /// unresolved Key Vault reference is named as that, not as a bad secret.
-    /// Both addresses are HTTPS on an Experian host.
+    /// A host hands over its own configuration lookup and names the account's
+    /// section, so which keys the account needs is decided here. A value the
+    /// platform left as an unresolved Key Vault reference is named as that,
+    /// not as a bad secret. Both addresses are HTTPS on an Experian host.
     /// </summary>
-    public static ExperianAccount Create(Func<string, string?> read)
+    public static ExperianAccount Create(Func<string, string?> read, string section)
     {
         ArgumentNullException.ThrowIfNull(read);
+        ArgumentException.ThrowIfNullOrWhiteSpace(section);
         return new(
             ExperianUri(read, "Experian:BaseUri"),
             ExperianUri(read, "Experian:TokenUri"),
-            Require(read, "Experian:Account:ClientId").Trim(),
-            Require(read, "Experian:Account:ClientSecret"),
-            Require(read, "Experian:Account:Username").Trim(),
+            Require(read, $"{section}:ClientId").Trim(),
+            Require(read, $"{section}:ClientSecret"),
+            Require(read, $"{section}:Username").Trim(),
             // A password is used exactly as it was stored.
-            Require(read, "Experian:Account:Password"));
+            Require(read, $"{section}:Password"));
     }
 
     public override string ToString() => nameof(ExperianAccount);

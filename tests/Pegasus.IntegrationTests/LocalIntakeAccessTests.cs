@@ -114,10 +114,14 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Brego:ValuationAccount:Password")]
     [InlineData("Experian:BaseUri")]
     [InlineData("Experian:TokenUri")]
-    [InlineData("Experian:Account:ClientId")]
-    [InlineData("Experian:Account:ClientSecret")]
-    [InlineData("Experian:Account:Username")]
-    [InlineData("Experian:Account:Password")]
+    [InlineData("Experian:HistoryAccount:ClientId")]
+    [InlineData("Experian:HistoryAccount:ClientSecret")]
+    [InlineData("Experian:HistoryAccount:Username")]
+    [InlineData("Experian:HistoryAccount:Password")]
+    [InlineData("Experian:CapAccount:ClientId")]
+    [InlineData("Experian:CapAccount:ClientSecret")]
+    [InlineData("Experian:CapAccount:Username")]
+    [InlineData("Experian:CapAccount:Password")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -156,10 +160,14 @@ public sealed class LocalIntakeAccessTests
             ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
-            ["Experian:Account:ClientId"] = "experian-client",
-            ["Experian:Account:ClientSecret"] = "synthetic-experian-secret",
-            ["Experian:Account:Username"] = "experian-user",
-            ["Experian:Account:Password"] = "synthetic-experian-password",
+            ["Experian:HistoryAccount:ClientId"] = "experian-client",
+            ["Experian:HistoryAccount:ClientSecret"] = "synthetic-experian-secret",
+            ["Experian:HistoryAccount:Username"] = "experian-user",
+            ["Experian:HistoryAccount:Password"] = "synthetic-experian-password",
+            ["Experian:CapAccount:ClientId"] = "experian-client",
+            ["Experian:CapAccount:ClientSecret"] = "synthetic-experian-secret",
+            ["Experian:CapAccount:Username"] = "experian-user",
+            ["Experian:CapAccount:Password"] = "synthetic-experian-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

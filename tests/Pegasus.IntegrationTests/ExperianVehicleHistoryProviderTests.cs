@@ -67,7 +67,7 @@ public sealed class ExperianVehicleHistoryProviderTests
     {
         const string answer = """
             {"vehicle":{"provenance":{"condition":[
-              {"losstype":"Category S","status":"Written off","causeofdamage":"A","lossdate":"2021-03-12T00:00:00","insurername":"Aviva","claimnumber":"123456"},
+              {"losstype":"Category S","status":"Written off","theftindicator":"NOT STOLEN","causeofdamage":"A","lossdate":"2021-03-12T00:00:00","insurername":"Aviva","claimnumber":"123456"},
               {"losstype":"Category N","causeofdamage":"F","lossdate":"2019-01-02T00:00:00","insurername":"Direct Line","dateremoved":"2019-06-01T00:00:00"},
               {"status":"Category C","causeofdamage":"Z"}
             ]}}}
@@ -79,8 +79,8 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.True(result.VehicleFound);
         Assert.Collection(
             result.WriteOffs,
-            first => Assert.Equal(new VehicleWriteOffRecord("Category S", "Accident", new DateOnly(2021, 3, 12), "Aviva", "123456"), first),
-            second => Assert.Equal(new VehicleWriteOffRecord("Category C", "Z", null, null, null), second));
+            first => Assert.Equal(new VehicleWriteOffRecord("Category S", "NOT STOLEN", new DateOnly(2021, 3, 12)), first),
+            second => Assert.Equal(new VehicleWriteOffRecord("Category C", null, null), second));
     }
 
     [Fact]
@@ -177,10 +177,10 @@ public sealed class ExperianVehicleHistoryProviderTests
     }
 
     [Fact]
-    public async Task AnAnswerWithoutTheConditionRecordsIsUnavailableNotClean()
+    public async Task ARefusalOfTheConditionRecordsIsUnavailableNotClean()
     {
-        // UAT's answer on 18 November 2026: the vehicle, no provenance block,
-        // and message 100 refusing the condition records.
+        // UAT's answer to the CAP account on 18 November 2026: the vehicle, no
+        // provenance block, and message 100 refusing the condition records.
         var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
             {"messages":[{"id":"13","title":"Plate Change"},{"id":"100","title":"Permission to view ConditionRecords was denied"}],
              "vehicle":{"summary":{"vrm":"AB12CDE"}}}
@@ -191,8 +191,135 @@ public sealed class ExperianVehicleHistoryProviderTests
 
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("experian.history.unreadable", StringComparison.Ordinal)
-            && message.Contains("condition=absent messages=13,100", StringComparison.Ordinal));
+            && message.Contains("condition=refused messages=13,100", StringComparison.Ordinal));
         harness.AssertNothingSecretLogged();
+    }
+
+    /// <summary>
+    /// Experian leaves the condition block out for a vehicle with no records
+    /// (UAT, 20 November 2026: SW15CWX, SC15ZXZ and MT73GGO answered the
+    /// vehicle alone, with no messages), so that answer is clean (R1217).
+    /// </summary>
+    [Fact]
+    public async Task AnAnswerWithoutAConditionBlockOrRefusalIsClean()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(
+            HttpStatusCode.OK,
+            """{"instance":"rrt-1","vehicle":{"status":{"scrapped":"NotScrapped"},"summary":{"vrm":"AB12CDE"}}}"""));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.True(result.VehicleFound);
+        Assert.Empty(result.WriteOffs);
+        Assert.False(result.PlateChangeOnRecord);
+    }
+
+    /// <summary>
+    /// Message 13 is a plate change on record (UAT, 20 November 2026,
+    /// PF15UJM), carried without the PlateChanges block. Its refusal, when
+    /// plate changes were asked for, does not make the write-off answer
+    /// unavailable (R1217).
+    /// </summary>
+    [Fact]
+    public async Task APlateChangeMessageIsCarriedAndAnotherBlocksRefusalIsNotUnavailable()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"13","title":"Plate Change","guidance":"See plate change details"},{"id":"100","title":"Permission to view PlateChanges was denied"}],
+             "vehicle":{"summary":{"vrm":"AB12CDE"}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.True(result.VehicleFound);
+        Assert.Empty(result.WriteOffs);
+        Assert.True(result.PlateChangeOnRecord);
+    }
+
+    /// <summary>
+    /// A populated answer as UAT gave it for OV08ESN on 20 November 2026: the
+    /// record names its category in <c>status</c>, and message 53 beside it
+    /// changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task ARecordWithAnInformationMessageIsCarried()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"53","title":"Total Loss Claim, Non Structural Damage"}],
+             "vehicle":{"provenance":{"condition":[
+               {"losstype":null,"status":"CAT N NON STRUCTURAL DAMAGE","theftindicator":"NOT STOLEN","lossdate":"2025-09-06T00:00:00Z","causeofdamage":"A","dateremoved":null,"insurername":"First Central Underwriting Lim","claimnumber":"Redacted"}
+             ]}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.Equal(
+            new VehicleWriteOffRecord("CAT N NON STRUCTURAL DAMAGE", "NOT STOLEN", new DateOnly(2025, 9, 6)),
+            Assert.Single(result.WriteOffs));
+        Assert.False(result.PlateChangeOnRecord);
+        Assert.Null(result.ImportedFromOutsideEu);
+        Assert.False(result.NoDvlaRegistration);
+    }
+
+    /// <summary>
+    /// BP60XUK as UAT answered it on 20 November 2026: message 20 and
+    /// <c>status.imported</c> "NonEU", with the summary's first UK
+    /// registration and manufacture dates (R1218).
+    /// </summary>
+    [Fact]
+    public async Task AnImportFromOutsideTheEuCarriesItsYears()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"20","title":"Vehicle Imported From Outside EU","guidance":"See the additional DVLA data"}],
+             "vehicle":{"status":{"imported":"NonEU"},
+                        "summary":{"dateoffirstreginuk":"2020-10-06T00:00:00Z","dateofmanufacture":"2010-12-31T00:00:00Z","yearofmanufacture":null}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.Equal(new VehicleImportRecord(2020, 2010), result.ImportedFromOutsideEu);
+        Assert.Empty(result.WriteOffs);
+    }
+
+    /// <summary>LW15GWG-like: the status alone marks the import, without message 20.</summary>
+    [Fact]
+    public async Task TheImportStatusAloneIsAnImport()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(
+            HttpStatusCode.OK,
+            """{"vehicle":{"status":{"imported":"NonEU"},"summary":{"yearofmanufacture":2015}}}"""));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.Equal(new VehicleImportRecord(null, 2015), result.ImportedFromOutsideEu);
+    }
+
+    /// <summary>AB12ABC as UAT answered it on 20 November 2026: message 29 (R1218).</summary>
+    [Fact]
+    public async Task NoDvlaRegistrationIsCarried()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, """
+            {"messages":[{"id":"29","title":"No DVLA Registration"}],
+             "vehicle":{"status":{"imported":"NotImported"},"summary":{"vrm":"AB12ABC"}}}
+            """));
+
+        var result = await harness.Provider.CheckAsync(Registration, default);
+
+        Assert.True(result.NoDvlaRegistration);
+        Assert.Null(result.ImportedFromOutsideEu);
+        Assert.Empty(result.WriteOffs);
+    }
+
+    [Fact]
+    public async Task AConditionBlockThatIsNotAListIsUnavailable()
+    {
+        var harness = Harness.Create(vehicle: _ => Json(
+            HttpStatusCode.OK,
+            """{"vehicle":{"provenance":{"condition":"none"}}}"""));
+
+        await Assert.ThrowsAsync<VehicleHistoryCheckUnavailableException>(() =>
+            harness.Provider.CheckAsync(Registration, default));
+
+        Assert.Contains(harness.Logger.Messages, message => message.Contains("condition=unreadable", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -211,9 +338,9 @@ public sealed class ExperianVehicleHistoryProviderTests
     {
         var harness = Harness.Create(
             vehicle: _ => Json(HttpStatusCode.OK, CleanVehicle),
-            account: () => ExperianAccount.Create(key => key == "Experian:Account:Password"
+            account: () => ExperianAccount.Create(key => key == "Experian:HistoryAccount:Password"
                 ? "@Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/secrets/experian-password/1)"
-                : Setting(key)));
+                : Setting(key), ExperianAccount.HistoryAccountSection));
 
         await Assert.ThrowsAsync<VehicleHistoryCheckUnavailableException>(() =>
             harness.Provider.CheckAsync(Registration, default));
@@ -221,7 +348,7 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.Empty(harness.Requests);
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("experian.history.configuration", StringComparison.Ordinal)
-            && message.Contains("Experian:Account:Password", StringComparison.Ordinal));
+            && message.Contains("Experian:HistoryAccount:Password", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -231,20 +358,22 @@ public sealed class ExperianVehicleHistoryProviderTests
     public void TheAccountRefusesAnAddressThatIsNotHttpsExperian(string baseUri)
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            ExperianAccount.Create(key => key == "Experian:BaseUri" ? baseUri : Setting(key)));
+            ExperianAccount.Create(
+                key => key == "Experian:BaseUri" ? baseUri : Setting(key),
+                ExperianAccount.HistoryAccountSection));
 
         Assert.Equal("Experian:BaseUri must be an HTTPS Experian address.", exception.Message);
-        Assert.Equal(nameof(ExperianAccount), ExperianAccount.Create(Setting).ToString());
+        Assert.Equal(nameof(ExperianAccount), ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection).ToString());
     }
 
     private static string? Setting(string key) => key switch
     {
         "Experian:BaseUri" => BaseUri,
         "Experian:TokenUri" => TokenUri,
-        "Experian:Account:ClientId" => ClientId,
-        "Experian:Account:ClientSecret" => ClientSecret,
-        "Experian:Account:Username" => Username,
-        "Experian:Account:Password" => Password,
+        "Experian:HistoryAccount:ClientId" => ClientId,
+        "Experian:HistoryAccount:ClientSecret" => ClientSecret,
+        "Experian:HistoryAccount:Username" => Username,
+        "Experian:HistoryAccount:Password" => Password,
         _ => null,
     };
 
@@ -295,7 +424,7 @@ public sealed class ExperianVehicleHistoryProviderTests
                                 ? token?.Invoke() ?? Json(HttpStatusCode.OK, Token)
                                 : vehicle(request);
                         })),
-                        account ?? (() => ExperianAccount.Create(Setting)),
+                        account ?? (() => ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection)),
                         clock ?? new MovingClock(Now)),
                     logger),
                 logger,

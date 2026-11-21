@@ -106,14 +106,22 @@ param bregoValuationPasswordSecretUri string
 param experianBaseUri string
 @description('Experian OAuth2 token endpoint, for example https://sandbox-uk-api.experian.com/oauth2/v1/token (ADR-0089).')
 param experianTokenUri string
-@description('Versioned Key Vault secret URI containing the Experian client ID (ADR-0089).')
-param experianClientIdSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian client secret (ADR-0089).')
-param experianClientSecretSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian account user name (ADR-0089).')
-param experianUsernameSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian account password (ADR-0089).')
-param experianPasswordSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account client ID (ADR-0089, R1215).')
+param experianHistoryClientIdSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account client secret (ADR-0089, R1215).')
+param experianHistoryClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account user name (ADR-0089, R1215).')
+param experianHistoryUsernameSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account password (ADR-0089, R1215).')
+param experianHistoryPasswordSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian CAP valuations account client ID (ADR-0089, R1215).')
+param experianCapClientIdSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian CAP valuations account client secret (ADR-0089, R1215).')
+param experianCapClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian CAP valuations account user name (ADR-0089, R1215).')
+param experianCapUsernameSecretUri string
+@description('Versioned Key Vault secret URI containing the Experian CAP valuations account password (ADR-0089, R1215).')
+param experianCapPasswordSecretUri string
 @description('SMS-enabled UK mobile number in E.164 bought on the Communication Services resource by hand; empty leaves photo-link texting unavailable.')
 param photoLinkTextFrom string = ''
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
@@ -177,10 +185,14 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     bregoValuationPasswordSecretUri: bregoValuationPasswordSecretUri
     experianBaseUri: experianBaseUri
     experianTokenUri: experianTokenUri
-    experianClientIdSecretUri: experianClientIdSecretUri
-    experianClientSecretSecretUri: experianClientSecretSecretUri
-    experianUsernameSecretUri: experianUsernameSecretUri
-    experianPasswordSecretUri: experianPasswordSecretUri
+    experianHistoryClientIdSecretUri: experianHistoryClientIdSecretUri
+    experianHistoryClientSecretSecretUri: experianHistoryClientSecretSecretUri
+    experianHistoryUsernameSecretUri: experianHistoryUsernameSecretUri
+    experianHistoryPasswordSecretUri: experianHistoryPasswordSecretUri
+    experianCapClientIdSecretUri: experianCapClientIdSecretUri
+    experianCapClientSecretSecretUri: experianCapClientSecretSecretUri
+    experianCapUsernameSecretUri: experianCapUsernameSecretUri
+    experianCapPasswordSecretUri: experianCapPasswordSecretUri
     photoLinkTextFrom: photoLinkTextFrom
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri

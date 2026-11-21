@@ -113,17 +113,29 @@
     "experianTokenUri": {
       "value": "${EXPERIAN_TOKEN_URI}"
     },
-    "experianClientIdSecretUri": {
-      "value": "${EXPERIAN_CLIENT_ID_SECRET_URI}"
+    "experianHistoryClientIdSecretUri": {
+      "value": "${EXPERIAN_HISTORY_CLIENT_ID_SECRET_URI}"
     },
-    "experianClientSecretSecretUri": {
-      "value": "${EXPERIAN_CLIENT_SECRET_SECRET_URI}"
+    "experianHistoryClientSecretSecretUri": {
+      "value": "${EXPERIAN_HISTORY_CLIENT_SECRET_SECRET_URI}"
     },
-    "experianUsernameSecretUri": {
-      "value": "${EXPERIAN_USERNAME_SECRET_URI}"
+    "experianHistoryUsernameSecretUri": {
+      "value": "${EXPERIAN_HISTORY_USERNAME_SECRET_URI}"
     },
-    "experianPasswordSecretUri": {
-      "value": "${EXPERIAN_PASSWORD_SECRET_URI}"
+    "experianHistoryPasswordSecretUri": {
+      "value": "${EXPERIAN_HISTORY_PASSWORD_SECRET_URI}"
+    },
+    "experianCapClientIdSecretUri": {
+      "value": "${EXPERIAN_CAP_CLIENT_ID_SECRET_URI}"
+    },
+    "experianCapClientSecretSecretUri": {
+      "value": "${EXPERIAN_CAP_CLIENT_SECRET_SECRET_URI}"
+    },
+    "experianCapUsernameSecretUri": {
+      "value": "${EXPERIAN_CAP_USERNAME_SECRET_URI}"
+    },
+    "experianCapPasswordSecretUri": {
+      "value": "${EXPERIAN_CAP_PASSWORD_SECRET_URI}"
     },
     "photoLinkTextFrom": {
       "value": "${PEGASUS_PHOTO_LINK_TEXT_FROM=}"
