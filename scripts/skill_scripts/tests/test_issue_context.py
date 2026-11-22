@@ -1,4 +1,4 @@
-"""issue_context.py with canned glab and git answers: the stop codes, a golden and paths that hold spaces."""
+"""issue_context.py with canned gh and git answers: the stop codes, a golden and paths that hold spaces."""
 import unittest
 from unittest import mock
 
@@ -25,43 +25,39 @@ TREE = [
     *SPACED_PATHS,
 ]
 GREP = {"WidgetFactory": ["src/app/WidgetFactory.cs", "src/other/WidgetFactory.cs"]}
-PROJECT = "projects/acme%2Fwidgets"
-COMMENT = {"system": False, "author": {"username": "helper"}, "created_at": "2026-10-03T10:00:00Z",
-           "body": "Seen on the live estate."}
-SYSTEM_NOTE = {"system": True, "author": {"username": "reporter"}, "created_at": "2026-10-02T09:00:00Z",
-               "body": "changed the description"}
+COMMENT = {"author": {"login": "helper"}, "createdAt": "2026-10-03T10:00:00Z", "body": "Seen on the live estate."}
 
 
-def issue(description, **overrides):
-    value = {"iid": 4242, "title": "Widget rendering fails", "state": "opened",
-             "web_url": "https://gitlab.com/acme/widgets/-/issues/4242", "author": {"username": "reporter"},
-             "created_at": "2026-10-01T09:00:00Z", "updated_at": "2026-10-02T09:00:00Z", "closed_at": None,
-             "labels": ["type:bug"], "assignees": [], "description": description}
+def issue(body, **overrides):
+    value = {"number": 4242, "title": "Widget rendering fails", "state": "OPEN", "stateReason": None,
+             "url": "https://github.com/acme/widgets/issues/4242", "author": {"login": "reporter"},
+             "createdAt": "2026-10-01T09:00:00Z", "updatedAt": "2026-10-02T09:00:00Z", "closedAt": None,
+             "labels": [{"name": "type:bug"}], "assignees": [], "body": body, "comments": [COMMENT]}
     value.update(overrides)
     return value
 
 
-def related_merge_request(iid, state="opened"):
-    return {"iid": iid, "title": f"Item {iid}", "state": state,
-            "web_url": f"https://gitlab.com/acme/widgets/-/merge_requests/{iid}"}
-
-
-def mentioned_in_issue(number):
-    return {"system": True, "author": {"username": "someone"}, "created_at": "2026-10-04T00:00:00Z",
-            "body": f"mentioned in issue #{number}"}
+def cross_reference(number, state="open", merged=False, pull_request=True):
+    source = {"number": number, "title": f"Item {number}", "state": state,
+              "html_url": f"https://github.com/acme/widgets/pull/{number}"}
+    if pull_request:
+        source["pull_request"] = {"merged_at": "2026-10-04T00:00:00Z" if merged else None}
+    return {"event": "cross-referenced", "source": {"issue": source}}
 
 
 class Canned:
-    """glab and git as one issue sees them; records the commands it was asked."""
+    """gh and git as one issue sees them; records the git commands it was asked."""
 
-    def __init__(self, description, related=(), notes=(SYSTEM_NOTE, COMMENT), tree=TREE,
-                 log="abc1234 2026-10-05 Change the widget\n", grep=GREP, **overrides):
-        self.issue, self.related, self.notes = issue(description, **overrides), list(related), list(notes)
-        self.tree, self.log, self.grep = tree, log, grep
+    def __init__(self, body, timeline=(), tree=TREE, log="abc1234 2026-10-05 Change the widget\n", grep=GREP,
+                 **overrides):
+        self.issue, self.timeline, self.tree, self.log = issue(body, **overrides), list(timeline), tree, log
+        self.grep = grep
         self.commands = []
 
     def run(self, args, check=True):
         self.commands.append(args)
+        if args[:3] == ["gh", "repo", "view"]:
+            return "dev\n"
         if args[:2] == ["git", "rev-parse"]:
             return BASE_SHA + "\n"
         if args[:2] == ["git", "ls-tree"]:
@@ -76,31 +72,16 @@ class Canned:
             return self.log
         raise AssertionError(f"unexpected command {args}")
 
-    def glab_json(self, args):
-        self.commands.append(["glab", *args])
-        path = args[1]
-        if path == PROJECT:
-            return {"path_with_namespace": "acme/widgets", "default_branch": "dev"}
-        if path == f"{PROJECT}/issues/4242":
-            return self.issue
-        if path.startswith(f"{PROJECT}/issues/4242/notes?"):
-            return self.notes
-        if path.startswith(f"{PROJECT}/issues/4242/related_merge_requests?"):
-            return self.related
-        raise AssertionError(f"unexpected glab call {args}")
+    def gh_json(self, args):
+        return self.timeline if args[0] == "api" else self.issue
 
     def command(self, name):
         return next(args for args in self.commands if args[:2] == ["git", name])
 
 
-def run_context(canned, *argv):
-    with mock.patch.object(issue_context, "run", canned.run), \
-            mock.patch.object(issue_context, "glab_json", canned.glab_json):
-        return run_main(issue_context, list(argv) or ["4242", "--repo", "acme/widgets", "--base", "dev", "--no-fetch"])
-
-
-def glab_paths(canned):
-    return [args[2] for args in canned.commands if args[0] == "glab"]
+def run_context(canned):
+    with mock.patch.object(issue_context, "run", canned.run), mock.patch.object(issue_context, "gh_json", canned.gh_json):
+        return run_main(issue_context, ["4242", "--repo", "acme/widgets", "--base", "dev", "--no-fetch"])
 
 
 BODY = ("Widget rendering fails.\n\nSee `src/app/Widget.cs` and `docs/gone.md`. The helper `Helper.cs` is involved,\n"
@@ -115,41 +96,24 @@ class IssueContextStopCodes(unittest.TestCase):
         self.assertIn("Nothing references this issue.", out)
 
     def test_a_closed_issue_exits_2(self):
-        code, out, _ = run_context(Canned(BODY, state="closed", closed_at="2026-10-06T00:00:00Z"))
+        code, out, _ = run_context(Canned(BODY, state="CLOSED", stateReason="COMPLETED", closedAt="2026-10-06T00:00:00Z"))
         self.assertEqual(2, code)
-        self.assertIn("## Stop and ask\n\n- issue is closed (closed 2026-10-06T00:00:00Z)", out)
+        self.assertIn("## Stop and ask\n\n- issue is CLOSED (COMPLETED, closed 2026-10-06T00:00:00Z)", out)
 
-    def test_an_open_merge_request_that_references_the_issue_exits_2(self):
-        code, out, _ = run_context(Canned(BODY, related=[related_merge_request(77)]))
+    def test_an_open_pr_that_references_the_issue_exits_2(self):
+        code, out, _ = run_context(Canned(BODY, timeline=[cross_reference(77)]))
         self.assertEqual(2, code)
-        self.assertIn("- open merge request !77 already references this issue: Item 77", out)
-        self.assertIn("- merge request !77 (opened): Item 77 https://gitlab.com/acme/widgets/-/merge_requests/77", out)
+        self.assertIn("- open PR #77 already references this issue: Item 77", out)
+        self.assertIn("- PR #77 (OPEN): Item 77 https://github.com/acme/widgets/pull/77", out)
 
-    def test_merged_and_closed_merge_requests_and_other_issues_do_not_stop(self):
-        related = [related_merge_request(78, state="merged"), related_merge_request(79, state="closed")]
-        notes = [COMMENT, mentioned_in_issue(80), {"system": True, "body": "mentioned in merge request !78"}]
-        code, out, _ = run_context(Canned(BODY, related=related, notes=notes))
+    def test_merged_and_closed_prs_and_other_issues_do_not_stop(self):
+        timeline = [cross_reference(78, state="closed", merged=True), cross_reference(79, state="closed"),
+                    cross_reference(80, pull_request=False), {"event": "labeled"}]
+        code, out, _ = run_context(Canned(BODY, timeline=timeline))
         self.assertEqual(0, code)
-        self.assertIn("- merge request !78 (merged): Item 78", out)
-        self.assertIn("- merge request !79 (closed): Item 79", out)
-        self.assertIn("- issue #80 (mentioned 2026-10-04T00:00:00Z)\n", out)
-        self.assertNotIn("!78 (mentioned", out)
-
-
-class IssueContextReads(unittest.TestCase):
-    def test_the_issue_its_notes_and_its_merge_requests_are_read_from_the_encoded_project(self):
-        canned = Canned(BODY)
-        run_context(canned)
-        self.assertEqual([f"{PROJECT}/issues/4242",
-                          f"{PROJECT}/issues/4242/notes?sort=asc&order_by=created_at&per_page=100",
-                          f"{PROJECT}/issues/4242/related_merge_requests?per_page=100"], glab_paths(canned))
-
-    def test_without_base_the_default_branch_is_read_from_the_project(self):
-        canned = Canned(BODY)
-        code, out, _ = run_context(canned, "4242", "--repo", "acme/widgets", "--no-fetch")
-        self.assertEqual(0, code)
-        self.assertEqual(PROJECT, glab_paths(canned)[0])
-        self.assertIn(f"- Base for investigation: `origin/dev` @ `{BASE_SHA}`", out)
+        self.assertIn("- PR #78 (MERGED): Item 78", out)
+        self.assertIn("- PR #79 (CLOSED): Item 79", out)
+        self.assertIn("- issue #80 (OPEN): Item 80", out)
 
 
 class IssueContextGolden(unittest.TestCase):
@@ -162,8 +126,8 @@ class IssueContextGolden(unittest.TestCase):
         self.assertEqual(
             "# Issue #4242: Widget rendering fails\n"
             "\n"
-            "- URL: https://gitlab.com/acme/widgets/-/issues/4242\n"
-            "- State: opened\n"
+            "- URL: https://github.com/acme/widgets/issues/4242\n"
+            "- State: OPEN\n"
             "- Author: reporter; opened 2026-10-01T09:00:00Z; updated 2026-10-02T09:00:00Z\n"
             "- Labels: type:bug\n"
             "- Assignees: none\n"

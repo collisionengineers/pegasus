@@ -122,7 +122,7 @@ signature items. The Sign-off Engineer account
 source of the signatory tuple.
 
 Staff enter the impacts by hand (operator, 3 November 2026, R642–R646,
-superseding R639; [v46 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v46-impact-entry/v46_planning)). Each impact is a row with a
+superseding R639; [v46 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v46-impact-entry/v46_planning)). Each impact is a row with a
 **severity** (Light, Light to moderate, Moderate, Moderate to heavy, Heavy), a
 **location** and a free-text **note** of up to 200 characters; there is no
 damage type. The locations are the eight of the plan — Front, LH Front, RH
@@ -136,7 +136,7 @@ value staff and the Automation Actor write alike.
 
 The report needs an impact or a deliberate **Skip impacts** (operator,
 3 November 2026, R647–R649, replacing R646's "impacts are optional";
-[v47 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v47-impact-skip/v47_planning)). The Incident narrative is not required, but leaving it
+[v47 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v47-impact-skip/v47_planning)). The Incident narrative is not required, but leaving it
 out is a choice: until a row names both a severity and a location, or Skip
 impacts is recorded, readiness names **Impacts** ("No impact is entered.").
 A row missing its severity or location is not an impact. Skip impacts is

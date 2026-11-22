@@ -33,7 +33,7 @@ Paths and names, in backticks, only as far as a quick look got:
 One or two sentences a reviewer can tick: the observable outcome, not the
 implementation.
 
-Raised from <MR !N / session on <date> / Case <ref> / operator remark>.
+Raised from <PR #N / session on <date> / Case <ref> / operator remark>.
 ```
 
 Labels: one `type:*` the repo already has. `type:bug` for behaviour that

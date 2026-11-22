@@ -20,7 +20,7 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
   existing one it replaces, or shows that none exists.
 - Release as often as verifying a change needs, and keep each release cheap:
   the record in `docs/operations.md` ("Release <version>") is at most 15
-  lines, and anything still owed after a release becomes a GitLab issue.
+  lines, and anything still owed after a release becomes a GitHub issue.
 - Decide once, in the repository. The operator's rulings are the decision
   record and live in [docs/rulings.md](docs/rulings.md); a behaviour rule goes
   into the FRD clause it changes, dated and citing its ruling. An ADR is
@@ -28,7 +28,7 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
   the repository does not hold.
 - Efficiency needs a number. Every page has a budget; a change is built only
   when it brings a page under budget or saves at least 100 ms at p95, shown
-  before and after in the merge request. Query-count tests assert a ceiling or a
+  before and after in the PR. Query-count tests assert a ceiling or a
   no-growth pair, never an exact total.
   [Engineering](docs/engineering.md#simplicity) holds the budgets.
 - A Core use case is a class. It gets an interface only when a test fakes it
@@ -40,9 +40,9 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 If you are running subagents, do not have all the subagents running builds and tests simultaneously. Have them pass back to the lead, combine the work back together if needed, and run ONE single build process. We don't want to run 4 builds for 4 worktrees when we could just run one. Subagents run on Haiku, Sonnet or Opus, never on Fable (operator, 15 and 28 October 2026; R495).
 
-If GitLab CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitLab CI. The same applies to a compile-check build before a push: CI builds the head.
+If GitHub CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitHub CIs. The same applies to a compile-check build before a push: CI builds the head.
 
-CI on the exact head is the evidence: `.gitlab-ci.yml` decides which
+CI on the exact head is the evidence: `.github/workflows/ci.yml` decides which
 lanes a change set needs from the paths it touches, and nothing CI runs is
 repeated here. `scripts/Get-CiStatus.ps1` prints a failing run's test names from
 the job log.
@@ -138,7 +138,7 @@ and the [verification procedure](docs/runbook.md).
 - Questions go to the operator in rounds of at most four, each with a plain
   paragraph of explanation and the recommended option first. The answer is
   recorded in the operator's words as a row in [docs/rulings.md](docs/rulings.md).
-- Agents do not merge merge requests, close issues, push to `dev` or `main`,
+- Agents do not merge pull requests, close issues, push to `dev` or `main`,
   force-push or rebase unless the operator says so for that case.
 - The operator's decision of 28 October 2026 placing these rules here: R495.
 
@@ -147,7 +147,7 @@ and the [verification procedure](docs/runbook.md).
 [The index](docs/index.md) owns documentation placement, formatting and routing.
 Use task-relevant owners rather than reading every document or copying rules.
 Current Markdown additions and renames use the index-routed canonical location;
-CI checks that relative links resolve. The current operator task owns scope and authorization. Use merge request review and CI
+CI checks that relative links resolve. The current operator task owns scope and authorization. Use PR review and CI
 for delivery evidence, and name one verifier for heavy checks on this host.
 Historical tickets and retired plans are provenance only.
 
@@ -157,14 +157,14 @@ passed, or by the promotion-only route for a range that deploys nothing
 approval and tagged `v<version>` on the released SHA (R686 to R688); a fix
 ships as a PATCH of `dev`'s tip, and there is no hotfix branch (R689). `dev`
 is what the hosted test instance runs by default; the operator may point it
-at a branch or merge request, and it is back on `dev`'s tip before a release
-(R681, R684, R695); a change is vetted there and promoted to `main`. Protected branches make `dev` take only merge requests with a green pipeline and
-`main` only the release's push; the operator's account is the only Maintainer,
-so the rule that agents never push either branch is procedural (R691, R1057).
+at a branch or pull request, and it is back on `dev`'s tip before a release
+(R681, R684, R695); a change is vetted there and promoted to `main`. Rulesets make `dev` take only green pull requests and
+`main` only the release's push; their one bypass is the operator's account,
+so the rule below that agents never push either branch is procedural (R691).
 Task work uses a worktree at
 `../pegasus-worktrees/<slug>` on branch `task/<slug>`, created from
-`origin/dev` with `--no-track`; a change that depends on an open merge request may branch
-from that merge request's branch and target it (R685). A release build uses a detached
+`origin/dev` with `--no-track`; a change that depends on an open PR may branch
+from that PR's branch and target it (R685). A release build uses a detached
 worktree at `../pegasus-worktrees/release-<sha8>`.
 `.agents/skills/resolve-issue/scripts/cleanup_worktree.py` removes a task
-worktree once the merge request head equals the worktree HEAD and the tree is clean.
+worktree once the PR head equals the worktree HEAD and the tree is clean.

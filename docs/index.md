@@ -14,7 +14,7 @@ the affected owner; record only the genuinely undecided portion.
 | Durable technical decisions and current successors | [ADRs](adr/README.md) |
 | Domain terminology | [CONTEXT](../CONTEXT.md) |
 | Stable capability identities and requirement links | [Capabilities](capabilities.md) |
-| Current work, ordering, grants and delivery evidence | Current operator task and its linked merge request and CI records |
+| Current work, ordering, grants and delivery evidence | Current operator task and its linked PR/CI records |
 | Unresolved product or technical choices | [Open decisions](open-decisions.md) |
 | Operator rulings, the decision record every `Rnnn` citation names | [Rulings](rulings.md) |
 | Source structure and policy/caller locations | [Architecture](current-architecture.md) |
@@ -23,7 +23,7 @@ the affected owner; record only the genuinely undecided portion.
 | Engineering and verification policy | [Engineering](engineering.md) |
 | Local, verification and operational procedures | [Runbook directory](runbook.md) and existing release/wipe skills |
 | Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 and FRD-15 to FRD-17 |
-| Historical mockup rounds and planning evidence | [Design archive](https://gitlab.com/collisionengineers-group/pegasus-design-archive) (start with [v26](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v26_planning/README.md) or [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/README.md)); retained reference, not current requirements |
+| Historical mockup rounds and planning evidence | [Design archive](https://github.com/collisionengineers/pegasus-design-archive) (start with [v26](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/README.md) or [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/README.md)); retained reference, not current requirements |
 | Principal-policy evidence and descriptive companions | [Principal mappings](principal-profiles/README.md) |
 | Supplied domain evidence | [Reference](../reference/README.md) |
 | Supplied vendor/component contracts | [External component documents](external-component-documents/README.md) |
@@ -41,7 +41,7 @@ skills retain their defined scope; do not create skills for documentation sectio
 `docs/engineering/`; vendor evidence stays under `docs/external-component-documents/`.
 These locations do not create new product or workflow authority.
 
-Routine task review and proof belong with the merge request and CI records. An explicit
+Routine task review and proof belong with the PR and CI records. An explicit
 operator request may create a temporary review artifact at the requested path;
 mark it temporary and remove it when its useful results have durable owners.
 Do not invent a technical ADR merely to authorize a documentation move.

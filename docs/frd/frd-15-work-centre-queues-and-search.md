@@ -97,15 +97,15 @@ tab, server-side.
 Every kind comes from a Core query, never from fixture or placeholder data,
 and every kind but Open tasks has a due instant; a With Engineer item is
 undated when its Case has none (#1213, v41 sign-off, 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)):
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)):
 
 | Kind | Item | Due instant |
 | --- | --- | --- |
 | Case | A missing-material chase | The next chase time, else the end of its Due by date |
 | Held | A held Case awaiting its decision | The end of the hold's Review on date, else Held decision target after the hold was placed |
 | Review | A Case in Review | Review target after it entered Review |
-| Unassigned | A Case in Review, or With Engineer, with no Engineer (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) | Review target after it entered that state |
-| With Engineer | A With Engineer Case its Engineer holds, in that Engineer's Mine only (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) | The Case's due: the next chase time, else the end of its Due by date; none, and Later, when it has neither |
+| Unassigned | A Case in Review, or With Engineer, with no Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) | Review target after it entered that state |
+| With Engineer | A With Engineer Case its Engineer holds, in that Engineer's Mine only (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) | The Case's due: the next chase time, else the end of its Due by date; none, and Later, when it has neither |
 | Vehicle images paired | A pre-report Case its early vehicle images paired into, not changed by staff since ([FRD-19](frd-19-image-led-intake-and-pairing.md#age-and-chase-state)) | The pairing |
 | Unidentified | An open Unidentified item | Unidentified target after it was received |
 | Triage | A Triage Case without a finding | Triage target after it opened |
@@ -137,11 +137,11 @@ external-work queue.
 **Office, Mine, kinds and Find.** The section's toolbar carries the Office /
 Mine switch, at the shared control height, and **Find in Needs attention**
 (v41 W1, operator, 15 and 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Office is every item but a With
 Engineer one, which is its Engineer's Mine only; an Unassigned Case is in
 both (#1213, operator, 15 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Mine is the items the signed-in person owns plus unowned items of kinds they
 can take. Every staff role opens on Office, and the choice is remembered per
 browser. **Kind chips** (Case, Held, Review, Unassigned, With Engineer on
@@ -160,11 +160,11 @@ the reference links to the Case, or to the Unidentified item it names, and
 an AI draft on the Unidentified queue has no link), Owner, Due, Received, the next action as a button (v32 item M), quiet
 except the open row's own, and **Dismiss**, an icon-only control named
 "Dismiss {reference}" (v32 item B; v41 W5, operator, 15 and 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Owner is the person's name; an Open tasks row's person is its oldest open
 task's assignee, else the staff member who created that task, and a With
 Engineer row's is the Case's Engineer (#1213, operator, 15 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 A Held, Review, Unassigned, Vehicle images paired, Triage or Open tasks row
 with an empty person slot says **Unassigned**. A Case
 chase, an Unidentified item, or an AI draft with no person says **No owner**.
@@ -186,7 +186,7 @@ open task again closes it; nothing opens by itself. Assign Engineer opens the
 assignment dialog on the Work Centre; **Take**, a small primary button beside
 it on an Unassigned row and its open row, assigns the Case to the signed-in
 person in one step (#1213, v41 W8, signed off 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Review Case opens the Case, and so does Open Case on a Vehicle images paired
 or With Engineer item. Open tasks opens the Case with
 its Tasks dialog open. Open Triage opens the Triage Case page. An AI draft offers
@@ -255,7 +255,7 @@ dismissal shows again:
 | Case | Its chase fell due (each chase is a new row) |
 | Held | The hold was placed |
 | Review, Unassigned | The Case entered Review |
-| Unassigned With Engineer, With Engineer | The Case entered With Engineer (#1213, [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)) |
+| Unassigned With Engineer, With Engineer | The Case entered With Engineer (#1213, [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)) |
 | Vehicle images paired | The images were paired |
 | Unidentified | The item was opened or reopened |
 | Triage | The Triage changed state, or opened |
@@ -331,7 +331,7 @@ Each queue keeps its own row shape:
   registration, whether or not it has an Audit. In With Engineer the state's
   cell holds the Engineer, which reads Unassigned when the Case has none
   (#1213, v41 W8,
-  [v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+  [v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
   Here, on Search and on the Work Centre's rows, a Case's registration,
   claimant, claim reference and vehicle show the Case's accepted value:
   staff's, then the extracted or looked-up one, then the instruction's
@@ -528,10 +528,10 @@ Registration, Claimant, Claim/Principal reference, Principal, Case stage,
 Engineer, Received from/to and Origin, with Search and Clear. Principal and
 Engineer are selects, and Case stage is the filter that read State (v41 W2,
 operator, 15 and 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Results are one table (Case/PO and Claim reference, vehicle, claimant,
 principal, type, state, due; v41 W3, operator, 15 and 19 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 The Case/PO stays on one line in a column set wide enough for one, and a long
 Claim reference wraps onto further lines inside that column. The State column
 is set wide enough for its longest chip, and the other columns share the rest
