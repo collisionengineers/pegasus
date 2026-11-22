@@ -32,7 +32,7 @@ namespace Pegasus.IntegrationTests;
 /// <c>&lt;Estimation&gt;</c> fixture.
 /// </para>
 /// </summary>
-public sealed class GlassRepairEstimateGatewayTests
+public sealed partial class GlassRepairEstimateGatewayTests
 {
     private static readonly DateTimeOffset StartUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -1792,7 +1792,7 @@ public sealed class GlassRepairEstimateGatewayTests
         var harness = Harness.Create(logger: logger);
         var session = await harness.LaunchAsync();
         var rejected = GlassEstimateXmlParserTests.GlassExport.BuildXml(
-            positions: GlassEstimateXmlParserTests.GlassExport.Position("Part_SparePart", "Overhaul", "Wing", time: "1.00"));
+            positions: GlassEstimateXmlParserTests.GlassExport.Position("Text Line", "Replace", "Wing", time: "1.00"));
         harness.Mva.Set("GET /ndp_download/", new(HttpStatusCode.OK, rejected, ContentType: "application/xml"));
 
         var settled = await harness.CompleteAsync(session);
@@ -1810,7 +1810,8 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Contains("\"rejectedXml\":{", harness.Store.ResultsOf(session.Id)!, StringComparison.Ordinal);
         var settledLine = Assert.Single(logger.Messages, message => message.Contains("settled Failed", StringComparison.Ordinal));
         Assert.Contains(GlassFailure.ExportUnreadable, settledLine, StringComparison.Ordinal);
-        Assert.Contains("Position 1 carries the unknown repair kind 'Overhaul'", settledLine, StringComparison.Ordinal);
+        // R1209: the type is Glass's own name, kept in the log so the next fix knows what to read.
+        Assert.Contains("Position 1 carries the unknown position type 'Text Line'", settledLine, StringComparison.Ordinal);
         Assert.DoesNotContain(Registration, settledLine, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(EreSession, settledLine, StringComparison.Ordinal);
     }
@@ -3419,6 +3420,13 @@ public sealed class GlassRepairEstimateGatewayTests
                 .Where(link => link.Value.VehicleId == vehicleId)
                 .Select(link => (Guid?)link.Key)
                 .FirstOrDefault());
+
+        /// <summary>The repair specs of the work with their lines, as a build reads them.</summary>
+        public Dictionary<Guid, RepairSpecificationVersion> Specifications { get; } = [];
+
+        public Task<RepairSpecificationVersion?> FindBuildSourceAsync(
+            Guid workId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult(Specifications.GetValueOrDefault(specificationId));
     }
 
     private sealed class CredentialDouble : IPerUserExternalCredentialReader
@@ -3427,20 +3435,16 @@ public sealed class GlassRepairEstimateGatewayTests
 
         /// <summary>
         /// The reference carries the canonical account key the credential
-        /// store mints, never the account name. This double hands out an
-        /// opaque 64-hex key per account so the gateway can be seen passing it
-        /// through untouched; the real derivation is Stream A's and is proved
-        /// against A's store in the shared host, not here.
+        /// store mints, never the account name: the one rule
+        /// (<see cref="GlassAccountKey"/>) the Automation's login takes its
+        /// key by too, so a staff login and the Automation's are one slot
+        /// only when they are the same login.
         /// </summary>
         public void Give(ActionActor actor, Guid userId, string account = Harness.Account, long generation = 1) =>
             held[actor.SubjectId] = new(
-                new(userId, ExternalCredentialProvider.GlassRepairEstimate, generation, OpaqueKeyFor(account), true, 1),
+                new(userId, ExternalCredentialProvider.GlassRepairEstimate, generation, GlassAccountKey.Of(account), true, 1),
                 account,
                 Harness.Password);
-
-        private static string OpaqueKeyFor(string account) =>
-            Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes("fixture-key:" + account)));
 
         public void Revoke(ActionActor actor) => held.Remove(actor.SubjectId);
 
@@ -3448,9 +3452,9 @@ public sealed class GlassRepairEstimateGatewayTests
             ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
             Task.FromResult(held.GetValueOrDefault(actor.SubjectId));
 
-        public Task<bool> IsEnabledAsync(
+        public Task<PerUserExternalCredentialReference?> GetEnabledReferenceAsync(
             ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
-            Task.FromResult(held.ContainsKey(actor.SubjectId));
+            Task.FromResult(held.GetValueOrDefault(actor.SubjectId)?.Reference);
     }
 
     private sealed class CustodyDouble : ICaseArtifactCustody, ICaseArtifactCustodyStatus
@@ -3618,6 +3622,7 @@ public sealed class GlassRepairEstimateGatewayTests
             {
                 return replay.Session.CaseId == session.CaseId
                     && replay.Session.PegasusUserId == session.PegasusUserId
+                    && replay.Session.OwnerKind == session.OwnerKind
                     && replay.Session.CredentialGeneration == session.CredentialGeneration
                     && replay.Session.NormalizedExternalAccountKey == accountKey
                     ? Task.FromResult(new GlassRepairEstimateSessionCreation(replay, Created: false))
@@ -3685,6 +3690,14 @@ public sealed class GlassRepairEstimateGatewayTests
                 .Select(item => item.Session)
                 .FirstOrDefault(session =>
                     session.NormalizedExternalAccountKey == normalizedExternalAccountKey && Occupies(session.State)));
+
+        public Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+            Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            Task.FromResult(Sessions.Values
+                .Select(item => item.Session)
+                .Where(session => session.CaseId == caseId && session.OwnerKind == ActorKind.Automation)
+                .OrderByDescending(session => session.CreatedAtUtc)
+                .FirstOrDefault(session => GlassAutomationPositionPolicy.Find(session.Automation, operationKey) is not null));
 
         public async Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)
@@ -3764,6 +3777,10 @@ public sealed class GlassRepairEstimateGatewayTests
             string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
             inner.FindLiveForAccountAsync(normalizedExternalAccountKey, cancellationToken);
 
+        public Task<GlassRepairEstimateSession?> FindAutomationActSessionAsync(
+            Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            inner.FindAutomationActSessionAsync(caseId, operationKey, cancellationToken);
+
         public Task SupersedeAsync(
             Guid caseId, string providerVehicleId, ActionActor actor, CancellationToken cancellationToken) =>
             inner.SupersedeAsync(caseId, providerVehicleId, actor, cancellationToken);
@@ -3802,10 +3819,24 @@ public sealed class GlassRepairEstimateGatewayTests
         public void Dispose() => oneWriter.Dispose();
     }
 
+    /// <summary>
+    /// The login the deployment holds for the Automation (R1177), read on
+    /// each act as the host reads it: a made-up username a test may change.
+    /// </summary>
+    private sealed class AutomationLoginDouble
+    {
+        public string Username { get; set; } = Harness.AutomationAccount;
+
+        public GlassAutomationAccountSource Source() => new(() => GlassAutomationAccount.Create(key =>
+            key == GlassAutomationAccount.UsernameKey ? Username : Harness.AutomationPassword));
+    }
+
     private sealed class Harness
     {
         internal const string Account = "a.engineer";
         internal const string Password = "not-a-real-password";
+        internal const string AutomationAccount = "automation.login";
+        internal const string AutomationPassword = "not-a-real-automation-password";
         internal const long CaseVersion = 11;
         internal static readonly string LeaseToken = new('a', 64);
 
@@ -3824,9 +3855,11 @@ public sealed class GlassRepairEstimateGatewayTests
             IDataProtectionProvider protection,
             Guid caseId,
             Guid engineerId,
-            Guid otherEngineerId)
+            Guid otherEngineerId,
+            AutomationLoginDouble automationLogin)
         {
             Gateway = gateway;
+            AutomationLogin = automationLogin;
             Protection = protection;
             Sessions = store;
             Memory = memory;
@@ -3866,6 +3899,11 @@ public sealed class GlassRepairEstimateGatewayTests
         public CaseAuthorityDouble CaseAuthority { get; }
 
         public CredentialDouble Credentials { get; }
+
+        public AutomationLoginDouble AutomationLogin { get; }
+
+        /// <summary>The Automation actor, under a grant id: any grant acts on its sessions.</summary>
+        public ActionActor Automation { get; } = ActionActor.Automation("automation-grant-1");
 
         public CustodyDouble Custody { get; }
 
@@ -3933,9 +3971,14 @@ public sealed class GlassRepairEstimateGatewayTests
                 ProfileId,
                 ExportPollInterval: TimeSpan.FromMilliseconds(5),
                 ExportTimeout: TimeSpan.FromMilliseconds(50),
-                maximumExportBytes);
+                maximumExportBytes)
+            {
+                // The editor's own pace is a browser's; here it waits for nothing.
+                EditorPause = TimeSpan.Zero,
+            };
             var caseAuthority = new CaseAuthorityDouble(new(Registration, MileageMiles, CaseAuthorityDouble.WorkId));
             var credentials = new CredentialDouble();
+            var automationLogin = new AutomationLoginDouble();
             var custody = new CustodyDouble();
             var import = new ImportDouble();
             var sessions = store ?? memory!;
@@ -3944,6 +3987,7 @@ public sealed class GlassRepairEstimateGatewayTests
                     sessions,
                     authority ?? caseAuthority,
                     credentials,
+                    automationLogin.Source(),
                     custody,
                     custody,
                     import,
@@ -3963,7 +4007,8 @@ public sealed class GlassRepairEstimateGatewayTests
                 protector,
                 caseId ?? Guid.NewGuid(),
                 engineerId ?? Guid.NewGuid(),
-                otherEngineerId ?? Guid.NewGuid());
+                otherEngineerId ?? Guid.NewGuid(),
+                automationLogin);
         }
 
         /// <summary>A launch's prepare half and then its provider work, run inline as the Web host's executor runs it.</summary>
@@ -3992,6 +4037,25 @@ public sealed class GlassRepairEstimateGatewayTests
             }
 
             return launched;
+        }
+
+        /// <summary>
+        /// Import and open on a repair spec made outside Pegasus: the launch's
+        /// prepare half with the build flag, then its provider work inline.
+        /// </summary>
+        public async Task<GlassRepairEstimateSession> BuildAsync(
+            RepairSpecificationVersion outside, string operationKey = "glass-build-1")
+        {
+            CaseAuthority.Specifications[outside.SpecificationId] = outside;
+            var step = await Gateway.PrepareLaunchAsync(
+                new GlassRepairEstimateLaunchRequest(
+                    Engineer, CaseId, CaseVersion, LeaseToken, operationKey, Guid.NewGuid())
+                {
+                    SpecificationId = outside.SpecificationId,
+                    Build = true,
+                },
+                CancellationToken.None);
+            return await ContinueAsync(Engineer, step, CancellationToken.None);
         }
 
         /// <summary>A resume's prepare half and then whatever provider work it owes.</summary>
@@ -4032,6 +4096,12 @@ public sealed class GlassRepairEstimateGatewayTests
                     await Gateway.ContinueLaunchAsync(new(actor, step.Session.Id), cancellationToken),
                 GlassRepairEstimateContinuation.Import =>
                     await Gateway.ContinueImportAsync(new(actor, step.Session.Id), cancellationToken),
+                GlassRepairEstimateContinuation.Build =>
+                    await Gateway.ContinueBuildAsync(new(actor, step.Session.Id), cancellationToken),
+                GlassRepairEstimateContinuation.AutomationStart =>
+                    await Gateway.ContinueAutomationStartAsync(new(actor, step.Session.Id), cancellationToken),
+                GlassRepairEstimateContinuation.AutomationFinish =>
+                    await Gateway.ContinueAutomationFinishAsync(new(actor, step.Session.Id), cancellationToken),
                 _ => step.Session,
             };
     }

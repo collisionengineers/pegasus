@@ -1042,6 +1042,8 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 | `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
 | `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
+| `GLASS_AUTOMATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-automation-username`, the Glass's login the Automation's own Glass's sessions sign in with (R1177). Becomes the Web App setting `Glass__AutomationAccount__Username`. No default. |
+| `GLASS_AUTOMATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-automation-password`, that login's password. Becomes `Glass__AutomationAccount__Password`. No default. |
 | `CAZANA_COMPANION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-email`, the Cazana Companion account e-mail ([ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md)). No default. |
 | `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
 | `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
@@ -1082,7 +1084,7 @@ Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the ten `Experian:*` keys among its Production
+`Glass:ValuationAccount:*` keys, the two `Glass:AutomationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the ten `Experian:*` keys among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
@@ -1093,10 +1095,19 @@ secret's scope, and Bicep hands the Web App Key Vault references to them. The
 Cazana Companion account, the Brego valuation account and the two Experian accounts are held the same way:
 `cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
 `brego-valuation-password`, and `experian-history-client-id`, `-client-secret`,
-`-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. Each
+`-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. So is
+the Glass's login the Automation's own Glass's sessions sign in with:
+`glass-automation-username` and `glass-automation-password`, set on the Web
+App only, and also required on a host with `Features:LiveGlass` (R1177). Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
-and are held protected per staff account, never in deployment configuration.
+and are held protected per staff account, never in deployment configuration;
+Pegasus never reads one for the Automation.
+
+The release that first carries `automation.glass` adds a scope an existing
+connector's grant does not hold: an Administrator re-consents the claude.ai
+connector once, ticking Glass's, before the Automation can use the Glass's
+tools ([ADR-0087](adr/0087-one-automation-mcp-server-with-per-scope-consent.md)).
 
 ## Monitoring and diagnosis
 
@@ -1571,7 +1582,10 @@ it stopped.
   instead settles `Failed` with the same code and cannot be continued.
 - `glass.export.unreadable` means the reader refused the export. The warning
   names the position or field, the rejected XML is on the Case in Files, and
-  **Fetch again** reads the same estimate once the reader is fixed.
+  **Fetch again** reads the same estimate once the reader is fixed. An unseen
+  repair kind no longer refuses an export; it lands as an Other line that
+  names it (R1209). A position type that begins with none of `Part_`,
+  `Free_` and `Paint_` still does, and the warning names the type.
 - `glass.identity.registration`, `glass.identity.mileage`,
   `glass.identity.natcode` and `glass.export.empty` mean the export came back
   for another vehicle or with no estimate in it. The XML is kept on the Case in
@@ -1614,7 +1628,16 @@ it stopped.
   in again, so correct the credential before the next launch or Get valuation;
   repeated failed sign-ins on a shared account risk a lockout. It is shown as
   the raw code. `glass.login.landing` is a signed-in redirect whose landing
-  page was not the stock list.
+  page was not the stock list. When every Automation `start` fails at
+  `glass.login.rejected`, the password held in `glass-automation-password`
+  is stale: the secret is a copy and does not follow a change made at
+  Glass's. Store the current password as a new version of that secret and
+  point `GLASS_AUTOMATION_PASSWORD_SECRET_URI` at it, which takes a
+  provision; both are external writes that need the operator's
+  authorization.
+- `glass.automation.empty` on an Automation session means a `finish` found
+  no position on the estimate: nothing was saved and the session is still
+  open, to be built on or closed.
 - `glass.start.ere_id` with `Unknown` means the provider answered the
   reopening start (`ere_id` 0) with an estimate that is not one of the
   session's own, or not the one the repair spec recorded; the warning gives
@@ -1646,6 +1669,166 @@ it stopped.
 - A Get valuation logged at `glass.lookup.notfound … natcode=absent` means
   Glass's does not know the plate; the card says so as information, nothing
   needs reporting, and there is no placeholder for a valuation.
+- A build (**Import and open** on a spec made outside Pegasus, R1171) logs
+  the stages `EditorOpen`, `EditorRead`, `EditorSpecialList`, one `EditorAdd`
+  per line it sends and `EditorSave`, then the return's own stages. A line it
+  leaves off at Glass's or cannot confirm logs "build line … at …" with the
+  code and the dialog builder's own description. The session's build records
+  each line's outcome, and its `StoppedAt` names why nothing was saved:
+  - `glass.editor.host` means an editor address was not on the configured
+    estimator host and nothing was asked; `glass.editor.launch` (the launch
+    page did not open the editor), `glass.editor.blocked` (Glass's own page
+    refusing another editor session) and `glass.editor.key` (no session key)
+    mean the editor did not open. Nothing was sent, the estimate was started
+    again, and the staff member was given an empty estimate.
+  - `glass.editor.dialog` is a dialog page that is not the one the client
+    knows, and `glass.editor.refused` a dialog with a problem or for another
+    part. Neither was posted: the line is left off and listed, and the build
+    goes on.
+  - `glass.editor.answer` is a post whose answer was lost or unexpected, and
+    `glass.editor.request` an editor page that did not answer 200. On a line
+    either is listed as not confirmed, because the post may have been taken:
+    nothing more is added, and the export says what the spec holds. While
+    the special list is read, either leaves every Specialist line off; while
+    the part list is read, every new part; while a part's equipment map is
+    read, that part. A read changes nothing at Glass's.
+  - `glass.editor.save` (`Unknown`, or `Failed` when Glass's reported no
+    save) and `glass.editor.return` (`Unknown`, or `Failed` when the way home
+    was unreadable or not this host's) mean Save and Exit did not come back.
+    Look at the estimate in the account before pressing Glass's, which
+    reopens it, or closing the session with a reason.
+  - A line's reasons: `glass.build.not_built` (a kind of line this version
+    does not build), `glass.build.no_row` (no special operation has exactly
+    its name; no part row has the part's code and side, or its number, or the
+    row offers no Replace, or, for a repair or remove-and-refit line, not
+    that operation), `glass.build.ambiguous_row` (more than one special
+    operation has the name, the part number names different parts, or the
+    part has more than one time row of the line's operation),
+    `glass.build.equipment` (the part's row waits on an equipment answer;
+    for the Automation's add or preview, it gave none, and the act or the
+    preview carries the question), `glass.build.no_key` (a new part, or a Glass's export's repair or
+    remove-and-refit line, with no Glass's part code or part number),
+    `glass.build.stopped` (not sent after a line that was not confirmed). A
+    part whose dialog served another side or another part, did not offer the
+    line's operation, or would ask for a reason for more hours than Glass's
+    own, is `glass.editor.refused`.
+    The Automation's equipment answer (R1206) is refused, with nothing sent,
+    as `glass.build.equipment_unknown` (a code that is no option),
+    `glass.build.equipment_greyed` (an option Glass's greys out),
+    `glass.build.equipment_repeated` (a code named twice),
+    `glass.build.equipment_same_group` (two options of one group),
+    `glass.build.equipment_no_part` (it leads to no part or no time row)
+    or `glass.build.equipment_not_asked` (the row asks nothing).
+    The Automation's add or preview of a part the vehicle's equipment hides
+    is refused, with nothing sent, as `glass.build.equipment_hidden`; its
+    `hiddenBy` names the stored values that hide it (19 November 2026;
+    R1206). Its other adds are decided as a person's click on the row named
+    decides them, so `glass.build.ambiguous_row` and the rebuild's
+    `glass.build.equipment` for wheels, parts that offer no Replace and
+    parts with unasked variants do not come back to it, and neither does
+    `glass.row.both_sides`, which is retired. An
+    act whose `equipmentStored` is true sent the answer to Glass's, which
+    keeps it for the vehicle even when the add was then refused.
+    `glass.build.nothing_placed` as `StoppedAt` means nothing was placed, so
+    nothing was saved and an empty estimate was opened; `glass.interrupted`
+    there means the build stopped part-way and the session was continued as
+    a launch.
+- Automation help in an Engineer's open session (R1170, R1183 to R1185)
+  logs the same editor stages under the Engineer's session id, and "The
+  Glass's helper handed over the editor key for session … with 2 load
+  balancer cookies." when the window's key arrives. With 0 the helper found
+  none in the frame, and Pegasus's requests reach the Glass's server that
+  holds the session only by chance. A search or a read that answers
+  `glass.editor.answer` logs "stage … was answered page=… length=…": the
+  page asked for and how long Glass's answer was. The editor's own lists run
+  to tens of thousands of characters; a short answer is a server that does
+  not hold the session. Each act is a `glass_session_help_act` history row
+  on the session and each toggle a `glass_session_help` row. The chip
+  "Automation help on · Glass's window not connected" means this Web host
+  holds no key for the session: the Pegasus helper is missing or out of date
+  (load it as its README says and compare its version), the window is
+  closed, no poll has come for 30 seconds, or the host restarted and the
+  helper's next poll has not handed the key over yet. The Automation's tools
+  refuse, before anything is sent, with:
+  - `glass.help.no_session`: no session on the Case is open to the
+    Automation; `glass.help.off`: the Engineer's session is open with help
+    off; `glass.help.several`: more than one is open, and the call names one
+    by `sessionId`.
+  - `glass.help.not_active`: the session was saved, closed or reopened
+    elsewhere; its key is forgotten. `glass.help.busy`: the session's own
+    work runs, or another help act holds it.
+  - `glass.help.no_window`: no key is held, as the chip says.
+    `glass.help.not_automation_session`: start, finish and close are the
+    Automation's own session's only.
+  The Automation's read (`pegasus_glass_session_get` with `read`, R1206),
+  in its own session or with help, logs one stage: `EditorRead` (the
+  positions and Glass's totals), `EditorPosition` (one position's record)
+  or `EditorCalculation` (the calculation report). A read Glass's does not
+  answer logs its code at that stage; an answer that is not the page asked
+  for also logs "stage … was answered page=… length=…", the page being
+  `selected`, `position` or `calculation`. The tool answers the code as
+  `readCode` and the session stays as it was. A read sends nothing that
+  changes the estimate.
+  An add or a removal that comes back `not_confirmed` carries the editor's
+  code (`glass.editor.answer` when the answer was lost, or when Glass's
+  answered but no new position carries the dialog's code). Read the
+  estimate before acting again; the Automation never removes a position to
+  tidy up.
+  A preview (`pegasus_glass_position_act` with `preview`, R1206) logs the
+  list and map stages an add logs, then `EditorPreview` for the dialog; one
+  of a position on the estimate logs `EditorRead`, then `EditorPreview`,
+  because the estimate's groups say which dialog the editor opens. It posts
+  nothing and records no act or history row; a page Glass's does not answer
+  gives its code as `previewCode`. An add's own inputs (R1206) are refused
+  with `glass.row.not_paintable` when a paint button is asked for a part
+  that cannot be painted, and with `glass.build.not_built` when Both is
+  asked for one that can. An operation that reloads the dialog (DD, R1206)
+  posts the form to `comp.php` or `part.php` with `frl=1` inside stage
+  `EditorAdd`, then the dialog Glass's answers; a reload Glass's does not
+  answer is `glass.editor.request`. A search with `list` reads one
+  `list_1G.php` (stage `EditorAdditionalList`, `tyres` about 6 MB) or one
+  `list_paint.php` (stage `EditorPaintList`); `glass.list.not_offered`
+  means the account's tree has no such group. A paint row's add opens
+  `lack.php`. An add with `inputs.panel` sends
+  `service.php?…&partadd=…&addpart2g=1` once per side in stage
+  `EditorPanelAdd` (reading `list_paint.php` first in stage
+  `EditorPaintList` when the part is painted in more than one area), then
+  reads the estimate; `glass.panel.refused` means nothing was sent. Renew (AN) asks for `oldfrnew.php` before the
+  post on a part with its paint, or when a deduction is given; a window
+  Glass's does not answer is `glass.editor.request`, and deductions that
+  leave a negative figure are `glass.build.deduction_below_zero` with
+  nothing posted. An operation the dialog does
+  not offer, or one served with no price and no hours without
+  `inputs.confirmNoFigures` (Repair answers by itself), is
+  `glass.editor.refused`. With Both, the other side's own dialog logs stage
+  `EditorAddOtherSide`; an act `added` with `glass.row.other_side_not_added`
+  added the first side only, because Glass's did not go on to the other
+  side's dialog, or that dialog was not the one expected. Its warning line
+  names the reason.
+  Typed figures (R1206) are refused before anything is posted with
+  `glass.build.reason_required` (hours above Glass's own and no
+  `inputs.reason`), `glass.build.reason_not_asked` (a reason where the
+  dialog asks for none) and `glass.build.overlap_above_hours` (more overlap
+  hours than hours, which the return could not read back); the act's
+  warning line names the dialog's own reason. Each act records the figures
+  the dialog served and those sent, just before the post, as `served` and
+  `sent`.
+  Paint choices (`inputs.paint`, R1206) are refused with
+  `glass.editor.refused` when the
+  dialog would not take them: an area, paint type, procedure, method or
+  level it does not offer there, Surcharge or Coloured clear where the
+  paint state fixes it, scratch-resistant clear where it is greyed, or a
+  button the page hides. The
+  warning line names which.
+  A change (`pegasus_glass_position_act` with `change`, R1206) logs
+  `EditorRead`, then `EditorChange` for the position's own dialog, its post,
+  its "Mandatory parts:" confirm, the estimate and the position's record.
+  It is `changed` when Glass's took it and the estimate still holds the
+  position; `glass.row.unknown` names a position the estimate does not
+  hold, `glass.editor.answer` a group the estimate does not list, and
+  `glass.build.not_built` a paint position's own dialog. A `not_confirmed`
+  change carries the editor's code: read the position before changing it
+  again.
 - "Module checksum failed" at the first Box sign-in means a Box SDK FIPS
   assembly was compiled ReadyToRun. The Web project excludes them and
   `Build-ReleaseArtifacts.ps1` refuses a publish that compiles them.
@@ -1664,20 +1847,22 @@ retain the session and collect provider startup evidence before closing it:
    `dialog` value at child lookup. Compare a successful portal launch and
    Pegasus launch for the same vehicle/account under controlled browser state.
 4. The September and October 2026 captures show a load-order race inside
-   Glass's own frames: the child `acofr2.php` builds its dialog client at
-   parse time and searches its parents for `dialog`, which the parent
-   `acofr.php` creates only after inserting that child frame; `openModeless`
-   then dereferences the missing result. The provider code is byte-identical
-   across the one successful start and five stalls, and two of the stalls were
+   Glass's own frames: the child `acofr2.php` builds its dialog client at parse
+   time and searches its parents for `dialog`, which the parent `acofr.php`
+   creates only after inserting that child frame; `openModeless` then
+   dereferences the missing result. The provider code is byte-identical across
+   the one successful start and five stalls, and two of the stalls were
    launched by Glass's own portal, so neither the Pegasus window nor its caller
-   rewrite is involved (deep dive, 5 October 2026). Ask the supplier to
-   establish dialog readiness before the child reads `parent.dialog`. Do not
-   patch provider JavaScript from Pegasus. The retry is pressing **Glass's**
-   again: it continues the same session on the same stock vehicle with a fresh
-   start, and makes no second vehicle or estimate. The Case page does this
-   once itself when the estimator's frames have not loaded within 30 seconds
-   of the handoff, and says so if the second start stalls too or the window is
-   closed without a return (operator, 10 October 2026; issue 1065).
+   rewrite is involved (deep dive, 5 October 2026). The Pegasus helper
+   extension (R1170, `src/pegasus-glass-helper/`, loaded as its README says)
+   makes the framing page's `dialog` exist before the child asks; a browser
+   without it keeps the retry below. Pegasus itself sends Glass's no changed
+   script. The retry is pressing **Glass's** again: it continues the same
+   session on the same stock vehicle with a fresh start, and makes no second
+   vehicle or estimate. The Case page does this once itself when the
+   estimator's frames have not loaded within 30 seconds of the handoff, and
+   says so if the second start stalls too or the window is closed without a
+   return (operator, 10 October 2026; issue 1065).
 5. Continuing a session, and reopening a spec's estimate, require an
    unchanged registration on a real stock vehicle plus current Case edit
    authority; a corrected mileage, or any change on a placeholder, continues.

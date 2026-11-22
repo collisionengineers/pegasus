@@ -18,14 +18,47 @@
             or GlassRepairEstimateSessionState.Failed => "notice--warning",
         _ => string.Empty
     };
+    var build = Model.GlassBuildList;
 }
-<div data-glass-controls="outcome" hidden="@(text is null)">
+<div data-glass-controls="outcome" hidden="@(text is null && build is null)">
     @if (text is not null)
     {
         <div class="notice @tone" role="status" data-estimate-notice>
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-info")" /></svg>
             <span>@text</span>
             <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+        </div>
+    }
+    @if (build is not null)
+    {
+        @* The build's list (R1173): one row per line of the outside estimate,
+           what was sent or why not, and Glass's own figures only where they
+           differ from the outside estimate's (R1168). Only the member of
+           staff who ran the build sees it, on the spec it landed as, through
+           the build's own reopen and until their next press of Glass's on the
+           Case. *@
+        <div class="table-wrap">
+            <table class="table table--compact" aria-label="@GlassLabels.BuildList" data-glass-build-list>
+                <thead>
+                    <tr>
+                        <th scope="col">@GlassLabels.BuildLine</th>
+                        <th scope="col">@GlassLabels.BuildResult</th>
+                        <th scope="col" class="num">@GlassLabels.BuildPrice</th>
+                        <th scope="col" class="num">@GlassLabels.BuildHours</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var act in build.Acts)
+                    {
+                        <tr data-glass-build-act="@act.Outcome">
+                            <td>@act.Description</td>
+                            <td>@GlassLabels.BuildOutcome(act)</td>
+                            <td class="num">@(GlassEstimateBuildPolicy.PriceDiffers(act) && act.Served!.Price is { } price ? ValuationCalculationPolicy.FormatMoney(price) : string.Empty)</td>
+                            <td class="num">@(GlassEstimateBuildPolicy.HoursDiffers(act) && act.Served!.Hours is { } hours ? hours.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : string.Empty)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     }
 </div>

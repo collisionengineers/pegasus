@@ -365,6 +365,8 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:RepairProfileId"] = "4063",
             ["Glass:ValuationAccount:Username"] = "valuation-test",
             ["Glass:ValuationAccount:Password"] = "synthetic-password",
+            ["Glass:AutomationAccount:Username"] = "automation-test",
+            ["Glass:AutomationAccount:Password"] = "synthetic-automation-password",
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",

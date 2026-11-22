@@ -10,8 +10,9 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 
 /// <summary>
 /// The Glass's window while its provider work runs in the background: after a
-/// launch or a resume it says Glass's is being prepared, after the provider's
-/// return it says the estimate is being brought back.
+/// launch or a resume it says Glass's is being prepared, while a build runs it
+/// says how far the build has gone, and after the provider's return it says
+/// the estimate is being brought back.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,6 +28,11 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// for it in this host, was interrupted — a restart, or work past its time —
 /// and <see cref="OnGetGoAsync"/> settles it before it answers.
 /// </para>
+/// <para>
+/// A build's own work reopens the estimate it landed (R1171), so once the
+/// build is done <see cref="OnGetGoAsync"/> sends this window on to that
+/// session's own window, which opens the estimator here as after any launch.
+/// </para>
 /// </remarks>
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class OpeningModel(
@@ -38,11 +44,18 @@ public sealed class OpeningModel(
 
     /// <summary>
     /// The words the window shows while it waits: once a return has been
-    /// accepted it is bringing the estimate back, before that it is preparing.
+    /// accepted it is bringing the estimate back; before that, a build says it
+    /// is building and anything else that it is preparing.
     /// </summary>
-    public string Waiting => Session.CallbackConsumedAtUtc is null
-        ? GlassLabels.Preparing
-        : GlassLabels.BringingBack;
+    public string Waiting => Session.CallbackConsumedAtUtc is not null
+        ? GlassLabels.BringingBack
+        : Building is not null ? GlassLabels.Building : GlassLabels.Preparing;
+
+    /// <summary>
+    /// How far the build has gone, "12 of 34", while one runs and no return
+    /// has been accepted (operator, 18 November 2026; R1171); otherwise null.
+    /// </summary>
+    public string? Building => BuildRuns(Session.State) ? ProgressOf(Session.Build) : null;
 
     public async Task<IActionResult> OnGetAsync(Guid sessionId, CancellationToken cancellationToken)
     {
@@ -55,10 +68,14 @@ public sealed class OpeningModel(
         return Page();
     }
 
+    /// <summary>
+    /// Whether work still runs, whether the estimator is open, and, while a
+    /// build runs, how far it has gone.
+    /// </summary>
     public async Task<IActionResult> OnGetStateAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         if (!TryGetOwnerId(out var staffId)
-            || await glassSessions.GetOwnStateAsync(sessionId, staffId, cancellationToken) is not { } state)
+            || await glassSessions.GetOwnProgressAsync(sessionId, staffId, cancellationToken) is not { } progress)
         {
             return NotFound();
         }
@@ -66,14 +83,24 @@ public sealed class OpeningModel(
         return new JsonResult(new
         {
             pending = glassWork.IsInFlight(sessionId),
-            open = state == GlassRepairEstimateSessionState.Active,
+            open = progress.State == GlassRepairEstimateSessionState.Active,
+            building = BuildRuns(progress.State) ? ProgressOf(progress.Build) : null,
         });
     }
 
+    /// <summary>The states a build runs in, before its own return is claimed.</summary>
+    private static bool BuildRuns(GlassRepairEstimateSessionState state) => state is
+        GlassRepairEstimateSessionState.Prepared or GlassRepairEstimateSessionState.Launching
+        or GlassRepairEstimateSessionState.Active;
+
+    private static string? ProgressOf(GlassEstimateBuild? build) =>
+        build is { Running: true } running ? GlassLabels.BuildProgress(running.Done, running.Total) : null;
+
     /// <summary>
     /// Where the window goes once nothing runs for the session: the estimator
-    /// while the session is open, and back to the Case with what the session
-    /// came to when it is not.
+    /// while the session is open, the session that reopened a completed
+    /// build's estimate, and back to the Case with what the session came to
+    /// otherwise.
     /// </summary>
     public async Task<IActionResult> OnGetGoAsync(
         Guid sessionId,
@@ -91,6 +118,13 @@ public sealed class OpeningModel(
         if (glassWork.IsInFlight(session.Id))
         {
             return RedirectToPage("/Integrations/Glass/Opening", new { sessionId });
+        }
+        if (await ReopenedBuildAsync(session, staffId, cancellationToken) is { } reopened)
+        {
+            // The build's own work reopened the estimate it landed (R1171):
+            // this window waits on that session, which hands off and opens
+            // the estimator here.
+            return RedirectToPage("/Integrations/Glass/Opening", new { sessionId = reopened });
         }
         Uri? estimator;
         if (GlassRepairEstimateSessionPolicy.AwaitsProviderWork(session.State))
@@ -115,6 +149,39 @@ public sealed class OpeningModel(
         }
 
         return DetailsModel.ReportGlassSession(this, session, GlassLabels.LaunchRefused);
+    }
+
+    /// <summary>
+    /// The session that reopened a completed build's estimate for its member
+    /// of staff (operator, 18 November 2026; R1171): their newest session on
+    /// the Case, when it is another one on the build's vehicle that is open at
+    /// Glass's or still has work running. Null for any other session, and when
+    /// the reopen did not open, so the window reports the build as after any
+    /// return. Only a completed build costs the read.
+    /// </summary>
+    private async Task<Guid?> ReopenedBuildAsync(
+        GlassRepairEstimateSession session, Guid staffId, CancellationToken cancellationToken)
+    {
+        if (session is not
+            {
+                State: GlassRepairEstimateSessionState.Completed,
+                Build.BuiltSpecificationId: not null,
+                ProviderVehicleId: { } vehicle
+            })
+        {
+            return null;
+        }
+
+        var newest = await glassSessions.GetForCaseAsync(session.CaseId, staffId, cancellationToken);
+        if (newest is null
+            || newest.Id == session.Id
+            || !string.Equals(newest.ProviderVehicleId, vehicle, StringComparison.Ordinal)
+            || (newest.State != GlassRepairEstimateSessionState.Active && !glassWork.IsInFlight(newest.Id)))
+        {
+            return null;
+        }
+
+        return newest.Id;
     }
 
     /// <summary>

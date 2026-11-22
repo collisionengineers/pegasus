@@ -52,6 +52,13 @@ public interface IGlassRepairEstimateCaseAuthority
     /// </summary>
     Task<Guid?> FindSpecificationAsync(
         Guid caseId, string vehicleId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A live spec of the work with its lines, for a build to plan from; null
+    /// when the id is not one of the work's specs.
+    /// </summary>
+    Task<RepairSpecificationVersion?> FindBuildSourceAsync(
+        Guid workId, Guid specificationId, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -130,6 +137,17 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
             .ThenByDescending(item => item.Version)
             .Select(item => (Guid?)item.Id)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<RepairSpecificationVersion?> FindBuildSourceAsync(
+        Guid workId, Guid specificationId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var specification = await LiveSpecifications(context, workId)
+            .Include(item => item.Work)
+            .Include(item => item.Lines)
+            .SingleOrDefaultAsync(item => item.Id == specificationId, cancellationToken);
+        return specification is null ? null : EfRepairSpecificationStore.Map(specification);
     }
 
     private static IQueryable<CaseRepairSpecificationEntity> LiveSpecifications(
