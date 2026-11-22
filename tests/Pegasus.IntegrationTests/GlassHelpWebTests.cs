@@ -54,9 +54,8 @@ public sealed class GlassHelpWebTests
         {
             using var answer = await AnswerAsync(fresh, HttpStatusCode.OK);
             Assert.Equal("needed", answer.RootElement.GetProperty("key").GetString());
-            Assert.Equal("off", answer.RootElement.GetProperty("help").GetString());
             Assert.Equal(0, answer.RootElement.GetProperty("refresh").GetInt64());
-            Assert.Equal(10_000, answer.RootElement.GetProperty("next").GetInt32());
+            Assert.Equal(2_000, answer.RootElement.GetProperty("next").GetInt32());
             Assert.False(fresh.Headers.Contains("Set-Cookie"));
             Assert.True(fresh.Headers.CacheControl?.NoStore);
         }
@@ -65,8 +64,7 @@ public sealed class GlassHelpWebTests
         {
             using var answer = await AnswerAsync(held, HttpStatusCode.OK);
             Assert.Equal("held", answer.RootElement.GetProperty("key").GetString());
-            Assert.Equal("off", answer.RootElement.GetProperty("help").GetString());
-            Assert.Equal(10_000, answer.RootElement.GetProperty("next").GetInt32());
+            Assert.Equal(2_000, answer.RootElement.GetProperty("next").GetInt32());
         }
         Assert.Equal(FirstKey, keys.Session(session.Id)?.Key);
         // The load balancer's cookies came with the key, and no other cookie.
@@ -95,13 +93,13 @@ public sealed class GlassHelpWebTests
     }
 
     /// <summary>
-    /// With help turned on for the session (R1170) the poll says so and asks
-    /// again every 2 seconds; when Pegasus asks the window to show its list
-    /// again the poll carries the raised count, and the window's next poll
-    /// reports it shown (seen), which a help act waits for.
+    /// The poll asks again every 2 seconds (R1170, R1214); when Pegasus asks
+    /// the window to show its list again the poll carries the raised count,
+    /// and the window's next poll reports it shown (seen), which a help act
+    /// waits for.
     /// </summary>
     [Fact]
-    public async Task WithHelpOnThePollCarriesTheRefreshAndRecordsWhatTheWindowShowed()
+    public async Task ThePollCarriesTheRefreshAndRecordsWhatTheWindowShowed()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
@@ -112,20 +110,11 @@ public sealed class GlassHelpWebTests
         {
             using var answer = await AnswerAsync(held, HttpStatusCode.OK);
         }
-        await using (var scope = workspace.Services.CreateAsyncScope())
-        {
-            Assert.True(await scope.ServiceProvider.GetRequiredService<IGlassSessionHelpStore>().SetHelpAsync(
-                session.Id,
-                Pegasus.Core.Identity.ActionActor.Staff(session.PegasusUserId, [Pegasus.Core.Identity.StaffRole.Engineer]),
-                true,
-                CancellationToken.None));
-        }
 
         Assert.Equal(1, keys.Refresh(session.Id));
         using (var polled = await workspace.Client.SendAsync(Poll(correlation)))
         {
             using var answer = await AnswerAsync(polled, HttpStatusCode.OK);
-            Assert.Equal("on", answer.RootElement.GetProperty("help").GetString());
             Assert.Equal(1, answer.RootElement.GetProperty("refresh").GetInt64());
             Assert.Equal(2_000, answer.RootElement.GetProperty("next").GetInt32());
         }

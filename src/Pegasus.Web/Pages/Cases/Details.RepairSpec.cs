@@ -450,24 +450,6 @@ public sealed partial class DetailsModel
     public bool GlassWorkRunning { get; private set; }
 
     /// <summary>
-    /// The session on the line when it is this staff member's own and
-    /// <c>Active</c>: the one session they may let the Automation help in
-    /// (R1170). Null for the Automation's session and any other state.
-    /// </summary>
-    private GlassRepairEstimateSession? OwnActiveGlassSession =>
-        GlassLineSession is { OwnerKind: ActorKind.Staff, State: GlassRepairEstimateSessionState.Active } line
-        && line.Id == GlassSession?.Id
-            ? line
-            : null;
-
-    /// <summary>
-    /// Whether the session line offers the help control: to the session's
-    /// owner, while it is <c>Active</c> and no work runs for it. Help changes
-    /// nothing on the Case, so, as Close, it needs no Case version or lease.
-    /// </summary>
-    public bool CanToggleGlassHelp => AssessmentCanOpen && !GlassWorkRunning && OwnActiveGlassSession is not null;
-
-    /// <summary>
     /// The code the build of this staff member's own session on the line
     /// stopped at, when it saved nothing and they were given an empty
     /// estimate instead (R1186): the line says so beside the code. Null for
@@ -481,16 +463,6 @@ public sealed partial class DetailsModel
         && GlassEstimateBuildPolicy.OpenedEmpty(line)
             ? line.Build?.StoppedAt
             : null;
-
-    /// <summary>Whether the owner has let the Automation help in their open session: the line's chip.</summary>
-    public bool GlassHelpOn => OwnActiveGlassSession is { } own && GlassSessionHelpPolicy.HelpOn(own);
-
-    /// <summary>
-    /// Whether the session's Glass's window has handed its key to Pegasus
-    /// (the helper is there and the window is open): a memory read on this
-    /// host, so the render makes no query for it.
-    /// </summary>
-    public bool GlassHelpConnected { get; private set; }
 
     /// <summary>
     /// Whether Glass's asks first (operator, 18 November 2026; R1171): the
@@ -653,11 +625,6 @@ public sealed partial class DetailsModel
         GlassWorkRunning = GlassLineSession is { } line
             && HttpContext.RequestServices.GetRequiredService<Pegasus.Web.Background.ProviderWorkQueue>()
                 .IsInFlight(line.Id);
-        // The keys are composed only on a host that reaches Glass's.
-        GlassHelpConnected = GlassHelpOn
-            && OwnActiveGlassSession is { } own
-            && HttpContext.RequestServices.GetService<GlassHelpKeys>() is { } keys
-            && keys.IsHeld(own.Id);
     }
 
     /// <summary>
@@ -1660,51 +1627,6 @@ public sealed partial class DetailsModel
         {
             TempData["CaseError"] = GlassLabels.CloseRefused;
         }
-        return RedirectToEstimate(id);
-    }
-
-    /// <summary>
-    /// Turns the Automation's help in this staff member's own open Glass's
-    /// session on or off (R1170, R1183). Offered only to the owner while the
-    /// session is <c>Active</c> and no work runs for it; refused otherwise.
-    /// Help changes nothing on the Case, so, as Close, no Case version or
-    /// edit lease is asked for. The write leaves the session's version alone.
-    /// </summary>
-    public async Task<IActionResult> OnPostGlassHelpAsync(
-        Guid id, Guid sessionId, bool on, [FromServices] IGlassSessionHelpStore glassHelp,
-        [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor) || actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(actor.SubjectId, out var staffId))
-        {
-            return Forbid();
-        }
-        if (!glassAvailability.Enabled)
-        {
-            LogGlassCommandRefused(logger, id, "GlassHelp", GlassLabels.Unavailable);
-            TempData["CaseError"] = GlassLabels.Unavailable;
-            return RedirectToEstimate(id);
-        }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true)
-        {
-            return NotFound();
-        }
-        // The session posted is this staff member's own newest on the Case.
-        var own = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
-        if (own is null || own.Id != sessionId)
-        {
-            return NotFound();
-        }
-        if (!GlassSessionHelpPolicy.MayTurnHelp(actor, own) || glassWork.IsInFlight(sessionId))
-        {
-            TempData["CaseError"] = GlassLabels.HelpNotChanged;
-            return RedirectToEstimate(id);
-        }
-
-        // Nothing written means help was already as asked: the refreshed
-        // controls show it.
-        await glassHelp.SetHelpAsync(sessionId, actor, on, cancellationToken);
         return RedirectToEstimate(id);
     }
 

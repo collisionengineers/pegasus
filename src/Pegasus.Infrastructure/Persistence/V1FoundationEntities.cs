@@ -226,8 +226,6 @@ internal sealed class GlassRepairEstimateSessionEntity : IApplicationManagedConc
     public string OwnerKind { get; set; } = GlassSessionOwner.Staff;
     // What an Automation session has done, as JSON; null for a staff session.
     public string? AutomationJson { get; set; }
-    // When the owning member of staff turned Automation help on; null while off (R1170).
-    public DateTimeOffset? HelpOnAtUtc { get; set; }
     public string? LastError { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }

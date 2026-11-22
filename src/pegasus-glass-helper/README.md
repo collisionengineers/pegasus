@@ -16,8 +16,7 @@ In Glass's editor frame (`acofr.php`) it does three things and nothing else:
   and no other cookie). They name the Glass's server that holds the window's
   editor session, so Pegasus asks that same server; neither is a login. It
   then polls on the cadence each
-  answer names (every 2 seconds while the Engineer has Automation help on,
-  every 10 otherwise). When the Automation has added or removed a position,
+  answer names (every 2 seconds; R1214). When the Automation has added or removed a position,
   Pegasus's answer asks for it, and it reloads the editor's selected list
   (`selected.php`) and reports that on a poll a second later (`seen`), so the
   Automation hears that the window shows the change.
@@ -79,6 +78,6 @@ copy `background.js` as well, or the folder does not load.
 **E3, Edge.** One launch as in E2, step 1 and 2.
 
 **E4, live, Automation help, on the test instance.** The walk is in
-FRD-25's acceptance walk, step 14: the Engineer turns help on from the
-Case page, the Automation adds and removes positions beside them, and the
+FRD-25's acceptance walk, step 15: the Engineer opens Glass's, the
+Automation adds and removes positions beside them, and the
 Engineer's own Save & Exit brings it all back.

@@ -14,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 /// hands it over: an add reads the estimate before and after and tells its
 /// own position from those the Engineer added meanwhile; a lost answer is not
 /// confirmed and still asks the window to show its list again; a session
-/// another help act holds, one with help off, one with no window and one no
+/// another help act holds, one with no window and one no
 /// longer Active are refused before anything is sent, the last forgetting its
 /// key; any position may be removed. Every key and token is made up.
 /// </summary>
@@ -94,7 +94,7 @@ public sealed class GlassSessionHelpTests
     ];
 
     /// <summary>
-    /// In an Engineer's session with help on, the Automation answers a
+    /// In an Engineer's session, the Automation answers a
     /// part's equipment question as in its own (R1206): the BMW mirror's
     /// answer leads through its map's part group to the variant row 822,
     /// is stored as the editor stored it on 18 November 2026, and the
@@ -267,17 +267,14 @@ public sealed class GlassSessionHelpTests
     }
 
     [Fact]
-    public async Task HelpOffAndNoWindowAreRefusedBeforeAnythingIsSent()
+    public async Task NoWindowIsRefusedBeforeAnythingIsSent()
     {
         var help = Help.Create();
 
-        var off = await Assert.ThrowsAsync<GlassSessionHelpRefusalException>(() =>
-            help.Sessions.ReadAsync(Automation, help.Session with { HelpOnAtUtc = null }, GlassAutomationRead.Positions, CancellationToken.None));
         help.Keys.Drop(help.Session.Id);
         var unconnected = await Assert.ThrowsAsync<GlassSessionHelpRefusalException>(() =>
             help.Sessions.ReadAsync(Automation, help.Session, GlassAutomationRead.Positions, CancellationToken.None));
 
-        Assert.Equal(GlassSessionHelpPolicy.OffCode, off.Code);
         Assert.Equal(GlassSessionHelpPolicy.NoWindowCode, unconnected.Code);
         Assert.Empty(help.Glass.Requests);
     }
@@ -787,10 +784,7 @@ public sealed class GlassSessionHelpTests
             var session = new GlassRepairEstimateSession(
                 Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, "engineer-account-key",
                 GlassRepairEstimateSessionState.Active, 4, "launch-help-1",
-                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero), VehicleId, EreId, null)
-            {
-                HelpOnAtUtc = new DateTimeOffset(2031, 5, 6, 10, 35, 0, TimeSpan.Zero),
-            };
+                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero), VehicleId, EreId, null);
             keys.Hold(session.Id, keys.Read(GlassHelpFrameTests.OwnFrame(), windowsCookies)
                 ?? throw new InvalidOperationException("The frame was not read."));
             var store = new RecordingHelpStore();
@@ -851,9 +845,6 @@ public sealed class GlassSessionHelpTests
                 }
             }
         }
-
-        public Task<bool> SetHelpAsync(Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken) =>
-            Task.FromResult(false);
 
         public Task RecordHelpActAsync(
             Guid sessionId, Guid caseId, ActionActor actor, GlassAutomationAct act, CancellationToken cancellationToken)

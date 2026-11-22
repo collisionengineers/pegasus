@@ -24,27 +24,6 @@ public sealed class CaseWorkspaceScriptContractTests
     }
 
     /// <summary>
-    /// Turning Automation help on or off in a Glass's session (R1170, R1183)
-    /// refreshes the Glass's controls in place after the post, as Close does,
-    /// so the line shows the chip and the other button at once.
-    /// </summary>
-    [Fact]
-    public void TheHelpPostRefreshesTheGlassControlsAsCloseDoes()
-    {
-        var script = File.ReadAllText(Path.Combine(
-            RepositoryRoot.Find(), "src", "Pegasus.Web", "wwwroot", "js", "case-workspace.js"));
-        var control = File.ReadAllText(Path.Combine(
-            RepositoryRoot.Find(), "src", "Pegasus.Web", "Pages", "Cases", "Shared", "_GlassSessionControl.cshtml"));
-
-        Assert.Contains(
-            "if (form.hasAttribute('data-glass-close-form') || form.hasAttribute('data-glass-help-form')) { return refreshGlassControls(); }",
-            script,
-            StringComparison.Ordinal);
-        Assert.Contains("asp-page-handler=\"GlassHelp\"", control, StringComparison.Ordinal);
-        Assert.Contains("data-glass-help-form", control, StringComparison.Ordinal);
-    }
-
-    /// <summary>
     /// Glass's on a repair spec made outside Pegasus asks first (operator, 18
     /// November 2026; R1171). Its two answers are two Glass's window forms
     /// that differ only by their action, because the launch is submitted by

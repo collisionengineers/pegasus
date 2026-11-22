@@ -453,7 +453,7 @@ internal static class AutomationToolText
     // the tools gain and the glass.help.* refusals.
 
     /// <summary>The sentence the three tools that work in an Engineer's session add to their descriptions.</summary>
-    public const string GlassHelpWorksIn = "It also works in an Engineer's own open Glass's session on the Case while they have Automation help on; name one by sessionId when there are several.";
+    public const string GlassHelpWorksIn = "It also works in an Engineer's own open Glass's session on the Case; name one by sessionId when there are several.";
 
     /// <summary>The sentence session_act adds: start, finish and close are the Automation's own session's only.</summary>
     public const string GlassSessionActOwnOnly = "An Engineer's Glass's session is theirs to save or close.";
@@ -461,8 +461,6 @@ internal static class AutomationToolText
     public const string GlassSessionId = "Optional: the session to act in, from pegasus_glass_session_get, when the Case has several.";
 
     public const string GlassSessionOwner = "automation or staff: whose session it is.";
-
-    public const string GlassSessionHelpOn = "An Engineer's session: whether they have Automation help on.";
 
     public const string GlassSessionWindowConnected = "An Engineer's session: whether their Glass's window is connected to Pegasus.";
 
@@ -481,7 +479,6 @@ internal static class AutomationToolText
     public static string GlassHelpRefusal(string code) => string.Concat(code, ": ", code switch
     {
         GlassSessionHelpPolicy.NoSessionCode => GlassNoSession,
-        GlassSessionHelpPolicy.OffCode => "The Engineer's Glass's session on this Case does not have Automation help on.",
         GlassSessionHelpPolicy.SeveralCode => "More than one Glass's session on this Case is open to the Automation; name one by sessionId.",
         GlassSessionHelpPolicy.NotActiveCode => "The Glass's session is no longer open.",
         GlassSessionHelpPolicy.BusyCode => "The Glass's session is busy; try again shortly.",

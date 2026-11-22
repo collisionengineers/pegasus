@@ -28,8 +28,8 @@
   sends reports to the Principal, e-mail and photo links under its own
   `automation.send` scope. It runs Glass's sessions of its own under its
   own `automation.glass` scope, and a finished one lands as a Draft. It
-  acts in a staff member's open Glass's session only while that staff
-  member has turned help on for it, and never saves or closes that session.
+  acts in a staff member's open Glass's session, and never saves or closes
+  that session.
   It never puts an estimate in use and never reads Glass's credentials.
 
 ## Purpose
@@ -62,9 +62,9 @@ Glass's sessions of its own under the Glass's login the deployment holds for
 it: the server signs in, the Actor never reads the login, and no staff
 member's stored login is read for it (18 November 2026; R1177;
 [Glass's sessions](#glasss-sessions)). It acts in a staff member's open
-Glass's session only while that staff member has turned help on for it,
-never saves or closes it, and never reads the staff member's Glass's login
-(18 November 2026; R1170, R1184, R1185). No tool exposes Glass's credentials;
+Glass's session, never saves or closes it, and never reads the staff
+member's Glass's login (18 November 2026; R1170, R1184, R1185; 20 November
+2026, R1214: with nothing for the staff member to turn on). No tool exposes Glass's credentials;
 Get valuation uses Pegasus's own valuation account and is not a session. The
 `Manage*` rights stay with staff Administrators. Sending a report, an e-mail
 or a photo link has its own scope, `automation.send`, so a grant can hold
@@ -700,7 +700,7 @@ A session signs in with the Glass's login the deployment holds for the
 Automation (R1177). It names no member of staff, and any Automation grant
 acts in it, because a grant is renewed every fortnight and the session
 outlives it. The Actor acts in a session a member of staff launched only
-while they have turned help on for it ([help](#help-in-an-engineers-open-session)).
+while it is open and its window is connected ([help](#help-in-an-engineers-open-session)).
 Each tool takes the Case and finds the Automation's session on it. The tool
 descriptions and refusal sentences are R1178's. On a host that does not
 compose Glass's, each tool is refused with "Glass's is not available."
@@ -1035,13 +1035,16 @@ compose Glass's, each tool is refused with "Glass's is not available."
 
 #### Help in an Engineer's open session
 
-**18 November 2026; R1170, R1182, R1184, R1185.** An Engineer may let the
-Automation help in their own open Glass's session from the Case page
+**18 November 2026; R1170, R1182, R1184, R1185.** The Automation helps in
+an Engineer's own open Glass's session
 ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
-No tool is added. `pegasus_glass_session_get`,
+Since 20 November 2026 (R1214) the Engineer turns nothing on for it: the
+Case page has no help control, and the Automation acts once the Engineer's
+Glass's window has handed its editor key to Pegasus through the Pegasus
+helper. No tool is added. `pegasus_glass_session_get`,
 `pegasus_glass_catalogue_search` and `pegasus_glass_position_act` find, by
 the Case, the Automation's own live session or an Engineer's `Active`
-session with help on. With more than one, the call names one by
+session. With more than one, the call names one by
 `sessionId`, which `pegasus_glass_session_get` lists; no member of staff is
 named.
 
@@ -1067,13 +1070,13 @@ named.
   came from the Engineer's window meanwhile (`alsoNew`). The Engineer's
   window is then asked to show Glass's selected list again, and the answer
   says whether it has (`shownInWindow`).
-- `pegasus_glass_session_get` answers whose session it is, whether help is
-  on and whether the Engineer's window is connected.
+- `pegasus_glass_session_get` answers whose session it is and whether the
+  Engineer's window is connected.
 - The Engineer's own Save & Exit brings the estimate back as any return does
   (R1184).
 - Refusals, each before anything is asked of Glass's, carry their code:
   `glass.help.no_session` (with "The Automation has no Glass's session open
-  on this Case."), `glass.help.off`, `glass.help.several`,
+  on this Case."), `glass.help.several`,
   `glass.help.not_active`, `glass.help.busy`, `glass.help.no_window` and
   `glass.help.not_automation_session`. Their sentences and the sentence each
   tool's description gains are in `AutomationToolText`.
@@ -1163,10 +1166,10 @@ its one command when none is given.
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
 | `automation.send` | `pegasus_mail_send` | Send e-mail with a `mode`: `chaser`, `reply`, `reply_all` (either with `markQueryDone`, `aiJobId` and `deleteCaseCorrespondence`), `forward`, `triage_reply` (with `deleteCaseCorrespondence` on the outcome reply) | Case or Triage version and key |
-| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's with help on, whether the Glass's login is free or which Case holds it, and with `read` the open estimate's positions and Glass's running totals, one position's figures, or Glass's calculation (R1206; [Glass's sessions](#glasss-sessions)) | none |
+| `automation.glass` | `pegasus_glass_session_get` | The Automation's own Glass's session on a Case, or an Engineer's open session, whether the Glass's login is free or which Case holds it, and with `read` the open estimate's positions and Glass's running totals, one position's figures, or Glass's calculation (R1206; [Glass's sessions](#glasss-sessions)) | none |
 | `automation.glass` | `pegasus_glass_session_act` | One act with an `action`: `start` (a new estimate, or the Automation's live session on the Case continued), `finish` (save in Glass's and land a Draft repair spec), `close` (end without saving, with a reason) | `start` and `finish`: one-command lease, and `finish` the session version; `close`: session version and key |
 | `automation.glass` | `pegasus_glass_catalogue_search` | Read-only: the open session's part list and special operations, or with `list` one list a person opens under Areas > Additional or Areas > Paint (R1206), each row with the value `pegasus_glass_position_act` adds it by and, for a part whose row asks, its equipment question; with `row`, that row's every answer that leads to a part (R1206); the Automation's own session or an Engineer's with help on | none |
-| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment`, with the dialog's own choices in `inputs`: another operation, the paint buttons, Both and optional parts (R1206); `remove` one by its id (R1185); `preview` a dialog as a form, posting nothing (R1206); the Automation's own session or an Engineer's with help on, where no Case lease is taken | session version and key; `preview` key only |
+| `automation.glass` | `pegasus_glass_position_act` | `add` a position by a row the search returned, as Glass's dialog serves it with nothing typed, only where the row is certain (R1182) or a part's equipment question is answered with `inputs.equipment`, with the dialog's own choices in `inputs`: another operation, the paint buttons, Both and optional parts (R1206); `remove` one by its id (R1185); `preview` a dialog as a form, posting nothing (R1206); the Automation's own session or an Engineer's open session, where no Case lease is taken | session version and key; `preview` key only |
 
 ## States and transitions
 
@@ -1222,7 +1225,7 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   by staff or by the Automation, is refused naming that Case before Glass's
   is asked, and ends nobody's session (18 November 2026; R1178). A `close`
   while the session's work runs is refused, as the staff Close is.
-- In an Engineer's session, help off, more than one session open to the
+- In an Engineer's session, more than one session open to the
   Actor, a session no longer `Active`, provider work or another act running,
   and no window connected are each refused with their `glass.help.*` code
   before anything is sent; a session found no longer `Active` forgets its

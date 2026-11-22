@@ -30,8 +30,8 @@ public sealed record GlassSessionHelpOutcome(
 /// Save &amp; Exit brings the estimate back through the ordinary return (R1184).
 /// </para>
 /// <para>
-/// Every call needs the session <c>Active</c> with help on, no other help
-/// act holding it, and a key held; each is refused with its
+/// Every call needs the session <c>Active</c>, no other help act holding
+/// it, and a key held (R1214); each is refused with its
 /// <c>glass.help.*</c> code before anything is sent. An add gives the
 /// dialog what the Automation's own session gives it, its inputs included
 /// (R1206); a remove takes any position of the estimate (R1185); nothing is
@@ -265,8 +265,8 @@ public sealed partial class GlassSessionHelp(
     }
 
     /// <summary>
-    /// The Automation, in a member of staff's session that is <c>Active</c>
-    /// with help on; a session found ended forgets its key.
+    /// The Automation, in a member of staff's session that is <c>Active</c>;
+    /// a session found ended forgets its key.
     /// </summary>
     private void Require(ActionActor actor, GlassRepairEstimateSession session)
     {
@@ -282,11 +282,7 @@ public sealed partial class GlassSessionHelp(
         }
         if (GlassSessionHelpPolicy.RefusalOf(session) is { } refused)
         {
-            if (refused == GlassSessionHelpPolicy.NotActiveCode)
-            {
-                keys.Drop(session.Id);
-            }
-
+            keys.Drop(session.Id);
             throw new GlassSessionHelpRefusalException(refused);
         }
     }

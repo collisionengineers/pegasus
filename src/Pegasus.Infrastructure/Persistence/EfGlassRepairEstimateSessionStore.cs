@@ -101,10 +101,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     /// <summary>The history rows of a Glass's session are written against its own aggregate.</summary>
     private const string SessionAggregate = "glass-repair-estimate-session";
 
-    /// <summary>A member of staff turned Automation help on or off for their session (R1170).</summary>
-    private const string HelpEvent = "glass_session_help";
-
-    /// <summary>One act the Automation made in a member of staff's session with help on.</summary>
+    /// <summary>One act the Automation made in a member of staff's session.</summary>
     private const string HelpActEvent = "glass_session_help_act";
 
     /// <summary>
@@ -212,8 +209,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
 
     /// <summary>
     /// One statement on the Case, as <see cref="GetForCaseWithBuildAsync"/>
-    /// makes: the Case's staff sessions that are <c>Active</c> or have had
-    /// help on, and its newest Automation session beside them.
+    /// makes: the Case's staff sessions that are <c>Active</c>, and its
+    /// newest Automation session beside them.
     /// </summary>
     public async Task<GlassSessionHelpCandidates> FindHelpableForCaseAsync(
         Guid caseId, CancellationToken cancellationToken)
@@ -222,7 +219,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
         var sessions = context.Set<GlassRepairEstimateSessionEntity>().AsNoTracking();
         var staff = sessions
             .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Staff
-                && (item.State == GlassRepairEstimateSessionState.Active || item.HelpOnAtUtc != null));
+                && item.State == GlassRepairEstimateSessionState.Active);
         var automation = sessions
             .Where(item => item.CaseId == caseId && item.OwnerKind == GlassSessionOwner.Automation)
             .OrderByDescending(item => item.CreatedAtUtc)
@@ -580,7 +577,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 ? ActorKind.Automation
                 : ActorKind.Staff,
             Automation = ReadAutomation(entity.AutomationJson),
-            HelpOnAtUtc = entity.HelpOnAtUtc,
         };
 
     /// <summary>The stored owner: Staff or Automation, and no other actor runs a session.</summary>
@@ -691,61 +687,6 @@ public sealed class EfGlassRepairEstimateSessionStore(
                 GlassRepairEstimateSessionConflict.Version, live[0].Id,
                 "A Glass's session on this estimate changed before it could be ended.");
         }
-    }
-
-    /// <summary>
-    /// The one write that turns help on or off: an update of the one column
-    /// where the session is the actor's own, a staff session, <c>Active</c>
-    /// and not already as asked, so the session's version, its concurrency
-    /// token and every other column are left as they are; then its history
-    /// row, in the same transaction.
-    /// </summary>
-    public async Task<bool> SetHelpAsync(
-        Guid sessionId, ActionActor actor, bool turnOn, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff || !Guid.TryParse(actor.SubjectId, out var staffId))
-        {
-            return false;
-        }
-
-        var now = timeProvider.GetUtcNow();
-        DateTimeOffset? helpOn = turnOn ? now : null;
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        var own = context.Set<GlassRepairEstimateSessionEntity>()
-            .Where(item => item.Id == sessionId
-                && item.UserId == staffId
-                && item.OwnerKind == GlassSessionOwner.Staff
-                && item.State == GlassRepairEstimateSessionState.Active);
-        own = turnOn ? own.Where(item => item.HelpOnAtUtc == null) : own.Where(item => item.HelpOnAtUtc != null);
-        var changed = await own.ExecuteUpdateAsync(
-            setters => setters.SetProperty(item => item.HelpOnAtUtc, helpOn), cancellationToken);
-        if (changed == 0)
-        {
-            return false;
-        }
-
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = SessionAggregate,
-            AggregateId = sessionId.ToString("D"),
-            EventKind = HelpEvent,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role).ToArray()),
-            OccurredAtUtc = now,
-            Outcome = "Succeeded",
-            CorrelationId = sessionId.ToString("D"),
-            Reason = turnOn ? "Automation help turned on" : "Automation help turned off",
-            BeforeJson = JsonSerializer.Serialize(new { HelpOn = !turnOn }),
-            AfterJson = JsonSerializer.Serialize(new { HelpOn = turnOn }),
-            PolicyVersion = "glass-session-help-v1",
-        });
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return true;
     }
 
     /// <summary>

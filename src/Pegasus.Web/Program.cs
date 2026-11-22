@@ -48,7 +48,7 @@ const string AuthenticationRoutingScheme = "Pegasus";
 const string StaffSignInRateLimitPolicy = "StaffSignIn";
 const string GlassCallbackRateLimitPolicy = "GlassCallback";
 const int GlassCallbackRequestsPerClientPerMinute = 30;
-// The Glass's helper polls each open editor window every 2 to 10 seconds, and
+// The Glass's helper polls each open editor window every 2 seconds, and
 // an office's Engineers share one public address (R1170).
 const string GlassHelpRateLimitPolicy = "GlassHelp";
 const int GlassHelpRequestsPerClientPerMinute = 600;

@@ -140,8 +140,7 @@ public sealed partial class HelpModel(
 
         keys.Hold(session.Id, frame);
         LogKeyHeld(logger, session.Id, frame.BalancerCookies);
-        var help = HelpOn(session);
-        return new JsonResult(new { help = HelpWord(help), key = "held", next = NextPoll(help) });
+        return new JsonResult(new { key = "held", next = NextPoll });
     }
 
     public async Task<IActionResult> OnPostPollAsync(CancellationToken cancellationToken)
@@ -183,27 +182,16 @@ public sealed partial class HelpModel(
         }
 
         var poll = keys.Poll(session.Id, body.Seen);
-        var help = HelpOn(session);
         return new JsonResult(new
         {
-            help = HelpWord(help),
             key = poll.Held ? "held" : "needed",
             refresh = poll.Refresh,
-            next = NextPoll(help),
+            next = NextPoll,
         });
     }
 
-    /// <summary>
-    /// Whether the staff member has turned help on for the session from the
-    /// Case page (R1170, R1183): the session's own flag.
-    /// </summary>
-    private static bool HelpOn(GlassRepairEstimateSession session) => GlassSessionHelpPolicy.HelpOn(session);
-
-    private static string HelpWord(bool on) => on ? "on" : "off";
-
-    /// <summary>How long the helper waits before its next poll: shorter while help is on.</summary>
-    private static int NextPoll(bool help) =>
-        (int)(help ? GlassHelpKeys.HelpOnPoll : GlassHelpKeys.HelpOffPoll).TotalMilliseconds;
+    /// <summary>How long the helper waits before its next poll.</summary>
+    private static int NextPoll => (int)GlassHelpKeys.PollEvery.TotalMilliseconds;
 
     /// <summary>Resolved only on a host that reaches Glass's, the one kind that composes it.</summary>
     private GlassHelpKeys Keys => HttpContext.RequestServices.GetRequiredService<GlassHelpKeys>();

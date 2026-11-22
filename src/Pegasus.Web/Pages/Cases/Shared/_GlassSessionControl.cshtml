@@ -56,22 +56,6 @@
             {
                 <span class="gated"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-lock")" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
             }
-            @if (Model.GlassHelpOn)
-            {
-                <span class="status @(Model.GlassHelpConnected ? "status--blue" : "status--amber")" data-glass-help="@(Model.GlassHelpConnected ? "connected" : "not-connected")">@(Model.GlassHelpConnected ? GlassLabels.HelpOn : GlassLabels.HelpOnNotConnected)</span>
-            }
-            @if (Model.CanToggleGlassHelp)
-            {
-                @* The Automation's help in this staff member's own open session
-                   (R1170, R1183): on or off, refreshed in place as Close is. *@
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="GlassHelp"
-                      asp-route-id="@caseId" asp-route-section="estimate" data-glass-help-form>
-                    <input type="hidden" name="sessionId" value="@lineSession.Id" />
-                    <input type="hidden" name="on" value="@(Model.GlassHelpOn ? "false" : "true")" />
-                    <input type="hidden" name="view" value="@Model.ViewRoute" />
-                    <button type="submit" class="btn btn--small" data-busy-label="@OperatorLabels.Busy.Changing">@(Model.GlassHelpOn ? GlassLabels.HelpStop : GlassLabels.HelpStart)</button>
-                </form>
-            }
             @if (Model.CanCloseGlass)
             {
                 <button type="button" class="btn btn--small btn--danger" data-dialog-open="glass-close-dialog">

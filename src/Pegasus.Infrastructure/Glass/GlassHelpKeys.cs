@@ -120,18 +120,15 @@ public sealed class GlassHelpKeys(GlassRepairEstimateOptions options, TimeProvid
     /// <summary>How long a key is kept with no poll.</summary>
     public static readonly TimeSpan Silence = TimeSpan.FromSeconds(30);
 
-    /// <summary>How often the helper polls while help is on: a position shows in the window within one poll.</summary>
-    public static readonly TimeSpan HelpOnPoll = TimeSpan.FromSeconds(2);
-
-    /// <summary>How often the helper polls while help is off.</summary>
-    public static readonly TimeSpan HelpOffPoll = TimeSpan.FromSeconds(10);
+    /// <summary>How often the helper polls: a position shows in the window within one poll.</summary>
+    public static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// How long an act waits to hear that the window has shown it: one poll
-    /// at help's cadence, the helper's report a second after its reload, and
+    /// at the helper's cadence, the helper's report a second after its reload, and
     /// a second for the way there and back.
     /// </summary>
-    public static readonly TimeSpan ShowWait = HelpOnPoll + TimeSpan.FromSeconds(2);
+    public static readonly TimeSpan ShowWait = PollEvery + TimeSpan.FromSeconds(2);
 
     /// <summary>How often a waiting act looks again.</summary>
     private static readonly TimeSpan ShowLook = TimeSpan.FromMilliseconds(100);

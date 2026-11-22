@@ -21,7 +21,6 @@ internal sealed record GlassSessionToolItem(
     [property: Description("Work for the session is queued or running now; read it again later.")] bool Working,
     [property: Description("The Draft repair spec a finished session landed as.")] Guid? DraftSpecificationId,
     [property: Description(AutomationToolText.GlassSessionOwner)] string Owner,
-    [property: Description(AutomationToolText.GlassSessionHelpOn)] bool? HelpOn,
     [property: Description(AutomationToolText.GlassSessionWindowConnected)] bool? WindowConnected);
 
 internal sealed record GlassAccountToolItem(
@@ -328,8 +327,8 @@ internal sealed record GlassSessionActToolResult(
 /// </summary>
 /// <remarks>
 /// The read, the catalogue search and the position act also work in an
-/// Engineer's own open session while they have Automation help on (R1170,
-/// R1182, R1185; design 08 section 5): the session is chosen by
+/// Engineer's own open session (R1170, R1182, R1185, R1214; design 08
+/// section 5): the session is chosen by
 /// <see cref="GlassSessionHelpPolicy.Find"/>, refused with its
 /// <c>glass.help.*</c> code, and acted in through <see cref="GlassSessionHelp"/>
 /// alone, which cannot save, exit or close it. No Case lease is taken there;
@@ -1598,8 +1597,8 @@ internal sealed class GlassMcpTools(
         session is null ? null : MapSession(session);
 
     /// <summary>
-    /// A session as the tools answer it. An Engineer's says whether help is
-    /// on and whether their window is connected, and names no member of staff.
+    /// A session as the tools answer it. An Engineer's says whether their
+    /// window is connected, and names no member of staff.
     /// </summary>
     private GlassSessionToolItem MapSession(GlassRepairEstimateSession session)
     {
@@ -1613,7 +1612,6 @@ internal sealed class GlassMcpTools(
             queue.IsInFlight(session.Id),
             session.Automation?.DraftSpecificationId,
             staff ? "staff" : "automation",
-            staff ? GlassSessionHelpPolicy.HelpOn(session) : null,
             staff ? Keys.IsHeld(session.Id) : null);
     }
 }
