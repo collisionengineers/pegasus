@@ -298,6 +298,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/dotnet-build
+      - name: Allow the shard's web hosts their file watchers
+        # Every test web host watches its configuration files, one inotify
+        # instance each. `ubuntu-latest` became Ubuntu 26.04 between 13 and 22
+        # November 2026 and allows a user 128, which a shard exhausts: 280 of
+        # 807 tests failed on "the configured user limit (128) on the number
+        # of inotify instances" in the first run after the return (#2171).
+        run: sudo sysctl -w fs.inotify.max_user_instances=8192
       - name: Test
         shell: pwsh
         run: >
