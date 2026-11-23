@@ -50,15 +50,21 @@ public sealed class CompoundFileHeaderReaderTests
         }
     }
 
+    /// <summary>
+    /// The minor version decides nothing a reader does. The QDOS instruction
+    /// letters of November 2026 carry 0x0021 and are ordinary Word files.
+    /// </summary>
     [Fact]
-    public void ReadUnexpectedMinorVersionReturnsUnsupportedMinorVersion()
+    public void ReadAnotherWritersMinorVersionSucceedsAndReportsIt()
     {
         byte[] bytes = CreateVersion3File();
-        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(24), 0x003D);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(24), 0x0021);
 
         CompoundFileHeaderReadResult result = CompoundFileHeaderReader.Read(bytes);
 
-        AssertFailure(result, CompoundFileHeaderReadError.UnsupportedMinorVersion);
+        Assert.True(result.IsSuccess);
+        Assert.Equal((ushort)0x0021, result.Header.MinorVersion);
+        Assert.Equal((ushort)3, result.Header.MajorVersion);
     }
 
     [Theory]
