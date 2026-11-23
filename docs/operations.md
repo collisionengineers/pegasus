@@ -5,6 +5,53 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Box allowance and Worker grant on CaseDocuments - 23 November 2026
+
+- Production (5.2.0). The nine Cases created between 08:21 and 08:30 UTC,
+  QDOS26183-p to QDOS26191-p, failed Case storage with
+  `custody_dependency_failure`: Box answered 403 `storage_limit_exceeded` to
+  the first upload. The last upload before it was on 20 November at 12:33
+  UTC; the test instance had the same answer from 21 November at 09:51 UTC.
+- The Box user `digital@collisionengineers.co.uk` owns both roots and had a
+  10 GiB allowance with 10.86 GB used. At 09:01 UTC the allowance was set to
+  unlimited through the service account (R1225) and Box's upload preflight
+  on the QDOS26183-p folder answered 200.
+- The Worker's role could not update `CaseDocuments`, so the retry of a Case
+  holding a Glass's valuation report failed on the move R719 makes. The role
+  holds `UPDATE` on the table from 09:13 UTC, granted by hand ahead of
+  migration `WorkerRenumbersCaseDocuments` (R1227). A release whose record
+  lacks that row stops at the database check.
+- The Automation Actor retried the nine (R1226). All nine read back
+  `confirmed` and in Review by 09:10 UTC, with their valuation reports filed
+  by 09:11 UTC.
+
+## QDOS26191-p type corrected in the database - 23 November 2026
+
+- Production (5.2.0), on R1230. `Cases.Type` of QDOS26191-p
+  (`8b8bd88e-3c5b-4e2d-8a2f-ee8c39f3befc`) was set from `inspection` to
+  `inspection_and_audit` at 09:31 UTC in one transaction, run first as a
+  rolled-back trial: the Case's concurrency token renewed, its workflow
+  version 6 to 7, and one `case_type_corrected` row each in
+  `CaseWorkflowEvents`, `ActionHistory` and `CaseHistory`. It read back
+  Inspection and Audit, in Review, with no Audit reference.
+- The Case details action then filled four details from the letter
+  (version 8). The reverse update undoes the type only until Create audit runs.
+- Cause and fix of the unread letter: #2174 (R1228).
+
+## Brego valuation account changed - 23 November 2026
+
+- Production (5.2.0), on R1229. Key Vault `pegasusprodkv252ow37g` holds new
+  versions of `brego-valuation-email` (`4157ba5c…`) and
+  `brego-valuation-password` (`c1fce565…`), and the Web App's
+  `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password`
+  reference them from 09:25 UTC; both read `Resolved`. The setting change
+  restarted the Web App. The release environment's
+  `BREGO_VALUATION_*_SECRET_URI` keys hold the same addresses.
+- Not read: a Brego sign-in with the new account. The stored
+  `brego-session` is kept per e-mail address, so the first Get valuation for
+  Brego signs in afresh and Brego may ask for a device approval code.
+- The test instance's settings file still names the earlier account.
+
 ## Repository returned to GitHub - 22 November 2026
 
 - The `collisionengineers` GitHub account answered again and the operator
