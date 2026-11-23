@@ -700,6 +700,7 @@ pegasus_worker_runtime_role,G,UPDATE,ApprovedSentPollStates
 pegasus_worker_runtime_role,G,UPDATE,CaseAssessmentFields
 pegasus_worker_runtime_role,G,UPDATE,CaseDataFields
 pegasus_worker_runtime_role,G,UPDATE,CaseDataSnapshots
+pegasus_worker_runtime_role,G,UPDATE,CaseDocuments
 pegasus_worker_runtime_role,G,UPDATE,CaseDueChasers
 pegasus_worker_runtime_role,G,UPDATE,CaseDueWork
 pegasus_worker_runtime_role,G,UPDATE,CaseMatchIndex

@@ -5,6 +5,26 @@ cloud observation. Exact source structure belongs in [architecture](current-arch
 procedures are reached through [the runbook](runbook.md). Records before
 Release 124 are one line each in [operations history](operations-history.md).
 
+## Box allowance and Worker grant on CaseDocuments - 23 November 2026
+
+- Production (5.2.0). The nine Cases created between 08:21 and 08:30 UTC,
+  QDOS26183-p to QDOS26191-p, failed Case storage with
+  `custody_dependency_failure`: Box answered 403 `storage_limit_exceeded` to
+  the first upload. The last upload before it was on 20 November at 12:33
+  UTC; the test instance had the same answer from 21 November at 09:51 UTC.
+- The Box user `digital@collisionengineers.co.uk` owns both roots and had a
+  10 GiB allowance with 10.86 GB used. At 09:01 UTC the allowance was set to
+  unlimited through the service account (R1225) and Box's upload preflight
+  on the QDOS26183-p folder answered 200.
+- The Worker's role could not update `CaseDocuments`, so the retry of a Case
+  holding a Glass's valuation report failed on the move R719 makes. The role
+  holds `UPDATE` on the table from 09:13 UTC, granted by hand ahead of
+  migration `WorkerRenumbersCaseDocuments` (R1227). A release whose record
+  lacks that row stops at the database check.
+- The Automation Actor retried the nine (R1226). All nine read back
+  `confirmed` and in Review by 09:10 UTC, with their valuation reports filed
+  by 09:11 UTC.
+
 ## Brego sign-in lookup stopped naming the tenant - 19 November 2026
 
 - Read in production (5.0.0) at 09:24 UTC: five Get valuation presses for
