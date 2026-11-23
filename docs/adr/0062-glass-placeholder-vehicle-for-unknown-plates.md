@@ -66,7 +66,8 @@ on every later Resume — and the repair profile, and is then selected and
 started as any vehicle. The host log says the launch is on a placeholder,
 with the lookup's numbers and flags. Nothing is added to the Case page.
 
-**The return rule is defensive until read against a live return.** A
+**The return rule was defensive until read against a live return** (it has
+been: see the amendment of 23 November 2026). A
 placeholder session's export may name no plate and no mileage, or the Case's
 own; a plate or a non-zero mileage of another vehicle is refused as before.
 The type number it names is recorded on the session beside the placeholder's
@@ -83,12 +84,48 @@ refusal and the import — is unchanged.
   on an unknown plate, named by the Case registration.
 - The placeholder's fixed year, month and plate letter are the captured
   values; whether Glass's prices or validates against them is unknown.
-- If the estimator writes the Engineer's choice back to the stock entry, a
-  later Resume will refuse the entry as no longer the placeholder and the
-  session will wait as `Unknown`. That fails safe and is to be read against
-  the first live return, as is the whole return rule.
-- No scripted test proves what a placeholder export carries; the first live
-  Save & Exit on such a plate is that evidence.
+- The estimator does not write the Engineer's choice back to the stock
+  entry: after a live return the entry still reads as the placeholder
+  (23 November 2026).
+- A placeholder has no export. See the amendment below.
+
+## Amendment, 23 November 2026: the return is read from the estimator (R1233)
+
+Three live placeholder returns were read (QCL26005-p on 5 November, and
+QDOS26187-p and a test-instance Case on 23 November 2026; issue 1928). Each
+Save & Exit reached Glass's: the relay answered success, and the stock
+vehicle's Value page then held the estimate's totals with the repair profile
+locked. Each time the portal's export answer, the one this decision's return
+rule waited for, was an empty body, an hour after the save as at once. A
+vehicle made by hand through the portal's search tree did get an export.
+
+The estimator itself prints the estimate. Its report page has a PDF: the
+report (`report.php`), then `reppdf.php`, whose page names a temporary PDF
+that is served only to the balancer cookies of the session that printed it.
+That PDF is Glass's calculation sheet, the document Pegasus already imports
+when a Glass's sheet is supplied, and its gross equalled the total the
+portal held.
+
+So a placeholder session's return now reads its estimate there:
+
+- The export is asked for once. A link is used as before.
+- With none, the gateway proves and selects the placeholder, starts the
+  estimate as the portal reopens one (`ere_id` 0, which answers the estimate
+  the vehicle holds, and only one of the session's own is opened), opens the
+  estimator by the requests a browser makes and takes the sheet
+  (`GlassCalculationSheetClient`). It has its own cookies; the portal's are
+  never sent to the estimator.
+- The sheet's heading gives what the return rule reconciles: the plate, the
+  mileage when printed and the national code. The rule itself is unchanged.
+- The sheet is retained as the session's PDF and imported in the export's
+  place. A sheet that cannot be fetched or read ends under the export's own
+  failure codes, so no code is added and Fetch again applies.
+
+Not known: what Glass's does with an estimator session that is opened and
+left without Save & Exit. Two live reads left one each and the estimate
+reopened afterwards. Not built: identification through the search tree,
+which would give the vehicle a real type and a Glass's valuation (issue
+2181).
 
 ## Links
 

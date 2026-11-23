@@ -40,11 +40,19 @@ internal static class GlassEstimatePdfParser
     /// <summary>The note a row carries when Glass's marked up its material (the printed <c>Z</c> flag).</summary>
     private const string MarkupMaterialNote = "Markup material";
 
-    internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> source)
+    internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> source) => Read(source).Estimate;
+
+    /// <summary>
+    /// The sheet read whole, with what it prints about its vehicle: the plate,
+    /// the mileage when a <c>Mileage:</c> line is printed, Glass's national
+    /// code and the VIN. A sheet embeds no sheet of its own. The gateway
+    /// reconciles these against the session, as it does an export's.
+    /// </summary>
+    internal static GlassEstimateExport Read(IReadOnlyList<VisualRow> source)
     {
         var reader = new Reader();
         foreach (var row in Coalesce(source)) reader.Read(row);
-        return reader.Complete();
+        return new(reader.Complete(), reader.Identity(), CalculationSheet: null);
     }
 
     private static IEnumerable<VisualRow> Coalesce(IReadOnlyList<VisualRow> source)
@@ -159,7 +167,7 @@ internal static class GlassEstimatePdfParser
         private Section section;
         private Row? parent;
         private bool annotation;
-        private string? registration, vin, date, database;
+        private string? registration, vin, date, database, typeNumber, mileage;
         private decimal? unitDivisor;
         private bool pounds;
         private decimal? totalHours, totalLabour, totalMaterial, net, vat, vatPercent, gross, partsTotal;
@@ -174,6 +182,9 @@ internal static class GlassEstimatePdfParser
             {
                 Capture(row, "Vehicle Registration Number:", ref registration, allowEmpty: true);
                 Capture(row, "VIN:", ref vin, allowEmpty: true);
+                if (text.StartsWith("Mileage:", StringComparison.Ordinal)) mileage ??= Cell(row, 190, 580);
+                // The line is "Glass's national Code" with no colon; its apostrophe is not relied on.
+                if (text.Contains(" national Code", StringComparison.Ordinal)) typeNumber ??= Cell(row, 190, 580);
                 Capture(row, "Date:", ref date);
                 Capture(row, "Database version:", ref database);
                 if (text.StartsWith("Labour time unit:", StringComparison.Ordinal))
@@ -582,6 +593,20 @@ internal static class GlassEstimatePdfParser
                     PaintWorkUnits: InHours(SummaryHoursOf(Section.Paint)), Materials: totalMaterial - partsTotal,
                     Net: net, Vat: vat, Gross: gross), vin);
         }
+
+        /// <summary>
+        /// What the sheet's heading says about its vehicle. A mileage is the
+        /// number the line begins with ("81611 Miles"); a line that begins
+        /// with anything else states none.
+        /// </summary>
+        public GlassEstimateIdentity Identity() => new(
+            registration,
+            int.TryParse(
+                (mileage ?? string.Empty).Split(' ')[0].Replace(",", string.Empty, StringComparison.Ordinal),
+                NumberStyles.None, CultureInfo.InvariantCulture, out var miles) ? miles : null,
+            MileageUnitCode: null,
+            string.IsNullOrEmpty(typeNumber) ? null : typeNumber,
+            vin);
 
         /// <summary>A printed count of the sheet's time unit, as hours at the precision an estimate line keeps.</summary>
         private decimal? InHours(decimal? printed) => printed is { } units
