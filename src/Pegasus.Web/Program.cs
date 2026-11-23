@@ -177,8 +177,7 @@ if (liveGuideValuation)
         "Glass:ValuationAccount:Password",
         "Cazana:CompanionAccount:Email",
         "Cazana:CompanionAccount:Password",
-        "Brego:ValuationAccount:Email",
-        "Brego:ValuationAccount:Password"
+        "Brego:ValuationAccount:Email"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
@@ -227,9 +226,9 @@ if (productionProfile)
         // Cazana's Companion account (ADR-0079), read on each Get valuation.
         "Cazana:CompanionAccount:Email",
         "Cazana:CompanionAccount:Password",
-        // Brego valuation account (ADR-0084), read on each Get valuation.
+        // Brego valuation account (ADR-0084), read on each Get valuation;
+        // it signs in from the refresh token stored when it was linked.
         "Brego:ValuationAccount:Email",
-        "Brego:ValuationAccount:Password",
         // Experian's endpoints and its two accounts (ADR-0089, R1215), read on each call.
         "Experian:BaseUri",
         "Experian:TokenUri",
@@ -838,7 +837,7 @@ builder.Services.AddPegasusStaffIdentity();
 // Production, and the hosted test instance under Features:LiveGuideValuation
 // (R709); any other offline host reaches no vendor. Each credential is read on
 // each valuation for the same unresolved-Key-Vault-reference reason as Box's.
-// Both keep Brego's session cookie in a blob store (R933).
+// Both keep Brego's refresh token and session cookie in a blob store (R933).
 if (productionProfile || liveGuideValuation)
 {
     builder.Services.AddGlassGuideValuation(

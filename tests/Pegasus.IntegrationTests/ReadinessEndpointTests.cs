@@ -368,7 +368,6 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",
-            ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
             ["Experian:HistoryAccount:ClientId"] = "experian-client",

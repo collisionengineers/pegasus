@@ -109,7 +109,6 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Cazana:CompanionAccount:Email")]
     [InlineData("Cazana:CompanionAccount:Password")]
     [InlineData("Brego:ValuationAccount:Email")]
-    [InlineData("Brego:ValuationAccount:Password")]
     [InlineData("Experian:BaseUri")]
     [InlineData("Experian:TokenUri")]
     [InlineData("Experian:HistoryAccount:ClientId")]
@@ -153,7 +152,6 @@ public sealed class LocalIntakeAccessTests
             ["Cazana:CompanionAccount:Email"] = "companion@example.test",
             ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
             ["Brego:ValuationAccount:Email"] = "brego@example.test",
-            ["Brego:ValuationAccount:Password"] = "synthetic-brego-password",
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
             ["Experian:HistoryAccount:ClientId"] = "experian-client",
