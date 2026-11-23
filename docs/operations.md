@@ -25,6 +25,19 @@ Release 124 are one line each in [operations history](operations-history.md).
   `confirmed` and in Review by 09:10 UTC, with their valuation reports filed
   by 09:11 UTC.
 
+## QDOS26191-p type corrected in the database - 23 November 2026
+
+- Production (5.2.0), on R1230. `Cases.Type` of QDOS26191-p
+  (`8b8bd88e-3c5b-4e2d-8a2f-ee8c39f3befc`) was set from `inspection` to
+  `inspection_and_audit` at 09:31 UTC in one transaction, run first as a
+  rolled-back trial: the Case's concurrency token renewed, its workflow
+  version 6 to 7, and one `case_type_corrected` row each in
+  `CaseWorkflowEvents`, `ActionHistory` and `CaseHistory`. It read back
+  Inspection and Audit, in Review, with no Audit reference.
+- The Case details action then filled four details from the letter
+  (version 8). The reverse update undoes the type only until Create audit runs.
+- Cause and fix of the unread letter: #2174 (R1228).
+
 ## Brego valuation account changed - 23 November 2026
 
 - Production (5.2.0), on R1229. Key Vault `pegasusprodkv252ow37g` holds new
