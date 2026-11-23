@@ -41,11 +41,16 @@ tenant platform web application (`https://{slug}.brego.ai/platform`, backed by
    `organizationId` and `slug`; Brego removed them, and from 19 November 2026
    both are read from the `organizationId` and `slug` claims of the ID token
    that step 2 issues. An ID token that names neither is `unreadable` at
-   `stage=cognito_verify`. The slug is also sent as `client` when a new
+   `stage=cognito_refresh`. The slug is also sent as `client` when a new
    `brego-session` is created.
-2. Authenticates against AWS Cognito (`https://cognito-idp.{region}.amazonaws.com/`)
-   via `USER_SRP_AUTH` (`InitiateAuth` and `RespondToAuthChallenge` with
-   `PASSWORD_VERIFIER`). When an active 1-year `brego-session` cookie is already
+2. Renews the account's 24-hour tokens at AWS Cognito
+   (`https://cognito-idp.{region}.amazonaws.com/`) with
+   `GetTokensFromRefreshToken`, from the refresh token stored when the account
+   was linked (23 November 2026, [R1231](../rulings.md); see "The account is
+   linked by its e-mailed sign-in link" below). Until then it signed in with a
+   password through `USER_SRP_AUTH`; Brego now signs the account in by link
+   only, and the password flow is removed. The ID token's `cognito:username`
+   claim names the user the session cookies are keyed by. When an active 1-year `brego-session` cookie is already
    held in memory or in `authentication-ring/brego-session.json`, the fresh
    24-hour Cognito tokens are paired directly with that `brego-session` cookie
    without calling `device-approval/challenge` or `POST /login/api/brego/v1/sessions`
@@ -85,14 +90,34 @@ its accepted mileage in whole miles, and answers `items[0].retail.high` as the
 card's Retail and `items[0].trade.high` as the card's Trade.
 
 **The account is deployment configuration.** The Web host reads
-`Brego:ValuationAccount:Email` and `Brego:ValuationAccount:Password`, held in
-Key Vault as `brego-valuation-email` and `brego-valuation-password` and
-delivered to the Web App as versioned Key Vault references
-(`BREGO_VALUATION_EMAIL_SECRET_URI` and `BREGO_VALUATION_PASSWORD_SECRET_URI`),
-each read through its own secret-scoped grant to the Web identity. Both are
-Production required settings, read on each valuation rather than when the host
-or a Case page is built. Neither the credentials nor the Cognito tokens or
-session cookies ever reach a URL or log.
+`Brego:ValuationAccount:Email`, held in Key Vault as `brego-valuation-email`
+and delivered to the Web App as a versioned Key Vault reference
+(`BREGO_VALUATION_EMAIL_SECRET_URI`) read through its own secret-scoped grant
+to the Web identity. It is a Production required setting, read on each
+valuation rather than when the host or a Case page is built. From 23 November
+2026 ([R1231](../rulings.md)) no host reads a Brego password; the Web App's
+`Brego__ValuationAccount__Password` setting is still deployed until a later
+release removes it, because the release before this one stops at startup
+without it. Neither the refresh token nor the Cognito tokens or session
+cookies ever reach a URL or log.
+
+**The account is linked by its e-mailed sign-in link** (23 November 2026,
+[R1231](../rulings.md)). Brego's login page signs an account in by Cognito
+custom authentication: one exchange asks for the link (`ANSWER` `request`),
+and a later, separate exchange redeems the token in the link's fragment
+(`#magic-link=`). The second needs nothing from the first, so the link can be
+redeemed on another machine than asked for it; a live test on 23 November
+proved that, and that `GetTokensFromRefreshToken` then renews the tokens.
+`scripts/Connect-BregoAccount.ps1` does both exchanges from a workstation with
+a person at the account's mailbox, has the host's device approved, mints the
+`brego-session`, and writes `authentication-ring/brego-session.json` as
+`{ "email", "bregoSession", "refreshToken" }`. A host with no stored refresh
+token answers the valuation unavailable at `stage=sign_in` without calling
+Brego; one whose refresh token Cognito refuses does so at
+`stage=cognito_refresh`, and the account is linked again
+([runbook](../runbook.md#linking-the-brego-valuation-account)). A host reads
+the store before its own memory at each sign-in, so a link made while it runs
+is used without a restart. There is no screen for the link yet.
 
 **The month is a date.** Brego values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and
@@ -131,6 +156,10 @@ setting's key instead.
 - Creating `brego-valuation-email` and `brego-valuation-password` in Key Vault
   with secret-scoped grants to the Web identity and setting the two azd
   variables are release steps.
+- Linking the account is a person's step, at a workstation, with the account's
+  mailbox open: once, and again whenever Brego ends the sign-in. Until it is
+  linked every Brego valuation is unavailable (23 November 2026,
+  [R1231](../rulings.md)).
 - Production and the hosted test instance (`Features:LiveGuideValuation`,
   [R709](../rulings.md)) compose the Brego provider; any other host does not.
   The test instance keeps its `brego-session` cookie in its own Azurite

@@ -3,7 +3,7 @@
 How repository work is done. Product behavior lives in
 [requirements](prd/README.md), stable identities in [capabilities](capabilities.md),
 procedures in the [runbook](runbook.md), operational evidence in
-[operations](operations.md), and current work in the operator task and merge requests.
+[operations](operations.md), and current work in the operator task and PRs.
 Authority order is defined once in the
 [documentation index](index.md).
 
@@ -13,9 +13,9 @@ Integrate reviewed work into `dev`. A push to `dev` runs the full CI lanes on
 the merged tree: that run is the exact-head evidence for the test instance and
 the release, and a push to `main` runs the history guard alone (R683). A
 release's version is named at release and tagged on `main` (R686, R688);
-no merge request bumps a version in source. The primary agent records the candidate SHA and assigns one owner for heavy
+no pull request bumps a version in source. The primary agent records the candidate SHA and assigns one owner for heavy
 verification on the host.
-CI routing and required jobs are defined in `.gitlab-ci.yml`; exact-head
+CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
 success or a justified path skip is evidence for that job only.
 
 ## Documentation authoring
@@ -95,13 +95,13 @@ the rules; these are the mechanics.
 
 ### Subtract before you add
 
-Before a merge request adds a mechanism, it names the existing owner of the same job and
-either reuses it or removes it in the same merge request. The owners that already exist:
+Before a PR adds a mechanism, it names the existing owner of the same job and
+either reuses it or removes it in the same PR. The owners that already exist:
 `IMemoryCache` through `EvictableCacheEntry` for in-process caching; the Case
 edit lease and the record edit scope for edit authority; `OperatorLabels` and
 `CaseWorkspaceLabels` for operator-facing text; the FRD clause for a
 behaviour rule; [rulings](rulings.md) for a decision. A second implementation
-of any of these is a defect to consolidate within the merge request's scope, not a third
+of any of these is a defect to consolidate within the PR's scope, not a third
 copy to wait for.
 
 ### Page budgets
@@ -119,10 +119,10 @@ the current-estate part of [operations](operations.md):
 
 A page within budget gets no efficiency work. A change is built only when it
 brings a page under its budget or saves at least 100 ms at p95 on one, and
-its merge request records the before and after figures. A reviewer flags a regression
+its PR records the before and after figures. A reviewer flags a regression
 only when it adds 50 ms or more to a hot page's p95. A new query-count test
 asserts an upper bound or a no-growth pair (six rows cost the same statements
-as three), never an exact total; an exact total breaks every other merge request that
+as three), never an exact total; an exact total breaks every other PR that
 touches the page.
 
 ### Ports
@@ -224,14 +224,14 @@ reference (30 October 2026):
   before approval. There are no expand/contract pairs
   ([ADR-0002](adr/0002-dotnet-modular-monolith-on-azure.md), amended by R605).
 - Declaration (8 November 2026, R760, R761, #1845). CI classifies each
-  migration a merge request changes from the operations its `Up` runs
+  migration a pull request changes from the operations its `Up` runs
   (`scripts/Test-MigrationClass.ps1`). An additive one passes. One that drops,
   renames or narrows (a Drop, a Rename or an `AlterColumn`; a `DropIndex` that
   swaps an index for its filtered form stays additive, R432) fails unless the
-  description's `## Migration` section declares it non-additive and names the
+  body's `## Migration` section declares it non-additive and names the
   destructive route, whatever else the section says. Raw SQL cannot be
   classified by keyword, so a migration whose `Up` runs it fails until that
-  section declares its class. The description declares the class and the route only;
+  section declares its class. The body declares the class and the route only;
   the window stays in the release approval (R605,
   [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)).
 

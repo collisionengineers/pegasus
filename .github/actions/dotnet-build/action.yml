@@ -1,0 +1,33 @@
+name: Restore and build Pegasus
+description: >
+  Installs the pinned SDK against a cached NuGet package folder, then runs the
+  locked restore and the Release build every test lane needs. Sharing one
+  definition keeps the cache key from drifting between lanes.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@v6
+      with:
+        dotnet-version: 10.0.x
+    # setup-dotnet's own cache accepts no restore-keys, so a single lock-file
+    # change missed outright and every lane cold-restored the whole graph. An
+    # explicit cache adds a prefix fallback: on a miss it restores the newest
+    # previous package folder and the locked restore fetches only what moved.
+    #
+    # A prefix hit cannot be stale. The global packages folder is addressed by
+    # package id and version, those contents are immutable, and --locked-mode
+    # validates the graph against the committed lock files rather than against
+    # whatever the folder happens to hold.
+    - uses: actions/cache@v6
+      with:
+        path: ~/.nuget/packages
+        key: dotnet-nuget-${{ runner.os }}-${{ hashFiles('global.json', 'src/**/packages.lock.json', 'tests/**/packages.lock.json') }}
+        restore-keys: |
+          dotnet-nuget-${{ runner.os }}-
+    - name: Restore
+      shell: pwsh
+      run: dotnet restore ./Pegasus.slnx --locked-mode
+    - name: Build
+      shell: pwsh
+      run: dotnet build ./Pegasus.slnx --configuration Release --no-restore

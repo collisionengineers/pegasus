@@ -198,7 +198,7 @@ replaces it in one Core transaction: it deactivates the old code, continues
 the old code's next unused sequence number for the rest of the cutover year
 (Europe/London), and starts later years at `001`. Both codes stay on record
 permanently
-([v41 A29](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 **Wrong Principal.** A Case created under the wrong Principal is marked
 `Created in error` with a reason and a link to its replacement Case. Neither

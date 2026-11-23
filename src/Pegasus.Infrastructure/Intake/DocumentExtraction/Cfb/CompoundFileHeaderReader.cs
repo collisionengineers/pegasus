@@ -12,7 +12,6 @@ internal static class CompoundFileHeaderReader
     private const ushort Version3SectorShift = 9;
     private const ushort Version4SectorShift = 12;
     private const ushort RequiredMiniSectorShift = 6;
-    private const ushort RequiredMinorVersion = 0x003E;
     private const ushort RequiredByteOrder = 0xFFFE;
     private const uint RequiredMiniStreamCutoff = 0x00001000;
     private const int HeaderDifatOffset = 76;
@@ -42,12 +41,10 @@ internal static class CompoundFileHeaderReader
                 CompoundFileHeaderReadError.NonZeroClassIdentifier);
         }
 
-        if (ReadUInt16(header, 24) != RequiredMinorVersion)
-        {
-            return CompoundFileHeaderReadResult.Failure(
-                CompoundFileHeaderReadError.UnsupportedMinorVersion);
-        }
-
+        // The minor version is read and reported, never refused. The format
+        // asks writers for 0x003E and tells readers nothing depends on it;
+        // Word files from other writers carry other values (0x0021 on the
+        // QDOS instruction letters of November 2026).
         ushort majorVersion = ReadUInt16(header, 26);
         if (majorVersion is not (3 or 4))
         {

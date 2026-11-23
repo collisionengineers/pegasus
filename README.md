@@ -27,7 +27,7 @@ by the actual change. A documentation edit alone does not require a .NET build.
 - [Domain vocabulary](CONTEXT.md): reserved business meanings.
 - [Architecture](docs/current-architecture.md): source structure and callers.
 - [Runbook](docs/runbook.md): human-readable operational procedures.
-- Current operator task and its linked merge request and CI records: work, ordering and
+- Current operator task and its linked PR/CI records: work, ordering and
   delivery evidence.
 
 `workspaces/` records retired source-import provenance; those imports are not

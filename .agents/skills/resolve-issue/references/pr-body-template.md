@@ -1,12 +1,12 @@
-# MR body
+# PR body
 
 Title: conventional subject, under 72 characters, naming the behaviour, not
 the issue number: `fix(work-centre): bound Sent to Engineer to this week's
 events`. The issue number goes in the body.
 
-If the repo has `.gitlab/merge_request_templates/Default.md`, keep its headings and add
+If the repo has `.github/pull_request_template.md`, keep its headings and add
 the ones below that are missing. Write "None" rather than deleting a section.
-The MR body is the durable record: issues get closed, branches get deleted,
+The PR body is the durable record: issues get closed, branches get deleted,
 and the body is what a later reader finds.
 
 ```markdown
@@ -44,17 +44,17 @@ deferred (to which issue), or not applicable (why). "None found" is fine.
 
 ## Left out
 
-What the issue asked for or hinted at that this MR deliberately does not do,
+What the issue asked for or hinted at that this PR deliberately does not do,
 and where it went (a new issue, a question to the operator, out of scope).
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-`Closes #N` on its own line is what `combine-prs` reads at landing to close
-the issue with a comment.
-On a non-default base branch the keyword does not close the issue by itself
-(`glab mr issues` stays empty), and that is intended. The release's
-version proposal reads the same lines (R687): a range whose merge requests
+`Closes #N` on its own line is what links the issue in GitHub's sidebar and
+populates `closingIssuesReferences`, which `combine-prs` reads at landing to
+close the issue with a comment. On a non-default base branch the keyword
+does not close the issue by itself, and that is intended. The release's
+version proposal reads the same field (R687): a range whose pull requests
 close only `type:bug` issues proposes a PATCH, anything else a MINOR, so the
 `Closes` line and the issue's `type:*` label are what make a fix a PATCH.
 

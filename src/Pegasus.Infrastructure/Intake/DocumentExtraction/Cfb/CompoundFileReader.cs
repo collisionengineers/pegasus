@@ -783,17 +783,18 @@ internal static class CompoundFileReader
 
         private CompoundFileReadResult? ValidateEveryAllocatedMiniSectorWasReferenced(int miniStreamLength)
         {
-            int availableMiniSectors = miniStreamLength / _header.MiniSectorSize;
-            for (uint sector = 0; sector < _miniFat.Length; sector++)
+            // Entries at or past the end of the mini stream describe no mini
+            // sector, and no stream can reach one: ReadMiniStream refuses a
+            // chain that leaves the mini stream. What a writer left in them is
+            // not read. Some writers fill that tail with zeros instead of the
+            // free marker (the QDOS instruction letters of November 2026).
+            int availableMiniSectors = Math.Min(
+                miniStreamLength / _header.MiniSectorSize,
+                _miniFat.Length);
+            for (uint sector = 0; sector < availableMiniSectors; sector++)
             {
                 bool allocated = _miniFat[sector] != CompoundFileConstants.FreeSector;
-                if (sector >= availableMiniSectors && allocated)
-                {
-                    return Fail(CompoundFileReadError.InvalidMiniFat, sector);
-                }
-
-                if (sector < availableMiniSectors &&
-                    allocated != _claimedMiniSectors.Contains(sector))
+                if (allocated != _claimedMiniSectors.Contains(sector))
                 {
                     return Fail(
                         allocated
