@@ -63,6 +63,7 @@ public sealed class CompoundFileHeaderReaderTests
         CompoundFileHeaderReadResult result = CompoundFileHeaderReader.Read(bytes);
 
         Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Header);
         Assert.Equal((ushort)0x0021, result.Header.MinorVersion);
         Assert.Equal((ushort)3, result.Header.MajorVersion);
     }
