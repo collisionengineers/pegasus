@@ -1072,7 +1072,7 @@ Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, the two `Brego:ValuationAccount:*` keys and the ten `Experian:*` keys among its Production
+`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, `Brego:ValuationAccount:Email` and the ten `Experian:*` keys among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
@@ -1080,13 +1080,49 @@ The Glass's valuation account is the one Glass's login held
 in deployment configuration: the release operator creates its two secrets in
 the deployment vault and grants the Web identity secret-read access at each
 secret's scope, and Bicep hands the Web App Key Vault references to them. The
-Cazana Companion account, the Brego valuation account and the two Experian accounts are held the same way:
+Cazana Companion account, the Brego valuation account's e-mail and the two Experian accounts are held the same way:
 `cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
-`brego-valuation-password`, and `experian-history-client-id`, `-client-secret`,
+and `experian-history-client-id`, `-client-secret`,
 `-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. Each
 staff member's own Glass's account name and password, used for the repair
 estimate, are entered by an Administrator on that staff account's Glass's page
 and are held protected per staff account, never in deployment configuration.
+
+## Linking the Brego valuation account
+
+Brego signs the valuation account in by an e-mailed link, not a password
+([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md), R1231).
+A host keeps itself signed in from the refresh token in
+`authentication-ring/brego-session.json`; a person links the account once,
+and again whenever Brego ends that sign-in. The sign of that is every Get
+valuation for Brego answering unavailable, with a `brego.valuation.` line at
+`stage=cognito_refresh` or `stage=sign_in` in the Web log.
+
+`scripts/Connect-BregoAccount.ps1` does it, from a workstation, with someone at
+the account's mailbox. Nothing is sent or written without `-Approve`.
+
+1. `-Step RequestLink -Email <account>`: Brego e-mails a link that expires 15
+   minutes later.
+2. `-Step Redeem -Email <account> -Target Production -Link '<the whole link>'`:
+   redeems the link, has the host's device approved, mints the one-year Brego
+   session and writes the file. If Brego e-mails a six-digit code, the script
+   asks for it. Run without a terminal, it stops with exit 3 instead: request
+   a new link and redeem that one with `-Code <code>`.
+3. Press Get valuation for Brego on a Case. No restart is needed.
+
+Production needs the signed-in Azure CLI account to hold Storage Blob Data
+Contributor on the `authentication-ring` container of the custody account for
+the run; the container also holds the data-protection keys, so the assignment
+is scoped to it and removed afterwards.
+
+Brego keeps one web session for an account, so the test instance shares
+production's sign-in when it uses the same account: name both in one Redeem
+(`-Target Production, TestInstance -RunManifestPath <run>/run-manifest.json`).
+Linking the two in separate runs makes each end the other's session.
+
+A browser sign-in to Brego with the same account can end a host's session. The
+host then mints a new one itself while its device stays approved; when Brego
+asks for a code instead, link the account again.
 
 ## Monitoring and diagnosis
 

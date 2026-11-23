@@ -8,8 +8,10 @@ namespace Pegasus.Infrastructure.Brego;
 
 /// <summary>
 /// Brego as a connected guide source (ADR-0084): Get valuation signs in with
-/// Collision Engineers' Brego valuation account (reusing the active BFF
-/// session across calls so Brego's single-web-session limit is respected),
+/// Collision Engineers' Brego valuation account by renewing its Cognito
+/// tokens from the refresh token stored when the account was linked by
+/// <c>scripts/Connect-BregoAccount.ps1</c> (reusing the active BFF session
+/// across calls so Brego's single-web-session limit is respected),
 /// looks up the Case's registration and queries a point-in-time valuation at
 /// its accepted mileage, and answers Brego's <c>retail.high</c> as the card's
 /// retail and <c>trade.high</c> as the card's trade. The quote carries the
@@ -31,8 +33,9 @@ namespace Pegasus.Infrastructure.Brego;
 /// failure code and stage. The one exception is Brego answering 404 that it
 /// holds no data for the registration, which nothing here can fix: the card
 /// says that instead. The account is read on each valuation, never when the
-/// provider is built, and neither the credentials nor the session tokens or
-/// cookies ever reach a URL or log.
+/// provider is built, and neither the refresh token nor the session tokens or
+/// cookies ever reach a URL or log. An account with no stored refresh token
+/// is unavailable at stage <c>sign_in</c> without calling Brego.
 /// </para>
 /// </summary>
 public sealed partial class BregoGuideValuationProvider(
@@ -140,32 +143,47 @@ public sealed partial class BregoGuideValuationProvider(
                 return (current!, true);
             }
 
+            // The refresh token and cookie come from the store first: the
+            // account may have been linked again since this host signed in,
+            // and the new link must be used without a restart. Only when the
+            // store holds nothing for the account, or cannot be read, does
+            // the session this host already holds supply them. A 401 from the
+            // platform mints a new session: the cookie is left behind, the
+            // refresh token is not.
+            string? refreshToken = null;
             string? existingSessionCookie = null;
-            if (!forceRefresh)
+            if (sessionStore is not null
+                && await sessionStore.TryLoadAsync(signIn.Email, cancellationToken) is { } stored)
             {
-                if (current is not null
-                    && string.Equals(current.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrWhiteSpace(current.BregoSessionCookie))
-                {
-                    existingSessionCookie = current.BregoSessionCookie;
-                }
-                else if (sessionStore is not null)
-                {
-                    existingSessionCookie = await sessionStore.TryLoadSessionCookieAsync(signIn.Email, cancellationToken);
-                }
+                refreshToken = stored.RefreshToken;
+                existingSessionCookie = stored.BregoSessionCookie;
+            }
+            else if (current is not null
+                && string.Equals(current.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(current.RefreshToken))
+            {
+                refreshToken = current.RefreshToken;
+                existingSessionCookie = current.BregoSessionCookie;
+            }
+
+            if (string.IsNullOrWhiteSpace(refreshToken))
+            {
+                throw new BregoFailure("sign_in", null, "refresh_token=absent");
             }
 
             var created = await client.SignInAsync(
                 signIn.Email,
-                signIn.Password,
+                refreshToken,
                 timeProvider,
                 cancellationToken,
-                existingSessionCookie);
-            if (!created.ReusedSessionCookie && sessionStore is not null)
+                forceRefresh ? null : existingSessionCookie);
+            if (sessionStore is not null
+                && (!created.ReusedSessionCookie
+                    || !string.Equals(created.RefreshToken, refreshToken, StringComparison.Ordinal)))
             {
-                await sessionStore.TrySaveSessionCookieAsync(
+                await sessionStore.TrySaveAsync(
                     signIn.Email,
-                    created.BregoSessionCookie,
+                    new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
                     cancellationToken);
             }
 
@@ -181,7 +199,6 @@ public sealed partial class BregoGuideValuationProvider(
     private bool IsReusable(BregoSession? session, BregoValuationAccount signIn) =>
         session is not null
         && string.Equals(session.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(session.Password, signIn.Password, StringComparison.Ordinal)
         && timeProvider.GetUtcNow() < session.ExpiresAtUtc;
 
     /// <summary>

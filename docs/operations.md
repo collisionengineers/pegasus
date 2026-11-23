@@ -38,19 +38,29 @@ Release 124 are one line each in [operations history](operations-history.md).
   (version 8). The reverse update undoes the type only until Create audit runs.
 - Cause and fix of the unread letter: #2174 (R1228).
 
-## Brego valuation account changed - 23 November 2026
+## Brego valuation account changed twice - 23 November 2026
 
-- Production (5.2.0), on R1229. Key Vault `pegasusprodkv252ow37g` holds new
-  versions of `brego-valuation-email` (`4157ba5c…`) and
-  `brego-valuation-password` (`c1fce565…`), and the Web App's
-  `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password`
-  reference them from 09:25 UTC; both read `Resolved`. The setting change
-  restarted the Web App. The release environment's
-  `BREGO_VALUATION_*_SECRET_URI` keys hold the same addresses.
-- Not read: a Brego sign-in with the new account. The stored
-  `brego-session` is kept per e-mail address, so the first Get valuation for
-  Brego signs in afresh and Brego may ask for a device approval code.
-- The test instance's settings file still names the earlier account.
+- Production (5.2.0), on R1229. From 09:25 UTC the Web App's two
+  `Brego__ValuationAccount__*` settings referenced new Key Vault versions
+  naming another account (`brego-valuation-email` `4157ba5c…`,
+  `brego-valuation-password` `c1fce565…`). That account signed in and valued
+  at 09:27 UTC, and its session replaced the stored `brego-session`.
+- On R1231, from 10:26 UTC the settings reference the earlier versions again
+  (`d4d6bd1e…` and `fce005f2…`, the `digital@` account); both read
+  `Resolved`, and the release environment's `BREGO_VALUATION_*_SECRET_URI`
+  keys hold the same addresses. Each change restarted the Web App. The two
+  newer versions stay in the vault, unused.
+- Brego now signs `digital@` in by an e-mailed link: a sign-in with the
+  stored password was answered `Incorrect username or password` at about
+  10:30 UTC. Brego valuations on production are unavailable from 10:26 UTC
+  until the release that carries the refresh-token sign-in and the first run
+  of `scripts/Connect-BregoAccount.ps1` (R1231).
+- A live test at 10:38 UTC from the release workstation: the link request was
+  accepted, the operator's pasted link redeemed there, `GetTokensFromRefreshToken`
+  answered 200, and Brego's device approval for the host's device answered
+  `challenge_required`. No session was minted and nothing was stored.
+- The test instance's settings name `digital@` and its stored session is the
+  earlier one; the first Redeem names it beside Production.
 
 ## Repository returned to GitHub - 22 November 2026
 

@@ -182,8 +182,7 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
                 ["Glass:ValuationAccount:Password"] = "synthetic-password",
                 ["Cazana:CompanionAccount:Email"] = "companion@example.test",
                 ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
-                ["Brego:ValuationAccount:Email"] = "brego@example.test",
-                ["Brego:ValuationAccount:Password"] = "synthetic-brego-password"
+                ["Brego:ValuationAccount:Email"] = "brego@example.test"
             });
 
         await using var scope = factory.Services.CreateAsyncScope();
