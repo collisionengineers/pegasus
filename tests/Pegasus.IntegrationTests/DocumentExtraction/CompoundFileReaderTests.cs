@@ -216,6 +216,44 @@ public sealed class CompoundFileReaderTests
         AssertFailure(result, CompoundFileReadError.SectorCrossLinked, location: 0);
     }
 
+    /// <summary>
+    /// A writer that fills the MiniFAT entries past the end of the mini stream
+    /// with zeros instead of the free marker, as the QDOS instruction letters
+    /// of November 2026 do. No stream can reach those entries.
+    /// </summary>
+    [Fact]
+    public void ReadMiniFatWithAZeroFilledTailPastTheMiniStreamReturnsExactContent()
+    {
+        byte[] expected = [0x10, 0x20, 0x30, 0x40, 0x50];
+        byte[] bytes = CompoundFileFixture.CreateWithMiniStream(expected);
+        Span<byte> miniFat = CompoundFileFixture.GetSector(bytes, 512, CompoundFileFixture.MiniFatSector);
+        miniFat[sizeof(uint)..].Clear();
+
+        CompoundFileReadResult result = CompoundFileReader.Read(bytes);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.File);
+        Assert.Equal(expected, result.File.DirectoryEntries[1].Content.ToArray());
+    }
+
+    /// <summary>
+    /// Inside the mini stream the check stands: a mini sector marked in use
+    /// that no stream owns is still refused.
+    /// </summary>
+    [Fact]
+    public void ReadAllocatedMiniSectorInsideTheMiniStreamThatNoStreamOwnsIsRefused()
+    {
+        byte[] bytes = CompoundFileFixture.CreateWithMiniStream([1, 2, 3]);
+        Span<byte> root = CompoundFileFixture.GetDirectoryEntry(bytes, 512, 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(root[120..], 128);
+        Span<byte> miniFat = CompoundFileFixture.GetSector(bytes, 512, CompoundFileFixture.MiniFatSector);
+        CompoundFileFixture.WriteUInt32(miniFat, sizeof(uint), CompoundFileConstants.EndOfChain);
+
+        CompoundFileReadResult result = CompoundFileReader.Read(bytes);
+
+        AssertFailure(result, CompoundFileReadError.AllocatedSectorUnreferenced, location: 1);
+    }
+
     [Fact]
     public void ReadMiniFatCycleReturnsMiniFatCycle()
     {

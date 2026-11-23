@@ -9,7 +9,6 @@ internal enum CompoundFileHeaderReadError
     FileLengthNotSectorAligned,
     InvalidSignature,
     NonZeroClassIdentifier,
-    UnsupportedMinorVersion,
     UnsupportedMajorVersion,
     InvalidByteOrder,
     InvalidSectorShift,
