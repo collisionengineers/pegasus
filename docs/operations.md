@@ -25,6 +25,20 @@ Release 124 are one line each in [operations history](operations-history.md).
   `confirmed` and in Review by 09:10 UTC, with their valuation reports filed
   by 09:11 UTC.
 
+## Brego valuation account changed - 23 November 2026
+
+- Production (5.2.0), on R1229. Key Vault `pegasusprodkv252ow37g` holds new
+  versions of `brego-valuation-email` (`4157ba5c…`) and
+  `brego-valuation-password` (`c1fce565…`), and the Web App's
+  `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password`
+  reference them from 09:25 UTC; both read `Resolved`. The setting change
+  restarted the Web App. The release environment's
+  `BREGO_VALUATION_*_SECRET_URI` keys hold the same addresses.
+- Not read: a Brego sign-in with the new account. The stored
+  `brego-session` is kept per e-mail address, so the first Get valuation for
+  Brego signs in afresh and Brego may ask for a device approval code.
+- The test instance's settings file still names the earlier account.
+
 ## Brego sign-in lookup stopped naming the tenant - 19 November 2026
 
 - Read in production (5.0.0) at 09:24 UTC: five Get valuation presses for
