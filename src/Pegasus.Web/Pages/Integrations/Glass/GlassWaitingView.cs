@@ -1,5 +1,5 @@
-using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 
 namespace Pegasus.Web.Pages.Integrations.Glass;
