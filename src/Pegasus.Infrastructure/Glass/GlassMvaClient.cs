@@ -205,7 +205,7 @@ internal sealed partial class GlassMvaClient(
     /// A page or fragment beyond this is not a Glass's response this adapter
     /// knows how to read, so it is refused unread rather than buffered.
     /// </summary>
-    private const int MaximumTextBytes = 4 * 1024 * 1024;
+    internal const int MaximumTextBytes = 4 * 1024 * 1024;
 
     /// <summary>
     /// How long any one pattern below may take to match. Every pattern is
@@ -871,11 +871,15 @@ internal sealed partial class GlassMvaClient(
     /// Waits for Glass's to publish exactly one export for the selected vehicle
     /// and returns its address (stage 24). Zero links after the bounded wait is
     /// an unknown outcome — the export may still be forming — while more than
-    /// one, or one off Glass's own origin, is refused outright.
+    /// one, or one off Glass's own origin, is refused outright. A placeholder
+    /// is asked <paramref name="once"/>: Glass's publishes no export for an
+    /// unqualified vehicle (three returns of three, 5 and 23 November 2026),
+    /// so there is nothing to wait for and the gateway reads the estimator's
+    /// calculation sheet instead.
     /// </summary>
-    public async Task<Uri> WaitForExportAsync(CancellationToken cancellationToken)
+    public async Task<Uri> WaitForExportAsync(bool once, CancellationToken cancellationToken)
     {
-        var deadline = timeProvider.GetUtcNow() + options.ExportTimeout;
+        var deadline = once ? timeProvider.GetUtcNow() : timeProvider.GetUtcNow() + options.ExportTimeout;
         while (true)
         {
             var grid = await TextAsync(
@@ -1381,7 +1385,7 @@ internal sealed partial class GlassMvaClient(
         }
     }
 
-    private static async Task<byte[]> ReadAsync(
+    internal static async Task<byte[]> ReadAsync(
         HttpResponseMessage response, int maximumBytes, string failureCode, bool outcomeUnknown,
         CancellationToken cancellationToken)
     {

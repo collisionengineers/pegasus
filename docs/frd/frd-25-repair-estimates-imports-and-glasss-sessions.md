@@ -345,11 +345,28 @@ answers do, because nothing is broken (operator, 10 October 2026); a
 placeholder has no value
 ([ADR-0062](../adr/0062-glass-placeholder-vehicle-for-unknown-plates.md)).
 
-The return of a placeholder session is checked as any other, except for the
-vehicle's identity: the export may name no plate and no mileage, or the
-Case's own, and any other vehicle's is refused; the type number it names is
-the Engineer's choice and is recorded on the session, not compared. This rule
-stands until the first live return has been read.
+The return of a placeholder session is checked as any other, except for
+where its estimate is read and for the vehicle's identity.
+
+Glass's publishes no export for an estimate held on an unqualified vehicle.
+The portal keeps the estimate and its totals on the stock vehicle, but its
+export answer is empty (three returns of three, 5 and 23 November 2026,
+issue 1928). So a placeholder's export is asked for once, and when there is
+none Pegasus reads the estimate's calculation sheet from the estimator itself
+(operator, 23 November 2026, R1233). It proves and selects the placeholder,
+starts the estimate as the portal reopens one, which answers the estimate that
+vehicle holds, opens the estimator and takes the PDF its report prints.
+Nothing is saved there, and the estimator is left as a closed window leaves
+it. The sheet is read by the Glass's calculation PDF reader, kept on the Case
+as the session's calculation sheet and imported as the export would be.
+
+The export or the sheet may name no plate and no mileage, or the Case's own,
+and any other vehicle's is refused; the type number it names is the
+Engineer's choice and is recorded on the session, not compared. A sheet that
+cannot be fetched or read fails under the export's own codes and offers
+**Fetch again**; whatever stops the proof or the start leaves the session
+`Unknown`. Identifying such a vehicle through Glass's search tree, which
+would also give it a Glass's valuation, is not built (issue 2181).
 
 ### Glass's interrupted sessions
 
@@ -406,7 +423,9 @@ things follow when the return is accepted but the estimate does not land:
   refused, offered more than one export or one off Glass's own origin, or
   exceeded the size cap), offers **Fetch again** beside Glass's in the Case's
   Glass's controls. It signs in, selects the recorded vehicle and fetches the
-  export for the same estimate. It makes no vehicle and starts no estimate. It
+  export for the same estimate, or a placeholder's calculation sheet. It makes
+  no vehicle and no estimate: a placeholder's estimate is started again only
+  as a reopen, which answers the one its vehicle holds (R1233). It
   is refused while the account holds another live session. A relay answered by
   a redirect (the sign-in page) may have been acted on, so that session is
   `Unknown`, and continuing it looks the export up without relaying again.

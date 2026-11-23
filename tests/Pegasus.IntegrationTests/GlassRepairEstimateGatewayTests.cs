@@ -1318,6 +1318,217 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Single(harness.Import.Requests);
     }
 
+    private const string ExportGrid = "GET /ere/export-vehicle/";
+
+    /// <summary>The estimator requests a sheet is read by, in order.</summary>
+    private static readonly string[] SheetRequests =
+    [
+        "/ere/acolib/aco_call_xml.php", "/ere/aco/aco.php", "/ere/aco/aco2.php", "/ere/aco/acofr.php",
+        "/ere/aco/report.php", "/ere/aco/reppdf.php", "/ere/_tmp//Q0400400001testkey_1_2.pdf",
+    ];
+
+    /// <summary>
+    /// Glass's publishes no export for an estimate held on an unqualified
+    /// vehicle (three returns of three, issue 1928), so a placeholder's grid
+    /// is asked once and, with nothing in it, the estimate is reopened as the
+    /// portal reopens one and its calculation sheet is read from the
+    /// estimator, retained as the session's PDF and imported (R1233). The
+    /// estimator is sent its own cookie and never the portal's.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderReturnWithNoExportLandsTheEstimatorsCalculationSheet()
+    {
+        var logger = new CapturingLogger();
+        var harness = Harness.Create(logger: logger);
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set(ExportGrid, new(HttpStatusCode.OK, string.Empty));
+        var sheet = CalculationSheet();
+        ScriptEstimator(harness.Mva, sheet);
+
+        var completed = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Null(completed.FailureCode);
+        Assert.Equal(1, harness.Mva.Count(ExportGrid));
+        Assert.Equal(2, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(
+            "0",
+            QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        var retained = Assert.Single(harness.Custody.Retained);
+        Assert.Equal(GlassRepairEstimateGateway.PdfOccurrenceIdentity(session.Id), retained.OccurrenceIdentity);
+        Assert.Equal($"glass-estimate-{EreId}.pdf", retained.FileName);
+        Assert.Equal("application/pdf", retained.MediaType);
+        Assert.Equal(sheet, retained.Content);
+        var imported = Assert.Single(harness.Import.Requests);
+        Assert.Equal(harness.Custody.OccurrenceIdOf("pdf"), imported.OccurrenceId);
+        Assert.Equal(retained.Sha256, imported.Sha256);
+        Assert.True(imported.GlassEstimate!.Placeholder);
+
+        var estimator = harness.Mva.Requests
+            .Where(request => request.Path.StartsWith("/ere/aco", StringComparison.Ordinal)
+                || request.Path.StartsWith("/ere/_tmp/", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(SheetRequests, estimator.Select(request => request.Path));
+        Assert.Null(estimator[0].Cookie);
+        Assert.All(estimator.Skip(1), request => Assert.Equal(EstimatorCookie, request.Cookie));
+        Assert.Contains("ksid=Q0400400001testkey", estimator[4].Query, StringComparison.Ordinal);
+        Assert.Contains(logger.Messages, message =>
+            message.Contains("stage CalculationSheet outcome Succeeded", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, message =>
+            message.Contains("returned a placeholder estimate identified as type number 987654321", StringComparison.Ordinal));
+        var state = await harness.ProviderStateAsync(session.Id);
+        Assert.Equal("987654321", state.GetProperty("returnedTypeNumber").GetString());
+        Assert.Equal(PlaceholderNatCode, state.GetProperty("natCode").GetString());
+    }
+
+    /// <summary>
+    /// What the gateway reconciles a sheet by is what its heading prints: the
+    /// plate, the national code and, when the line is printed, the mileage. A
+    /// placeholder's sheet prints the plate blank and no mileage line. The
+    /// estimate is the one the import reads from the same bytes.
+    /// </summary>
+    [Theory]
+    [InlineData("", null, null)]
+    [InlineData("AB12 CDE", "33000 Miles", 33000)]
+    [InlineData("AB12 CDE", "33,000 Miles", 33000)]
+    [InlineData("AB12 CDE", "unknown", null)]
+    public void ASheetStatesItsVehicle(string registration, string? mileageLine, int? mileage)
+    {
+        var bytes = CalculationSheet(registration, mileageLine, typeNumber: "112007001");
+
+        var sheet = Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser.ReadGlassSheet(bytes);
+
+        Assert.Equal(registration, sheet.Identity.RegistrationPlate);
+        Assert.Equal(mileage, sheet.Identity.Mileage);
+        Assert.Equal("112007001", sheet.Identity.TypeNumber);
+        Assert.Equal(string.Empty, sheet.Identity.Vin);
+        Assert.Null(sheet.CalculationSheet);
+        Assert.Equal(336.00m, sheet.Estimate.SourceTotals!.Gross);
+        Assert.Equal(
+            sheet.Estimate.Lines.Count,
+            new Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser().Parse(bytes).Lines.Count);
+    }
+
+    /// <summary>
+    /// A sheet is reconciled by the placeholder rule as an export is: one
+    /// that names another vehicle's plate is refused and nothing is imported.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderSheetNamingAnotherVehicleIsRefused()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set(ExportGrid, new(HttpStatusCode.OK, string.Empty));
+        ScriptEstimator(harness.Mva, CalculationSheet(registration: "ZZ99 ZZZ"));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(GlassFailure.IdentityRegistration, settled.FailureCode);
+        Assert.Empty(harness.Custody.Retained);
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    public static TheoryData<string, string, int, string, string> UnreadableSheets() => new()
+    {
+        { "launch-blocked", EstimatorLaunch, 200, "<script>document.location.replace( 'blocked.html' );</script>", GlassFailure.DownloadRequest },
+        { "launch-unread", EstimatorLaunch, 200, "<html></html>", GlassFailure.DownloadRequest },
+        { "launch-redirect", EstimatorLaunch, 302, string.Empty, GlassFailure.DownloadRequest },
+        { "key-absent", EstimatorKey, 200, "<html></html>", GlassFailure.DownloadRequest },
+        { "report-refused", EstimatorReport, 500, string.Empty, GlassFailure.DownloadRequest },
+        { "sheet-unnamed", EstimatorPrint, 200, "<html></html>", GlassFailure.DownloadRequest },
+        { "sheet-gone", EstimatorSheet, 404, string.Empty, GlassFailure.DownloadRequest },
+        { "sheet-not-a-pdf", EstimatorSheet, 200, "<html>not a sheet</html>", GlassFailure.ExportUnreadable },
+        { "sheet-not-glass", EstimatorSheet, 200, "%PDF-1.4 not a document", GlassFailure.ExportUnreadable },
+    };
+
+    /// <summary>
+    /// An estimator page that cannot be asked for or read, or a sheet that is
+    /// not one, stops the session Failed under the export's own codes: the
+    /// estimate is saved at Glass's and nothing was written there, so the
+    /// owner can fetch it again.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(UnreadableSheets))]
+    public async Task ASheetThatCannotBeReadCanBeFetchedAgain(
+        string name, string route, int status, string body, string expectedFailure)
+    {
+        Assert.NotEmpty(name);
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set(ExportGrid, new(HttpStatusCode.OK, string.Empty));
+        ScriptEstimator(harness.Mva, CalculationSheet());
+        harness.Mva.Set(route, new((HttpStatusCode)status, body));
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, settled.State);
+        Assert.Equal(expectedFailure, settled.FailureCode);
+        Assert.True(GlassRepairEstimateSessionPolicy.CanRefetchExport(settled.State, settled.FailureCode));
+        Assert.Empty(harness.Custody.Retained);
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// Custody failing on the sheet leaves the session Unknown, and a Resume
+    /// signs in again, proves and selects the placeholder once, and reads the
+    /// sheet again: the relay is never repeated and no vehicle is made.
+    /// </summary>
+    [Fact]
+    public async Task APlaceholderSessionReadsItsSheetAgainAfterCustodyFails()
+    {
+        var harness = Harness.Create();
+        ScriptUnknownPlate(harness.Mva);
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set(ExportGrid, new(HttpStatusCode.OK, string.Empty));
+        ScriptEstimator(harness.Mva, CalculationSheet());
+        harness.Custody.Failure = new InvalidOperationException("Module checksum failed");
+
+        var settled = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, settled.State);
+        Assert.Equal(GlassFailure.CustodyFailed, settled.FailureCode);
+        var relays = harness.Mva.Count("GET /ere/ere-callback/");
+        var proofs = harness.Mva.Count("GET /index/vehicle-details-value/");
+
+        harness.Custody.Failure = null;
+        var completed = await harness.ResumeAsync(
+            new(harness.Engineer, session.Id, settled.Version, Harness.CaseVersion, Harness.LeaseToken));
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(relays, harness.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Equal(proofs + 1, harness.Mva.Count("GET /index/vehicle-details-value/"));
+        Assert.Equal(1, harness.Mva.Count(PlaceholderInsert));
+        Assert.Equal(3, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(2, harness.Mva.Count(EstimatorSheet));
+        Assert.Single(harness.Import.Requests);
+    }
+
+    /// <summary>
+    /// A plate Glass's knows keeps the wait: its empty grid is still an
+    /// export that may be forming, and the estimator is not asked.
+    /// </summary>
+    [Fact]
+    public async Task AKnownPlatesEmptyGridNeverReadsTheEstimator()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set(ExportGrid, new(HttpStatusCode.OK, string.Empty));
+        ScriptEstimator(harness.Mva, CalculationSheet());
+
+        var uncertain = await harness.CompleteAsync(session);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, uncertain.State);
+        Assert.Equal(GlassFailure.ExportNone, uncertain.FailureCode);
+        Assert.True(harness.Mva.Count(ExportGrid) > 1);
+        Assert.Equal(0, harness.Mva.Count(EstimatorLaunch));
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+    }
+
     /// <summary>The posted form as name/value pairs, decoded the way the portal reads them.</summary>
     private static (string, string)[] FormPairs(string? body) =>
         [.. (body ?? string.Empty).Split('&', StringSplitOptions.RemoveEmptyEntries)
@@ -3933,7 +4144,10 @@ public sealed class GlassRepairEstimateGatewayTests
                 ProfileId,
                 ExportPollInterval: TimeSpan.FromMilliseconds(5),
                 ExportTimeout: TimeSpan.FromMilliseconds(50),
-                maximumExportBytes);
+                maximumExportBytes)
+            {
+                EditorPause = TimeSpan.Zero,
+            };
             var caseAuthority = new CaseAuthorityDouble(new(Registration, MileageMiles, CaseAuthorityDouble.WorkId));
             var credentials = new CredentialDouble();
             var custody = new CustodyDouble();

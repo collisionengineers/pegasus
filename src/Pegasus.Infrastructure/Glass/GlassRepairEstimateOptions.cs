@@ -41,6 +41,14 @@ public sealed record GlassRepairEstimateOptions(
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// The pause between two requests to the estimator when Pegasus reads a
+    /// calculation sheet from it (<see cref="GlassCalculationSheetClient"/>):
+    /// the pace the sheet was read at by hand on 23 November 2026. It is not
+    /// configuration; a test sets it to nothing.
+    /// </summary>
+    public TimeSpan EditorPause { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     /// The Pegasus page the provider's <c>caller</c> is rewritten to. The
     /// one-use correlation token is the last path segment, matching the
     /// callback route B publishes at <c>/Integrations/Glass/Callback/{correlation}</c>.

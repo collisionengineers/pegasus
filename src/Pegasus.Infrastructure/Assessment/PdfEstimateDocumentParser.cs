@@ -1,4 +1,5 @@
 using Pegasus.Core.Assessment;
+using Pegasus.Infrastructure.Glass;
 using UglyToad.PdfPig;
 
 namespace Pegasus.Infrastructure.Assessment;
@@ -6,6 +7,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// <summary>The single PDF container; providers are identified only from readable content.</summary>
 public sealed class PdfEstimateDocumentParser : IEstimateDocumentParser
 {
+    private const string NotOneProvider = "The PDF does not identify exactly one supported estimate provider.";
+
     public IReadOnlyList<string> FileExtensions { get; } = [".pdf"];
 
     public bool CanParse(string fileName, string mediaType) =>
@@ -13,6 +16,26 @@ public sealed class PdfEstimateDocumentParser : IEstimateDocumentParser
         || string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase);
 
     public ParsedEstimate Parse(ReadOnlyMemory<byte> content)
+    {
+        var (rows, glass) = Rows(content);
+        return glass ? GlassEstimatePdfParser.Parse(rows) : AudatexEstimatePdfParser.Parse(rows);
+    }
+
+    /// <summary>
+    /// A Glass's calculation sheet read whole, with what it prints about its
+    /// vehicle; any other PDF is refused. This is how a Glass's session reads
+    /// the sheet it fetched from the estimator (ADR-0062).
+    /// </summary>
+    internal static GlassEstimateExport ReadGlassSheet(ReadOnlyMemory<byte> content)
+    {
+        var (rows, glass) = Rows(content);
+        return glass
+            ? GlassEstimatePdfParser.Read(rows)
+            : throw new EstimateParseRejectedException(NotOneProvider);
+    }
+
+    /// <summary>The PDF's words as visual rows, and whether its one provider is Glass's.</summary>
+    private static (List<VisualRow> Rows, bool Glass) Rows(ReadOnlyMemory<byte> content)
     {
         List<VisualRow> rows = [];
         try
@@ -38,8 +61,8 @@ public sealed class PdfEstimateDocumentParser : IEstimateDocumentParser
         var glass = rows.Any(row => row.JoinedText == "Glass's Information Services");
         var audatex = rows.Any(row => row.JoinedText.StartsWith("Audatex System", StringComparison.Ordinal));
         if (glass == audatex)
-            throw new EstimateParseRejectedException("The PDF does not identify exactly one supported estimate provider.");
-        return glass ? GlassEstimatePdfParser.Parse(rows) : AudatexEstimatePdfParser.Parse(rows);
+            throw new EstimateParseRejectedException(NotOneProvider);
+        return (rows, glass);
     }
 
     internal sealed record PlacedWord(double X, string Text);

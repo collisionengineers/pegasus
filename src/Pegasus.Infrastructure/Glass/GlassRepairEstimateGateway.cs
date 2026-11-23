@@ -10,6 +10,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -264,7 +265,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 or GlassRepairEstimateSessionState.Active
                 or GlassRepairEstimateSessionState.Unknown)
             || results.CallbackQueryDigest is not null
-            || results.Xml is not null)
+            || results.Source() is not null)
         {
             return session;
         }
@@ -459,12 +460,7 @@ public sealed partial class GlassRepairEstimateGateway(
         // address the first one minted rather than trying to mint a second. A
         // session that has not opened its estimator yet still holds the one it
         // was prepared with.
-        var callback = provider.EstimatorUrl is { } estimatorUrl
-            ? PegasusCallbackOf(estimatorUrl)
-            : new Uri(
-                provider.PegasusCallback
-                    ?? throw new InvalidOperationException("The Glass's session names no callback to reopen under."),
-                UriKind.Absolute);
+        var callback = CallbackOf(provider);
         session = await WriteAsync(session, session.State, null, provider, digest, results, cancellationToken);
         provider.Cookies.Clear();
         var client = NewClient(provider.Cookies);
@@ -619,7 +615,7 @@ public sealed partial class GlassRepairEstimateGateway(
 
         var held = session.State == GlassRepairEstimateSessionState.AwaitingImport
             || (session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown
-                && results.Xml is not null);
+                && results.Source() is not null);
         var claimed = (refetch
                 || session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown)
             && results.CallbackQueryDigest is not null;
@@ -817,7 +813,7 @@ public sealed partial class GlassRepairEstimateGateway(
         // The accepted return is relayed once. The mark goes into the same
         // claim that precedes the relay, so a claim whose relay never began is
         // told apart from one whose answer was lost.
-        var relay = results.Xml is null && !results.RelayStarted && provider.ReturnQuery is not null;
+        var relay = results.Source() is null && !results.RelayStarted && provider.ReturnQuery is not null;
         if (relay)
         {
             if (!string.Equals(Sha256Hex(provider.ReturnQuery!), results.CallbackQueryDigest, StringComparison.Ordinal))
@@ -834,7 +830,7 @@ public sealed partial class GlassRepairEstimateGateway(
             provider, digest, results, cancellationToken);
         try
         {
-            if (results.Xml is not null)
+            if (results.Source() is not null)
             {
                 // A retention whose answer was lost already has its identities,
                 // so this asks custody what became of it instead of offering the
@@ -892,7 +888,7 @@ public sealed partial class GlassRepairEstimateGateway(
         }
 
         return await ExportAsync(
-            actor, session, provider, callbackDigest, results, client, ereId, cancellationToken);
+            actor, session, provider, callbackDigest, results, client, ereId, vehicleProved: false, cancellationToken);
     }
 
     /// <summary>
@@ -934,7 +930,7 @@ public sealed partial class GlassRepairEstimateGateway(
         }
 
         return await ExportAsync(
-            actor, session, provider, callbackDigest, results, lookup, lookupEre, cancellationToken);
+            actor, session, provider, callbackDigest, results, lookup, lookupEre, vehicleProved: true, cancellationToken);
     }
 
     /// <summary>
@@ -1062,7 +1058,9 @@ public sealed partial class GlassRepairEstimateGateway(
     /// produced, download it, read it, reconcile it against the vehicle this
     /// session launched for, retain both artifacts and land the estimate.
     /// Nothing here writes at the provider, which is what lets a lost answer
-    /// be looked up again instead of relayed again.
+    /// be looked up again instead of relayed again. A placeholder is asked
+    /// for its export once, and with none its calculation sheet is read from
+    /// the estimator (<see cref="CalculationSheetAsync"/>).
     /// </summary>
     private async Task<GlassRepairEstimateSession> ExportAsync(
         ActionActor actor,
@@ -1072,13 +1070,20 @@ public sealed partial class GlassRepairEstimateGateway(
         Results results,
         GlassMvaClient client,
         string ereId,
+        bool vehicleProved,
         CancellationToken cancellationToken)
     {
         byte[] exported;
         try
         {
-            var link = await StageAsync(session, "WaitForExport", () => client.WaitForExportAsync(cancellationToken));
+            var link = await StageAsync(session, "WaitForExport", () => client.WaitForExportAsync(
+                once: provider.Placeholder, cancellationToken));
             exported = await StageAsync(session, "DownloadExport", () => client.DownloadExportAsync(link, cancellationToken));
+        }
+        catch (GlassMvaStageException none) when (provider.Placeholder && none.FailureCode == GlassFailure.ExportNone)
+        {
+            return await CalculationSheetAsync(
+                actor, session, provider, callbackDigest, results, client, ereId, vehicleProved, cancellationToken);
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
@@ -1158,21 +1163,132 @@ public sealed partial class GlassRepairEstimateGateway(
         }
         catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
         {
-            // Custody refused or could not be reached. Glass's already has the
-            // export and the relay is not made again, so the outcome is the
-            // uncertain one a lookup resolves: Resume signs in again and
-            // fetches the export, and custody answers the same identities.
-            // Nothing is reported as interrupted: something was wrong.
-            LogCustodyFailed(logger, session.Id, session.CaseId, failure);
-            results.Xml = null;
-            results.Pdf = null;
+            return await CustodyFailedAsync(session, failure, provider, callbackDigest, results, cancellationToken);
+        }
+
+        return await FinishAsync(actor, session, provider, callbackDigest, results, cancellationToken);
+    }
+
+    /// <summary>
+    /// Custody refused or could not be reached. Glass's already has the
+    /// estimate and the relay is not made again, so the outcome is the
+    /// uncertain one a lookup resolves: Resume signs in again and fetches
+    /// the export or the sheet, and custody answers the same identities.
+    /// Nothing is reported as interrupted: something was wrong.
+    /// </summary>
+    private Task<GlassRepairEstimateSession> CustodyFailedAsync(
+        GlassRepairEstimateSession session,
+        Exception failure,
+        ProviderState provider,
+        string callbackDigest,
+        Results results,
+        CancellationToken cancellationToken)
+    {
+        LogCustodyFailed(logger, session.Id, session.CaseId, failure);
+        results.Xml = null;
+        results.Pdf = null;
+        return SettleAsync(
+            session,
+            new GlassMvaStageException(GlassFailure.CustodyFailed, outcomeUnknown: true, failure.GetType().Name),
+            provider,
+            callbackDigest,
+            results,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// A placeholder's estimate, read from the estimator. Glass's publishes
+    /// no export for an estimate held on an unqualified vehicle, but the
+    /// estimator prints its calculation sheet (operator, 23 November 2026,
+    /// R1233; issue 1928). The stock vehicle is proved and selected again
+    /// unless a lookup has just done so, and the estimate is started as the
+    /// portal reopens one, <c>ere_id</c> 0 on the vehicle, which answers the
+    /// estimate that vehicle holds; only one of the session's own is opened.
+    /// The sheet is read by the reader a supplied Glass's sheet is imported
+    /// with and reconciled by the placeholder rule, then retained as the
+    /// session's PDF and imported in the export's place.
+    /// </summary>
+    /// <remarks>
+    /// Whatever stops the proof or the start leaves the session Unknown, as a
+    /// lookup's refusal does. A sheet that cannot be fetched or read is a
+    /// Failed session under the export's own codes, so the owner can fetch it
+    /// again: the estimate is saved at Glass's and nothing was written there.
+    /// </remarks>
+    private async Task<GlassRepairEstimateSession> CalculationSheetAsync(
+        ActionActor actor,
+        GlassRepairEstimateSession session,
+        ProviderState provider,
+        string callbackDigest,
+        Results results,
+        GlassMvaClient client,
+        string ereId,
+        bool vehicleProved,
+        CancellationToken cancellationToken)
+    {
+        var vehicleId = provider.MvaVehicleId
+            ?? throw new InvalidOperationException(
+                "The Glass's session has no vehicle to read a calculation sheet for, so its outcome stays for reconciliation.");
+        GlassEstimateLaunch launch;
+        try
+        {
+            if (!vehicleProved)
+            {
+                await RequireSessionVehicleAsync(session, provider, client, vehicleId, cancellationToken);
+                await StageAsync(session, "SelectOnly", () => client.SelectOnlyAsync(vehicleId, cancellationToken));
+            }
+            launch = await StageAsync(session, "EstimatorUrlIssued", () => client.StartEstimateAsync(
+                "0", CallbackOf(provider), EstimateIdsOf(provider, ereId), cancellationToken));
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return await SettleUnknownAsync(
+                session, AsFailure(failure), provider, callbackDigest, results, cancellationToken);
+        }
+
+        byte[] sheet;
+        try
+        {
+            sheet = await StageAsync(session, "CalculationSheet", () => NewSheetClient().DownloadAsync(
+                launch.EstimatorUrl, cancellationToken));
+            var export = PdfEstimateDocumentParser.ReadGlassSheet(sheet);
+            RequireSameVehicle(export, provider);
+            LogPlaceholderReturn(
+                logger,
+                session.Id,
+                session.CaseId,
+                export.Identity.TypeNumber ?? "absent",
+                string.IsNullOrWhiteSpace(export.Identity.RegistrationPlate) ? "absent" : "case",
+                export.Identity.Mileage is null or 0 ? "absent" : "case");
+        }
+        catch (EstimateParseRejectedException rejection)
+        {
             return await SettleAsync(
+                session, UnreadableExport(rejection, provider), provider, callbackDigest, results, cancellationToken);
+        }
+        catch (Exception failure)
+            when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
+        {
+            return await SettleAsync(
+                session, AsFailure(failure), provider, callbackDigest, results, cancellationToken);
+        }
+
+        try
+        {
+            results.Pdf = await StageAsync(session, "RetainArtifact", () => RetainAsync(
+                actor,
                 session,
-                new GlassMvaStageException(GlassFailure.CustodyFailed, outcomeUnknown: true, failure.GetType().Name),
-                provider,
-                callbackDigest,
-                results,
-                cancellationToken);
+                PdfOccurrenceIdentity(session.Id),
+                $"{session.OperationKey}:pdf",
+                $"glass-estimate-{ereId}.pdf",
+                "application/pdf",
+                sheet,
+                SeriesIdentity(ereId, "pdf"),
+                cancellationToken));
+        }
+        catch (Exception failure) when (!cancellationToken.IsCancellationRequested)
+        {
+            return await CustodyFailedAsync(session, failure, provider, callbackDigest, results, cancellationToken);
         }
 
         return await FinishAsync(actor, session, provider, callbackDigest, results, cancellationToken);
@@ -1233,11 +1349,9 @@ public sealed partial class GlassRepairEstimateGateway(
         Results results,
         CancellationToken cancellationToken)
     {
-        if (results.Xml is null)
-        {
-            throw new InvalidOperationException(
+        var source = results.Source()
+            ?? throw new InvalidOperationException(
                 "A Glass's session cannot be imported before its export has been retained.");
-        }
         if (Failed(results.Xml) || Failed(results.Pdf))
         {
             return await SettleAsync(
@@ -1248,7 +1362,7 @@ public sealed partial class GlassRepairEstimateGateway(
                 results,
                 cancellationToken);
         }
-        if (!Confirmed(results.Xml) || (results.Pdf is not null && !Confirmed(results.Pdf)))
+        if (!Confirmed(source) || (results.Pdf is not null && !Confirmed(results.Pdf)))
         {
             // The artifacts are recorded with the identities custody gave them,
             // so a later resume asks custody what happened instead of offering
@@ -1283,11 +1397,11 @@ public sealed partial class GlassRepairEstimateGateway(
                     session.CaseId,
                     provider.CaseVersion,
                     provider.LeaseToken,
-                    results.Xml.OccurrenceId
+                    source.OccurrenceId
                         ?? throw new InvalidOperationException(
                             "A retained Glass's export names no Case occurrence, so it cannot be imported."),
-                    results.Xml.VersionId!.Value,
-                    results.Xml.Sha256!,
+                    source.VersionId!.Value,
+                    source.Sha256!,
                     $"{session.OperationKey}:import",
                     Name: string.Empty)
                 {
@@ -1448,6 +1562,9 @@ public sealed partial class GlassRepairEstimateGateway(
             options,
             cookies,
             timeProvider);
+
+    private GlassCalculationSheetClient NewSheetClient() =>
+        new(httpClientFactory.CreateClient(GlassRepairEstimateOptions.HttpClientName), options, timeProvider);
 
     private async Task<PerUserExternalCredentialMaterial> RequireCredentialAsync(
         ActionActor actor, CancellationToken cancellationToken) =>
@@ -1656,6 +1773,19 @@ public sealed partial class GlassRepairEstimateGateway(
         provider.EstimatorUrl = launch.EstimatorUrl.AbsoluteUri;
     }
 
+    /// <summary>
+    /// The callback a session's estimate is started under again: the one its
+    /// launch minted, or the one it was prepared with when its estimator has
+    /// not opened yet.
+    /// </summary>
+    private static Uri CallbackOf(ProviderState provider) =>
+        provider.EstimatorUrl is { } estimatorUrl
+            ? PegasusCallbackOf(estimatorUrl)
+            : new Uri(
+                provider.PegasusCallback
+                    ?? throw new InvalidOperationException("The Glass's session names no callback to reopen under."),
+                UriKind.Absolute);
+
     /// <summary>The Pegasus callback a launch already minted, read back from its estimator URL.</summary>
     private static Uri PegasusCallbackOf(string estimatorUrl) =>
         Query(new Uri(estimatorUrl, UriKind.Absolute).Query, "caller") is { } caller
@@ -1829,7 +1959,18 @@ public sealed partial class GlassRepairEstimateGateway(
 
         public Artifact? Xml { get; set; }
 
+        /// <summary>
+        /// The calculation sheet: the one the export embeds, or the one read
+        /// from the estimator when a placeholder's estimate has no export.
+        /// </summary>
         public Artifact? Pdf { get; set; }
+
+        /// <summary>
+        /// The retained document the estimate is imported from: the export,
+        /// or the sheet alone when there is no export. A method, so it is
+        /// never written into the session's results.
+        /// </summary>
+        public Artifact? Source() => Xml ?? Pdf;
 
         /// <summary>
         /// The export Pegasus's reader refused, kept on the Case as a rejected
