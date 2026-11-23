@@ -83,7 +83,7 @@ the normal action for that record. Visuals follow
 
 **Kinds.** A closed Core list. An unknown kind is refused at creation. The
 five kinds are AI Proposal (`Estimate` in the code,
-[v41 A28](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)),
+[v41 A28](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
 Unidentified resolution, Query response, Unidentified-queue pass and
 Market Research (`MarketResearch` in the code and in the table below).
 Each kind is started either from the staff surface in the table or by the
@@ -122,7 +122,7 @@ files are retained. All kinds can also end in `Failed`, `Cancelled` or
 - `Failed`: the client reported failure with a reason; not re-queued
   automatically.
 - `Cancelled`: staff cancelled, with an optional reason
-  ([v41 A28](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)),
+  ([v41 A28](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
   or the Automation Actor cancelled with a reason. A
   taken job is cancelled at once, whichever client holds it, and the
   holder's next progress call is refused.

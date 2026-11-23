@@ -17,18 +17,8 @@ Refuses to write a table from evidence that does not cover the whole lane: a
 partial set of shards would under-record the classes the missing shards ran and
 push them onto one runner.
 
-Each `sql-integration N/6` job of the lanes' child pipeline keeps its shard's
-records as the artifact `test-shard-N`, under artifacts/test-shards/; the
-`test-shard-durations` job runs this script on all six and keeps the table it
-wrote as its own artifact (artifacts/test-shard-durations.json). A job's
-artifacts download from its page or with
-`glab api projects/:id/jobs/<job-id>/artifacts > artifacts.zip`; the job ids
-are listed by `glab api "projects/:id/pipelines/<child-pipeline-id>/jobs?per_page=100"`.
-
 .EXAMPLE
-# The six shards' records from one child pipeline's sql-integration jobs, then the table.
-$jobs = glab api "projects/:id/pipelines/<child-pipeline-id>/jobs?per_page=100" | ConvertFrom-Json | Where-Object name -like 'sql-integration *'
-foreach ($job in $jobs) { glab api "projects/:id/jobs/$($job.id)/artifacts" > "$($job.id).zip"; Expand-Archive "$($job.id).zip" -DestinationPath . -Force }
+gh run download <run-id> --dir artifacts/test-shards
 pwsh ./scripts/Update-TestShardDurations.ps1 -ShardCount 6
 
 .EXAMPLE

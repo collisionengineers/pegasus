@@ -1,23 +1,23 @@
 ---
 name: combine-prs
-description: Combine several merge requests (pull requests, PRs, MRs) into one target branch through a single integration branch and combined merge request, without overwriting, dropping or regressing any MR's work or the target's. Takes merge request numbers plus a target branch. It pins head SHAs, simulates the merge train, merges each MR with --no-ff, resolves conflicts as a union of intents, audits every file and line for lost work, opens one combined merge request and watches its CI. Use it whenever the user wants to merge, combine, batch, consolidate or "merge down" several PRs or MRs together. Typical phrasings are "merge PRs 12, 14 and 15 into dev", "merge !12, !14 and !15", "merge-all", "combine these PRs", "build an integration branch", "land these together", a merge train, stacked PRs or MRs to fold into one branch, or "merge everything green into dev without losing work", even if the word "combine" never appears. Not for merging a single merge request on its own, or for promoting or releasing one long-lived branch to another.
+description: Combine several GitHub pull requests into one target branch through a single integration branch and combined PR, without overwriting, dropping or regressing any PR's work or the target's. Takes PR numbers plus a target branch. It pins head SHAs, simulates the merge train, merges each PR with --no-ff, resolves conflicts as a union of intents, audits every file and line for lost work, opens one combined PR and watches its CI. Use it whenever the user wants to merge, combine, batch, consolidate or "merge down" several PRs together. Typical phrasings are "merge PRs 12, 14 and 15 into dev", "merge-all", "combine these PRs", "build an integration branch", "land these together", a merge train, stacked PRs to fold into one branch, or "merge everything green into dev without losing work", even if the word "combine" never appears. Not for merging a single PR on its own, for promoting or releasing one long-lived branch to another, or for non-GitHub hosts.
 ---
 
-# Combine MRs
+# Combine PRs
 
-Combine a set of merge requests (MRs, written `!N`) into one target branch
-through one integration branch and one combined MR. The goal is three guarantees, and
-every step below serves at least one:
+Combine a set of GitHub PRs into one target branch through one integration
+branch and one combined PR. The goal is three guarantees, and every step below
+serves at least one:
 
-1. **Nothing overwritten.** Each MR's change survives unless another MR in the
+1. **Nothing overwritten.** Each PR's change survives unless another PR in the
    set deliberately replaces it, and every replacement is written down.
-2. **Nothing lost.** Every MR's commits are in the result, and so is all of the
+2. **Nothing lost.** Every PR's commits are in the result, and so is all of the
    target's own work.
-3. **No regression.** The combination is built and tested as a whole. Per-MR
-   green runs do not cover the interaction between MRs.
+3. **No regression.** The combination is built and tested as a whole. Per-PR
+   green runs do not cover the interaction between PRs.
 
-Inputs: MR numbers, a target branch, and optionally an order, MRs to hold, and a
-project (`group/name`). Ask for the target if it is missing; do not guess `main`.
+Inputs: PR numbers, a target branch, and optionally an order, PRs to hold, and a
+repo (`owner/name`). Ask for the target if it is missing; do not guess `main`.
 
 ## Authority
 
@@ -28,22 +28,22 @@ Invoking this skill authorises:
 - fetching objects;
 - building the integration branch in its own worktree;
 - pushing **that new branch**;
-- opening **one** combined MR;
+- opening **one** combined PR;
 - committing fixes that only the combination needs on that branch;
 - once the user has asked for landing and it has landed: closing the issues
-  the landed constituent MRs link, each with a comment (Landing step 4).
+  the landed constituent PRs link, each with a comment (Landing step 4).
 
 It does **not** authorise any of these:
-- merging the combined MR, or pushing to the target branch;
-- force-pushing, rebasing or committing to a constituent MR's branch (ask first; see step 8);
-- closing MRs, closing an issue before its MR has landed, or deleting branches;
-- including an MR that the user, a label or the title says to hold.
+- merging the combined PR, or pushing to the target branch;
+- force-pushing, rebasing or committing to a constituent PR's branch (ask first; see step 8);
+- closing PRs, closing an issue before its PR has landed, or deleting branches;
+- including a PR that the user, a label or the title says to hold.
 
 Ask before each of those, and treat an approval as covering only the operation
 it names.
 
 Repo instructions override the defaults here. Read CLAUDE.md, AGENTS.md,
-CONTRIBUTING and any merge request template first. Look for branch naming, worktree
+CONTRIBUTING and any PR template first. Look for branch naming, worktree
 location, local test limits ("CI runs the tests, don't repeat them"), required
 approval wording, and verification scripts. Use the repo's verification tooling
 when it has some.
@@ -51,18 +51,18 @@ when it has some.
 ## Tools
 
 Scripts live in this skill's `scripts/` folder. Run them from inside the
-repository with Python 3. They use `git` (≥ 2.38) and an authenticated `glab`, and
-they print markdown you can paste into the MR body.
+repository with Python 3. They use `git` (≥ 2.38) and an authenticated `gh`, and
+they print markdown you can paste into the PR body.
 
-- `inventory.py --target <branch> <MR…>`: pins head SHAs, flags blockers, reads review feedback, detects stacks, maps file overlap and lists the register ids two MRs both claim. Exit code 2 means there is something to ask about.
+- `inventory.py --target <branch> <PR…>`: pins head SHAs, flags blockers, reads review feedback, detects stacks, maps file overlap and lists the register ids two PRs both claim. Exit code 2 means there is something to ask about.
 - `simulate_merge.py --target <sha> [--pairwise] N=<sha>…`: dry-runs the merge train in memory.
-- `renumber_register.py --head <sha> --target <sha> --label N`: after an MR's merge, moves the register ids it shares with an earlier row to the next free numbers and rewrites the citations on that MR's own lines only.
+- `renumber_register.py --head <sha> --target <sha> --label N`: after a PR's merge, moves the register ids it shares with an earlier row to the next free numbers and rewrites the citations on that PR's own lines only.
 - `audit_combined.py --target <sha> --tip HEAD --id-pattern 'R[1-9]\d*' N=<sha>…`: the lost-work audit; with the pattern a renumbered citation is REVIEW, not FAIL.
 
 References, read when the step points to them:
 - `references/conflict-patterns.md`: how to resolve each kind of conflict.
-- `references/github-traps.md`: CI and GitLab behaviours that bit earlier runs.
-- `references/pr-body-template.md`: the combined MR body.
+- `references/github-traps.md`: CI and GitHub behaviours that bit earlier runs.
+- `references/pr-body-template.md`: the combined PR body.
 
 ## Procedure
 
@@ -70,7 +70,7 @@ References, read when the step points to them:
 
 ```bash
 git fetch <remote>
-python <skill>/scripts/inventory.py --target <target> <MR numbers…>
+python <skill>/scripts/inventory.py --target <target> <PR numbers…>
 ```
 
 The pinned SHAs it prints are the identity of the work from here on. Every later
@@ -79,31 +79,31 @@ when someone pushes a fix. If a head moves, the audit would vouch for commits
 you never merged.
 
 Stop and ask the user when the inventory shows any of these:
-- an MR that is closed, merged or a draft;
+- a PR that is closed, merged or a draft;
 - a hold (label, title, or an earlier instruction in the conversation);
-- a base that is neither the target nor another MR in the set;
+- a base that is neither the target nor another PR in the set;
 - a fork head the user may not control;
 - a head that moved during the inventory.
 
-Read the **register id collisions** section. Every MR written from the same
+Read the **register id collisions** section. Every PR written from the same
 target appends its rulings with the next free number, so in a wave of
-several MRs the same `Rnnn` is claimed more than once; that is expected, not a
-blocker. The first MR in the order keeps its numbers; each later MR is
+several PRs the same `Rnnn` is claimed more than once; that is expected, not a
+blocker. The first PR in the order keeps its numbers; each later PR is
 renumbered right after its merge (step 5).
 
-Then read the **review feedback** and linked issues it lists. Each MR was
-written to address something. A combination that lands an MR with an
+Then read the **review feedback** and linked issues it lists. Each PR was
+written to address something. A combination that lands a PR with an
 unaddressed bug report, or short of its issue's scope, is a regression in
 disguise. For each unresolved thread or review, decide: already fixed, refuted
 (with the reason), or open. Report open ones to the user. Do not silently fix
-someone's MR inside the combination. Failing checks on an MR's own head are that
-MR's defects; note them now so they are not blamed on the combination later.
+someone's PR inside the combination. Failing checks on a PR's own head are that
+PR's defects; note them now so they are not blamed on the combination later.
 
 ### 2. Choose the order
 
 Use stacked parents before children (the inventory's order does this), then the
-user's order, then MR number. The file-overlap section shows which pairs will
-interact. Merging the MR that restructures a shared file before the MRs that
+user's order, then PR number. The file-overlap section shows which pairs will
+interact. Merging the PR that restructures a shared file before the PRs that
 make small edits to it usually gives smaller, clearer conflicts.
 
 ### 3. Simulate
@@ -127,62 +127,62 @@ the target:
 ```bash
 git worktree add --no-track -b <branch> <worktree-path> <target-sha>
 cd <worktree-path>
-git merge --no-ff -m "Merge MR !<N> (<head-ref>) into <branch>" <head-sha>   # one MR at a time, in order
+git merge --no-ff -m "Merge PR #<N> (<head-ref>) into <branch>" <head-sha>   # one PR at a time, in order
 ```
 
-Merge every MR's pinned head **unchanged**, each with its own `--no-ff` merge commit.
+Merge every PR's pinned head **unchanged**, each with its own `--no-ff` merge commit.
 
 Never squash, rebase or cherry-pick the constituents' commits. Keeping each
 head commit as an ancestor of the tip is what lets the audit prove inclusion,
-and what makes GitLab mark each MR "Merged" when the combination lands.
+and what makes GitHub mark each PR "Merged" when the combination lands.
 Rewritten commits lose both.
 
 Also never resolve with `-X ours/theirs` or a whole-file `checkout --ours/--theirs`.
-Each of those deletes one MR's work in that file, with no record.
+Each of those deletes one PR's work in that file, with no record.
 
 ### 5. Resolve conflicts as a union of intents
 
 When a merge stops, read `references/conflict-patterns.md` and follow it. In short:
 
-- Read what each side did and why: the diff from the merge base, the commit messages, and the MR body.
+- Read what each side did and why: the diff from the merge base, the commit messages, and the PR body.
 - Keep both changes.
 - Where one side rewrote a file and the other edited it, re-apply the edits onto the rewrite.
 - Keep ordered lists ordered, and renumber colliding sequence numbers.
 - Regenerate lockfiles and generated files rather than hand-merging them.
 - Preserve line endings.
 
-If two MRs genuinely want opposite things (one removes what the other relies on,
-and neither MR's purpose settles it), stop and ask the user. That is a product
+If two PRs genuinely want opposite things (one removes what the other relies on,
+and neither PR's purpose settles it), stop and ask the user. That is a product
 decision, not a merge mechanic.
 
 Record every resolution in the merge commit message: the file, what each side
-did, and what you kept. You will reuse these notes in the MR body.
+did, and what you kept. You will reuse these notes in the PR body.
 
 **A register id claimed twice** (`docs/rulings.md`, or another append-only
 numbered table) is resolved by keeping both rows and, once the merge commit
-exists, running the renumber script for the later MR:
+exists, running the renumber script for the later PR:
 
 ```bash
 python <skill>/scripts/renumber_register.py --head <head-sha> --target <target-sha> --label <N>
-git commit -am "fix: renumber !<N>'s register ids (R550=R559) after !<M>'s R550-R558"
+git commit -am "fix: renumber #<N>'s register ids (R550=R559) after #<M>'s R550-R558"
 ```
 
-It moves only that MR's new ids, to the next free numbers, and rewrites the
-citations on the lines that MR added, in every file; nothing anyone else wrote
-changes. Exit 3 lists the lines it left for you (a line two MRs both added, a
-range only partly this MR's). A stacked child passes `--base <parent-head>` and
+It moves only that PR's new ids, to the next free numbers, and rewrites the
+citations on the lines that PR added, in every file; nothing anyone else wrote
+changes. Exit 3 lists the lines it left for you (a line two PRs both added, a
+range only partly this PR's). A stacked child passes `--base <parent-head>` and
 `--map` for each pair its parent received. Paste the summary it prints into the
-MR body's "Merge resolution" section.
+PR body's "Merge resolution" section.
 
 ### 6. Check that the union holds together
 
 A merge with no textual conflicts can still be broken. In one earlier case two
-MRs were each green, but once both landed the target did not compile, because
-one MR deleted an interface member the other had started using.
+PRs were each green, but once both landed the target did not compile, because
+one PR deleted an interface member the other had started using.
 
-- For each MR that deletes or renames a symbol, file, route, option or setting, grep the tip for remaining uses, especially uses added by the other MRs.
+- For each PR that deletes or renames a symbol, file, route, option or setting, grep the tip for remaining uses, especially uses added by the other PRs.
 - Build, compile, typecheck or lint the combined tip **once**. If several agents are involved, one build at the tip replaces their per-branch builds. Pegasus: CI is the build; no local test that CI runs.
-- Leave the test suites to CI when the target's CI runs on MRs, unless the repo says otherwise or the user asks. Running locally what CI is about to run wastes the user's time.
+- Leave the test suites to CI when the target's CI runs on PRs, unless the repo says otherwise or the user asks. Running locally what CI is about to run wastes the user's time.
 
 ### 7. Audit for lost work
 
@@ -196,125 +196,121 @@ such line must match a renumber commit from step 5. Leave the pattern out for a
 repository with no numbered register.
 
 It checks:
-- every MR head and the target are ancestors of the tip;
-- files only one MR touched are byte-identical to that MR's head;
-- in shared files, every line each MR added is still there, and nothing an MR removed has come back;
+- every PR head and the target are ancestors of the tip;
+- files only one PR touched are byte-identical to that PR's head;
+- in shared files, every line each PR added is still there, and nothing a PR removed has come back;
 - deleted files stay deleted;
-- no target content vanished that no MR removed.
+- no target content vanished that no PR removed.
 
 It ignores whitespace and a trailing `,`/`;`, so appending to a list is not
 read as a loss.
 
 Every **FAIL** must be fixed or match a resolution you recorded (for example,
-"!1018's Reconcile form dropped because !1016 removed Reconcile"). Every
+"#1018's Reconcile form dropped because #1016 removed Reconcile"). Every
 **REVIEW** line, such as text written only in a merge resolution, must match a
 recorded resolution too. An unexplained item is work you lost by accident.
 Do not push until the audit is clean or fully explained.
 
 ### 8. Fix what breaks, in the right place
 
-- **The defect already exists at one MR's own head** (its CI fails there too, or a review found it): it belongs to that MR. Fixing it on the MR's branch keeps the MR correct on its own. Ask the user first, then push a normal (non-force) commit to that branch and merge the updated head into the integration branch with `--no-ff`. If the user would rather not touch the MR branch, commit the fix on the integration branch and say which MR it belongs to.
-- **The defect exists only in the combination** (an interaction): commit it on the integration branch as its own commit, naming the MRs involved (`fix: build the union of !12 and !15 …`).
+- **The defect already exists at one PR's own head** (its CI fails there too, or a review found it): it belongs to that PR. Fixing it on the PR's branch keeps the PR correct on its own. Ask the user first, then push a normal (non-force) commit to that branch and merge the updated head into the integration branch with `--no-ff`. If the user would rather not touch the PR branch, commit the fix on the integration branch and say which PR it belongs to.
+- **The defect exists only in the combination** (an interaction): commit it on the integration branch as its own commit, naming the PRs involved (`fix: build the union of #12 and #15 …`).
 
 If a constituent head moves for any reason, merge the new head in rather than
-rebuilding, and update the pinned SHA. If the **target** moves (another MR
+rebuilding, and update the pinned SHA. If the **target** moves (another PR
 landed while you worked), merge the new target SHA into the integration branch
 with `--no-ff`, resolve as in step 5, and re-run the audit with the new target
 as `--target`; against the old pin, the target's own new work would read as
 unexplained changes. After every fix, re-run the audit with the current pins.
 
-### 9. Push and open the combined MR
+### 9. Push and open the combined PR
 
 ```bash
 git push <remote> <branch>          # new branch only; never the target
-glab mr create --source-branch <branch> --target-branch <target> --title "…" --description "$(cat <file>)" --yes
+gh pr create --base <target> --head <branch> --title "…" --body-file <file>
 ```
 
 Write the body from `references/pr-body-template.md`. It includes the order
 table with pinned SHAs, review findings, merge resolutions, fixes, the audit
-output, verification, held MRs and linked issues. The constituent MRs rarely
+output, verification, held PRs and linked issues. The constituent PRs rarely
 get comments of their own, so this body is the durable record of what was
 combined and how.
 
 ### 10. Watch CI and report the first failure
 
-Poll the combined MR's checks and tell the user about the **first** failing
+Poll the combined PR's checks and tell the user about the **first** failing
 check as soon as it appears, with the job and the failing test or error. Do not
 wait for the whole run. The poller is `resolve-issue`'s
 `scripts/watch_checks.py` (same skills folder): run it once with `--once` to
 see real output, then in the background; it exits on the first failure with
-the job id, and exits 3 on a conflicting MR. A conflicting MR still gets a
-pipeline, so a conflict does not explain a missing one; read it from
-`has_conflicts` in `glab mr view N -F json`. See `references/github-traps.md`.
+the job id, and exits 3 on a conflicting PR. Before trusting "no checks yet",
+confirm the PR is mergeable: a conflicting PR runs no CI. A checkout that hangs
+about 5 minutes in is a stale merge ref, so close and reopen the PR. See
+`references/github-traps.md`.
 
-Fix failures by the rule in step 8, push, re-run the audit, and update the MR
+Fix failures by the rule in step 8, push, re-run the audit, and update the PR
 body. A flaky failure that also occurs on the target or on a constituent's own
 head is not caused by the combination. Say so, with the evidence, rather than
 "fixing" it.
 
 ### 11. Stop and report
 
-Stop once the combined MR is open, either with CI green or with the first
+Stop once the combined PR is open, either with CI green or with the first
 failure reported. Report:
-- the MR URL and the tip SHA;
+- the PR URL and the tip SHA;
 - the audit verdict, with the resolutions behind any FAIL or REVIEW item;
 - CI state;
 - open review findings;
 - anything held or excluded;
 - what landing will need;
-- which files and register ids the MRs collided on, so the next wave's dispatch
+- which files and register ids the PRs collided on, so the next wave's dispatch
   keeps issues that touch the same owner file with one agent.
 
 Do not merge without an explicit instruction.
 
 ## Landing (only when the user explicitly asks)
 
-1. Fetch and confirm that the combined MR's head SHA is the one CI tested and the
+1. Fetch and confirm that the combined PR's head SHA is the one CI tested and the
    audit covered. If anything was pushed since, re-run the audit and wait for CI.
    List the migration files the combined range adds under
    `src/Pegasus.Infrastructure/Persistence/Migrations/` with their class
    (engineering §Migrations, R605): landing on `dev` makes them the next
    release's migration, and a non-additive one needs the destructive route and
    its approved window.
-2. Land with a merge commit (`glab mr merge M`; the project forbids squash, so
-   do not pass `--squash` or `--rebase`), or fast-forward the target
+2. Land with a merge commit (`gh pr merge M --merge`), or fast-forward the target
    to the tested tip if the repo does that. A fast-forward must be a lease-guarded,
    non-forced push of exactly that SHA. Never squash or rebase, because the
    constituents would stay "Closed", not "Merged", and their commits would no longer
    be provably included.
 3. Fetch, then confirm:
-   - each constituent MR reads `merged` (`glab mr view N -F json`, field `state`);
+   - each constituent PR reads `MERGED` (`gh pr view N --json state`);
    - each head is an ancestor of the target.
 
-   A stacked MR whose base was not the target stays open. Close it with a
-   comment naming the combined MR, the merge SHA and the ancestry proof.
+   A stacked PR whose base was not the target stays open. Close it with a
+   comment naming the combined PR, the merge SHA and the ancestry proof.
    Record the merge SHA; step 4's comments cite it.
-4. Close the issues the landed MRs link. Closing keywords only fire on the
+4. Close the issues the landed PRs link. Closing keywords only fire on the
    default branch, so on any other target this step is the only thing that
-   closes them. For each constituent MR, re-read its links at landing time:
+   closes them. For each constituent PR, re-read its links at landing time:
 
    ```bash
-   glab mr view N -F json --jq '.description'
+   gh pr view N --json closingIssuesReferences --jq '.closingIssuesReferences[].number'
    ```
 
-   Read the `Closes #I` lines from the description; for a target other than
-   the default branch, `glab mr issues N` is empty.
-
-   For each issue: confirm the MR reads merged and its head is an ancestor of
+   For each issue: confirm the PR reads MERGED and its head is an ancestor of
    the target (step 3), confirm the issue is still open, and check no other
-   still-open MR also links it (`glab mr list --search "#<issue>"` lists open MRs).
+   still-open PR also links it (`gh pr list --state open --search "<issue> in:body"`).
    Then close it with the evidence:
 
    ```bash
-   glab issue note <I> -m "Fixed by !N, landed in <target> via !M (merge <sha>)."
-   glab issue close <I>
+   gh issue close <I> --comment "Fixed by #N, landed in <target> via #M (merge <sha>)."
    ```
 
-   Skip, and report, an issue that is already closed or that another open MR
-   still claims; it is not this landing's to settle. An MR whose body has an
+   Skip, and report, an issue that is already closed or that another open PR
+   still claims; it is not this landing's to settle. A PR whose body has an
    issue number but no closing keyword links nothing: list those from the
    body (`#\d+`) and ask the user before closing them. Leave branch and
    worktree cleanup for a separate, approved pass.
 
-Never close a constituent MR before the combined MR has landed. Until then it
+Never close a constituent PR before the combined PR has landed. Until then it
 is the fallback.

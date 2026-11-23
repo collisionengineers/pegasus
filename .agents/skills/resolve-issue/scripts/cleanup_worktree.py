@@ -6,17 +6,15 @@ Usage:
     python cleanup_worktree.py --pr 1137 --worktree ../pegasus-worktrees/my-slug --dry-run
 
 Run it from the main checkout. It refuses unless all of these hold:
-- the merge request is opened (or merged), its source branch is the worktree's
-  branch and its head SHA equals the worktree's HEAD, so the commits being
-  thrown away locally are exactly the ones GitLab holds;
+- the PR is OPEN (or MERGED) and its head SHA equals the worktree's HEAD, so the
+  commits being thrown away locally are exactly the ones GitHub holds;
 - the worktree has no tracked or untracked changes;
 - the worktree is a linked worktree, not the main checkout;
 - the branch is not checked out anywhere else.
 
 Then: `git worktree remove <path>` and `git branch -d <branch>`. The branch
-stays on the remote for the merge request. Ignored files under the worktree
-(for example `artifacts/`) are deleted with it, so copy out anything worth
-keeping first.
+stays on the remote for the PR. Ignored files under the worktree (for example
+`artifacts/`) are deleted with it, so copy out anything worth keeping first.
 
 Exit codes: 0 = removed (or would be, with --dry-run); 1 = refused; 2 = error.
 """
@@ -27,7 +25,6 @@ import json
 import os
 import subprocess
 import sys
-from urllib.parse import quote
 
 
 def run(args: list[str], cwd: str | None = None) -> tuple[int, str, str]:
@@ -37,12 +34,12 @@ def run(args: list[str], cwd: str | None = None) -> tuple[int, str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--pr", type=int, required=True, help="merge request number (!N)")
+    parser.add_argument("--pr", type=int, required=True)
     parser.add_argument("--worktree", required=True, help="path of the worktree to remove")
-    parser.add_argument("--repo", help="group/name; defaults to the current repository")
+    parser.add_argument("--repo", help="owner/name; defaults to the current repository")
     parser.add_argument("--dry-run", action="store_true")
     opts = parser.parse_args()
-    project = "projects/" + (quote(opts.repo, safe="") if opts.repo else ":id")
+    repo_args = ["--repo", opts.repo] if opts.repo else []
 
     path = os.path.abspath(opts.worktree)
     if not os.path.isdir(path):
@@ -82,19 +79,19 @@ def main() -> int:
         print(status.strip())
         return 1
 
-    code, out, err = run(["glab", "api", f"{project}/merge_requests/{opts.pr}"])
+    code, out, err = run(["gh", "pr", "view", str(opts.pr), *repo_args, "--json", "state,headRefOid,headRefName,url"])
     if code != 0:
         print(out + err)
         return 2
-    mr = json.loads(out)
-    if mr["state"] not in {"opened", "merged"}:
-        print(f"refused: merge request !{opts.pr} is {mr['state']}")
+    pr = json.loads(out)
+    if pr["state"] not in {"OPEN", "MERGED"}:
+        print(f"refused: PR #{opts.pr} is {pr['state']}")
         return 1
-    if mr["source_branch"] != branch:
-        print(f"refused: merge request !{opts.pr} source branch is {mr['source_branch']}, the worktree is on {branch}")
+    if pr["headRefName"] != branch:
+        print(f"refused: PR #{opts.pr} head branch is {pr['headRefName']}, the worktree is on {branch}")
         return 1
-    if mr["sha"] != head:
-        print(f"refused: merge request !{opts.pr} head is {mr['sha'][:12]} but the worktree HEAD is {head[:12]}; push or reconcile first")
+    if pr["headRefOid"] != head:
+        print(f"refused: PR #{opts.pr} head is {pr['headRefOid'][:12]} but the worktree HEAD is {head[:12]}; push or reconcile first")
         return 1
 
     # Traditional --ignored names a wholly ignored directory once (`!! bin/`), not every file in it.
@@ -106,7 +103,7 @@ def main() -> int:
     if ignored_lines:
         print(f"note: {len(ignored_lines)} ignored path(s) under the worktree will be deleted with it, e.g. {ignored_lines[0][3:]}")
 
-    print(f"Merge request !{opts.pr} {mr['state']} at {head[:12]} == worktree {branch}; worktree clean.")
+    print(f"PR #{opts.pr} {pr['state']} at {head[:12]} == worktree {branch}; worktree clean.")
     if opts.dry_run:
         print(f"dry run: would run `git worktree remove {path}` and `git branch -d {branch}`")
         return 0
@@ -117,13 +114,13 @@ def main() -> int:
         return 2
     code, out, err = run(["git", "branch", "-d", branch])
     if code != 0:
-        # The branch's commits are on the remote and in the merge request; -d refuses only
+        # The branch's commits are on the remote and in the PR; -d refuses only
         # because the integration branch does not contain them yet.
         code, out, err = run(["git", "branch", "-D", branch])
         if code != 0:
             print(out + err)
             return 2
-    print(f"removed worktree {path} and local branch {branch}; origin/{branch} remains for merge request !{opts.pr}")
+    print(f"removed worktree {path} and local branch {branch}; origin/{branch} remains for PR #{opts.pr}")
     return 0
 
 

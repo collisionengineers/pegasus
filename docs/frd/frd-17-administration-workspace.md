@@ -12,7 +12,7 @@
   composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
-  ([v41 A14](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+  ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
 - Workflow configuration is one panel per concern, each with its own Save:
@@ -55,11 +55,11 @@ is on it in every deployment, so the page is always listed. The former
 `/Administration/AiJobs` address redirects to it.
 There are no separate Principal or Claim Source areas. The hub's cards are its
 navigation, so it shows no side navigation and its cards carry no description
-([v41 A1](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A1](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 Every consequential change (role, account state, principal credential,
 automation stop or start) enters permanent history
-([v41 A29](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A29](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Stop or Start automation is one transaction: the client's grant, Stop's
 release of every lease Automation holds and the history row commit together,
 so a failure changes nothing and the page says the change was not accepted
@@ -67,7 +67,7 @@ so a failure changes nothing and the page says the change was not accepted
 Administration pages perform Save, Enable, Disable, Delete, Remove, Clear and
 Stop on the click, with no confirmation dialog; Delete access alone confirms
 first (operator, 15 October 2026,
-[v41](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/plan-2026-10-15.md)).
+[v41](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/plan-2026-10-15.md)).
 
 Contact, staff-account and mailbox Settings load their current values and
 expected version with editing available immediately. Glass's credentials,
@@ -81,7 +81,7 @@ Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.mail`, `automation.jobs`, `automation.send`) renders as a plain
 label (Cases, Received files, Documents, Assessment, Mail, AI jobs, Sending).
 The underlying key is kept only as a hover title
-([v41 A23](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A23](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 `automation.send` is the sending scope
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)); its label
 Sending stands as it is (29 October 2026; R531).
@@ -91,10 +91,10 @@ Sending stands as it is (29 October 2026; R531).
 The **Staff accounts & roles** area carries **Reset password** with Force
 logout as small actions in the Settings dialog's body, and Disable and Delete
 apart at its foot
-([v41 A10](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A10](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 Pegasus generates a temporary password and reveals it
 once, on the redisplayed page, in a panel at the top of the right-hand column
-([v41 A2](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)),
+([v41 A2](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
 to the Administrator. The rule is owned by
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts).
 Administrators may configure sign-off flags, qualifications and signature
@@ -123,7 +123,7 @@ Contacts list. An active Principal's page is tabs: Contact, Report
 generation, Report sending, Salvage matrix, Default inspection location and
 Principal API, each its own address (`?tab=`) so the tabs work without
 script, with Replace code in the head of the Contact tab
-([v41 A3](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
 Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
@@ -184,7 +184,7 @@ the field and the server. The directory rules are owned by
 
 **Workflow configuration** is one panel per concern, each saving only its own
 settings with a **Save** in its head, two columns from 1441px (operator, 10
-November 2026, approving the [v50 round](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/tree/design/v50-config-and-photo-capture/v50_planning) as drawn;
+November 2026, approving the [v50 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v50-config-and-photo-capture/v50_planning) as drawn;
 [R910](../rulings.md)):
 
 - **Required before Review**: the versioned instruction- and
@@ -256,7 +256,7 @@ panels:
 the staff replies an Administrator may change. Only an Administrator may open
 it or save a template. It lists one row per template: its name, who last
 changed it and when (**Built-in wording** until it is saved,
-[v41 A19](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)),
+[v41 A19](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)),
 and **Edit**. The templates are the Triage outcome reply
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)), the
 Case report delivery
@@ -381,7 +381,7 @@ principal, from, to), paging, and a row dialog with the retained original,
 Open message where it came by e-mail, the processing evidence and the
 technical actions that apply
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions);
-[v41 A24](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+[v41 A24](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 ### Management Reports
 
@@ -399,7 +399,7 @@ holds Engineer activity (MI-01); Principals holds Reports by Principal and By
 month (MI-02), Outcomes (MI-06) and Turnaround (MI-03); Queues holds Queues
 (MI-05); Case list holds the Case list (MI-04). Each report has its own
 **Download CSV** in its head. No MI label is drawn
-([v41 A26](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v41_planning/notes/v41-notes.md)).
+([v41 A26](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 
 Reports are counted by sending, never by Generate
 ([R673](../rulings.md)). A report is one work's report: the Inspection

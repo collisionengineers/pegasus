@@ -25,39 +25,79 @@ environment.
 
 ### Branch and tag protection
 
-GitLab protected branches and a protected tag guard the process branches
-(R691 of 3 November 2026, recreated on GitLab on 15 November 2026, R1057):
-`dev` takes no direct push and merges only a merge request whose
-`repository-check` pipeline is green; `main` takes no merge and only a
-Maintainer's push; a `v*` tag is created only by a Maintainer. Force-push is
-off on both branches. The one Maintainer is the operator's account, the
-account the release pushes from, so the rule in `AGENTS.md` that agents never
-push `dev` or `main` stays a procedural one: GitLab cannot tell an agent from
-the operator at the same keyboard. The settings live in GitLab, not in the
-repository; this section is their specification, so a lost one is recreated
-from it:
+Three repository rulesets guard the process branches (R691, 3 November 2026):
+`dev` requires a pull request and the green `repository-check` jobs; `main`
+and the `v*` tags accept no push except from a bypass actor. The one bypass
+actor is the repository-admin role, the operator's account the release pushes
+from, so the rule in `AGENTS.md` that agents never push `dev` or `main` stays
+a procedural one: a ruleset cannot tell an agent from the operator at the same
+keyboard. The rulesets live in GitHub, not in the repository; this section is
+their specification, so a lost one is recreated from it with
+`gh api -X POST repos/collisionengineers/pegasus/rulesets --input <file>`.
+The release preflight reads them back (`--- Protection ---`) and warns when
+`dev` or `main` has no active ruleset of that name; by hand:
+`gh api repos/collisionengineers/pegasus/rulesets --jq '.[] | [.name, .target, .enforcement] | @tsv'`.
+A skipped lane counts as a passed check, so a documentation-only pull request
+is not blocked. The SQL lane is required through its one aggregate check,
+`sql-integration-result`, never through the shard names: a path-skipped
+matrix reports a single skipped `sql-integration` and no `sql-integration (N)`,
+so a required shard name waits for ever on a documentation-only pull request.
+(The ruleset created on 3 November 2026 named the six shards; it is updated to
+this specification with `gh api -X PUT repos/collisionengineers/pegasus/rulesets/26469537 --input <file>`.)
 
-```powershell
-glab api -X POST projects/:id/protected_branches -f name=dev -f push_access_level=0 -f merge_access_level=40 -f allow_force_push=false
-glab api -X POST projects/:id/protected_branches -f name=main -f push_access_level=40 -f merge_access_level=0 -f allow_force_push=false
-glab api -X POST projects/:id/protected_tags -f 'name=v*' -f create_access_level=40
-glab api -X PUT projects/:id -f only_allow_merge_if_pipeline_succeeds=true -f allow_merge_on_skipped_pipeline=false -f merge_method=merge -f squash_option=never -f remove_source_branch_after_merge=false
+```json
+{ "name": "dev", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/dev"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [
+    { "type": "deletion" }, { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": { "required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": { "strict_required_status_checks_policy": false, "required_status_checks": [
+      { "context": "changes" }, { "context": "invariants" }, { "context": "unit" }, { "context": "infrastructure" }, { "context": "classifier" },
+      { "context": "sql-integration-result" } ] } } ] }
 ```
 
-Access level 0 is "No one" and 40 is "Maintainers". The last line makes a
-merge wait for a green pipeline, refuses a merge request that has no
-pipeline, allows merge commits only and keeps the source branch. The release
-reads merge commit subjects, so the project's merge commit template
-(Settings, Merge requests) is `Merge %{local_reference} from
-%{source_branch}`, a blank line, then `%{title}`, which writes
-`Merge !<n> from <branch>`. The release preflight reads the protection back
-(`--- Protection ---`) and warns when `dev` or `main` is not protected; by
-hand: `glab api projects/:id/protected_branches`.
+```json
+{ "name": "main", "target": "branch", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
 
-A lane the changed paths do not need is not in the pipeline at all, so a
-documentation-only merge request is not blocked: its pipeline is `changes`,
-`invariants` and the `lanes` trigger, whose child pipeline holds
-`lanes-selected` alone.
+```json
+{ "name": "release tags", "target": "tag", "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "bypass_actors": [ { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" } ],
+  "rules": [ { "type": "creation" }, { "type": "deletion" }, { "type": "non_fast_forward" }, { "type": "update" } ] }
+```
+
+### GitLab mirror
+
+`gitlab.com/collisionengineers-group/pegasus` is a second copy of this
+repository's branches and tags, kept in case the GitHub account is suspended
+again as it was from 13 to 22 November 2026 (R1223). The
+[mirror workflow](../.github/workflows/mirror.yml) sends each pushed ref
+there. It forces nothing and deletes nothing, so a rewritten branch fails the
+run and a branch deleted here stays there. Issues and pull requests are not
+copied. A `!N` in a ruling or a merge subject of 15 to 22 November 2026 is a
+GitLab merge request, readable there; its CI and Issues are switched off.
+
+<a id="ci-runner-and-image"></a>From 15 to 22 November 2026 CI ran on three
+GitLab runners on the operator's own machines (R1058, R1061, R1174), in an
+image built from `.gitlab/ci/Dockerfile`. They are unregistered and the
+section that described them is gone; the rows and records that link here keep
+their wording.
+
+The workflow authenticates with a write deploy key on the GitLab project
+whose private half is the Actions secret `GITLAB_MIRROR_SSH_KEY`. On GitLab,
+`dev`, `main` and the `v*` tags are protected and name that deploy key among
+those allowed to push or create. A lost key is replaced by generating a new
+pair, adding the public half with
+`glab api -X POST projects/88963702/deploy_keys -f title=<title> -f key=<public key> -F can_push=true`,
+allowing its id on the two protected branches and the protected tag, and
+setting the secret with `gh secret set GITLAB_MIRROR_SSH_KEY < <private key file>`.
+A mirror run that is refused on `dev` or `main` means the protection no longer
+names the key.
 
 ## Supported platform
 
@@ -81,10 +121,9 @@ Linux. ADR-0039 owns that choice; ADR-0007 retains the direct-terminal order
 and approval boundaries. No container image, registry or image tooling is part
 of the release.
 
-The CI lanes are owned by [the executable CI definition](../.gitlab-ci.yml)
-and run on the runner described under [CI runner and image](#ci-runner-and-image).
-Linux development is supported by these procedures; record the platform
-actually exercised.
+Hosted workflow runner choices and their evidence limits are owned by
+[the executable CI workflow](../.github/workflows/ci.yml). Linux development
+is supported by these procedures; record the platform actually exercised.
 
 ### Platform capability differences
 
@@ -145,50 +184,6 @@ For a longer checkout root, the first command must return `1` and the Git settin
 #### On Linux
 
 No configuration is required. The path limit is 4096 characters, so the tracked paths impose no constraint on the checkout root.
-
-### CI runner and image
-
-CI runs on GitLab runners on the operator's own machines, each with the Docker
-executor and the tag `pegasus`: `pegasus-wsl` in WSL on the box that hosts the
-test instance (R1058), `pegasus-s1m5c7p` in WSL on `desktop-s1m5c7p` (R1061)
-and `pegasus-a` on the Ubuntu machine `a` (R1174). Each takes one job at a time
-(`concurrent = 1` in `/etc/gitlab-runner/config.toml`): a SQL shard needs about
-6 GB with its SQL Server container, and two at once exhausted the first box's
-memory and swap on 15 November 2026. GitLab gives a queued job to whichever
-runner is free, so the six shards spread across them. The project's shared runners are
-switched off, so nothing runs anywhere else, and a runner works only while
-its machine is on.
-
-The runner's configuration carries two settings `.gitlab-ci.yml` relies on:
-
-- `volumes = ["/cache", "pegasus-ci-cache:/ci-cache"]`: the NuGet and npm
-  package folders, shared by every job. A runner without the volume restores
-  cold.
-- `service_memory = "2560m"`: the ceiling on each shard's SQL Server
-  container.
-
-Every job runs in the image `.gitlab/ci/Dockerfile` builds, held in the
-project's container registry. When the Dockerfile changes, build and push the
-next tag and move the tag in `.gitlab-ci.yml` and `.gitlab/ci/lanes.yml`:
-
-```powershell
-docker build -t registry.gitlab.com/collisionengineers-group/pegasus/ci:<n> .gitlab/ci
-docker push registry.gitlab.com/collisionengineers-group/pegasus/ci:<n>
-```
-
-Another runner, or a replacement, is created with
-`glab api -X POST user/runners -f runner_type=project_type -F project_id=<id> -f tag_list=pegasus`,
-registered with the token that call returns
-(`sudo gitlab-runner register --non-interactive --url https://gitlab.com --token <token> --executor docker --docker-image mcr.microsoft.com/dotnet/sdk:10.0-noble`),
-and given the two settings above and `concurrent` for its memory. It needs
-Linux on x86-64 with Docker and makes outbound connections only. A runner
-takes queued jobs the moment it registers, so create it with `-F paused=true`
-and unpause it once its machine holds the job image and the pinned SQL Server
-image; on a slow connection the pull otherwise spends a job's timeout, as it
-did for two jobs on 18 November 2026. Stream the image
-from a runner that holds it
-(`docker save <image> | gzip -1 | ssh <host> 'gunzip | sudo docker load'`,
-which keeps its tag) and `docker pull` the SQL Server digest there.
 
 ## Offline development profile
 
@@ -446,10 +441,10 @@ enabled on both. A mailbox row added earlier under the local resolver holds a
 local identity and fails its access check: disable it and add the address
 again.
 
-The instance runs `dev` by default (R681) and a branch or merge request head
+The instance runs `dev` by default (R681) and a branch or pull request head
 when the operator names it (R695). To move it, `Stop` the run, check out the
 revision with a clean tree (`git checkout dev && git pull --ff-only origin
-dev`, or `git fetch origin merge-requests/<n>/head && git checkout --detach
+dev`, or `git fetch origin pull/<n>/head && git checkout --detach
 FETCH_HEAD`), run `Initialize-LocalDevelopment.ps1`, and `Start -RunId
 <run-id>` with the same ports; the manifest's source and artifact evidence
 follow the new build, `--initialize-development` migrates the existing
@@ -536,13 +531,13 @@ action. Never manually repurpose these commands to remove another run,
 ## Locked restore, build, and test
 
 CI on the exact head is the evidence, and nothing it runs is repeated here.
-`.gitlab-ci.yml` decides the lanes from the paths a change set
+`.github/workflows/ci.yml` decides the lanes from the paths a change set
 touches: Markdown, `docs/`, the skills, the Python helper tests, the
 reference-data generator and the classifier agent are prose to the .NET lanes
 and run only the `invariants` checks; any other path runs the unit and SQL
-lanes; `infra/`, the migrations folder, the release scripts and the CI
-definition itself add the `infrastructure` job; the classifier agent adds its
-own. A file list that cannot be trusted runs every lane.
+lanes; `infra/`, the migrations folder, the release scripts and the workflow
+itself add the `infrastructure` job; the classifier agent adds its own. A
+file list the workflow cannot trust runs every lane.
 
 Read a hosted failure with `scripts/Get-CiStatus.ps1`, which prints the failing
 test names from the job log; a shard's log is served while its siblings are
@@ -558,7 +553,7 @@ dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category
 
 These commands are identical on both platforms; `pwsh` runs them either way.
 
-A [daily scheduled pipeline](../.gitlab-ci.yml) repeats this
+A [daily run](../.github/workflows/dependency-advisories.yml) repeats this
 locked restore against `dev` and raises one issue when it fails.
 
 The focused forms are below:
@@ -587,39 +582,34 @@ whole-repository verification. Leave `parallelAlgorithm` at its default `conserv
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
-Merge request CI distributes whole integration-test classes across six Linux jobs,
+PR CI distributes whole integration-test classes across six Linux runners,
 each with its own SQL Server container and the same four-class concurrency
 cap (R657). Case-page feature
 tests use independent classes rather than one shared partial test class.
 Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
 checks that every selected test is assigned exactly once. The shard count is
-set once in `.gitlab/ci/lanes.yml` (`parallel`); the partition verification and the duration
+set once in the workflow matrix; the partition verification and the duration
 refresh name the same number.
 
 Shards are dealt by recorded class duration from
 `scripts/test-shard-durations.json`, not by test count; a class the table does
 not name costs the median. Every complete CI run reports its per-shard test time
-and keeps that run's table as the artifact of its `test-shard-durations` job. A single
+and uploads that run's table as the `test-shard-durations` artifact. A single
 run is not a table: a class's time depends on what shared its shard, and varies
 from under half to over twice its median between runs. When the reported
 longest-over-shortest ratio drifts upward across several runs, combine at least
 three recent runs by per-class median:
 
 ```powershell
-$pipelines = glab api "projects/:id/pipelines?ref=dev&source=push&status=success&name=repository-check&per_page=8" | ConvertFrom-Json
-foreach ($pipeline in $pipelines) {
-    $child = (glab api "projects/:id/pipelines/$($pipeline.id)/bridges" | ConvertFrom-Json).downstream_pipeline.id
-    $job = glab api "projects/:id/pipelines/$child/jobs?per_page=100" | ConvertFrom-Json | Where-Object name -eq 'test-shard-durations'
-    $null = New-Item -ItemType Directory -Force "artifacts/durations/$($pipeline.id)"
-    glab api "projects/:id/jobs/$($job.id)/artifacts/artifacts/test-shard-durations.json" | Set-Content "artifacts/durations/$($pipeline.id)/test-shard-durations.json"
-}
+$runs = gh run list --workflow ci.yml --status success --limit 8 --json databaseId --jq '.[].databaseId'
+foreach ($run in $runs) { gh run download $run --name test-shard-durations --dir "artifacts/durations/$run" }
 ./scripts/Update-TestShardDurations.ps1 -Combine (Get-ChildItem artifacts/durations -Recurse -Filter *.json).FullName
 ```
 
-A table can also be built from one pipeline's shard records: download the
-artifacts of its `sql-integration` jobs (`test-shard-1` to `test-shard-6`) and
-run `Update-TestShardDurations.ps1 -ArtifactRoot <dir> -ShardCount 6 -Path <run>.json`.
+Runs from before the artifact existed can still contribute: download their
+`test-shard-*` artifacts and build a table from each with
+`Update-TestShardDurations.ps1 -ArtifactRoot <dir> -ShardCount 6 -Path <run>.json`.
 
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A
@@ -722,7 +712,7 @@ These are dated observations, not an evergreen inventory.
 - Read inputs immutably.
 - Do not rename, annotate, deduplicate, convert, repair, or otherwise modify source files in place.
 - The one writable place is `corpus/holding/`, which only the [`pegasus-corpus-holding`](../.agents/skills/pegasus-corpus-holding/SKILL.md) skill appends to. Promoting a file out of holding is a manual operator step.
-- Never upload corpus material to Azure, Box, GitLab, CI, public model services, or another external system without a new explicit instruction.
+- Never upload corpus material to Azure, Box, GitHub, CI, public model services, or another external system without a new explicit instruction.
 - Write manifests, extracted content, hashes, predictions, screenshots, and detailed reports beneath `artifacts/evaluation/`.
 - Commit only content-safe summaries: counts, aggregate outcomes, redacted identifiers, hashes, limitations, and small explicitly approved excerpts.
 - Never commit message bodies, source names, personal data, secret values, full email content, or case documents.

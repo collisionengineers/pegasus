@@ -1,6 +1,6 @@
 # Investigation comment
 
-Post one comment on the issue with `glab issue note <N> -m "$(cat <file>)"`.
+Post one comment on the issue with `gh issue comment <N> --body-file <file>`.
 Fill every section; write "None" rather than deleting a heading, so a reader
 can tell an empty section from a forgotten one. Keep it readable by the
 operator: plain sentences, file paths only where the reader must go there.
@@ -16,7 +16,7 @@ in one sentence.
 
 Trace the path the issue describes, as it is at the tip: entry point → policy
 owner → adapter/persistence → what the user sees. Say where the issue's own
-file:line claims still hold and where they have moved (name the MR that moved
+file:line claims still hold and where they have moved (name the PR that moved
 them). Separate **verified** facts (with the command or file read) from
 **assumed** ones.
 

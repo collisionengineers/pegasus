@@ -16,6 +16,7 @@ Use this reference only after the normal route fails or rollback is requested.
 | Runtime feature fails with SQL permission denial | Run the manifest-bound database bootstrap and compare the live runtime permission census before changing application code. |
 | App Insights is empty | Check `workspaceCapping.dataIngestionStatus`; compare usage with the currently configured daily cap. Use bounded `az webapp log tail` or the `AppServiceConsoleLogs` table when capped. |
 | Build output is locked | Identify the host holding the assembly, then run `dotnet build-server shutdown`; do not delete another task's output. |
+| GitHub checkout stalls on a stale merge ref | Close and reopen the affected PR. Re-running the same stale ref does not repair it. |
 
 ## Rollback
 

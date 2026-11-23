@@ -63,7 +63,7 @@ a second stylesheet. Keep the frame rules the notes state as numbers.
 ## Close-out
 
 - The planning folder stays in
-  [pegasus-design-archive](https://gitlab.com/collisionengineers-group/pegasus-design-archive).
+  [pegasus-design-archive](https://github.com/collisionengineers/pegasus-design-archive).
   At close-out its README states it is historical reference and that current
   behaviour is owned by the PRDs, FRDs and ADRs, as v26's does.
 - The FRD and ADR edits from "Documentation impact" land before or with the

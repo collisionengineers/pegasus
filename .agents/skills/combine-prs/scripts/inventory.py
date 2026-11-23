@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Inventory merge requests before combining them into one target branch.
+"""Inventory pull requests before combining them into one target branch.
 
-Pins each merge request's head SHA, fetches its objects, and reports what
-blocks or shapes the combination: state, draft, holds, conflicts, pipeline
-jobs, unresolved discussions, closing issues, stacks, ancestry between heads,
-and file overlap.
+Pins each PR's head SHA, fetches its objects, and reports what blocks or shapes
+the combination: state, draft, holds, mergeability, checks, review feedback,
+linked issues, stacks, ancestry between heads, and file overlap.
 
 Usage:
     python inventory.py --target dev 1016 1018 1019 1020
@@ -22,17 +21,33 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import quote
+
+# Every field the report reads, for all the pull requests in one request.
+PULL_REQUEST_FIELDS = """
+fragment PullRequestFields on PullRequest {
+  number title url state isDraft baseRefName headRefName headRefOid isCrossRepository
+  headRepositoryOwner { login } mergeable mergeStateStatus reviewDecision author { login }
+  labels(first: 100) { nodes { name } }
+  closingIssuesReferences(first: 100) { nodes { number } }
+  commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+    ... on CheckRun { name status conclusion }
+    ... on StatusContext { context state }
+  } } } } } }
+  reviewThreads(first: 100) {
+    nodes { isResolved isOutdated path line
+            comments(first: 1) { nodes { author { login } body } } }
+  }
+  reviews(first: 100) { nodes { author { login } state body } }
+  comments(first: 100) { nodes { author { login } body } }
+}
+"""
+FEEDBACK_KEYS = ("reviewThreads", "reviews", "comments")
 
 # A FETCH_HEAD line: <oid> TAB <not-for-merge or empty> TAB <branch 'x' | 'ref'> of <url>.
 FETCH_HEAD_LINE = re.compile(r"(?P<oid>\w+)\t[^\t]*\t(?P<branch>branch )?'(?P<ref>[^']+)' of ")
 
 HOLD_PATTERN = re.compile(r"\b(hold|do[ -]?not[ -]?merge|dnm|wip|blocked)\b", re.IGNORECASE)
-FAILED = {"failed", "canceled", "canceling"}
-# GitLab's default closing pattern, for this project's issues: "Closes #12", "fixes: #3, #4 and #5".
-CLOSING_KEYWORDS = re.compile(r"\b(?:clos(?:e[sd]?|ing)|fix(?:e[sd]|ing)?|resolv(?:e[sd]?|ing)|implement(?:s|ed|ing)?)"
-                              r":?\s+(?:issues?\s+)?(#\d+(?:(?:\s*,?\s+and\s+|\s*,?\s*)#\d+)*)", re.IGNORECASE)
+FAILED = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR"}
 
 
 def run(args: list[str], check: bool = True) -> str:
@@ -42,8 +57,8 @@ def run(args: list[str], check: bool = True) -> str:
     return result.stdout
 
 
-def glab_json(args: list[str]):
-    return json.loads(run(["glab", *args]))
+def gh_json(args: list[str]):
+    return json.loads(run(["gh", *args]))
 
 
 def one_line(text: str, limit: int) -> str:
@@ -51,64 +66,40 @@ def one_line(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def summarize_checks(jobs: list[dict]) -> tuple[str, list[str]]:
+def summarize_checks(rollup: list[dict]) -> tuple[str, list[str]]:
     passed, pending, failed = 0, 0, []
-    for job in jobs or []:
-        status = job.get("status") or ""
-        if status in FAILED:
-            failed.append(job.get("name") or "?")
-        elif status in {"success", "skipped"} or (status == "manual" and job.get("allow_failure")):
-            passed += 1
+    for item in rollup or []:
+        name = item.get("name") or item.get("context") or "?"
+        conclusion = (item.get("conclusion") or item.get("state") or "").upper()
+        status = (item.get("status") or "").upper()
+        if conclusion in FAILED:
+            failed.append(name)
+        elif (status and status != "COMPLETED") or conclusion in {"PENDING", "EXPECTED", ""}:
+            pending += 1
         else:
-            pending += 1  # created, waiting, preparing, pending, running, scheduled, or a blocking manual job
-    if not jobs:
+            passed += 1
+    if not rollup:
         return "none", []
     return f"{passed} ok / {pending} pending / {len(failed)} failed", failed
 
 
-def closing_issues(description: str | None) -> list[int]:
-    """The issue numbers the description closes with a closing keyword."""
-    return [int(n) for m in CLOSING_KEYWORDS.finditer(description or "") for n in re.findall(r"#(\d+)", m.group(1))]
+def pull_requests_query(numbers: list[int]) -> str:
+    """One query that answers for every pull request, each under the alias `pr<number>`."""
+    aliases = "\n".join(f"    pr{n}: pullRequest(number: {n}) {{ ...PullRequestFields }}" for n in dict.fromkeys(numbers))
+    return ("query($owner: String!, $name: String!) {\n"
+            f"  repository(owner: $owner, name: $name) {{\n{aliases}\n  }}\n}}\n{PULL_REQUEST_FIELDS}")
 
 
-def pipeline_jobs(project: str, pipeline_id: int) -> list[dict]:
-    """The pipeline's jobs, with each trigger job replaced by the jobs of the child pipeline it started."""
-    jobs = glab_json(["api", f"{project}/pipelines/{pipeline_id}/jobs?per_page=100", "--paginate"])
-    for bridge in glab_json(["api", f"{project}/pipelines/{pipeline_id}/bridges?per_page=100", "--paginate"]):
-        child = bridge.get("downstream_pipeline")
-        jobs.extend(pipeline_jobs(project, child["id"]) if child else [bridge])
-    return jobs
-
-
-def read_merge_request(project: str, number: int) -> dict:
-    """The merge request as GitLab answers it, with its discussions, closing issues and pipeline jobs added."""
-    path = f"{project}/merge_requests/{number}"
-    mr = glab_json(["api", path])
-    mr["discussions"] = glab_json(["api", f"{path}/discussions?per_page=100", "--paginate"])
-    # closes_issues is empty for a merge request whose target is not the default branch, so read the description too.
-    listed = {issue["iid"] for issue in glab_json(["api", f"{path}/closes_issues?per_page=100", "--paginate"])}
-    mr["closingIssues"] = sorted(listed | set(closing_issues(mr.get("description"))))
-    pipeline = mr.get("head_pipeline")
-    mr["jobs"] = pipeline_jobs(project, pipeline["id"]) if pipeline else []
-    return mr
-
-
-def review_feedback(mr: dict) -> tuple[list[list[dict]], list[dict]]:
-    """The unresolved discussions (each its notes) and the plain comments of anyone but the author."""
-    author = (mr.get("author") or {}).get("username")
-    threads, comments = [], []
-    for discussion in mr.get("discussions") or []:
-        notes = [n for n in discussion.get("notes") or [] if not n.get("system")]
-        if any(n.get("resolvable") for n in notes):
-            if any(n.get("resolvable") and not n.get("resolved") for n in notes):
-                threads.append(notes)
-        else:
-            comments.extend(n for n in notes if (n.get("author") or {}).get("username") != author)
-    return threads, comments
-
-
-def is_fork(mr: dict) -> bool:
-    return mr["source_project_id"] != mr["target_project_id"]
+def flatten(node: dict) -> dict:
+    """A pull request as the report reads it: the connections as lists, the review feedback under `feedback`."""
+    commit = (node["commits"]["nodes"] or [{}])[0].get("commit") or {}
+    contexts = ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes") or []
+    pr = {key: value for key, value in node.items() if key != "commits" and key not in FEEDBACK_KEYS}
+    pr["labels"] = node["labels"]["nodes"]
+    pr["closingIssuesReferences"] = node["closingIssuesReferences"]["nodes"]
+    pr["statusCheckRollup"] = contexts
+    pr["feedback"] = {key: node[key] for key in FEEDBACK_KEYS}
+    return pr
 
 
 def fetched_oids() -> dict[str, str]:
@@ -119,23 +110,23 @@ def fetched_oids() -> dict[str, str]:
     return {("refs/heads/" if m["branch"] else "") + m["ref"]: m["oid"] for m in matches}
 
 
-def containment_pairs(mrs: list[dict]) -> list[tuple[dict, dict]]:
-    """(contained, container) for each merge request whose head is inside the different head of another.
+def containment_pairs(prs: list[dict]) -> list[tuple[dict, dict]]:
+    """(contained, container) for each pull request whose head is inside the different head of another.
 
     One `git merge-base --independent` over the distinct heads names the ones no other head contains;
     only the rest can be contained, so only they are put to `--is-ancestor`, against the other heads.
     """
-    heads = list(dict.fromkeys(mr["sha"] for mr in mrs))
+    heads = list(dict.fromkeys(pr["headRefOid"] for pr in prs))
     independent = set(run(["git", "merge-base", "--independent", *heads]).split())
     inside = {a: {b for b in heads if b != a
                   and subprocess.run(["git", "merge-base", "--is-ancestor", a, b]).returncode == 0}
               for a in heads if a not in independent}
-    return [(a, b) for a in mrs for b in mrs if b["sha"] in inside.get(a["sha"], ())]
+    return [(a, b) for a in prs for b in prs if b["headRefOid"] in inside.get(a["headRefOid"], ())]
 
 
-def containment(mrs: list[dict]) -> list[str]:
-    """One line for each merge request whose head contains the different head of another."""
-    return [f"!{b['iid']} already contains !{a['iid']}'s head" for a, b in containment_pairs(mrs)]
+def containment(prs: list[dict]) -> list[str]:
+    """One line for each pull request whose head contains the different head of another."""
+    return [f"#{b['number']} already contains #{a['number']}'s head" for a, b in containment_pairs(prs)]
 
 
 def register_claims(base: str, head: str, register: str, row: re.Pattern) -> list[str]:
@@ -154,149 +145,148 @@ def register_claims(base: str, head: str, register: str, row: re.Pattern) -> lis
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("prs", nargs="+", type=int, metavar="MR",
-                        help="merge request numbers (!N), in the user's preferred order")
+    parser.add_argument("prs", nargs="+", type=int, help="PR numbers, in the user's preferred order")
     parser.add_argument("--target", required=True, help="target branch name, e.g. dev")
-    parser.add_argument("--remote", default="origin", help="remote that hosts the merge requests (default origin)")
-    parser.add_argument("--repo", help="group/name; default is the GitLab project of the current directory")
+    parser.add_argument("--remote", default="origin", help="remote that hosts the PRs (default origin)")
+    parser.add_argument("--repo", help="owner/name; default is the gh repo for the current directory")
     parser.add_argument("--json-out", help="also write the full inventory as JSON to this path")
     parser.add_argument("--register", default="docs/rulings.md",
-                        help="append-only register whose row ids the merge requests may both claim "
-                             "(default docs/rulings.md)")
+                        help="append-only register whose row ids the PRs may both claim (default docs/rulings.md)")
     parser.add_argument("--register-row", default=r"^\|\s*(R[1-9]\d*)\s*\|",
                         help=r"regex of a register row with the id as group 1 (default ^\|\s*(R[1-9]\d*)\s*\|)")
     opts = parser.parse_args()
     row_pattern = re.compile(opts.register_row)
 
-    project = "projects/" + (quote(opts.repo, safe="") if opts.repo else ":id")
-    repo = glab_json(["api", project])
-    full_name, default_branch = repo["path_with_namespace"], repo.get("default_branch")
+    repo = gh_json(["repo", "view", *([opts.repo] if opts.repo else []), "--json", "owner,name,defaultBranchRef"])
+    owner, name = repo["owner"]["login"], repo["name"]
+    default_branch = (repo.get("defaultBranchRef") or {}).get("name")
 
-    # The merge requests are read side by side, all before the fetch, so the fetch shows a head that
-    # moved after its read; then one fetch of the target and every head.
-    numbers = list(dict.fromkeys(opts.prs))
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        read = dict(zip(numbers, pool.map(lambda number: read_merge_request(project, number), numbers)))
+    # Two network calls whatever the number of pull requests: one query for all of them, taken
+    # first so the fetch shows a head that moved after it, then one fetch of the target and every head.
+    nodes = gh_json(["api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}",
+                     "-f", f"query={pull_requests_query(opts.prs)}"])["data"]["repository"]
     target_ref = f"refs/heads/{opts.target}"
-    run(["git", "fetch", "--quiet", opts.remote, target_ref, *(f"refs/merge-requests/{n}/head" for n in opts.prs)])
+    run(["git", "fetch", "--quiet", opts.remote, target_ref, *(f"refs/pull/{n}/head" for n in opts.prs)])
     oids = fetched_oids()
     target_sha = oids[target_ref]
 
-    mrs: list[dict] = []
+    prs: list[dict] = []
     blockers: list[str] = []
     for number in opts.prs:
-        mr = dict(read[number])
-        fetched = oids[f"refs/merge-requests/{number}/head"]
-        if fetched != mr["sha"]:
-            blockers.append(f"!{number}: head moved during inventory ({mr['sha'][:12]} -> {fetched[:12]}); rerun")
-        head = mr["sha"]
+        pr = flatten(nodes[f"pr{number}"])
+        fetched = oids[f"refs/pull/{number}/head"]
+        if fetched != pr["headRefOid"]:
+            blockers.append(f"#{number}: head moved during inventory ({pr['headRefOid'][:12]} -> {fetched[:12]}); rerun")
+        head = pr["headRefOid"]
         merge_base = run(["git", "merge-base", target_sha, head]).strip()
         behind, ahead = run(["git", "rev-list", "--left-right", "--count", f"{target_sha}...{head}"]).split()
-        mr["mergeBase"] = merge_base
-        mr["ahead"], mr["behind"] = int(ahead), int(behind)
-        mr["changedFiles"] = [f for f in run(["git", "diff", "--name-only", "--no-renames", merge_base, head]).splitlines() if f]
-        mr["checkSummary"], mr["failedChecks"] = summarize_checks(mr["jobs"])
-        mr["registerIds"] = (register_claims(merge_base, head, opts.register, row_pattern)
-                             if opts.register in mr["changedFiles"] else [])
-        mrs.append(mr)
+        pr["mergeBase"] = merge_base
+        pr["ahead"], pr["behind"] = int(ahead), int(behind)
+        pr["changedFiles"] = [f for f in run(["git", "diff", "--name-only", "--no-renames", merge_base, head]).splitlines() if f]
+        pr["checkSummary"], pr["failedChecks"] = summarize_checks(pr["statusCheckRollup"])
+        pr["registerIds"] = (register_claims(merge_base, head, opts.register, row_pattern)
+                             if opts.register in pr["changedFiles"] else [])
+        prs.append(pr)
 
-    by_head_ref = {mr["source_branch"]: mr for mr in mrs if not is_fork(mr)}
-    for mr in mrs:
-        n = mr["iid"]
+    by_head_ref = {pr["headRefName"]: pr for pr in prs if not pr["isCrossRepository"]}
+    for pr in prs:
+        n = pr["number"]
         flags = []
-        if mr["state"] != "opened":
-            flags.append(mr["state"])
-            blockers.append(f"!{n}: merge request is {mr['state']}")
-        if mr["draft"]:
+        if pr["state"] != "OPEN":
+            flags.append(pr["state"].lower())
+            blockers.append(f"#{n}: PR is {pr['state']}")
+        if pr["isDraft"]:
             flags.append("draft")
-            blockers.append(f"!{n}: draft")
-        labels = mr.get("labels") or []
-        if any(HOLD_PATTERN.search(text) for text in labels + [mr["title"]]):
+            blockers.append(f"#{n}: draft")
+        labels = [label["name"] for label in pr.get("labels") or []]
+        if any(HOLD_PATTERN.search(text) for text in labels + [pr["title"]]):
             flags.append("hold?")
-            blockers.append(f"!{n}: title or label suggests a hold ({', '.join(labels) or mr['title']})")
-        if is_fork(mr):
-            flags.append(f"fork:project {mr['source_project_id']}")
-        if mr.get("has_conflicts") or mr.get("detailed_merge_status") == "conflict":
-            flags.append("conflicts with target")
-        if mr["failedChecks"]:
+            blockers.append(f"#{n}: title or label suggests a hold ({', '.join(labels) or pr['title']})")
+        if pr["isCrossRepository"]:
+            flags.append(f"fork:{pr['headRepositoryOwner']['login']}")
+        if pr["mergeable"] == "CONFLICTING":
+            flags.append("conflicts-with-base (no CI runs)")
+        if pr["failedChecks"]:
             flags.append("failing checks")
-        mr["unresolvedDiscussions"] = len(review_feedback(mr)[0])
-        if mr["unresolvedDiscussions"]:
-            flags.append("unresolved discussions")
-        parent = by_head_ref.get(mr["target_branch"])
-        mr["stackParent"] = parent["iid"] if parent else None
-        if mr["target_branch"] != opts.target and not parent:
-            flags.append(f"base {mr['target_branch']} outside set")
-            blockers.append(f"!{n}: based on {mr['target_branch']}, which is neither {opts.target} "
-                            "nor a listed merge request")
-        mr["flags"] = flags
+        if pr["reviewDecision"] == "CHANGES_REQUESTED":
+            flags.append("changes requested")
+        parent = by_head_ref.get(pr["baseRefName"])
+        pr["stackParent"] = parent["number"] if parent else None
+        if pr["baseRefName"] != opts.target and not parent:
+            flags.append(f"base {pr['baseRefName']} outside set")
+            blockers.append(f"#{n}: based on {pr['baseRefName']}, which is neither {opts.target} nor a listed PR")
+        pr["flags"] = flags
 
     # Stacked parents first, otherwise the order given.
     ordered: list[dict] = []
     placed: set[int] = set()
 
-    def place(mr: dict, seen: frozenset = frozenset()) -> None:
-        if mr["iid"] in placed or mr["iid"] in seen:
+    def place(pr: dict, seen: frozenset = frozenset()) -> None:
+        if pr["number"] in placed or pr["number"] in seen:
             return
-        parent = mr["stackParent"]
+        parent = pr["stackParent"]
         if parent is not None:
-            place(next(m for m in mrs if m["iid"] == parent), seen | {mr["iid"]})
-        placed.add(mr["iid"])
-        ordered.append(mr)
+            place(next(p for p in prs if p["number"] == parent), seen | {pr["number"]})
+        placed.add(pr["number"])
+        ordered.append(pr)
 
-    for mr in mrs:
-        place(mr)
+    for pr in prs:
+        place(pr)
 
-    pairs = containment_pairs(mrs)
-    contains = [f"!{b['iid']} already contains !{a['iid']}'s head" for a, b in pairs]
-    # A head that contains another's claims that one's rows too; they are the contained merge request's.
+    pairs = containment_pairs(prs)
+    contains = [f"#{b['number']} already contains #{a['number']}'s head" for a, b in pairs]
+    # A head that contains another's claims that one's rows too; they are the contained PR's.
     for a, b in pairs:
         b["registerIds"] = [i for i in b["registerIds"] if i not in a["registerIds"]]
 
     out = []
-    out.append(f"# Merge request inventory for `{opts.target}`\n")
-    out.append(f"Target `{opts.target}` @ `{target_sha}` in {full_name}"
+    out.append(f"# PR inventory for `{opts.target}`\n")
+    out.append(f"Target `{opts.target}` @ `{target_sha}` in {owner}/{name}"
                f" (default branch: `{default_branch}`).\n")
-    out.append("| Order | MR | Title | Base | Head ref | Head SHA | Ahead/behind | Merge status | Checks | Review | Flags |")
+    out.append("| Order | PR | Title | Base | Head ref | Head SHA | Ahead/behind | Mergeable | Checks | Review | Flags |")
     out.append("|---|---|---|---|---|---|---|---|---|---|---|")
-    for index, mr in enumerate(ordered, 1):
-        review = f"{mr['unresolvedDiscussions']} unresolved" if mr["unresolvedDiscussions"] else "-"
-        out.append(f"| {index} | !{mr['iid']} | {one_line(mr['title'], 60)} | {mr['target_branch']} | "
-                   f"{mr['source_branch']} | `{mr['sha'][:12]}` | +{mr['ahead']}/-{mr['behind']} | "
-                   f"{mr['detailed_merge_status']} | {mr['checkSummary']} | {review} | "
-                   f"{', '.join(mr['flags']) or '-'} |")
+    for index, pr in enumerate(ordered, 1):
+        out.append(f"| {index} | #{pr['number']} | {one_line(pr['title'], 60)} | {pr['baseRefName']} | "
+                   f"{pr['headRefName']} | `{pr['headRefOid'][:12]}` | +{pr['ahead']}/-{pr['behind']} | "
+                   f"{pr['mergeable']} | {pr['checkSummary']} | {pr['reviewDecision'] or '-'} | "
+                   f"{', '.join(pr['flags']) or '-'} |")
 
-    stacked = [mr for mr in ordered if mr["stackParent"]]
+    stacked = [pr for pr in ordered if pr["stackParent"]]
     if stacked or contains:
         out.append("\n## Stacks and ancestry\n")
-        for mr in stacked:
-            out.append(f"- !{mr['iid']} is stacked on !{mr['stackParent']} (base `{mr['target_branch']}`)")
+        for pr in stacked:
+            out.append(f"- #{pr['number']} is stacked on #{pr['stackParent']} (base `{pr['baseRefName']}`)")
         for line in contains:
             out.append(f"- {line}")
 
     out.append("\n## Review feedback to read before merging\n")
-    for mr in ordered:
-        threads, comments = review_feedback(mr)
-        if mr["failedChecks"]:
-            out.append(f"- !{mr['iid']} failing checks: {', '.join(mr['failedChecks'])}")
-        if not (threads or comments):
-            out.append(f"- !{mr['iid']}: no review feedback")
+    for pr in ordered:
+        fb = pr["feedback"]
+        author = (pr.get("author") or {}).get("login")
+        threads = [t for t in fb["reviewThreads"]["nodes"] if not t["isResolved"]]
+        reviews = [r for r in fb["reviews"]["nodes"] if (r.get("body") or "").strip()]
+        comments = [c for c in fb["comments"]["nodes"] if (c.get("author") or {}).get("login") != author]
+        if pr["failedChecks"]:
+            out.append(f"- #{pr['number']} failing checks: {', '.join(pr['failedChecks'])}")
+        if not (threads or reviews or comments):
+            out.append(f"- #{pr['number']}: no review feedback")
             continue
-        out.append(f"- !{mr['iid']}: {len(threads)} unresolved discussion(s), {len(comments)} comment(s) from others")
-        for notes in threads:
-            first = notes[0]
-            who = (first.get("author") or {}).get("username", "?")
-            position = first.get("position") or {}
-            path = position.get("new_path") or position.get("old_path")
-            where = f" `{path}:{position.get('new_line') or position.get('old_line')}`" if path else ""
-            out.append(f"  - discussion{where} {who}: {one_line(first.get('body', ''), 160)}")
+        out.append(f"- #{pr['number']}: {len(threads)} unresolved thread(s), {len(reviews)} review body(ies), "
+                   f"{len(comments)} comment(s) from others")
+        for t in threads:
+            first = (t["comments"]["nodes"] or [{}])[0]
+            who = (first.get("author") or {}).get("login", "?")
+            outdated = " (outdated)" if t["isOutdated"] else ""
+            out.append(f"  - thread `{t['path']}:{t['line']}`{outdated} {who}: {one_line(first.get('body', ''), 160)}")
+        for r in reviews:
+            out.append(f"  - review {r['state']} {(r.get('author') or {}).get('login', '?')}: {one_line(r['body'], 200)}")
         for c in comments[:10]:
-            out.append(f"  - comment {(c.get('author') or {}).get('username', '?')}: {one_line(c['body'], 160)}")
+            out.append(f"  - comment {(c.get('author') or {}).get('login', '?')}: {one_line(c['body'], 160)}")
 
     out.append("\n## Linked issues\n")
-    for mr in ordered:
-        issues = [f"#{i}" for i in mr["closingIssues"]]
-        out.append(f"- !{mr['iid']}: {', '.join(issues) or 'none linked'}")
+    for pr in ordered:
+        issues = [f"#{i['number']}" for i in pr.get("closingIssuesReferences") or []]
+        out.append(f"- #{pr['number']}: {', '.join(issues) or 'none linked (check the body)'}")
     if default_branch and opts.target != default_branch:
         out.append(f"\nClosing keywords only fire on `{default_branch}`; issues for `{opts.target}` need closing by hand.")
 
@@ -307,26 +297,26 @@ def main() -> int:
         if shared:
             overlaps.append((a, b, shared))
     if not overlaps:
-        out.append("No two merge requests change the same file.")
+        out.append("No two PRs change the same file.")
     for a, b, shared in overlaps:
         shown = ", ".join(f"`{f}`" for f in shared[:8]) + (" …" if len(shared) > 8 else "")
-        out.append(f"- !{a['iid']} × !{b['iid']}: {len(shared)} file(s): {shown}")
+        out.append(f"- #{a['number']} × #{b['number']}: {len(shared)} file(s): {shown}")
 
-    if any(mr["registerIds"] for mr in ordered):
+    if any(pr["registerIds"] for pr in ordered):
         out.append("\n## Register id collisions\n")
         target_ids = {m.group(1) for m in map(row_pattern.match,
                                                run(["git", "show", f"{target_sha}:{opts.register}"], check=False)
                                                .splitlines()) if m}
         claims: dict[str, list[str]] = defaultdict(list)
-        for mr in ordered:
-            for token in mr["registerIds"]:
-                claims[token].append(f"!{mr['iid']}")
+        for pr in ordered:
+            for token in pr["registerIds"]:
+                claims[token].append(f"#{pr['number']}")
         for token in sorted(target_ids):
             if token in claims:
                 claims[token].append("the target")
         collisions = {token: names for token, names in claims.items() if len(names) > 1}
         if not collisions:
-            out.append(f"No two merge requests claim the same `{opts.register}` id.")
+            out.append(f"No two PRs claim the same `{opts.register}` id.")
         for token in sorted(collisions, key=lambda t: [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", t)]):
             names = collisions[token]
             holders = ", ".join(names[:-1]) + f" and {names[-1]}" if names[-1] == "the target" else ", ".join(names)
@@ -335,7 +325,7 @@ def main() -> int:
 
     out.append("\n## Pinned arguments for simulate_merge.py and audit_combined.py\n")
     out.append("```")
-    out.append(f"--target {target_sha} " + " ".join(f"{mr['iid']}={mr['sha']}" for mr in ordered))
+    out.append(f"--target {target_sha} " + " ".join(f"{pr['number']}={pr['headRefOid']}" for pr in ordered))
     out.append("```")
 
     if blockers:
@@ -345,9 +335,9 @@ def main() -> int:
     print("\n".join(out))
     if opts.json_out:
         with open(opts.json_out, "w", encoding="utf-8") as handle:
-            json.dump({"target": opts.target, "targetSha": target_sha, "repo": full_name,
-                       "defaultBranch": default_branch, "order": [m["iid"] for m in ordered],
-                       "blockers": blockers, "mergeRequests": ordered}, handle, indent=2)
+            json.dump({"target": opts.target, "targetSha": target_sha, "repo": f"{owner}/{name}",
+                       "defaultBranch": default_branch, "order": [p["number"] for p in ordered],
+                       "blockers": blockers, "prs": ordered}, handle, indent=2)
     return 2 if blockers else 0
 
 

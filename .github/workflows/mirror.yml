@@ -1,0 +1,48 @@
+name: gitlab-mirror
+
+# GitLab holds a second copy of every branch and tag pushed here (operator,
+# 22 November 2026; docs/runbook.md "GitLab mirror"). Each push sends its one
+# ref. The copy is additive: nothing is forced and nothing is deleted there,
+# so a rewritten branch fails this run instead of rewriting the copy, and the
+# branches behind GitLab's merge requests of 15 to 22 November 2026 stay.
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+
+permissions:
+  contents: read
+
+# One push at a time for a ref, in order, and never cancelled: a cancelled
+# push would leave the copy behind until the ref moves again.
+concurrency:
+  group: gitlab-mirror-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The push sends whatever GitLab lacks, so the whole history is here.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Push this ref to GitLab
+        env:
+          GITLAB_MIRROR_SSH_KEY: ${{ secrets.GITLAB_MIRROR_SSH_KEY }}
+          # gitlab.com's published ED25519 host key
+          # (SHA256:eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8).
+          GITLAB_HOST_KEY: gitlab.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAfuCHKVTjquxvt6CM6tdG4SLp1Btn/nOeHHE5UOzRdf
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$GITLAB_MIRROR_SSH_KEY" > "$HOME/.ssh/gitlab_mirror"
+          chmod 600 "$HOME/.ssh/gitlab_mirror"
+          printf '%s\n' "$GITLAB_HOST_KEY" > "$HOME/.ssh/gitlab_known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/gitlab_mirror -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/gitlab_known_hosts -o StrictHostKeyChecking=yes"
+          # The ref as GitHub holds it, tag object included: the checkout's own
+          # ref for an annotated tag is the commit.
+          git fetch --no-tags origin "+$GITHUB_REF:refs/mirror/ref"
+          git push git@gitlab.com:collisionengineers-group/pegasus.git "refs/mirror/ref:$GITHUB_REF"

@@ -2,7 +2,7 @@
 
 `vNN_planning/` at the root of `../pegasus-design-archive/` holds one round.
 Model:
-[v26_planning](https://gitlab.com/collisionengineers-group/pegasus-design-archive/-/blob/main/v26_planning/README.md).
+[v26_planning](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v26_planning/README.md).
 
 ```text
 vNN_planning/
