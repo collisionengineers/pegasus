@@ -2596,7 +2596,10 @@
         event.preventDefault();
         if (glassOpening) { return; }
         var windowName = 'pegasus-glass-' + window.location.pathname;
-        glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
+        // The window opens on Pegasus's own waiting card, so it is never blank
+        // while the launch is on its way (v52 G); the launch then posts into it.
+        glassWindow = window.open(
+            form.getAttribute('data-glass-starting') || '', windowName, 'popup=yes,width=1280,height=900');
         if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
         glassOpening = true;
         glassReturning = false;

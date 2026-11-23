@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Glass;
 using Pegasus.Web.Background;
@@ -32,9 +33,13 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 public sealed class OpeningModel(
     IGlassRepairEstimateSessionReader glassSessions,
     GlassRepairEstimateAvailability glassAvailability,
-    ProviderWorkQueue glassWork) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
+    ProviderWorkQueue glassWork,
+    IGetCaseSectionFrame caseFrames) : StaffPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     public GlassRepairEstimateSession Session { get; private set; } = null!;
+
+    /// <summary>The Case the window belongs to, by reference and registration (v52 F, R1234).</summary>
+    public string? CaseLine { get; private set; }
 
     /// <summary>
     /// The words the window shows while it waits: once a return has been
@@ -46,12 +51,14 @@ public sealed class OpeningModel(
 
     public async Task<IActionResult> OnGetAsync(Guid sessionId, CancellationToken cancellationToken)
     {
-        if (await OwnSessionAsync(sessionId, cancellationToken) is not { } session)
+        if (await OwnSessionAsync(sessionId, cancellationToken) is not { } session
+            || !TryGetActor(out var actor))
         {
             return NotFound();
         }
 
         Session = session;
+        CaseLine = await GlassWaitingView.CaseLineAsync(caseFrames, actor, session.CaseId, cancellationToken);
         return Page();
     }
 
@@ -114,7 +121,12 @@ public sealed class OpeningModel(
             return Redirect(estimator.AbsoluteUri);
         }
 
-        return DetailsModel.ReportGlassSession(this, session, GlassLabels.LaunchRefused);
+        // The window keeps naming its Case as it hands the outcome back.
+        return DetailsModel.ReportGlassSession(
+            this,
+            session,
+            GlassLabels.LaunchRefused,
+            await GlassWaitingView.CaseLineAsync(caseFrames, actor, session.CaseId, cancellationToken));
     }
 
     /// <summary>

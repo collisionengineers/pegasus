@@ -1,0 +1,18 @@
+@page "/Integrations/Glass/Starting/{caseId:guid}"
+@model Pegasus.Web.Pages.Integrations.Glass.StartingModel
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@{
+    Layout = "Shared/_LayoutAuth";
+    ViewData["Title"] = GlassLabels.Launch;
+    var waiting = new GlassWaitingView(GlassLabels.Preparing, Model.CaseLine);
+}
+@* What the Glass's window shows from the press until the launch answers
+   into it (v52 G, R1234). It asks nothing and goes nowhere: the Case page
+   posts the launch into this window, which replaces it. *@
+@section Styles {
+    <meta name="robots" content="noindex" />
+}
+<partial name="_GlassWaiting" model="waiting" />
+@section Scripts {
+    <script src="~/js/glass-opening.js" asp-append-version="true"></script>
+}
