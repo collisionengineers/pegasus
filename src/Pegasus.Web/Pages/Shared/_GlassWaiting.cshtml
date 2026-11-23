@@ -12,8 +12,20 @@
 {
     <p class="glass-case">@caseLine</p>
 }
-<p class="glass-wait" data-glass-wait
-   data-glass-opening-state="@Model.StateUrl" data-glass-opening-go="@Model.GoUrl" data-glass-return="@Model.ReturnUrl">@Model.Words</p>
+@* Razor writes a data- attribute even when its value is null, so each
+   window names only the addresses it has. *@
+@if (Model.StateUrl is not null)
+{
+    <p class="glass-wait" data-glass-wait data-glass-opening-state="@Model.StateUrl" data-glass-opening-go="@Model.GoUrl">@Model.Words</p>
+}
+else if (Model.ReturnUrl is not null)
+{
+    <p class="glass-wait" data-glass-wait data-glass-return="@Model.ReturnUrl">@Model.Words</p>
+}
+else
+{
+    <p class="glass-wait" data-glass-wait>@Model.Words</p>
+}
 @if (Model.KeepOpen)
 {
     <p>@GlassLabels.KeepOpen</p>
