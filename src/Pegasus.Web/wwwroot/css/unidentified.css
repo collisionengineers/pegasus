@@ -1,36 +1,78 @@
-/* Unidentified record (v26, shots s11, s12, s46). Linked from
-   Pages/Unidentified/Details.cshtml only. */
+/* Unidentified record. Linked from Pages/Unidentified/Details.cshtml only.
+   The frame is the Case record's (site.css: sticky-block, ribbon, workspace,
+   workspace-aside): a sticky 56px ribbon, the retained material in the wide
+   column and the item's actions in the 285px aside (R1213). */
 
-.unidentified-record { background: var(--surface); border: 1px solid var(--line); }
-.unidentified-record .ribbon { padding: 0 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; height: auto; min-height: 56px; }
-.unidentified-record .ribbon-facts { flex-wrap: wrap; min-width: 0; }
-.unidentified-record .ribbon-item { min-width: 0; }
-.unidentified-record .ribbon-value { overflow-wrap: anywhere; }
-.unidentified-record .ribbon-chips { border-right: 0; }
+/* The sticky block here is the ribbon alone, so its height is fixed and the
+   aside's sticky offset needs no measuring script. */
+.unidentified-record { min-width: 0; --sticky-h: 56px; }
+.unidentified-record .sticky-block { border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.unidentified-record .ribbon-ref .ribbon-value { display: block; }
+.unidentified-record .ribbon .ribbon-item { flex: 0 1 auto; }
+.unidentified-record .ribbon .ribbon-ref { flex: 0 0 auto; min-width: 120px; }
+.unidentified-record .ribbon .unidentified-ribbon-source { flex: 3 1 0; }
+.unidentified-record .ribbon .unidentified-ribbon-reason { flex: 2 1 0; }
+.unidentified-record .ribbon-actions .refresh-button form { margin: 0; }
 
-.unidentified-body { display: grid; gap: 12px; padding: 12px 16px 16px; }
-.unidentified-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.unidentified-record .workspace-main > .panel > .panel-head .meta { flex: none; }
+.unidentified-record .panel-actions .btn--small .icon { width: 13px; height: 13px; }
+
+/* Retained files: one dense row a file, its kind, its name and where it is held. */
 .unidentified-facts { grid-template-columns: minmax(0, 1fr); }
-.unidentified-facts .fact { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+.unidentified-facts .fact { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; align-items: baseline; border-right: 0; border-bottom: 1px solid var(--line); }
 .unidentified-facts .fact:last-child { border-bottom: 0; }
 .unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
-.unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
-/* Resolve (v41 U12, R599): one even column, Link to Case first, Close with reason set apart at the
-   bottom; the column is as wide as the longest label, not the panel. */
-.button-row.unidentified-resolve { display: inline-grid; grid-template-columns: max-content; gap: 8px; align-items: stretch; max-width: 100%; }
-.unidentified-resolve form { margin: 0; }
-.unidentified-resolve .btn { width: 100%; justify-content: flex-start; }
-.unidentified-resolve-end { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.unidentified-files { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); }
+.unidentified-files li { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 40px; padding: 6px 11px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.unidentified-files li:last-child { border-bottom: 0; }
+.unidentified-files strong { font-size: 12px; font-weight: 650; }
+.unidentified-files a, .unidentified-files li > span { min-width: 0; overflow-wrap: anywhere; }
+.unidentified-file-custody { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.unidentified-files--names li { grid-template-columns: minmax(0, 1fr); }
+
+/* The photographs are what the item is identified from: tiles a size a
+   registration plate can be read at before the viewer is opened. */
+.unidentified-record .gallery { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.unidentified-record .gallery-caption { font-size: 11.5px; }
+
+.unidentified-reading-action { width: 1%; white-space: nowrap; text-align: right; }
 .unidentified-dismiss summary { list-style: none; }
 .unidentified-dismiss summary::-webkit-details-marker { display: none; }
-.unidentified-dismiss[open] form { margin-top: 6px; min-width: 220px; }
+.unidentified-dismiss[open] form { margin-top: 6px; min-width: 220px; text-align: left; white-space: normal; }
 
-@media (max-width: 980px) {
-    .unidentified-grid { grid-template-columns: minmax(0, 1fr); }
+.unidentified-record .timeline-title { font-size: 13px; font-weight: 650; }
+.unidentified-record .timeline-meta { font-size: 12px; overflow-wrap: anywhere; }
+
+/* Resolve (v41 U12, R599): one even column the width of the aside, Link to
+   Case first, Close with reason set apart at the bottom. */
+.unidentified-resolve { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.unidentified-resolve form { margin: 0; }
+.unidentified-resolve .btn { width: 100%; justify-content: flex-start; }
+.unidentified-resolve-end { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.workspace-aside .unidentified-facts .fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+
+/* Below 1441px the shared frame folds the aside above the column; its one
+   card then spans the page and its actions run in a row at natural width. */
+@media (max-width: 1440px) {
+    .unidentified-record .workspace-aside { grid-template-columns: minmax(0, 1fr); }
+    .unidentified-resolve { display: flex; flex-wrap: wrap; align-items: center; }
+    .unidentified-resolve .btn { width: auto; }
+    .unidentified-resolve-end { margin: 0 0 0 auto; padding: 0; border-top: 0; }
+    .workspace-aside .unidentified-facts .fact { grid-template-columns: 140px minmax(0, 1fr); gap: 8px; }
+}
+
+@media (max-width: 1100px) {
+    .unidentified-record .sticky-block { position: static; }
+    .unidentified-record .ribbon { flex-wrap: wrap; }
+    .unidentified-record .ribbon .ribbon-item { flex: 1 1 33%; }
+    .unidentified-record .ribbon-actions { padding: 6px 10px; }
 }
 
 @media (max-width: 760px) {
-    .unidentified-body { padding: 10px; }
-    .unidentified-facts .fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
-    .button-row.unidentified-resolve { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .unidentified-record .ribbon .ribbon-item { flex-basis: 50%; }
+    .unidentified-files li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .unidentified-facts .fact, .workspace-aside .unidentified-facts .fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .unidentified-resolve { display: grid; }
+    .unidentified-resolve .btn { width: 100%; }
+    .unidentified-resolve-end { margin: 4px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); }
 }

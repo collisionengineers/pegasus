@@ -369,7 +369,11 @@ each closed row reading "Closed · reason". There is no blocked row.
 ### Pre-Case records
 
 **The Unidentified record** (`/Unidentified/{id}`) has a ribbon showing
-reference, received, kind, source and state (Open, Closed or Resolved). An
+reference, received, kind, source, why it needs attention and state (Open,
+Closed or Resolved). It is laid out as the Case record is: the ribbon stays in
+view, the retained files, photographs, readings and history fill the wide
+column and the actions stand in one card beside them (20 November 2026,
+[R1213](../rulings.md); [design](../design/README.md#unidentified-record-frame)). An
 item that could not be read says "Could not be read · {file kind}" with its
 bounded detail. Its actions are:
 
