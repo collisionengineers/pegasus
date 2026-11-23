@@ -323,6 +323,20 @@ delivered again while the import runs waits on the same work.
 Only the owning staff member sees the window or its progress. The estimator
 address is never shown on the page or in its progress answer.
 
+**The window's own page (v52, operator, 23 November 2026, R1234;
+[v52](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v52-glass-window/v52_planning/current/v52-notes.md)).** Whenever the window is on Pegasus it is the navless frame
+with one card. The card is titled "Glass's", names the Case by its reference
+and registration, and has one status line with a turning loader beside the
+words above. A wait still going after five seconds reads "Still preparing
+Glass's…" or "Still bringing the estimate back…", as every busy control does.
+Under the status is one line, "Keep this window open." There is no link and no
+control: the window moves on by itself, and a browser without script is carried
+on by a timed reload. The Case page opens the window on this card, so it is
+never blank while the launch is on its way. As the window hands its outcome
+to the Case it says "Returning to the Case…" in the same card, without the
+line under it, and closes; the Case is named there when the window had been
+waiting on it.
+
 While a session's work runs it cannot be closed. The Close control is absent,
 and a Close posted anyway is refused with a reason, so nothing the work creates
 at the provider is left without a session. A second click of the same Launch

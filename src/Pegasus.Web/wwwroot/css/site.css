@@ -668,6 +668,11 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .auth-card .field input{height:36px}
 .auth-card form>.btn--primary{width:100%;margin-top:4px;box-shadow:none}
 .auth-card .field-error,.auth-card .field-validation-error{font-size:11px;color:var(--danger);font-weight:720}
+/* The Glass's window's card (v52): a status whose words are the signal, the Case it belongs to above it, one caption below. */
+.auth-card .glass-wait{display:flex;align-items:center;gap:9px;margin:0;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.auth-card .glass-wait .icon{color:var(--muted)}
+.auth-card .glass-wait+p{margin:14px 0 0}
+.auth-card .glass-case{margin:-24px 0 24px}
 .auth-notice{margin-bottom:24px;font-size:12px;color:var(--danger)}
 .auth-notice:focus{outline:2px solid var(--focus);outline-offset:3px}
 .password-control{position:relative}

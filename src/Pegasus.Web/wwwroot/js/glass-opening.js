@@ -4,12 +4,26 @@
 // open estimator first refreshes the owning Case's Glass's controls through
 // its handoff; then this window continues to Go, which answers with the
 // estimator or hands the outcome back to the Case. The estimator address
-// never reaches this script. Without script, the Continue link does the same.
+// never reaches this script. Without script, the page's timed reload goes to
+// Go instead. The window the Case page opens at the press names no addresses:
+// it only waits for the launch to answer into it.
 (function () {
     'use strict';
 
-    var stateUrl = document.body.getAttribute('data-glass-opening-state');
-    var goUrl = document.body.getAttribute('data-glass-opening-go');
+    // A wait still going after five seconds says "Still …", as every busy
+    // control does (site.js): the layout's word in front of the status's own.
+    var words = document.querySelector('[data-glass-wait-words]');
+    var still = document.documentElement.getAttribute('data-busy-still');
+    if (words && still) {
+        window.setTimeout(function () {
+            var text = words.textContent;
+            words.textContent = still + ' ' + text.charAt(0).toLowerCase() + text.slice(1);
+        }, 5000);
+    }
+
+    var holder = document.querySelector('[data-glass-opening-state]');
+    var stateUrl = holder && holder.getAttribute('data-glass-opening-state');
+    var goUrl = holder && holder.getAttribute('data-glass-opening-go');
     if (!stateUrl || !goUrl) { return; }
 
     function go() { window.location.replace(goUrl); }

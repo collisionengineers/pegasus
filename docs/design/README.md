@@ -255,8 +255,9 @@ every table pressed against the rail. Below the cap nothing moves. Every page
 carries the skip link, the toast region and the dialog root.
 
 `_LayoutAuth` remains the navless frame: sign-in, the signed-out
-confirmation, the forced password change, access denied, the consent screen
-and the error family are not places in the application (see
+confirmation, the forced password change, access denied, the consent screen,
+the error family and the Glass's window (v52, 23 November 2026, R1234) are
+not places in the application (see
 [Shell and routes](../frd/frd-12-operator-experience.md#shell-and-routes)).
 Since v30 (sign-in B, 25 September 2026) it is two planes on a common centre
 line: `auth-identity`, the charcoal `--nav` panel with the 3px `--red` top
@@ -961,6 +962,7 @@ deleted in wave 5.
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
 | `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |
+| `glass-wait`, `glass-case` | The Glass's window's card in the navless frame: the 13.5px status line with its loader, and the Case's reference and registration under the title (v52) |
 | `skip-link`, `sr-only` | Accessibility |
 
 ### Page

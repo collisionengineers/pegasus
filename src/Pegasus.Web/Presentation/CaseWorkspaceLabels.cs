@@ -1386,7 +1386,18 @@ public static class CaseWorkspaceLabels
 
         public const string BringingBack = "Bringing the estimate back…";
 
-        public const string Continue = "Continue";
+        /// <summary>The Glass's window as it hands its outcome to the Case and closes (v52 H, R1234).</summary>
+        public const string Returning = "Returning to the Case…";
+
+        /// <summary>The one line under the window's status (v52 C, R1234).</summary>
+        public const string KeepOpen = "Keep this window open.";
+
+        /// <summary>
+        /// The Case a Glass's window belongs to, as the ribbon names it: its
+        /// reference, then its registration when it has one (v52 F, R1234).
+        /// </summary>
+        public static string CaseLine(string reference, string? registration) =>
+            string.IsNullOrWhiteSpace(registration) ? reference : $"{reference} · {registration}";
 
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate

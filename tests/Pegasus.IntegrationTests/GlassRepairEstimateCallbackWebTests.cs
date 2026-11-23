@@ -1043,9 +1043,22 @@ public sealed class GlassRepairEstimateCallbackWebTests
     internal static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
         Assert.Contains(
-            $"data-glass-return=\"/Cases/{caseId:D}?section=estimate\"",
-            await response.Content.ReadAsStringAsync(),
+            $"data-glass-return=\"/Cases/{caseId:D}?section=estimate\"", html, StringComparison.Ordinal);
+        // v52 H: the window's own card in the navless frame, saying it is
+        // returning, with no link; a browser without script is reloaded there.
+        Assert.Contains("class=\"external-shell\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.Returning,
+            WebUtility.HtmlDecode(html),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession.KeepOpen, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<a ", html, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<noscript><meta http-equiv=\"refresh\" content=\"0;url=/Cases/{caseId:D}?section=estimate\" /></noscript>",
+            html,
             StringComparison.Ordinal);
     }
 

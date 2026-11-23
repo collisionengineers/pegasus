@@ -1,15 +1,19 @@
-@model string
-@* Return to the owning Case in place, preserving its unsaved edits. A
-   departed opener or a browser without script uses the server-rendered link. *@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
+@model Pegasus.Web.Pages.Integrations.Glass.GlassWaitingView
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@{
+    Layout = "/Pages/Shared/_LayoutAuth.cshtml";
+    ViewData["Title"] = GlassLabels.Launch;
+}
+@* Return to the owning Case in place, preserving its unsaved edits, in the
+   same card as the window's wait (v52 H, R1234). The script hands the Case
+   address to the Case window and closes this one, or goes there itself when
+   that window has gone. A browser without script is carried there by the
+   reload in the head; there is no link. *@
+@section Styles {
     <meta name="robots" content="noindex" />
-    <title>Pegasus</title>
-</head>
-<body data-glass-return="@Model">
-    <p>Returning to the Case. <a href="@Model">Open the Case</a>.</p>
+    <noscript><meta http-equiv="refresh" content="0;url=@Model.ReturnUrl" /></noscript>
+}
+<partial name="_GlassWaiting" model="Model" />
+@section Scripts {
     <script src="~/js/glass-return.js" asp-append-version="true"></script>
-</body>
-</html>
+}
