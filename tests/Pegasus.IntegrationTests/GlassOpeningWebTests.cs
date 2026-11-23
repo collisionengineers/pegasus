@@ -103,8 +103,8 @@ public sealed class GlassOpeningWebTests
 
     /// <summary>
     /// The window's card as v52 settled it: the navless frame, the title, the
-    /// Case's reference and registration, the status with its loader, the one
-    /// caption, and no link anywhere on the page.
+    /// Case's reference and registration, the status, the one caption, and no
+    /// link anywhere on the page.
     /// </summary>
     private static void AssertIsTheWaitingCard(string html)
     {
@@ -113,8 +113,10 @@ public sealed class GlassOpeningWebTests
         Assert.Contains("<h1>" + GlassLabels.Launch + "</h1>", text, StringComparison.Ordinal);
         Assert.Matches(
             "<p class=\"glass-case\">[^<·]+ · " + GlassProviderFixture.Registration + "</p>", text);
-        Assert.Matches("""<p class="glass-wait" role="status" data-glass-wait\b""", html);
-        Assert.Contains("#icon-loader", html, StringComparison.Ordinal);
+        // The status carries its words alone: site.js's busy step draws the
+        // loader beside them (BusyButtonContractTests), so the page has none.
+        Assert.Matches("""<p class="glass-wait" data-glass-wait\b""", html);
+        Assert.DoesNotContain("icon-loader", html, StringComparison.Ordinal);
         Assert.Contains("<p>" + GlassLabels.KeepOpen + "</p>", text, StringComparison.Ordinal);
         Assert.DoesNotContain("<a ", html, StringComparison.Ordinal);
     }

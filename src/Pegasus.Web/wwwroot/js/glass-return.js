@@ -5,6 +5,10 @@
     var holder = document.querySelector('[data-glass-return]');
     var url = holder && holder.getAttribute('data-glass-return');
     if (!url) { return; }
+    // The window's status is busy until it closes; site.js draws the loader.
+    if (window.pegasusBusy && holder.hasAttribute('data-glass-wait')) {
+        window.pegasusBusy.start(holder, null, holder.textContent.trim());
+    }
     function continueHere() { window.location.replace(url); }
     try {
         var opener = window.opener;

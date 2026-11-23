@@ -10,16 +10,10 @@
 (function () {
     'use strict';
 
-    // A wait still going after five seconds says "Still …", as every busy
-    // control does (site.js): the layout's word in front of the status's own.
-    var words = document.querySelector('[data-glass-wait-words]');
-    var still = document.documentElement.getAttribute('data-busy-still');
-    if (words && still) {
-        window.setTimeout(function () {
-            var text = words.textContent;
-            words.textContent = still + ' ' + text.charAt(0).toLowerCase() + text.slice(1);
-        }, 5000);
-    }
+    // The status is busy from the start: site.js draws the one loader beside
+    // its words, says "Still …" after five seconds and announces both.
+    var status = document.querySelector('[data-glass-wait]');
+    if (status && window.pegasusBusy) { window.pegasusBusy.start(status, null, status.textContent.trim()); }
 
     var holder = document.querySelector('[data-glass-opening-state]');
     var stateUrl = holder && holder.getAttribute('data-glass-opening-state');
