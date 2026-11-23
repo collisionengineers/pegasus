@@ -693,9 +693,9 @@ Release 5.3.0 deployed `dev` at the merge of #2175, which combined #2171 (the re
 | Migration | `WorkerRenumbersCaseDocuments`, additive; restore point 2026-11-23T11:23:06Z before SQL (earliestRestoreDate 2026-11-16T11:23:06Z); head read back `20261123091500_WorkerRenumbersCaseDocuments`; 742 catalogued permission rows and 523 effective rows verified |
 | Deployment | Web OneDeploy `d1f695e0-1424-44ac-8dc6-f5d60b494fb6`; Worker `0be258de-26b8-4231-b85f-1abb374a3fe1`; classifier `a655fe59-069e-475e-afc5-0821309bab84` |
 | Smoke | passed at 11:28:58Z; intake liveness last poll 11:25:00Z, subscription expires 2026-11-28 00:45Z. The test instance served the candidate (R684). No released journey was walked live |
-| Brego | linked at 11:31 UTC by `scripts/Connect-BregoAccount.ps1` for production and the test instance; the device was approved without a code. A first link was used up when the store write was refused 45 seconds after its role assignment; the assignment was removed after the second run |
+| Brego | linked at 11:31 UTC by `scripts/Connect-BregoAccount.ps1` for production and the test instance; the device was approved without a code. A first link was used up when the store write was refused 45 seconds after its role assignment; the assignment was removed after the second run. A Brego valuation answered on production at 11:32 UTC (200 at every step, one Cognito renewal), confirmed by the operator |
 | Evidence | `artifacts/releases/release-5.3.0-839f8114` and `artifacts/releases/logs/*5.3.0*` on `cemattypc-1`; no Query Store window (no data-access change) |
-| Owed | #2178 (live checks: Brego press, a `.doc`-only letter, the Unidentified record), #2177 (remove the unused Brego password setting), #2164 (the same tree tested three times) |
+| Owed | #2178 (live checks: a `.doc`-only letter, the Unidentified record), #2180 (link Brego from Administration; the removed password route), #2177 (remove the unused Brego password setting), #2164 (the same tree tested three times) |
 
 ## Release 5.2.0 - 21 November 2026 (deployment live)
 
