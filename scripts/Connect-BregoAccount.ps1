@@ -117,8 +117,10 @@ function Invoke-BregoJson {
     foreach ($entry in $Headers.GetEnumerator()) { $all[$entry.Key] = $entry.Value }
     $response = Invoke-WebRequest -Method Post -Uri $Uri -Headers $all -ContentType $ContentType `
         -Body ($Body | ConvertTo-Json -Compress -Depth 6) -SkipHttpErrorCheck -TimeoutSec 30
+    # Cognito answers application/x-amz-json-1.1, which arrives as bytes, not text.
+    $text = if ($response.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($response.Content) } else { [string]$response.Content }
     $document = $null
-    try { $document = $response.Content | ConvertFrom-Json -Depth 10 } catch { $document = $null }
+    try { $document = $text | ConvertFrom-Json -Depth 10 } catch { $document = $null }
     return [pscustomobject]@{ Status = [int]$response.StatusCode; Document = $document; Headers = $response.Headers }
 }
 
@@ -199,6 +201,20 @@ if ([string]::IsNullOrWhiteSpace($token)) { throw 'The link has no magic-link to
 $linkEmail = $fields['email']
 if (-not [string]::IsNullOrWhiteSpace($linkEmail) -and $linkEmail.Trim().ToLowerInvariant() -ne $Email) {
     throw "The link is for another account than $Email."
+}
+
+# A link redeems once, so each store is reached before the link is used. A role
+# assignment made a minute ago may not have reached the storage account yet.
+if ($Target -contains 'Production') {
+    $azProbe = Get-Command az -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    & $azProbe.Source storage blob exists --auth-mode login --account-name $StorageAccountName --container-name $containerName `
+        --name $blobName --only-show-errors --output none
+    if ($LASTEXITCODE -ne 0) {
+        throw "$StorageAccountName/$containerName cannot be reached with the signed-in account (az exit $LASTEXITCODE). The link was not used. The account needs Storage Blob Data Contributor on that container; a new assignment can take a few minutes."
+    }
+}
+if ($Target -contains 'TestInstance' -and -not (Test-Path -LiteralPath $RunManifestPath -PathType Leaf)) {
+    throw "The run manifest $RunManifestPath was not found. The link was not used."
 }
 
 $redeemed = Invoke-Cognito -Operation 'RespondToAuthChallenge' -Body @{
