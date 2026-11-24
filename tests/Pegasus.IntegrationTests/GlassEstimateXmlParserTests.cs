@@ -667,6 +667,7 @@ public sealed class GlassEstimateXmlParserTests
     [InlineData("K", "3", "paint_new")]
     [InlineData("K", "4", "paint_new")]
     [InlineData("K", "0", "paint_repair")]
+    [InlineData("K", "1", "paint_repair")]
     [InlineData("K", "5", "paint_blend")]
     public void APaintRowsLevelChoosesItsLineType(string materialKind, string level, string expected)
     {
@@ -682,8 +683,34 @@ public sealed class GlassEstimateXmlParserTests
         }
     }
 
+    /// <summary>
+    /// QDOS26196-p (R1235): a refitted bumper whose plastic is spray-repaired
+    /// up to 15%. The sheet prints the paint row's level as <c>K3</c>, and the
+    /// export writes it as material <c>K</c>, level <c>1</c>. The row is paint
+    /// repair, with its own paint hours and materials, beside the refit.
+    /// </summary>
+    [Fact]
+    public void ARefittedBumperSprayRepairedAtK3LandsAsPaintRepair()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Uninstall and install", "Front Bumper Lining",
+                time: "0.70", materialCode: "1010800"),
+            GlassExport.Position("Part_InclusiveSparePart", "Uninstall and install", "Front Bumper Lining",
+                time: "0.70", materialCode: "1010800"),
+            GlassExport.Position("Paint_Part", "Replace", "Front Bumper k/e", price: "149.20", time: "1.20",
+                materialCode: "1010", paintMatKind: "K", paintLevel: "1"),
+            GlassExport.Position("Paint_PreparationPlastic", "Replace",
+                "Prep. synthetics (on vehicle without pre-painting)", price: "120.16", time: "1.70", materialCode: "3"))));
+
+        Assert.Equal(["rnr", "check_labour", "paint_repair", "paint_prep"], result.Lines.Select(line => line.Type));
+        var paint = result.Lines[2];
+        Assert.Equal(1.20m, paint.PaintWorkUnits);
+        Assert.Equal(149.20m, paint.Materials);
+        Assert.Null(paint.WorkUnits);
+        Assert.Null(paint.Price);
+    }
+
     [Theory]
-    [InlineData("K", "1")]
     [InlineData("K", "6")]
     [InlineData("B", "5")]
     [InlineData("B", "-1")]

@@ -173,7 +173,8 @@ export and the calculation PDF land the same spec:
   paint: `I`, `K1R`, `K1N`, `K1G` (the XML's material kind and level B 3,
   K 2, K 3, K 4). Blend: `B` (B 4, K 5). Repair: `II` inner surface (the
   operator's reading, 5 October 2026), `III`, `IV`, `SP`, `K2` (B 0, B 1,
-  B 2, B 6, K 0). A row with no level (preparation, colour mixing, sample,
+  B 2, B 6, K 0), and `K3`, spraying repair up to 15% (K 1; operator,
+  24 November 2026, R1235). A row with no level (preparation, colour mixing, sample,
   the clear-coat surcharge) is preparation. Glass's marked-up paint
   material (the sheet's `Z`, the XML's `PaintMatExtraAppl`) is the note
   "Markup material".

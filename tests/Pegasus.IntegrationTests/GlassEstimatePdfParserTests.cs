@@ -542,6 +542,7 @@ public sealed class GlassEstimatePdfParserTests
     [InlineData("K", "3", "K1N", "paint_new")]
     [InlineData("K", "4", "K1G", "paint_new")]
     [InlineData("K", "0", "K2", "paint_repair")]
+    [InlineData("K", "1", "K3", "paint_repair")]
     public void BothGlassesReadersLandTheSameRowsAsTheSameLines(
         string materialKind, string level, string printedLevel, string expectedPaintType) =>
         LandTheSameRowsOnBothRoutes(materialKind, level, printedLevel, expectedPaintType, unitsPerHour: 1);
