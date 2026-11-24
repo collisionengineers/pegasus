@@ -91,7 +91,7 @@ internal static class GlassEstimatePdfParser
 
     /// <summary>Paint rows with neither a printed level nor a paint type's own work: their descriptions say what they are.</summary>
     private static readonly string[] PaintPreparation =
-        ["Surcharge", "First Colour", "Prep.", "Colour mixing", "Sample colour creation"];
+        ["Surcharge", "First Colour", "Prep.", "Preparation spot repair", "Colour mixing", "Sample colour creation"];
 
     private static Section SectionOf(string text) => SectionLabels
         .FirstOrDefault(entry => text.StartsWith(entry.Label + " ", StringComparison.Ordinal)).Section;
