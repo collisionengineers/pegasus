@@ -30,7 +30,8 @@
         {
             <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
                   asp-route-id="@caseId" asp-route-section="estimate"
-                  target="_blank" data-glass-window data-glass-slot="fetch-again">
+                  target="_blank" data-glass-window data-glass-slot="fetch-again"
+                  data-glass-starting="@Url.Page("/Integrations/Glass/Starting", new { caseId })">
                 <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
                 <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
                 <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
@@ -45,7 +46,8 @@
         }
         <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
               asp-route-id="@caseId" asp-route-section="estimate"
-              target="_blank" data-glass-window data-glass-slot="launch">
+              target="_blank" data-glass-window data-glass-slot="launch"
+              data-glass-starting="@Url.Page("/Integrations/Glass/Starting", new { caseId })">
             <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
             <input type="hidden" name="expectedCaseVersion" value="@caseVersion" />
             <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />

@@ -1412,13 +1412,20 @@ public sealed partial class DetailsModel
     /// rendering it where the provider was. Shared with the provider's return;
     /// a command posted from the Case returns to the view it was posted from.
     /// </summary>
-    public static PartialViewResult GlassReturn(PageModel page, Guid caseId, string? view = null)
+    public static PartialViewResult GlassReturn(
+        PageModel page, Guid caseId, string? view = null, string? caseLine = null)
     {
         ArgumentNullException.ThrowIfNull(page);
         page.Response.Headers.CacheControl = "no-store";
+        // The window's own card, saying it is returning. The Case line is
+        // repeated only where the window that waited already read it.
         return page.Partial(
             "_GlassReturn",
-            page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate", view })!);
+            new Pegasus.Web.Pages.Integrations.Glass.GlassWaitingView(GlassLabels.Returning, caseLine)
+            {
+                ReturnUrl = page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate", view })!,
+                KeepOpen = false,
+            });
     }
 
     private PartialViewResult GlassReturn(Guid id) => GlassReturn(this, id, ReturnView);
@@ -1445,7 +1452,7 @@ public sealed partial class DetailsModel
     /// that is not open at the provider.
     /// </summary>
     public static IActionResult ReportGlassSession(
-        PageModel page, GlassRepairEstimateSession session, string refusal)
+        PageModel page, GlassRepairEstimateSession session, string refusal, string? caseLine = null)
     {
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(session);
@@ -1455,10 +1462,11 @@ public sealed partial class DetailsModel
             // Never opened at the provider and never settled: nothing to
             // report but the refusal the command carries.
             page.TempData["CaseError"] = refusal;
-            return GlassReturn(page, session.CaseId);
+            return GlassReturn(page, session.CaseId, caseLine: caseLine);
         }
 
-        return ReportSessionOutcome(session, page.TempData, () => GlassReturn(page, session.CaseId));
+        return ReportSessionOutcome(
+            session, page.TempData, () => GlassReturn(page, session.CaseId, caseLine: caseLine));
     }
 
     public async Task<IActionResult> OnPostCloseGlassAsync(

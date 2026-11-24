@@ -1,0 +1,32 @@
+@model Pegasus.Web.Pages.Integrations.Glass.GlassWaitingView
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@* The Glass's window's one card, in the navless frame (v52, R1234): the
+   title, the Case it belongs to, and a status whose words are the signal.
+   No link and no control: the window moves on by itself. The script that owns
+   the page reads its addresses from the status element and hands it to
+   site.js's busy step, which draws the one loader beside the words, says
+   "Still …" after five seconds and announces both; this markup draws no
+   glyph of its own. *@
+<h1>@GlassLabels.Launch</h1>
+@if (Model.CaseLine is { Length: > 0 } caseLine)
+{
+    <p class="glass-case">@caseLine</p>
+}
+@* Razor writes a data- attribute even when its value is null, so each
+   window names only the addresses it has. *@
+@if (Model.StateUrl is not null)
+{
+    <p class="glass-wait" data-glass-wait data-glass-opening-state="@Model.StateUrl" data-glass-opening-go="@Model.GoUrl">@Model.Words</p>
+}
+else if (Model.ReturnUrl is not null)
+{
+    <p class="glass-wait" data-glass-wait data-glass-return="@Model.ReturnUrl">@Model.Words</p>
+}
+else
+{
+    <p class="glass-wait" data-glass-wait>@Model.Words</p>
+}
+@if (Model.KeepOpen)
+{
+    <p>@GlassLabels.KeepOpen</p>
+}

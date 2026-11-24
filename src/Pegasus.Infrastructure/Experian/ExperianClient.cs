@@ -69,13 +69,17 @@ public sealed class ExperianClient(
         && errors.ValueKind == JsonValueKind.Object;
 
     /// <summary>Experian's message ids, as " messages=13,100", for the log; nothing else of the answer.</summary>
-    internal static string MessageIds(JsonElement root)
+    internal static string MessageIds(JsonElement root) =>
+        MessageIdList(root) is { Count: > 0 } ids ? " messages=" + string.Join(',', ids) : string.Empty;
+
+    /// <summary>Experian's top-level message ids, in the answer's order; each is digits only.</summary>
+    internal static IReadOnlyList<string> MessageIdList(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object
             || !root.TryGetProperty("messages", out var messages)
             || messages.ValueKind != JsonValueKind.Array)
         {
-            return string.Empty;
+            return [];
         }
 
         var ids = new List<string>();
@@ -91,7 +95,7 @@ public sealed class ExperianClient(
             }
         }
 
-        return ids.Count == 0 ? string.Empty : " messages=" + string.Join(',', ids);
+        return ids;
     }
 
     /// <summary>

@@ -15,7 +15,9 @@ namespace Pegasus.IntegrationTests;
 /// CAP-valuation Custom Search at the Case's mileage in whole miles, CAP's
 /// retail and clean as the card's retail and trade (R1202), the current month
 /// whatever month was asked (R1203), Experian's own "not found" as no data
-/// and every other failure as unavailable (R1204), nothing but figures on the
+/// (R1204), an answer without CAP's figures as CAP not valuing the vehicle
+/// for Experian's reason and every other failure as unavailable (R1236),
+/// nothing but figures on the
 /// quote (R1205), and the account of its own it signs in with, apart from
 /// the vehicle history check's (R1207).
 /// </summary>
@@ -111,27 +113,65 @@ public sealed class ExperianCapValuationProviderTests
 
     /// <summary>
     /// An answer that names the vehicle but not CAP's two figures has not
-    /// valued it: unavailable, never a card of blanks or zeroes, with
-    /// Experian's message ids in the log.
+    /// valued it, and is never a card of blanks or zeroes: CAP cannot value
+    /// it, for the reason Experian's messages give (R1236). 108 is a mileage
+    /// too high, 109 one too low, and 107 or anything else, a permission
+    /// refusal aside, is CAP declining it. The log names Experian's message ids.
     /// </summary>
     [Theory]
-    [InlineData("permission-message", "valuation=absent messages=100")]
-    [InlineData("cap-without-valuation", "valuation=absent")]
-    [InlineData("retail-only", "figures=absent")]
-    [InlineData("zero-figures", "figures=absent")]
-    [InlineData("no-vehicle", "vehicle=absent")]
-    public async Task AnAnswerWithoutCapsFiguresIsUnavailable(string shape, string detail)
+    [InlineData("unable-107", GuideValuationNotValuedReason.Declined, "valuation=absent messages=107,110")]
+    [InlineData("too-high-108", GuideValuationNotValuedReason.MileageTooHigh, "valuation=absent messages=13,108")]
+    [InlineData("too-low-109", GuideValuationNotValuedReason.MileageTooLow, "valuation=absent messages=109")]
+    [InlineData("void-85", GuideValuationNotValuedReason.Declined, "valuation=absent messages=85")]
+    [InlineData("unable-with-permission", GuideValuationNotValuedReason.Declined, "valuation=absent messages=100,107")]
+    [InlineData("cap-without-valuation", GuideValuationNotValuedReason.Declined, "valuation=absent")]
+    [InlineData("retail-only", GuideValuationNotValuedReason.Declined, "figures=absent")]
+    [InlineData("zero-figures", GuideValuationNotValuedReason.Declined, "figures=absent")]
+    public async Task AnAnswerWithoutCapsFiguresIsNotValuedForExperiansReason(
+        string shape, GuideValuationNotValuedReason reason, string detail)
     {
         // Named rows: the answers are too long to tell apart in a test name.
         var answer = shape switch
         {
-            "permission-message" =>
-                """{"vehicle":{"summary":{"vrm":"AB12CDE"}},"messages":[{"id":"100","title":"Permission"}]}""",
+            "unable-107" => Refused("""{"id":"107","title":"CAP is unable to provide a valuation for this vehicle"},{"id":"110"}"""),
+            "too-high-108" => Refused("""{"id":"13","title":"Plate Change"},{"id":"108","title":"Mileage supplied is too high to provide a CAP valuation"}"""),
+            "too-low-109" => Refused("""{"id":"109","title":"Mileage supplied is too low to provide a CAP valuation"}"""),
+            "void-85" => Refused("""{"id":"85","title":"Void VRM"}"""),
+            "unable-with-permission" => Refused("""{"id":"100","title":"Permission"},{"id":"107"}"""),
             "cap-without-valuation" => """{"vehicle":{"valuations":{"cap":{"messages":["No valuation"]}}}}""",
             "retail-only" => """{"vehicle":{"valuations":{"cap":{"valuation":{"retail":9450}}}}}""",
-            "zero-figures" => """{"vehicle":{"valuations":{"cap":{"valuation":{"retail":0,"clean":0}}}}}""",
-            _ => """{"messages":[]}""",
+            _ => """{"vehicle":{"valuations":{"cap":{"valuation":{"retail":0,"clean":0}}}}}""",
         };
+        var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, answer));
+
+        var notValued = await Assert.ThrowsAsync<GuideValuationNotValuedException>(() =>
+            harness.Provider.GetAsync(Request(CurrentMonth), default));
+
+        Assert.Equal(ValuationSource.Cap, notValued.ValuationSource);
+        Assert.Equal(reason, notValued.Reason);
+        Assert.Contains(harness.Logger.Messages, message =>
+            message.Contains("experian.cap.not_valued", StringComparison.Ordinal)
+            && message.Contains("reason=" + reason, StringComparison.Ordinal)
+            && message.Contains(detail, StringComparison.Ordinal));
+        harness.AssertNothingSecretLogged();
+
+        static string Refused(string messages) =>
+            """{"vehicle":{"summary":{"vrm":"AB12CDE"}},"messages":[""" + messages + "]}";
+    }
+
+    /// <summary>
+    /// A permission refusal without 107, or an answer naming no vehicle, is
+    /// not CAP declining the vehicle: it is unavailable, logged with
+    /// Experian's message ids (R1236).
+    /// </summary>
+    [Theory]
+    [InlineData("permission-message", "valuation=absent messages=100")]
+    [InlineData("no-vehicle", "vehicle=absent")]
+    public async Task APermissionRefusalOrNoVehicleIsUnavailable(string shape, string detail)
+    {
+        var answer = shape == "permission-message"
+            ? """{"vehicle":{"summary":{"vrm":"AB12CDE"}},"messages":[{"id":"100","title":"Permission"}]}"""
+            : """{"messages":[]}""";
         var harness = Harness.Create(vehicle: _ => Json(HttpStatusCode.OK, answer));
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>

@@ -128,12 +128,16 @@ with the Case's accepted mileage in whole miles, and reads
 its trade (R1202). The request carries no valuation date, so every answer is
 the current London month and every ask is the current month's ask (R1203).
 The quote carries no report and no VIN (R1205). Experian's own not-found
-answer is the card's "holds no data for its registration" notice; an answer
-without the block or without both figures, a refusal, the network or a
-missing setting is the card's unavailable notice (R1204), logged as
-`experian.cap.not_found`, `rejected`, `forbidden`, `throttled`,
-`provider_failed`, `unreadable`, `transport`, `configuration` or
-`mileage_unit`, with Experian's message ids where it sent any. It needs no
+answer is the card's "holds no data for its registration" notice (R1204). An
+answer naming the vehicle without the block or without both figures is CAP
+not valuing it (R1236): Experian's message 108 is a mileage too high, 109 one
+too low, and 107 or anything else is CAP declining it, each the card's info
+notice and logged as `experian.cap.not_valued` with its reason; a permission
+refusal (message 100 without 107) is not. That refusal, an answer naming no
+vehicle, a refused call, the network or a missing setting is the card's
+unavailable notice, logged as `experian.cap.rejected`, `forbidden`,
+`throttled`, `provider_failed`, `unreadable`, `transport`, `configuration` or
+`mileage_unit`. Every log line carries Experian's message ids where it sent any. It needs no
 setting, secret or grant beyond the ten above, and no migration: `Cap` has
 been a stored valuation source since the baseline.
 

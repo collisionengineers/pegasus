@@ -334,9 +334,15 @@ current month, and a CAP card with no figures records nothing. Experian
 publishes no report of the valuation, so no document is filed and the VIN is
 not filled ([R1205](../rulings.md)). When Experian holds no vehicle for the
 registration, the card shows an info notice instead,
-`CAP cannot value this vehicle: it holds no data for its registration.`;
-whatever else stops a CAP valuation, an answer without CAP's figures
-included, the card shows its notice ([R1204](../rulings.md)).
+`CAP cannot value this vehicle: it holds no data for its registration.`
+([R1204](../rulings.md)). When Experian names the vehicle but answers
+without CAP's figures, the card shows an info notice for Experian's reason
+(24 November 2026, [R1236](../rulings.md)): its message 108,
+`CAP cannot value this vehicle because its mileage is too high.`; 109,
+`CAP cannot value this vehicle because its mileage is too low.`; 107 or any
+other answer, `CAP cannot value this vehicle.` A permission refusal (Experian's
+message 100 without 107), an answer naming no vehicle, and whatever else stops
+a CAP valuation show the card's unavailable notice.
 Super CAP has no connected provider; connecting one needs its own accepted
 decision.
 

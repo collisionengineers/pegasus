@@ -250,6 +250,112 @@ internal static class GlassProviderFixture
         LockProfileOnStart(mva, PlaceholderDetail(), PlaceholderDetail(locked: true));
     }
 
+    /// <summary>The estimator's pages a calculation sheet is read through, and the file it names.</summary>
+    public const string EstimatorLaunch = "GET /ere/acolib/aco_call_xml.php";
+    public const string EstimatorFirst = "GET /ere/aco/aco.php";
+    public const string EstimatorKey = "GET /ere/aco/aco2.php";
+    public const string EstimatorFrame = "GET /ere/aco/acofr.php";
+    public const string EstimatorReport = "GET /ere/aco/report.php";
+    public const string EstimatorPrint = "GET /ere/aco/reppdf.php";
+    public const string EstimatorSheet = "GET /ere/_tmp/";
+
+    /// <summary>The balancer cookie the estimator sets, which is all it is sent back.</summary>
+    public const string EstimatorCookie = "AWSALB=balancer";
+
+    /// <summary>
+    /// The estimator as it answered on 23 November 2026 (issue 1928), in the
+    /// shapes the adapter reads and with made-up values: the launch page's
+    /// script names <c>aco.php</c>, <c>aco2.php</c> carries the session key in
+    /// its frame's address, and <c>reppdf.php</c> names the temporary PDF. It
+    /// shares the scripted provider with the portal, whose paths differ.
+    /// </summary>
+    public static void ScriptEstimator(ScriptedGlass glass, byte[] sheet)
+    {
+        ArgumentNullException.ThrowIfNull(glass);
+        glass.Set(EstimatorLaunch, new(
+            HttpStatusCode.OK,
+            "<script>document.location.replace( '../aco/aco.php?url0=../acolib/aco_call_xml.php?caller="
+            + "https://pegasus.test/Integrations/Glass/Callback/token&XmlPar=request' + Auth() + WT() );</script>",
+            SetCookie: EstimatorCookie + "; Path=/"));
+        glass.Set(EstimatorFirst, new(HttpStatusCode.OK, "<html></html>"));
+        glass.Set(EstimatorKey, new(
+            HttpStatusCode.OK, "<frameset><frame src=\"acofr.php?ksid=Q0400400001testkey&url0=x\"></frameset>"));
+        glass.Set(EstimatorFrame, new(HttpStatusCode.OK, "<html></html>"));
+        glass.Set(EstimatorReport, new(HttpStatusCode.OK, "<html>Calculation</html>"));
+        glass.Set(EstimatorPrint, new(
+            HttpStatusCode.OK,
+            "<script>var Dummy = new Date(); document.location.replace( '../_tmp//Q0400400001testkey_1_2.pdf?dummy='"
+            + "+Dummy.getTime() );</script>"));
+        glass.Set(EstimatorSheet, new(HttpStatusCode.OK, string.Empty, ContentType: "application/pdf", Bytes: sheet));
+    }
+
+    /// <summary>
+    /// A Glass's calculation sheet as the estimator prints one for a
+    /// placeholder: a real PDF at the sheet's own x positions (the parser
+    /// suite's), one Body row and one Paint row that reconcile at 80.00 an
+    /// hour, and a heading that names the type the Engineer chose. A
+    /// placeholder's sheet prints its plate and VIN blank and no mileage line.
+    /// </summary>
+    public static byte[] CalculationSheet(
+        string registration = "", string? mileage = null, string typeNumber = "987654321")
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        var page = builder.AddPage(PageSize.A4);
+        var y = 800d;
+        void Put(params (double X, string Text)[] words)
+        {
+            y -= 11;
+            foreach (var (x, text) in words)
+            {
+                if (text.Length > 0)
+                {
+                    page.AddText(text, 5, new PdfPoint(x, y), font);
+                }
+            }
+        }
+
+        Put((28, "Glass's Information Services"));
+        Put((28, "Glass's national Code"), (200, typeNumber));
+        Put((28, "Vehicle Registration Number:"), (200, registration));
+        if (mileage is not null)
+        {
+            Put((28, "Mileage:"), (200, mileage));
+        }
+        Put((28, "VIN:"));
+        Put((28, "Date:"), (200, "5.10.2026"));
+        Put((28, "Database version:"), (200, "TEST"));
+        Put((28, "Labour time unit:"), (200, "1 Hour"));
+        Put((28, "Currency:"), (200, "GBP"));
+        Put((28, "Body"), (237, "Repair"), (359, "Overlap-time"));
+        Put((239, "type"), (311, "time"), (462, "costs"), (521, "costs"));
+        Put((28, "671000"), (92, "Roof Panel"), (247, "RP"), (318, "1.00"), (467, "80.00"), (526, "100.00"));
+        Put((28, "Labour costs"), (465, "80.00"));
+        Put((28, "Material costs"), (530, "100.00"));
+        Put((28, "Total Body"), (510, "180.00"));
+        Put((28, "Paint"), (233, "Paint type"), (304, "Paint level"), (512, "Material"));
+        Put((302, "level"), (375, "time"), (521, "costs"));
+        Put((28, "Roof Panel, Centre"), (253, "200"), (312, "I"), (383, "1.00"), (457, "80.00"), (527, "20.00"));
+        Put((28, "Labour costs"), (448, "80.00"));
+        Put((28, "Material costs"), (518, "20.00"));
+        Put((28, "Total Paint"), (510, "100.00"));
+        Put((28, "Summary"), (230, "Labour rate"));
+        Put((28, "Body"), (249, "80.00"), (395, "1.00"), (454, "80.00"), (515, "100.00"));
+        Put((28, "Paint"), (249, "80.00"), (395, "1.00"), (454, "80.00"), (515, "20.00"));
+        Put((28, "Total Labour"), (387, "2.00"), (441, "160.00"));
+        Put((28, "Total Material"), (511, "120.00"));
+        Put((28, "Repair costs excl. VAT"), (511, "280.00"));
+        Put((28, "VAT"), (49, "(20.00"), (82, "%)"), (515, "56.00"));
+        Put((28, "Repair costs incl. VAT"), (505.5, "336.00"));
+        Put((28, "Part name"), (205, "Part no."), (334, "Previous part no."), (478, "Material costs"));
+        Put((28, "Roof Panel"), (205, "PN-ROOF"), (528, "100.00"));
+        Put((28, "Total Parts"), (509.5, "100.00"));
+        Put((28, "Part name"), (205, "Position no."));
+        Put((28, "Roof Panel"), (205, "671000"));
+        Put((28, "Abbreviations"), (205, "Description"));
+        return builder.Build();
+    }
+
     /// <summary>
     /// After <c>start-ere</c> is answered the vehicle's details page is the
     /// locked one, as the portal renders a vehicle that has an estimate. A

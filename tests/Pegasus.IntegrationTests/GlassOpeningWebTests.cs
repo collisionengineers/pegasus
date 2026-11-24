@@ -44,6 +44,14 @@ public sealed class GlassOpeningWebTests
                 html);
             Assert.DoesNotContain("<script>", html, StringComparison.Ordinal);
             Assert.DoesNotContain(estimatorHost, html, StringComparison.Ordinal);
+            // v52: the window is the navless frame's one card, with the Case
+            // it belongs to, one caption and no link; a browser without
+            // script is carried on by a timed reload.
+            AssertIsTheWaitingCard(html);
+            Assert.Contains(
+                "<noscript><meta http-equiv=\"refresh\" content=\"2;url=" + opening + "?handler=Go\" /></noscript>",
+                html,
+                StringComparison.Ordinal);
         }
 
         using var settled = await workspace.FollowAsync(opening);
@@ -60,6 +68,57 @@ public sealed class GlassOpeningWebTests
         Assert.Equal(
             GlassRepairEstimateSessionState.Active,
             Assert.Single(await workspace.SessionsAsync()).State);
+    }
+
+    /// <summary>
+    /// v52 G: the Case page opens the Glass's window on Pegasus's own waiting
+    /// card, so it is never blank while the launch is on its way. The card
+    /// names the Case, asks nothing and goes nowhere; a Case that does not
+    /// exist has no window.
+    /// </summary>
+    [Fact]
+    public async Task TheWindowOpensOnTheWaitingCardBeforeTheLaunchAnswers()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var starting = "/Integrations/Glass/Starting/" + workspace.CaseId.ToString("D");
+
+        Assert.Contains(
+            "data-glass-starting=\"" + starting + "\"", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+        using (var page = await workspace.Client.GetAsync(starting))
+        {
+            Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+            Assert.True(page.Headers.CacheControl?.NoStore);
+            var html = await page.Content.ReadAsStringAsync();
+            Assert.Contains(GlassLabels.Preparing, WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+            AssertIsTheWaitingCard(html);
+            Assert.DoesNotContain("data-glass-opening-state", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("http-equiv=\"refresh\"", html, StringComparison.Ordinal);
+        }
+
+        using var unknown = await workspace.Client.GetAsync(
+            "/Integrations/Glass/Starting/" + Guid.NewGuid().ToString("D"));
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    /// <summary>
+    /// The window's card as v52 settled it: the navless frame, the title, the
+    /// Case's reference and registration, the status, the one caption, and no
+    /// link anywhere on the page.
+    /// </summary>
+    private static void AssertIsTheWaitingCard(string html)
+    {
+        var text = WebUtility.HtmlDecode(html);
+        Assert.Contains("class=\"external-shell\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>" + GlassLabels.Launch + "</h1>", text, StringComparison.Ordinal);
+        Assert.Matches(
+            "<p class=\"glass-case\">[^<·]+ · " + GlassProviderFixture.Registration + "</p>", text);
+        // The status carries its words alone: site.js's busy step draws the
+        // loader beside them (BusyButtonContractTests), so the page has none.
+        Assert.Matches("""<p class="glass-wait" data-glass-wait\b""", html);
+        Assert.DoesNotContain("icon-loader", html, StringComparison.Ordinal);
+        Assert.Contains("<p>" + GlassLabels.KeepOpen + "</p>", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("<a ", html, StringComparison.Ordinal);
     }
 
     /// <summary>

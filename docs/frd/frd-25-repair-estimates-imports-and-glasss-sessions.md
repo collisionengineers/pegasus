@@ -173,8 +173,10 @@ export and the calculation PDF land the same spec:
   paint: `I`, `K1R`, `K1N`, `K1G` (the XML's material kind and level B 3,
   K 2, K 3, K 4). Blend: `B` (B 4, K 5). Repair: `II` inner surface (the
   operator's reading, 5 October 2026), `III`, `IV`, `SP`, `K2` (B 0, B 1,
-  B 2, B 6, K 0). A row with no level (preparation, colour mixing, sample,
-  the clear-coat surcharge) is preparation. Glass's marked-up paint
+  B 2, B 6, K 0), and `K3`, spraying repair up to 15%, and plastic `SP`
+  (K 1, K 6; operator, 24 November 2026, R1235). A row with no level
+  (preparation, the spot-repair preparation Glass's adds beside an `SP` row,
+  colour mixing, sample, the clear-coat surcharge) is preparation. Glass's marked-up paint
   material (the sheet's `Z`, the XML's `PaintMatExtraAppl`) is the note
   "Markup material".
 - A discount, surcharge, small-material, sourcing, disposal or
@@ -323,6 +325,20 @@ delivered again while the import runs waits on the same work.
 Only the owning staff member sees the window or its progress. The estimator
 address is never shown on the page or in its progress answer.
 
+**The window's own page (v52, operator, 23 November 2026, R1234;
+[v52](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v52-glass-window/v52_planning/current/v52-notes.md)).** Whenever the window is on Pegasus it is the navless frame
+with one card. The card is titled "Glass's", names the Case by its reference
+and registration, and has one status line with a turning loader beside the
+words above. A wait still going after five seconds reads "Still preparing
+Glass's…" or "Still bringing the estimate back…", as every busy control does.
+Under the status is one line, "Keep this window open." There is no link and no
+control: the window moves on by itself, and a browser without script is carried
+on by a timed reload. The Case page opens the window on this card, so it is
+never blank while the launch is on its way. As the window hands its outcome
+to the Case it says "Returning to the Case…" in the same card, without the
+line under it, and closes; the Case is named there when the window had been
+waiting on it.
+
 While a session's work runs it cannot be closed. The Close control is absent,
 and a Close posted anyway is refused with a reason, so nothing the work creates
 at the provider is left without a session. A second click of the same Launch
@@ -345,11 +361,28 @@ answers do, because nothing is broken (operator, 10 October 2026); a
 placeholder has no value
 ([ADR-0062](../adr/0062-glass-placeholder-vehicle-for-unknown-plates.md)).
 
-The return of a placeholder session is checked as any other, except for the
-vehicle's identity: the export may name no plate and no mileage, or the
-Case's own, and any other vehicle's is refused; the type number it names is
-the Engineer's choice and is recorded on the session, not compared. This rule
-stands until the first live return has been read.
+The return of a placeholder session is checked as any other, except for
+where its estimate is read and for the vehicle's identity.
+
+Glass's publishes no export for an estimate held on an unqualified vehicle.
+The portal keeps the estimate and its totals on the stock vehicle, but its
+export answer is empty (three returns of three, 5 and 23 November 2026,
+issue 1928). So a placeholder's export is asked for once, and when there is
+none Pegasus reads the estimate's calculation sheet from the estimator itself
+(operator, 23 November 2026, R1233). It proves and selects the placeholder,
+starts the estimate as the portal reopens one, which answers the estimate that
+vehicle holds, opens the estimator and takes the PDF its report prints.
+Nothing is saved there, and the estimator is left as a closed window leaves
+it. The sheet is read by the Glass's calculation PDF reader, kept on the Case
+as the session's calculation sheet and imported as the export would be.
+
+The export or the sheet may name no plate and no mileage, or the Case's own,
+and any other vehicle's is refused; the type number it names is the
+Engineer's choice and is recorded on the session, not compared. A sheet that
+cannot be fetched or read fails under the export's own codes and offers
+**Fetch again**; whatever stops the proof or the start leaves the session
+`Unknown`. Identifying such a vehicle through Glass's search tree, which
+would also give it a Glass's valuation, is not built (issue 2181).
 
 ### Glass's interrupted sessions
 
@@ -406,7 +439,9 @@ things follow when the return is accepted but the estimate does not land:
   refused, offered more than one export or one off Glass's own origin, or
   exceeded the size cap), offers **Fetch again** beside Glass's in the Case's
   Glass's controls. It signs in, selects the recorded vehicle and fetches the
-  export for the same estimate. It makes no vehicle and starts no estimate. It
+  export for the same estimate, or a placeholder's calculation sheet. It makes
+  no vehicle and no estimate: a placeholder's estimate is started again only
+  as a reopen, which answers the one its vehicle holds (R1233). It
   is refused while the account holds another live session. A relay answered by
   a redirect (the sign-in page) may have been acted on, so that session is
   `Unknown`, and continuing it looks the export up without relaying again.

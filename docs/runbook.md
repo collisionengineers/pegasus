@@ -1657,9 +1657,17 @@ it stopped.
   `glass.lookup.notfound`, then "launches on a placeholder vehicle" and the
   stages `InsertPlaceholder` and `RequirePlaceholder`
   ([FRD-25](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-launch-and-return)).
-  The return logs "returned a placeholder estimate identified as type number
-  …" with whether the export named a plate and a mileage; read that line
-  against the first live return before loosening or tightening the rule.
+  Glass's publishes no export for such an estimate, so its return logs stage
+  `WaitForExport` at `glass.export.none` once and then `RequirePlaceholder`,
+  `SelectOnly`, `EstimatorUrlIssued` and `CalculationSheet`: the estimate is
+  read from the estimator's own calculation sheet (R1233). The return logs
+  "returned a placeholder estimate identified as type number …" with whether
+  the sheet named a plate and a mileage. A sheet that could not be fetched
+  settles `Failed` at `glass.download.request` with `sheet=` and the page that
+  stopped it (`launch`, `blocked`, `aco`, `aco2`, `key`, `frame`, `report`,
+  `reppdf`, `sheet` or `pdf`, and the status when there was one); **Fetch
+  again** reads it again. `sheet=blocked` is Glass's refusing another
+  estimator window for the account.
 - `glass.placeholder.request` or `glass.placeholder.id` with `Unknown` means
   the insert's answer was lost or unreadable. Look in the account's stock
   list for a placeholder whose model text is the Case registration before

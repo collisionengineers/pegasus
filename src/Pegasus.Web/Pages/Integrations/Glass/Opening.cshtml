@@ -2,23 +2,26 @@
 @model Pegasus.Web.Pages.Integrations.Glass.OpeningModel
 @using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
 @{
-    Layout = null;
+    Layout = "Shared/_LayoutAuth";
+    ViewData["Title"] = GlassLabels.Launch;
     var sessionId = Model.Session.Id;
     var go = Url.Page("/Integrations/Glass/Opening", "Go", new { sessionId });
+    var waiting = new GlassWaitingView(Model.Waiting, Model.CaseLine)
+    {
+        StateUrl = Url.Page("/Integrations/Glass/Opening", "State", new { sessionId }),
+        GoUrl = go,
+    };
 }
 @* The Glass's window while its provider work runs in the background. The
    script asks the owner-only State handler until nothing runs, then continues
    to Go, which answers with the estimator or hands the outcome back to the
-   Case window (Shared/_GlassReturn). The Continue link is the no-script path. *@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
+   Case window (Shared/_GlassReturn). A browser without script is carried to
+   Go by the timed reload in the head; there is no link (v52 B, R1234). *@
+@section Styles {
     <meta name="robots" content="noindex" />
-    <title>@GlassLabels.Launch · Pegasus</title>
-</head>
-<body data-glass-opening-state="@Url.Page("/Integrations/Glass/Opening", "State", new { sessionId })" data-glass-opening-go="@go">
-    <p role="status">@Model.Waiting <a href="@go">@GlassLabels.Continue</a>.</p>
+    <noscript><meta http-equiv="refresh" content="2;url=@go" /></noscript>
+}
+<partial name="_GlassWaiting" model="waiting" />
+@section Scripts {
     <script src="~/js/glass-opening.js" asp-append-version="true"></script>
-</body>
-</html>
+}

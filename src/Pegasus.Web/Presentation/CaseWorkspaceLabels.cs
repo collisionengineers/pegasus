@@ -850,11 +850,39 @@ public static class CaseWorkspaceLabels
         public static string NoVehicleDataNotValued(ValuationSource source) =>
             SourceLabel(source) + " cannot value this vehicle: it holds no data for its registration.";
 
+        /// <summary>
+        /// Get valuation when the source answers that the vehicle's mileage is
+        /// too high to value, CAP's message 108 (operator-approved wording,
+        /// 24 November 2026; R1236). It names no mileage: the limit differs
+        /// between vehicles.
+        /// </summary>
+        public static string MileageTooHighNotValued(ValuationSource source) =>
+            SourceLabel(source) + " cannot value this vehicle because its mileage is too high.";
+
+        /// <summary>
+        /// Get valuation when the source answers that the vehicle's mileage is
+        /// too low to value, CAP's message 109 (operator-approved wording,
+        /// 24 November 2026; R1236).
+        /// </summary>
+        public static string MileageTooLowNotValued(ValuationSource source) =>
+            SourceLabel(source) + " cannot value this vehicle because its mileage is too low.";
+
+        /// <summary>
+        /// Get valuation when the source answers without a valuation and
+        /// without a more specific reason, CAP's message 107 among them
+        /// (operator-approved wording, 24 November 2026; R1236).
+        /// </summary>
+        public static string DeclinedNotValued(ValuationSource source) =>
+            SourceLabel(source) + " cannot value this vehicle.";
+
         /// <summary>The card's information sentence for a provider that cannot value the vehicle.</summary>
         public static string NotValued(ValuationSource source, GuideValuationNotValuedReason reason) => reason switch
         {
             GuideValuationNotValuedReason.VehicleAge => VehicleAgeNotValued,
             GuideValuationNotValuedReason.NoVehicleData => NoVehicleDataNotValued(source),
+            GuideValuationNotValuedReason.MileageTooHigh => MileageTooHighNotValued(source),
+            GuideValuationNotValuedReason.MileageTooLow => MileageTooLowNotValued(source),
+            GuideValuationNotValuedReason.Declined => DeclinedNotValued(source),
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "The reason is not recognised."),
         };
 
@@ -1386,7 +1414,18 @@ public static class CaseWorkspaceLabels
 
         public const string BringingBack = "Bringing the estimate back…";
 
-        public const string Continue = "Continue";
+        /// <summary>The Glass's window as it hands its outcome to the Case and closes (v52 H, R1234).</summary>
+        public const string Returning = "Returning to the Case…";
+
+        /// <summary>The one line under the window's status (v52 C, R1234).</summary>
+        public const string KeepOpen = "Keep this window open.";
+
+        /// <summary>
+        /// The Case a Glass's window belongs to, as the ribbon names it: its
+        /// reference, then its registration when it has one (v52 F, R1234).
+        /// </summary>
+        public static string CaseLine(string reference, string? registration) =>
+            string.IsNullOrWhiteSpace(registration) ? reference : $"{reference} · {registration}";
 
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate
