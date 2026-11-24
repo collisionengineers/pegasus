@@ -683,7 +683,7 @@ named below, and one read-only count of 22 October 2026 posted on
 
 ## Release 5.3.1 - 24 November 2026 (deployment live)
 
-Release 5.3.1 deployed `dev` at the merge of #2188. That covers four pull requests: #2182 (an unknown plate's Glass's estimate is read from the estimator's sheet, R1233, closing #1928), #2183 (the Glass's window as the navless frame's card, R1234), #2187 (Glass's plastic paint levels K3 and SP and the spot-repair preparation row, R1235) and #2188 (CAP's refusals are "cannot value" notices, R1236, closing #2184). Normal route, no migration, no provision, on the operator's approval ([R1237](rulings.md)). It was named PATCH; the read-only run had proposed MINOR. The Web App restarted at 13:20:44Z and reported started at 13:22:17Z.
+Release 5.3.1 deployed `dev` at the merge of #2188. That covers four pull requests: #2182 (an unknown plate's Glass's estimate is read from the estimator's sheet, R1233, closing #1928), #2183 (the Glass's window as the navless frame's card, R1234), #2187 (Glass's plastic paint levels K3 and SP and the spot-repair preparation row, R1235) and #2188 (CAP's refusals are "cannot value" notices, R1236, closing #2184). Normal route, no migration, no provision, on the operator's approval ([R1245](rulings.md)). It was named PATCH; the read-only run had proposed MINOR. The Web App restarted at 13:20:44Z and reported started at 13:22:17Z.
 
 | Observation | Value |
 | --- | --- |
