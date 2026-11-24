@@ -25,12 +25,19 @@ namespace Pegasus.Infrastructure.Experian;
 /// </para>
 ///
 /// <para>
-/// <b>Every failure is "unavailable".</b> The card says the same approved
-/// sentence whatever stopped the valuation (the account, Experian, an answer
-/// without CAP's figures or the network) and the reason goes to the host log
-/// by its failure code and stage. The one exception is Experian answering
-/// that it holds no vehicle for the registration: the card says that instead
-/// (R1204).
+/// <b>An answer without CAP's figures is "cannot value".</b> Experian's
+/// message 108 is a mileage too high to value and 109 one too low; 107, and
+/// any other answer that names the vehicle without CAP's figures, is CAP
+/// declining it. The card shows each as information (R1236). Experian
+/// answering that it holds no vehicle for the registration says that instead
+/// (R1204). Each is logged with Experian's message ids.
+/// </para>
+///
+/// <para>
+/// <b>Every other failure is "unavailable".</b> The card says the same
+/// approved sentence whatever else stopped the valuation (the account, a
+/// permission refusal, Experian, an answer naming no vehicle or the network)
+/// and the reason goes to the host log by its failure code and stage.
 /// </para>
 /// </summary>
 public sealed partial class ExperianCapValuationProvider(
@@ -72,7 +79,22 @@ public sealed partial class ExperianCapValuationProvider(
                     throw new ExperianFailure("vehicle", status, null);
                 }
 
-                var (retail, trade) = Figures(body);
+                decimal retail, trade;
+                try
+                {
+                    (retail, trade) = Figures(body);
+                }
+                catch (GuideValuationNotValuedException notValued)
+                {
+                    LogNotValued(
+                        logger,
+                        request.CaseId,
+                        ExperianCapFailureCode.NotValued,
+                        notValued.Reason,
+                        notValued.InnerException is { } failure ? Detail(failure) : string.Empty);
+                    throw;
+                }
+
                 return new GuideValuationQuote(retail, trade, guideMonth, request.Mileage);
             }
         }
@@ -92,9 +114,11 @@ public sealed partial class ExperianCapValuationProvider(
 
     /// <summary>
     /// <c>vehicle.valuations.cap.valuation</c>: its <c>retail</c> and its
-    /// <c>clean</c> (R1202). An answer without the block or without both
-    /// figures has not valued the vehicle, so it is unavailable; the log names
-    /// Experian's message ids.
+    /// <c>clean</c> (R1202). An answer that names the vehicle without the
+    /// block or without both figures has not valued it: CAP cannot value it,
+    /// for the reason <see cref="NotValuedReason"/> reads from Experian's
+    /// messages, or it is unavailable when they refuse a permission (R1236).
+    /// An answer naming no vehicle is unavailable.
     /// </summary>
     internal static (decimal Retail, decimal Trade) Figures(JsonDocument? body)
     {
@@ -108,16 +132,36 @@ public sealed partial class ExperianCapValuationProvider(
             || Block(valuations, "cap") is not { } cap
             || Block(cap, "valuation") is not { } valuation)
         {
-            throw new ExperianFailure("vehicle", null, "valuation=absent" + ExperianClient.MessageIds(root));
+            throw NotValuedOrUnavailable(root, "valuation=absent");
         }
 
         if (Figure(valuation, "retail") is not { } retail || Figure(valuation, "clean") is not { } trade)
         {
-            throw new ExperianFailure("vehicle", null, "figures=absent" + ExperianClient.MessageIds(root));
+            throw NotValuedOrUnavailable(root, "figures=absent");
         }
 
         return (retail, trade);
     }
+
+    private static Exception NotValuedOrUnavailable(JsonElement root, string detail)
+    {
+        var failure = new ExperianFailure("vehicle", null, detail + ExperianClient.MessageIds(root));
+        return NotValuedReason(ExperianClient.MessageIdList(root)) is { } reason
+            ? new GuideValuationNotValuedException(ValuationSource.Cap, reason, failure)
+            : failure;
+    }
+
+    /// <summary>
+    /// Why CAP did not value a vehicle Experian names, from Experian's
+    /// message ids (operator, 24 November 2026; R1236): 108, a mileage too
+    /// high; 109, one too low; 107 or anything else, CAP declining it; null
+    /// for a permission refusal (100) without 107, which stays unavailable.
+    /// </summary>
+    internal static GuideValuationNotValuedReason? NotValuedReason(IReadOnlyList<string> ids) =>
+        ids.Contains("108") ? GuideValuationNotValuedReason.MileageTooHigh
+        : ids.Contains("109") ? GuideValuationNotValuedReason.MileageTooLow
+        : ids.Contains("107") || !ids.Contains("100") ? GuideValuationNotValuedReason.Declined
+        : null;
 
     private static JsonElement? Block(JsonElement item, string name) =>
         item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Object ? value : null;
@@ -165,9 +209,16 @@ public sealed partial class ExperianCapValuationProvider(
         Message = "Experian CAP valuation for case {CaseId} answered {FailureCode}")]
     private static partial void LogNotFound(ILogger logger, Guid caseId, string failureCode);
 
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Experian CAP valuation for case {CaseId} answered {FailureCode} reason={Reason} {Detail}")]
+    private static partial void LogNotValued(
+        ILogger logger, Guid caseId, string failureCode, GuideValuationNotValuedReason reason, string detail);
+
     internal static class ExperianCapFailureCode
     {
         public const string NotFound = "experian.cap.not_found";
+        public const string NotValued = "experian.cap.not_valued";
         public const string Rejected = "experian.cap.rejected";
         public const string Forbidden = "experian.cap.forbidden";
         public const string Throttled = "experian.cap.throttled";

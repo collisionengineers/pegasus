@@ -91,6 +91,25 @@ public enum GuideValuationNotValuedReason
     /// number (operator, 10 October 2026).
     /// </summary>
     NoVehicleData,
+
+    /// <summary>
+    /// The vehicle's mileage is above what the source values at: CAP's
+    /// message 108 through Experian (operator, 24 November 2026; R1236).
+    /// </summary>
+    MileageTooHigh,
+
+    /// <summary>
+    /// The vehicle's mileage is below what the source values at: CAP's
+    /// message 109 through Experian (operator, 24 November 2026; R1236).
+    /// </summary>
+    MileageTooLow,
+
+    /// <summary>
+    /// The source answered without a valuation and gave no more specific
+    /// reason: CAP's message 107 through Experian, or any other answer
+    /// without CAP's figures (operator, 24 November 2026; R1236).
+    /// </summary>
+    Declined,
 }
 
 /// <summary>
