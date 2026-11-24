@@ -101,7 +101,9 @@ public sealed record GlassEstimateExport(
 /// and <c>PaintLevel</c>, the same table the calculation PDF reader maps its
 /// printed level with. <c>Paint_PreparationScratchResistantClearCoatWork</c>
 /// and <c>Paint_ClearVarnish</c> are paint preparation, like the four
-/// preparation rows before them, and <c>PaintMatExtraAppl</c> is the sheet's
+/// preparation rows before them, and so is
+/// <c>Paint_PreparationSpotMainWork</c>, the preparation Glass's adds beside
+/// a spot-repair (<c>SP</c>) row. <c>PaintMatExtraAppl</c> is the sheet's
 /// printed <c>Z</c> flag, noted as markup material.
 /// </para>
 ///
@@ -531,7 +533,8 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         PaintPosition => (PaintPartType(position, ordinal), Charge.Paint),
         "Paint_PreparationMetal" or "Paint_PreparationPlastic"
             or "Paint_ColourMixing" or "Paint_ColourSample"
-            or "Paint_PreparationScratchResistantClearCoatWork" or "Paint_ClearVarnish" =>
+            or "Paint_PreparationScratchResistantClearCoatWork" or "Paint_ClearVarnish"
+            or "Paint_PreparationSpotMainWork" =>
             ("paint_prep", Charge.Paint),
         _ => throw Reject(ordinal, $"carries the unknown position type '{posType}'"),
     };

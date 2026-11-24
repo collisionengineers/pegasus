@@ -440,7 +440,8 @@ public sealed class GlassEstimatePdfParserTests
              new PaintRow("Prep. metal (on vehicle without pre-painting)", "200", null, 1.70m, 120.16m),
              new PaintRow("First Colour/Clear tinted coat", null, null, 0.20m, 169.86m),
              new PaintRow("Colour mixing (1)", null, null, 0.30m, 0.00m),
-             new PaintRow("Sample colour creation (1)", null, null, 0.30m, 11.62m)],
+             new PaintRow("Sample colour creation (1)", null, null, 0.30m, 11.62m),
+             new PaintRow("Preparation spot repair", null, null, 0.50m, 120.16m)],
             [],
             [new PartRow("Rear Door Outer Handle", "6921102934", 49.83m)],
             [new PositionRow("Rear Door Outer Handle", "672201")]));
@@ -449,7 +450,7 @@ public sealed class GlassEstimatePdfParserTests
             ["new_part",
              "paint_repair", "paint_new", "paint_repair", "paint_repair", "paint_repair", "paint_repair",
              "paint_blend", "paint_new", "paint_new", "paint_new", "paint_new",
-             "paint_prep", "paint_prep", "paint_prep", "paint_prep", "paint_prep"],
+             "paint_prep", "paint_prep", "paint_prep", "paint_prep", "paint_prep", "paint_prep"],
             parsed.Lines.Select(line => line.Type));
         Assert.Equal("310", parsed.Lines[2].GuideCode);
         Assert.Equal("201", parsed.Lines[6].GuideCode);
@@ -462,7 +463,7 @@ public sealed class GlassEstimatePdfParserTests
     }
 
     [Theory]
-    [InlineData("200", "K3")]
+    [InlineData("200", "K4")]
     [InlineData("200", "K1")]
     [InlineData("200", "SP2")]
     [InlineData("20", "I")]
@@ -543,6 +544,7 @@ public sealed class GlassEstimatePdfParserTests
     [InlineData("K", "4", "K1G", "paint_new")]
     [InlineData("K", "0", "K2", "paint_repair")]
     [InlineData("K", "1", "K3", "paint_repair")]
+    [InlineData("K", "6", "SP", "paint_repair")]
     public void BothGlassesReadersLandTheSameRowsAsTheSameLines(
         string materialKind, string level, string printedLevel, string expectedPaintType) =>
         LandTheSameRowsOnBothRoutes(materialKind, level, printedLevel, expectedPaintType, unitsPerHour: 1);

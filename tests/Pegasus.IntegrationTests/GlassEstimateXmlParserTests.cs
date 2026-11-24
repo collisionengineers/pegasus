@@ -669,6 +669,7 @@ public sealed class GlassEstimateXmlParserTests
     [InlineData("K", "0", "paint_repair")]
     [InlineData("K", "1", "paint_repair")]
     [InlineData("K", "5", "paint_blend")]
+    [InlineData("K", "6", "paint_repair")]
     public void APaintRowsLevelChoosesItsLineType(string materialKind, string level, string expected)
     {
         foreach (var repairKind in new[] { "Replace", "Repair" })
@@ -710,8 +711,35 @@ public sealed class GlassEstimateXmlParserTests
         Assert.Null(paint.Price);
     }
 
+    /// <summary>
+    /// FW26028-p on the test instance (R1235): a plastic bumper and a metal
+    /// wing spot-repaired. Glass's writes plastic SP as material <c>K</c>,
+    /// level <c>6</c>, and adds its own spot-repair preparation row,
+    /// <c>Paint_PreparationSpotMainWork</c>, beside the SP rows.
+    /// </summary>
+    [Fact]
+    public void SpotRepairsAndTheirPreparationLandAsPaintLines()
+    {
+        var result = Parse(GlassExport.BuildXml(positions: string.Concat(
+            GlassExport.Position("Part_SparePart", "Replace", "Front Bumper Lining",
+                price: "253.76", time: "0.60", materialCode: "1010800"),
+            GlassExport.Position("Paint_Part", "Replace", "Front Bumper k", price: "14.32", time: "0.90",
+                materialCode: "1010", paintMatKind: "K", paintLevel: "6"),
+            GlassExport.Position("Paint_Part", "Replace", "Front Wing, Complete", price: "14.32", time: "0.90",
+                materialCode: "1410", place: "L", paintMatKind: "B", paintLevel: "6"),
+            GlassExport.Position("Paint_PreparationSpotMainWork", "Replace", "Preparation spot repair",
+                price: "120.16", time: "0.50", materialCode: "23"),
+            GlassExport.Position("Paint_ColourMixing", "Replace", "Colour mixing (1)", time: "0.30", materialCode: "6"))));
+
+        Assert.Equal(
+            ["new_part", "paint_repair", "paint_repair", "paint_prep", "paint_prep"],
+            result.Lines.Select(line => line.Type));
+        Assert.Equal(0.50m, result.Lines[3].PaintWorkUnits);
+        Assert.Equal(120.16m, result.Lines[3].Materials);
+    }
+
     [Theory]
-    [InlineData("K", "6")]
+    [InlineData("K", "7")]
     [InlineData("B", "5")]
     [InlineData("B", "-1")]
     [InlineData("X", "3")]
@@ -731,7 +759,8 @@ public sealed class GlassEstimateXmlParserTests
     [Theory]
     [InlineData("Paint_PreparationScratchResistantClearCoatWork", "Surcharge scratch-resistant clear coat", "0.00", "0.10")]
     [InlineData("Paint_ClearVarnish", "First Colour/Clear tinted coat", "169.86", "0.20")]
-    public void ScratchResistantClearCoatAndClearVarnishArePaintPreparation(
+    [InlineData("Paint_PreparationSpotMainWork", "Preparation spot repair", "120.16", "0.50")]
+    public void LevellessPaintRowsArePaintPreparation(
         string posType, string text, string price, string time)
     {
         var line = Assert.Single(Parse(GlassExport.BuildXml(
