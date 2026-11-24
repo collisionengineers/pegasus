@@ -231,8 +231,10 @@ that card with the figures, as the section's Save would (operator, 8 October
 2026): Pegasus asks the source's connected provider with its own valuation
 credential and, where the provider offers them, files its report and fills an
 empty VIN, exactly as for staff. An unavailable source, a vehicle the source
-does not value (`VehicleAge`) or a registration it holds no data for
-(`NoVehicleData`) records nothing, and so does a source already answered for
+does not value (`VehicleAge`), a registration it holds no data for
+(`NoVehicleData`), a mileage it does not value at (`MileageTooHigh`,
+`MileageTooLow`) or a vehicle it declines without a more specific reason
+(`Declined`; [R1236](../rulings.md)) records nothing, and so does a source already answered for
 that guide month at the Case's registration and mileage (`AlreadyAsked`; R900;
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 A CAP card, fetched or saved, is always the current month's whatever month is

@@ -1562,6 +1562,36 @@ public sealed class CaseValuationSectionWebTests
         Assert.Empty(store.Saves);
     }
 
+    /// <summary>
+    /// CAP declining a vehicle through Experian answers the card's own
+    /// approved sentence for its reason (operator, 24 November 2026; R1236),
+    /// not "unavailable", and records nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(GuideValuationNotValuedReason.MileageTooHigh, "CAP cannot value this vehicle because its mileage is too high.")]
+    [InlineData(GuideValuationNotValuedReason.MileageTooLow, "CAP cannot value this vehicle because its mileage is too low.")]
+    [InlineData(GuideValuationNotValuedReason.Declined, "CAP cannot value this vehicle.")]
+    public async Task ACapVehicleNotValuedAnswersItsOwnSentence(GuideValuationNotValuedReason reason, string sentence)
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(
+                new NotValuedGuideValuationProvider(ValuationSource.Cap, reason));
+        });
+
+        using var response = await PostGetValuationAsync(workspace, ValuationSource.Cap, "2026-08", asJson: true);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var answer = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("not_valued", answer.RootElement.GetProperty("status").GetString());
+        Assert.Equal(sentence, answer.RootElement.GetProperty("message").GetString());
+        Assert.Empty(store.Saves);
+    }
+
     /// <summary>The scripted Glass's, answering the Case's own 42,000 miles.</summary>
     private static ScriptedGlass ScriptedGlassFor42000Miles()
     {
