@@ -22,7 +22,7 @@ Pegasus-v2-Refined-Pack as its visual reference: compact 13.5px body text,
 36px controls, restrained surfaces, aligned bounded forms, and contextual
 dialogs. The private prototype and its customer-derived fixtures must not be
 published. Current operator requirements override conflicting prototype
-behaviour: keep one Case Notes timeline, exactly one staff role, equal ordinary
+behaviour: keep one Case Notes section (a Notes tab and a History tab, R1253), exactly one staff role, equal ordinary
 casework powers for enabled staff accounts. Prototype
 handlers and illustrative figures are not application policy. Review actual
 routed pages and their error/edit states against the reference at 1580×1000
@@ -365,7 +365,7 @@ shared `.dismiss` × so it can be put away before it expires.
 - The Case record is one scrolling page of section hosts with one edit form:
   its identity ribbon, action bar and section navigation are sticky, sections
   below the fold load lazily, and `?section=` reaches a section. Retain the
-  single Case Notes timeline.
+  one Notes section, whose Notes and History tabs share one row (R1253).
 - <a id="source-tags"></a>**Source tags.** Where a value came from is one
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
@@ -1012,7 +1012,7 @@ deleted in wave 5.
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-name` | Outstanding requirements, and the report blockers in the aside's Report not ready card, whose `blocker-name` is the requirement as its link to the section that clears it; the Engineer blocker is the one exception and links the ribbon's Assign Engineer action, not a section (operator, 22 October 2026) |
 | `next-step`, `next-step-go` | The Next action's one step and its full-width control, which shares its row with Take while the Case is Unassigned ([v41 K9](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)), and Create audit's with Send report before an Inspection + Audit Case's report is sent (operator, 5 November 2026) |
-| `timeline`, `notes-list`, `note-entry` | History and Notes |
+| `notes-timeline`, `notes-day`, `note` | The Notes section's two tabs: a day heading, then one row for a note or a history entry (R1253, R1254) |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |

@@ -2791,7 +2791,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
-            Task.FromResult<CaseNotesSection?>(Frame(query.CaseId) is { } frame ? new(frame, []) : null);
+            Task.FromResult<CaseNotesSection?>(
+                Frame(query.CaseId) is { } frame ? new(frame, CaseTimelinePage.Empty, CaseTimelinePage.Empty) : null);
 
         Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
             GetCaseSectionQuery query,

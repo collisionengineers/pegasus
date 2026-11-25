@@ -458,7 +458,8 @@ public sealed partial class SendToAiIntegrationTests
         Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
-            Task.FromResult<CaseNotesSection?>(Frame(query.CaseId) is { } frame ? new(frame, []) : null);
+            Task.FromResult<CaseNotesSection?>(
+                Frame(query.CaseId) is { } frame ? new(frame, CaseTimelinePage.Empty, CaseTimelinePage.Empty) : null);
 
         public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,

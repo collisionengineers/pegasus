@@ -643,25 +643,55 @@ public sealed class EfCaseQueryStore(
     /// <summary>
     /// The Notes body has its own read so a mounted section does not materialize
     /// documents, correspondence or other Case bodies merely to show history.
-    /// Actor names are deliberately resolved in Core, where the actor policy
+    /// Both tabs' totals are one command, then each tab's page is one. Actor
+    /// names are deliberately resolved in Core, where the actor policy
     /// already lives.
     /// </summary>
-    public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
+    public async Task<CaseTimeline> ListTimelineAsync(
         Guid caseId,
+        int notesPage,
+        int historyPage,
         CancellationToken cancellationToken)
     {
+        const string note = AddCaseNote.EventType;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entities = await TimelineRows(context, caseId)
+        var notes = context.CaseWorkflowEvents.Where(item => item.CaseId == caseId && item.EventType == note);
+        var history = TimelineRows(context, caseId).Where(item => item.EventType != note);
+        var totals = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => new { Notes = notes.Count(), History = history.Count() })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (totals is null)
+        {
+            return new(CaseTimelinePage.Empty, CaseTimelinePage.Empty);
+        }
+
+        return new(
+            await TimelinePageAsync(notes, totals.Notes, notesPage, cancellationToken),
+            await TimelinePageAsync(history, totals.History, historyPage, cancellationToken));
+    }
+
+    private static async Task<CaseTimelinePage> TimelinePageAsync(
+        IQueryable<CaseWorkflowEventEntity> rows,
+        int total,
+        int requestedPage,
+        CancellationToken cancellationToken)
+    {
+        var page = CaseTimelinePage.Clamp(requestedPage, total);
+        if (total == 0)
+        {
+            return new([], 0, page);
+        }
+
+        var entities = await rows
             .AsNoTracking()
             .OrderByDescending(item => item.OccurredAtUtc)
             .ThenByDescending(item => item.Id)
-            .Take(200)
+            .Skip((page - 1) * CaseTimelinePage.Size)
+            .Take(CaseTimelinePage.Size)
             .ToArrayAsync(cancellationToken);
-        return entities
-            .Select(MapHistoryEntry)
-            .OrderByDescending(item => item.OccurredAtUtc)
-            .ThenByDescending(item => item.EntryId)
-            .ToArray();
+        return new(entities.Select(MapHistoryEntry).ToArray(), total, page);
     }
 
     /// <summary>
@@ -1626,7 +1656,7 @@ public sealed class EfCaseQueryStore(
         item.RecognisedEstimateProvider);
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="ListHistoryAsync"/>:
+    /// The keyset-paged read of the whole timeline, notes included:
     /// newest event first, then entry id.
     /// </summary>
     public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
