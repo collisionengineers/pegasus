@@ -399,7 +399,7 @@ public sealed class PrincipalReportSendingSeedTests
         var read = EfOrganizationAdministration.ReadReportSending(builtWls.ReportSendingRulesJson);
         Assert.Equal(ReportDispatchPolicy.RateCardTask, read.Rules[0].Then[2].Text);
         Assert.Equal(ReportDispatchPolicy.GarageFiguresTask, Assert.Single(read.Rules[2].Then).Text);
-        Assert.Equal(EfOrganizationAdministration.DefaultReportSendingJson, SendingRulesAreBuilt.DefaultRulesJson);
+        Assert.Equal(SendingRulesAreBuilt.DefaultRulesJson, EfOrganizationAdministration.DefaultReportSendingJson);
 
         var builtRjs = await PrincipalAsync("RJS");
         Assert.Equal(
