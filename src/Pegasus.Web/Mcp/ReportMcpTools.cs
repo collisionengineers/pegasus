@@ -79,13 +79,18 @@ internal sealed record ReportActionToolResult(
     string? FeeNoteOutcome,
     [property: Description("The Principal's own invoice (the ULA Invoice), made after the report for a Principal whose setting asks for it, on a Repairable or Contract repair outcome.")]
     string? PrincipalInvoiceOutcome,
+    [property: Description("The images document, made after the report when the Principal's rules require it at send (R1262).")]
+    string? ImagePackOutcome,
+    [property: Description("The Repair Spec (the figure breakdown), made after the report when the Principal's rules require it at send (R1262).")]
+    string? RepairSpecOutcome,
     string OperationKey);
 
 /// <summary>
 /// Automation Actor report tools (FRD-10, ADR-0064): the Case's report
 /// generations, and the acts staff take on them — Generate report (which goes
 /// on to make the separate fee note, then the Principal's own invoice for a
-/// Principal whose setting asks for it, R1147), the Repair Spec and images companion
+/// Principal whose setting asks for it, R1147, then the companions the
+/// Principal's rules require, R1262), the Repair Spec and images companion
 /// documents, recording report approval, and linking or unlinking retained
 /// report-Sent evidence — through the same Core commands, lease and version
 /// guards as the Case page. The operator approved report generation and
@@ -181,7 +186,7 @@ internal sealed class ReportMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Takes one report act a member of staff takes on the Case page: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation, then the Principal's own invoice (the ULA Invoice), made after the report for a Principal whose setting asks for it, on a Repairable or Contract repair outcome), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version. A generation keeps the lease; approval and the evidence acts end it.")]
+    [Description("Takes one report act a member of staff takes on the Case page: generate_report (freezes the Case's accepted facts and renders the immutable report, filed to the Case; once it is confirmed the separate fee note is made from the same generation, then the Principal's own invoice (the ULA Invoice), made after the report for a Principal whose setting asks for it, on a Repairable or Contract repair outcome, then the images document and the Repair Spec when the Principal's rules require them at send), generate_repair_spec or generate_image_pack (a companion document of a confirmed generation, generationId defaulting to the work's current one), record_approval (records approval of one stored generated artifact, artifactId from pegasus_report_list; while the Case is With Engineer, or on the Inspection report of a Case that has its Audit; this is not a send), link_sent_evidence (links retained report-Sent evidence, evidenceId from pegasus_report_list; the current work's report moves the Case to Post report) or unlink_sent_evidence (reason; the currently linked evidence unless evidenceId names it). Nothing here sends a report; pegasus_report_send does. A generation that is not ready answers outcome NotReady with the reasons and records nothing. Needs the expected case version. A generation keeps the lease; approval and the evidence acts end it.")]
     public async Task<ReportActionToolResult> ActAsync(
         [Description(AutomationToolText.CaseId)] Guid caseId,
         [Description(AutomationToolText.ExpectedCaseVersion)] long expectedVersion,
@@ -241,6 +246,8 @@ internal sealed class ReportMcpTools(
                         .ToArray(),
                     result.FeeNoteOutcome,
                     result.PrincipalInvoiceOutcome,
+                    result.ImagePackOutcome,
+                    result.RepairSpecOutcome,
                     key);
             },
             cancellationToken);
@@ -316,8 +323,35 @@ internal sealed class ReportMcpTools(
                         result = result with { Generation = withInvoice };
                     }
                 }
+                // Then each companion the Principal's rules require at send,
+                // from the generation as the invoice left it (R1262).
+                string? imagePack = null;
+                string? repairSpec = null;
+                var companions = await reportActs.RequiredCompanionRequestsAfterAsync(
+                    request,
+                    result,
+                    companion => OneCommandEditAuthority.DeriveOperationKey(
+                        key, companion == CaseReportArtifactKind.ImagePack ? ":image-pack" : ":repair-spec"),
+                    cancellationToken);
+                foreach (var companionRequest in companions)
+                {
+                    var companionResult = await GenerateOneAsync(companionRequest, cancellationToken);
+                    if (companionRequest.Kind == CaseReportArtifactKind.ImagePack)
+                    {
+                        imagePack = companionResult.Outcome.ToString();
+                    }
+                    else
+                    {
+                        repairSpec = companionResult.Outcome.ToString();
+                    }
+                    if (companionResult.Generation is { } withCompanion)
+                    {
+                        result = result with { Generation = withCompanion };
+                    }
+                }
                 return new ActOutcome(
-                    result.Outcome.ToString(), result.Generation, result.Reasons, feeNote, principalInvoice);
+                    result.Outcome.ToString(), result.Generation, result.Reasons, feeNote, principalInvoice,
+                    imagePack, repairSpec);
             },
             cancellationToken);
     }
@@ -482,5 +516,7 @@ internal sealed class ReportMcpTools(
         CaseReportGenerationRecord? Generation,
         IReadOnlyList<AssessmentReadinessItem> Reasons,
         string? FeeNoteOutcome,
-        string? PrincipalInvoiceOutcome);
+        string? PrincipalInvoiceOutcome,
+        string? ImagePackOutcome = null,
+        string? RepairSpecOutcome = null);
 }

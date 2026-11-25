@@ -16,18 +16,26 @@ public enum CaseReportActAccess
 /// <summary>
 /// What the Case page's Generate and the Automation Actor's report acts share
 /// (ADR-0064, R1042): the reason each artifact's request records, the fee
-/// note and the Principal's own invoice a report request goes on to make
-/// (R1147), and the Automation Actor's gate
+/// note, the Principal's own invoice (R1147) and the companion documents the
+/// Principal's rules require (R1262) a report request goes on to make, and
+/// the Automation Actor's gate
 /// for generating or sending a report. Each caller opens the generation's
 /// custody batch itself (<see cref="IGenerateCaseReport.BeginBatch"/> is an
 /// ambient scope that must be opened in the caller's own flow) and presents
 /// each outcome its own way; a fee note that fails after its report
 /// succeeded is the caller's to present (R771).
 /// </summary>
-public sealed class CaseReportActs(IGetAssessmentAccess getAssessmentAccess)
+public sealed class CaseReportActs(
+    IGetAssessmentAccess getAssessmentAccess,
+    IReportRecipientSuggestionQueries dispatchFacts,
+    TimeProvider timeProvider)
 {
     private readonly IGetAssessmentAccess getAssessmentAccess =
         getAssessmentAccess ?? throw new ArgumentNullException(nameof(getAssessmentAccess));
+    private readonly IReportRecipientSuggestionQueries dispatchFacts =
+        dispatchFacts ?? throw new ArgumentNullException(nameof(dispatchFacts));
+    private readonly TimeProvider timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     /// <summary>The reason one artifact's generation records.</summary>
     public static string ReasonFor(CaseReportArtifactKind kind) => kind switch
@@ -101,6 +109,79 @@ public sealed class CaseReportActs(IGetAssessmentAccess getAssessmentAccess)
             CaseReportArtifactKind.PrincipalInvoice,
             GenerateCaseReport.PrincipalInvoiceTargetOf(report.Kind, result.Generation),
             principalInvoiceOperationKey);
+    }
+
+    /// <summary>
+    /// The companion documents a report request goes on to make after its fee
+    /// note and the Principal's own invoice, under the same lease and version:
+    /// each one Send report would require and is not yet confirmed, as
+    /// <see cref="ReportDispatchPolicy.Plan"/> reads the Principal's rules for
+    /// the Case now, the images before the Repair Spec (R1262). None unless
+    /// <paramref name="report"/> asked for the report and
+    /// <paramref name="result"/>, the latest generation result, holds it
+    /// confirmed: a report still being filed leaves them to the next Generate
+    /// report, which replays the report's operation key. Images are not asked
+    /// of a generation that froze none.
+    /// </summary>
+    public async Task<IReadOnlyList<GenerateCaseReportRequest>> RequiredCompanionRequestsAfterAsync(
+        GenerateCaseReportRequest report,
+        CaseReportGenerationResult result,
+        Func<CaseReportArtifactKind, string> operationKeyFor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(operationKeyFor);
+        var generation = result.Generation;
+        if (report.Kind != CaseReportArtifactKind.AssessmentReport
+            || !GenerateCaseReport.HasConfirmedReport(generation))
+        {
+            return [];
+        }
+        var facts = await dispatchFacts.GetAsync(report.CaseId, report.Work, cancellationToken).ConfigureAwait(false);
+        if (facts is null)
+        {
+            return [];
+        }
+        var plan = ReportDispatchPolicy.Plan(
+            facts with
+            {
+                ConfirmedArtifacts =
+                [
+                    .. generation.Artifacts
+                        .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
+                        .Select(artifact => artifact.Kind)
+                ],
+            },
+            timeProvider.GetUtcNow());
+        return
+        [
+            .. RequiredCompanionKinds(plan.MissingCompanions, generation.Snapshot.Images.Count)
+                .Select(kind => CompanionAfter(report, kind, generation.Id, operationKeyFor(kind))!)
+        ];
+    }
+
+    /// <summary>
+    /// Of the companions a plan finds missing, the ones a report request makes,
+    /// in the order it makes them: the images, when the generation froze any,
+    /// then the Repair Spec. The Case page offers Generate report again while
+    /// one of these is outstanding (R1262).
+    /// </summary>
+    public static IReadOnlyList<CaseReportArtifactKind> RequiredCompanionKinds(
+        IReadOnlyCollection<CaseReportArtifactKind> missing,
+        int frozenImageCount)
+    {
+        ArgumentNullException.ThrowIfNull(missing);
+        var kinds = new List<CaseReportArtifactKind>(2);
+        if (missing.Contains(CaseReportArtifactKind.ImagePack) && frozenImageCount > 0)
+        {
+            kinds.Add(CaseReportArtifactKind.ImagePack);
+        }
+        if (missing.Contains(CaseReportArtifactKind.RepairSpecification))
+        {
+            kinds.Add(CaseReportArtifactKind.RepairSpecification);
+        }
+        return kinds;
     }
 
     /// <summary>A companion's request under the report's own lease, version and work, when it has a target.</summary>

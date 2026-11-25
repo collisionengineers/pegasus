@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using Pegasus.Core.Assessment;
@@ -994,12 +995,7 @@ public sealed class GenerateCaseReport(
     /// </summary>
     public static Guid? FeeNoteTargetOf(CaseReportArtifactKind requested, CaseReportGenerationRecord? generation) =>
         requested == CaseReportArtifactKind.AssessmentReport
-        && generation is { State: CaseReportGenerationState.Confirmed }
-        && generation.Artifacts.Any(artifact => artifact is
-        {
-            Kind: CaseReportArtifactKind.AssessmentReport,
-            Status: CaseReportArtifactStatus.Confirmed,
-        })
+        && HasConfirmedReport(generation)
         && !generation.Artifacts.Any(artifact => artifact is
         {
             Kind: CaseReportArtifactKind.FeeNote,
@@ -1020,12 +1016,7 @@ public sealed class GenerateCaseReport(
     public static Guid? PrincipalInvoiceTargetOf(
         CaseReportArtifactKind requested, CaseReportGenerationRecord? generation) =>
         requested == CaseReportArtifactKind.AssessmentReport
-        && generation is { State: CaseReportGenerationState.Confirmed }
-        && generation.Artifacts.Any(artifact => artifact is
-        {
-            Kind: CaseReportArtifactKind.AssessmentReport,
-            Status: CaseReportArtifactStatus.Confirmed,
-        })
+        && HasConfirmedReport(generation)
         && !generation.Artifacts.Any(artifact => artifact is
         {
             Kind: CaseReportArtifactKind.PrincipalInvoice,
@@ -1034,6 +1025,19 @@ public sealed class GenerateCaseReport(
         && UlaInvoiceCalculation.IsDue(generation.Snapshot.Report)
             ? generation.Id
             : null;
+
+    /// <summary>
+    /// Whether <paramref name="generation"/> is Confirmed with a Confirmed
+    /// report artifact: the generation every companion a report request goes
+    /// on to make is made for.
+    /// </summary>
+    internal static bool HasConfirmedReport([NotNullWhen(true)] CaseReportGenerationRecord? generation) =>
+        generation is { State: CaseReportGenerationState.Confirmed }
+        && generation.Artifacts.Any(artifact => artifact is
+        {
+            Kind: CaseReportArtifactKind.AssessmentReport,
+            Status: CaseReportArtifactStatus.Confirmed,
+        });
 
     public async Task<CaseReportGenerationResult> ExecuteAsync(
         GenerateCaseReportRequest request, CancellationToken cancellationToken)

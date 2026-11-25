@@ -354,8 +354,10 @@ and how each image in the report prints, its order, rotation and crop.
 ### Companion documents and what a delivery attaches
 
 A generation may also hold two companion documents (v28 P22), each generated
-on its own request against a generation that is already confirmed, each a
-separately addressable artifact in custody:
+against a generation that is already confirmed, each a separately
+addressable artifact in custody. Generate report makes each one the
+Principal requires (below), and Generate makes either on its own request
+([R1262](../rulings.md)):
 
 - the **Repair Spec**, which is the specification document the Case already
   prints, rendered from the estimate that generation pinned. An estimate that
@@ -655,7 +657,8 @@ same click as Send report (operator, 4 November 2026, R665).
 - **Required companions.** A Principal may require the images document, the
   figure breakdown (the Repair Spec) or both. A required companion is ticked
   and cannot be unticked, and Send report is withheld while it is not
-  generated. Generate offers it.
+  generated. Generate report makes it; Generate offers it again
+  ([R1262](../rulings.md)).
 - **Filed estimates.** A Principal that sends the Audatex attaches the Case's
   recognised filed estimates in the Audatex format; one that sends the estimate
   attaches the recognised ones in any other format. They are rechecked at send
@@ -719,6 +722,12 @@ whose setting asks for one, and is offered again for a confirmed report whose
 ULA Invoice is due and not confirmed, in the same way
 ([R1147](../rulings.md);
 [The ULA Invoice](#companion-documents-and-what-a-delivery-attaches)).
+Then it makes each companion document Send report would require under the
+Principal's rules (the images document before the figure breakdown), each
+standing or failing on its own as the fee note does, and is offered again for
+a confirmed report while one of them is not generated (operator, 25 November
+2026; [R1262](../rulings.md);
+[Required companions](#companion-documents-and-what-a-delivery-attaches)).
 Generate for the other companion documents of the confirmed
 generation — the Repair Spec and the images — is offered the same way, in or
 out of edit mode, with the same one-off lease (operator, 28 September 2026,

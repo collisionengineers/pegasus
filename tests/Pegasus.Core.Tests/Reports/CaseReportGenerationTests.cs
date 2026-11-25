@@ -1389,7 +1389,7 @@ public sealed class CaseReportGenerationTests
         Pegasus.Core.Workflow.CaseLifecycleState state,
         CaseReportActAccess expected)
     {
-        var acts = new CaseReportActs(new FixedAssessmentAccess(new(state)));
+        var acts = Acts(new FixedAssessmentAccess(new(state)));
 
         Assert.Equal(expected, await acts.GetAccessAsync(Engineer, CaseId, CancellationToken.None));
     }
@@ -1397,9 +1397,187 @@ public sealed class CaseReportGenerationTests
     [Fact]
     public async Task TheReportGateRefusesACaseItCannotFind()
     {
-        var acts = new CaseReportActs(new FixedAssessmentAccess(null));
+        var acts = Acts(new FixedAssessmentAccess(null));
 
         Assert.Equal(CaseReportActAccess.NotOpen, await acts.GetAccessAsync(Engineer, CaseId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Generate report goes on to make each companion Send report would
+    /// require and is not yet confirmed, images before the Repair Spec
+    /// (R1262), from the Principal's rules as they read the Case now.
+    /// </summary>
+    [Fact]
+    public async Task AReportRequestMakesTheCompanionsThePrincipalRequires()
+    {
+        var store = new FakeStore();
+        var rules = Requiring(images: true, breakdown: true);
+        var result = ConfirmedReport(store, withImage: true);
+
+        var requests = await Acts(dispatchFacts: DispatchFacts(rules))
+            .RequiredCompanionRequestsAfterAsync(ReportRequest(), result, CompanionKey, CancellationToken.None);
+
+        Assert.Equal(
+            [CaseReportArtifactKind.ImagePack, CaseReportArtifactKind.RepairSpecification],
+            requests.Select(request => request.Kind));
+        Assert.All(requests, request =>
+        {
+            Assert.Equal(store.GenerationId, request.TargetGenerationId);
+            Assert.Equal("lease-1", request.LeaseToken);
+            Assert.Equal(7, request.ExpectedCaseVersion);
+            Assert.Equal(CompanionKey(request.Kind), request.OperationKey);
+            Assert.Equal(CaseReportActs.ReasonFor(request.Kind), request.Reason);
+        });
+    }
+
+    [Fact]
+    public async Task AReportRequestMakesNoCompanionThePrincipalDoesNotRequire()
+    {
+        var requests = await Acts(dispatchFacts: DispatchFacts(PrincipalReportSendingRules.Default))
+            .RequiredCompanionRequestsAfterAsync(
+                ReportRequest(), ConfirmedReport(new FakeStore(), withImage: true), CompanionKey, CancellationToken.None);
+
+        Assert.Empty(requests);
+    }
+
+    /// <summary>A rule that holds for the Case adds the companion it names, as it does at Send.</summary>
+    [Fact]
+    public async Task ARuleThatHoldsAddsTheCompanionItRequires()
+    {
+        var claimSource = Guid.Parse("c1a1c1a1-0000-4000-8000-000000000001");
+        var rules = PrincipalReportSendingRules.Default with
+        {
+            Rules =
+            [
+                new(
+                    ReportSendingRuleMatch.All,
+                    [new(ReportSendingConditionKind.ClaimSource, [claimSource.ToString("D")])],
+                    new([], [], Attach: new(FigureBreakdown: true)))
+            ]
+        };
+
+        var requests = await Acts(dispatchFacts: DispatchFacts(rules) with { ClaimSourceId = claimSource })
+            .RequiredCompanionRequestsAfterAsync(
+                ReportRequest(), ConfirmedReport(new FakeStore(), withImage: true), CompanionKey, CancellationToken.None);
+
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], requests.Select(request => request.Kind));
+    }
+
+    [Fact]
+    public async Task ACompanionAlreadyConfirmedIsNotMadeAgain()
+    {
+        var store = new FakeStore();
+        var result = ConfirmedReport(
+            store, withImage: true, store.Artifact(CaseReportArtifactKind.ImagePack, CaseReportArtifactStatus.Confirmed));
+
+        var requests = await Acts(dispatchFacts: DispatchFacts(Requiring(images: true, breakdown: true)))
+            .RequiredCompanionRequestsAfterAsync(ReportRequest(), result, CompanionKey, CancellationToken.None);
+
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], requests.Select(request => request.Kind));
+    }
+
+    /// <summary>A report still being filed leaves its companions to the next Generate report.</summary>
+    [Fact]
+    public async Task AReportNotYetConfirmedMakesNoCompanion()
+    {
+        var store = new FakeStore();
+        var pending = new CaseReportGenerationResult(
+            CaseReportGenerationOutcome.Pending,
+            store.Generation(
+                CaseReportGenerationState.Pending,
+                [store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Pending)]),
+            []);
+
+        var requests = await Acts(dispatchFacts: DispatchFacts(Requiring(images: true, breakdown: true)))
+            .RequiredCompanionRequestsAfterAsync(ReportRequest(), pending, CompanionKey, CancellationToken.None);
+
+        Assert.Empty(requests);
+    }
+
+    [Fact]
+    public async Task ACompanionRequestFollowsOnlyAReportRequest()
+    {
+        var store = new FakeStore();
+        var imagePack = ReportRequest() with
+        {
+            Kind = CaseReportArtifactKind.ImagePack,
+            TargetGenerationId = store.GenerationId,
+        };
+
+        var requests = await Acts(dispatchFacts: DispatchFacts(Requiring(images: true, breakdown: true)))
+            .RequiredCompanionRequestsAfterAsync(
+                imagePack, ConfirmedReport(store, withImage: true), CompanionKey, CancellationToken.None);
+
+        Assert.Empty(requests);
+    }
+
+    /// <summary>A generation that froze no image has no images document to make.</summary>
+    [Fact]
+    public async Task AGenerationWithoutImagesMakesNoImagesDocument()
+    {
+        var requests = await Acts(dispatchFacts: DispatchFacts(Requiring(images: true, breakdown: true)))
+            .RequiredCompanionRequestsAfterAsync(
+                ReportRequest(), ConfirmedReport(new FakeStore(), withImage: false), CompanionKey, CancellationToken.None);
+
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], requests.Select(request => request.Kind));
+    }
+
+    private static string CompanionKey(CaseReportArtifactKind kind) => "companion-" + kind;
+
+    private static PrincipalReportSendingRules Requiring(bool images, bool breakdown) =>
+        PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with
+            {
+                VehicleImagesDocument = images,
+                FigureBreakdown = breakdown,
+            },
+        };
+
+    private static ReportDispatchFacts DispatchFacts(PrincipalReportSendingRules rules) =>
+        new("CE-100", "AB12 CDE", "Principal Ltd", rules, Instruction: null);
+
+    private static GenerateCaseReportRequest ReportRequest() => CaseReportActs.RequestFor(
+        Engineer, CaseId, 7, "lease-1", "report-1", CaseReportArtifactKind.AssessmentReport, null, CaseWorkSelector.Current);
+
+    /// <summary>A Confirmed generation with its Confirmed report, any <paramref name="more"/> artifacts, and one frozen image or none.</summary>
+    private static CaseReportGenerationResult ConfirmedReport(
+        FakeStore store, bool withImage, params CaseReportArtifactRecord[] more)
+    {
+        var generation = store.Generation(
+            CaseReportGenerationState.Confirmed,
+            [store.Artifact(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactStatus.Confirmed), .. more]);
+        if (withImage)
+        {
+            generation = generation with
+            {
+                Snapshot = generation.Snapshot with
+                {
+                    Images =
+                    [
+                        new(
+                            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 3, new string('a', 64), "image/png",
+                            "overview.png", CaseAssetReportRole.Overview, 1, CaseAssetRotation.None,
+                            CaseAssetCrop.Full, null, null)
+                    ],
+                },
+            };
+        }
+        return new(CaseReportGenerationOutcome.Generated, generation, []);
+    }
+
+    private static CaseReportActs Acts(
+        IGetAssessmentAccess? access = null,
+        ReportDispatchFacts? dispatchFacts = null) =>
+        new(
+            access ?? new FixedAssessmentAccess(null),
+            new FixedDispatchFacts(dispatchFacts),
+            TimeProvider.System);
+
+    private sealed class FixedDispatchFacts(ReportDispatchFacts? facts) : IReportRecipientSuggestionQueries
+    {
+        public Task<ReportDispatchFacts?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            Task.FromResult(facts);
     }
 
     private sealed class FixedAssessmentAccess(AssessmentAccessState? access) : IGetAssessmentAccess
