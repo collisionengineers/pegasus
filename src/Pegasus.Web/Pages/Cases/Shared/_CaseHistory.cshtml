@@ -84,11 +84,11 @@
         }
     }
 
-    void Panel(string tab, string title, string empty, CaseTimelinePage page)
+    void Panel(string tab, string title, string empty, CaseTimelinePage shown)
     {
-        <div id="@(NotesLabels.HashPrefix + tab)" role="tabpanel" data-file-tab-panel="@tab" data-notes-total="@page.Total">
+        <div id="@(NotesLabels.HashPrefix + tab)" role="tabpanel" data-file-tab-panel="@tab" data-notes-total="@shown.Total">
             <h3 class="tab-panel-title">@title</h3>
-            @if (page.Items.Count == 0)
+            @if (shown.Items.Count == 0)
             {
                 @* One empty state across the page: a muted sentence in a row (v36 f46). *@
                 <p class="empty-line" data-notes-empty="@tab">@empty</p>
@@ -96,7 +96,7 @@
             else
             {
                 <div class="notes-timeline" data-case-history="@tab">
-                    @foreach (var day in page.Items.GroupBy(entry => OperatorLabels.OfficeDate(entry.OccurredAtUtc)))
+                    @foreach (var day in shown.Items.GroupBy(entry => OperatorLabels.OfficeDate(entry.OccurredAtUtc)))
                     {
                         <div class="notes-day">
                             <h4 class="notes-day-title">@day.Key</h4>
@@ -108,18 +108,18 @@
                     }
                 </div>
             }
-            @if (page.PageCount > 1)
+            @if (shown.PageCount > 1)
             {
                 <nav class="pagination" aria-label="@NotesLabels.Pages(title)" data-notes-pager="@tab">
-                    <span>@NotesLabels.Range(page)</span>
+                    <span>@NotesLabels.Range(shown)</span>
                     <div class="button-row">
-                        @if (page.Page > 1)
+                        @if (shown.Page > 1)
                         {
-                            <a class="btn btn--small" href="@PageHref(tab, page.Page - 1)" data-notes-page>@NotesLabels.Newer</a>
+                            <a class="btn btn--small" href="@PageHref(tab, shown.Page - 1)" data-notes-page>@NotesLabels.Newer</a>
                         }
-                        @if (page.Page < page.PageCount)
+                        @if (shown.Page < shown.PageCount)
                         {
-                            <a class="btn btn--small" href="@PageHref(tab, page.Page + 1)" data-notes-page>@NotesLabels.Older</a>
+                            <a class="btn btn--small" href="@PageHref(tab, shown.Page + 1)" data-notes-page>@NotesLabels.Older</a>
                         }
                     </div>
                 </nav>
