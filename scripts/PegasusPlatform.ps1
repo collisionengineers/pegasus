@@ -357,6 +357,52 @@ function Get-PegasusProvisionRequiredKeys {
     )
 }
 
+function Get-PegasusWebRequiredKeys {
+    <#
+        .SYNOPSIS
+        The configuration keys the Web host refuses to start without under the
+        Production runtime profile, read from the text of
+        src/Pegasus.Web/Program.cs.
+
+        .DESCRIPTION
+        Program.cs is the one owner of the list: the loop whose body throws
+        "<key> is required for the Production runtime profile.". The release
+        route reads it at the live SHA to learn which settings the serving
+        package cannot start without (R1248, #2165). An empty result means the
+        loop was not found; the caller refuses instead of assuming none.
+    #>
+    param([Parameter(Mandatory)][AllowEmptyString()][string] $ProgramText)
+    $loop = [regex]::Match($ProgramText,
+        'foreach\s*\(\s*var\s+key\s+in\s+new\[\]\s*\{(?<keys>[^{}]*)\}\s*\)[\s\S]{0,300}?is required for the Production runtime profile')
+    if (-not $loop.Success) { return @() }
+    $keys = [regex]::Replace($loop.Groups['keys'].Value, '(?m)//.*$', '')
+    return @([regex]::Matches($keys, '"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+
+function Get-PegasusWebAppSettings {
+    <#
+        .SYNOPSIS
+        The Web App's app settings as infra/modules/platform.bicep declares
+        them: setting name to the value expression as written.
+
+        .DESCRIPTION
+        Read from the webApp resource alone, so a name the Worker also carries
+        is the Web App's entry. A configuration key A:B is the setting A__B.
+        An empty result means the resource or its settings were not found.
+    #>
+    param([Parameter(Mandatory)][AllowEmptyString()][string] $TemplateText)
+    $settings = [ordered]@{}
+    $start = [regex]::Match($TemplateText, '(?m)^resource webApp\b')
+    if (-not $start.Success) { return $settings }
+    $rest = $TemplateText.Substring($start.Index + $start.Length)
+    $next = [regex]::Match($rest, '(?m)^resource\s')
+    $resource = if ($next.Success) { $rest.Substring(0, $next.Index) } else { $rest }
+    foreach ($entry in [regex]::Matches($resource, "(?m)^[ \t]*\{[ \t]*name:[ \t]*'([^']+)'[ \t]*,?[ \t]*value:[ \t]*(.*\S)[ \t]*\}[ \t]*\r?$")) {
+        $settings[$entry.Groups[1].Value] = $entry.Groups[2].Value
+    }
+    return $settings
+}
+
 function Get-PegasusPathComparison {
     <#
         .SYNOPSIS

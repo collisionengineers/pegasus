@@ -415,7 +415,7 @@ function New-FixtureRepository {
     <#
         A small repository standing in for the checkout: the release scripts,
         the infrastructure the plan check reads, the migrations folder, and a
-        placeholder for src/Pegasus.Web. main is the first commit; dev adds one
+        placeholder and the real Program.cs for src/Pegasus.Web. main is the first commit; dev adds one
         documentation file. A bare clone is origin.
     #>
     param([Parameter(Mandatory)][string] $Directory)
@@ -445,6 +445,9 @@ exit $LASTEXITCODE
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'azure.yaml') -Destination (Join-Path $seed 'azure.yaml')
     New-Item -ItemType Directory -Force -Path (Join-Path $seed 'src/Pegasus.Web') | Out-Null
     Set-Content -LiteralPath (Join-Path $seed 'src/Pegasus.Web/placeholder.txt') -Value 'fixture' -Encoding ascii
+    # The Web host's own Production required keys, which the normal route
+    # reads at the live SHA beside the template (R1248).
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'src/Pegasus.Web/Program.cs') -Destination (Join-Path $seed 'src/Pegasus.Web/Program.cs')
     Set-Content -LiteralPath (Join-Path $seed '.gitignore') -Value @('artifacts/', '.azure/') -Encoding ascii
     $git = @('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false')
     & git -C $seed init --quiet -b main
@@ -1096,7 +1099,9 @@ try {
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-Order -Result $result -Case $case -Patterns @('azd env set PEGASUS_WEB_ACTIVATION approved*', 'azd provision*', 'az webapp deploy*--restart true*')
     Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns @('*--no-state*')
+    # R1248: a template that drops no setting the live package requires keeps
+    # the ordinary order, and the site is never stopped.
+    Assert-NoCall -Result $result -Case $case -Patterns @('*--no-state*', 'az webapp stop*', 'az webapp start*')
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -ClassifierPresent $false) -MigrationHead $identity
     $case = 'Normal route without a classifier'
@@ -1364,12 +1369,66 @@ try {
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '2.0.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a given version'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('Web App settings:')) $case 'reported a dropped setting on a range that drops none (R1248).' $result.Diagnostic
     Assert-True ($result.Output.Contains('Build version: 2.0.0 (MAJOR, given)')) $case 'did not take the given version.' $result.Diagnostic
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '1.2.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a version that is not one step'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
+
+    # --- A template that drops a setting the live package requires (#2165, R1248) ---
+    # dev gains a commit whose template no longer sets one of the settings the
+    # package on main requires at start-up. Provisioning first would restart
+    # that package onto settings it stops on (Release 5.2.0), so the read-only
+    # run names the setting and the approved run stops the Web App, puts the
+    # package on the stopped site, provisions and starts it.
+    $fixtureTemplatePath = Join-Path $fixture.Work 'infra/modules/platform.bicep'
+    $fixtureTemplate = Get-Content -Raw -LiteralPath $fixtureTemplatePath
+    $fixtureSettings = Get-PegasusWebAppSettings -TemplateText $fixtureTemplate
+    $droppedSetting = @(Get-PegasusWebRequiredKeys -ProgramText (Get-Content -Raw -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/Program.cs')) |
+        ForEach-Object { $_.Replace(':', '__') } | Where-Object { $fixtureSettings.Contains($_) })[-1]
+    $droppedLine = [regex]::new("(?m)^[^\r\n]*name: '$([regex]::Escape($droppedSetting))'[^\r\n]*\r?\n").Match($fixtureTemplate, $fixtureTemplate.IndexOf('resource webApp', [StringComparison]::Ordinal))
+    if (-not $droppedLine.Success) { throw "The fixture template has no $droppedSetting line to drop." }
+    Set-Content -LiteralPath $fixtureTemplatePath -Value $fixtureTemplate.Remove($droppedLine.Index, $droppedLine.Length) -NoNewline
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -am 'infra: drop a required Web App setting'
+    & git -C $fixture.Work push --quiet origin dev
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to push the fixture commit that drops a setting.' }
+    $lostSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $lostSha) -MigrationHead $identity
+    $case = 'Preflight with a template that drops a required setting'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("Web App settings: the candidate's template drops or changes $droppedSetting, which the live package cannot start under")) $case 'did not name the dropped setting (R1248).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Provision: needed (the range touches infra/modules/platform.bicep')) $case 'did not say provision is needed.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    $lostWorktree = Join-Path (Split-Path -Parent $fixture.Work) "pegasus-worktrees/release-$($lostSha.Substring(0, 8))"
+    & git -C $fixture.Work worktree add --quiet --detach $lostWorktree $lostSha
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to add the fixture worktree for the dropped setting.' }
+    Copy-Item -Recurse -LiteralPath (Join-Path $fixture.Work '.azure') -Destination (Join-Path $lostWorktree '.azure')
+    $lostArtifacts = New-FixtureArtifacts -Worktree $lostWorktree -Sha $lostSha
+    $executeLost = @('-Execute', '-Version', $releaseVersion, '-Route', 'Normal', '-ApprovedReleaseSha', $lostSha, '-ApprovedManifestSha256', $lostArtifacts.ManifestSha256, '-Provision')
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeLost -Estate (New-Estate -NewSha $lostSha) -MigrationHead $lostArtifacts.MigrationIdentity
+    $case = 'Normal route with provision and a dropped required setting'
+    Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("The template drops or changes $droppedSetting, which the live package cannot start under: stopping the Web App")) $case 'did not say why the Web App is stopped.' $result.Diagnostic
+    Assert-Order -Result $result -Case $case -Patterns @('az webapp stop*', 'az rest*/health/live*', 'az webapp deploy*--restart false*', 'azd provision*', 'az webapp start*', 'az functionapp deployment source config-zip*')
+    Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*--restart true*', '*--no-state*')
+    Assert-True ($result.Estate.web.state -eq 'Running' -and $result.Estate.web.sourceSha -eq $lostSha) $case 'did not leave the Web App Running at the release.' $result.Diagnostic
+
+    # The same line run again with the site already Stopped (the first run
+    # failed after the stop): it is not stopped again, and the run goes on.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeLost -Estate (New-Estate -NewSha $lostSha -WebState 'Stopped' -WebServing $false) -MigrationHead $lostArtifacts.MigrationIdentity
+    $case = 'Normal route resumed with the Web App stopped for a dropped setting'
+    Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Resuming: the Web App is already Stopped; it is not stopped again.')) $case 'did not report the resumed stop.' $result.Diagnostic
+    Assert-Order -Result $result -Case $case -Patterns @('az webapp deploy*--restart false*', 'azd provision*', 'az webapp start*')
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp stop*', 'az webapp deploy*--restart true*')
+    Assert-True ($result.Estate.web.state -eq 'Running' -and $result.Estate.web.sourceSha -eq $lostSha) $case 'did not leave the Web App Running at the release.' $result.Diagnostic
 
     # A completed release removes its worktree itself (Complete-Release).
     if (Test-Path -LiteralPath $worktree) { & git -C $fixture.Work worktree remove --force $worktree }

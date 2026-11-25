@@ -107,7 +107,9 @@ candidate's push-to-`dev` CI run (R683) and the pull requests merged into
 on `dev`'s own line is the merge of, so a merge's subject does not matter and
 a combined pull request stands for its members, R1247), reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
-live migration head, prints the route and whether provision is needed, refuses
+live migration head, prints the route and whether provision is needed, names
+any Web App setting the candidate's template drops or changes that the live
+package cannot start under (R1248), refuses
 a deployable candidate whose azd environment lacks a key the provision needs
 (every key `infra/main.parameters.json` references without a default and every
 key PreProvision requires; the runbook's deployment inputs table names them)
@@ -169,6 +171,22 @@ exact SHA and version, deploys `worker.zip`, deploys `classifier.zip` when the
 classifier exists, and runs the full smoke. An additive migration runs before
 the packages.
 
+One provisioned release takes another order (R1248, #2165). The script
+compares the live SHA (`main`) with the candidate: a key the Web host requires
+at start-up (the Production loop in `src/Pegasus.Web/Program.cs`) whose
+setting the `webApp` resource in `infra/modules/platform.bicep` no longer
+sets, or a `WEBSITE_WARMUP_PATH` or `WEBSITE_WARMUP_STATUSES` the candidate
+adds or changes. Provisioning first would restart the live package onto
+settings it stops on, as on Release 5.2.0, and deploying first would start the
+new package without its own. So the read-only run and the approval request
+name those settings, and the approved run stops the Web App and reads it back
+`Stopped` and unserved, deploys `web.zip` to the stopped site with `--restart
+false --track-status false`, provisions, starts the Web App and waits for the
+exact read-back. The Web App is down from the stop to that read-back, which
+the approval grants by naming the route with those settings listed. A run that
+failed after the stop is resumed with the same line: the site is not stopped
+again. Every other normal release keeps the first order.
+
 The destructive route reads the Web App at the approved old SHA, sets every
 Disabled setting `true`, proves the disabled census, stages the approved
 `worker.zip` (staging is not activation), stops the classifier, the Worker and
@@ -199,10 +217,6 @@ when data must be recovered.
 
 ## 4. Judgement calls that stay with the agent
 
-- A release that adds or changes `WEBSITE_WARMUP_PATH` or
-  `WEBSITE_WARMUP_STATUSES` passes `-WarmupSettingsChange` with `-Provision`:
-  the previous package cannot answer the new warm-up, so the package deploys
-  and reads back before provision, then again after it.
 - A release that moves the Automation MCP server path (ADR-0087) has an
   Administrator re-add the one connector at `<origin>/mcp` and consent once;
   the classifier's `PEGASUS_MCP_URL` changes at provision, not with
