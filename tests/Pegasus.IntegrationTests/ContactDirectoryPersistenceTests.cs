@@ -522,14 +522,14 @@ public sealed class ContactDirectoryPersistenceTests
 
         statements.Reset();
         var fromSender = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("intermediary"), CancellationToken.None);
+            context, Receipt("intermediary"), "CSF01", null, CancellationToken.None);
         Assert.InRange(statements.Count, 0, 1);
         Assert.NotNull(fromSender);
         Assert.Equal(IntakeClaimSourceOrigin.Sender, fromSender.Origin);
         Assert.Equal(sender.OrganizationId, fromSender.ClaimSource.OrganizationId);
 
         var fromInstruction = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("intermediary", introducer), CancellationToken.None);
+            context, Receipt("intermediary", introducer), "CSF01", null, CancellationToken.None);
         Assert.NotNull(fromInstruction);
         Assert.Equal(IntakeClaimSourceOrigin.Instruction, fromInstruction.Origin);
         Assert.Equal(named.OrganizationId, fromInstruction.ClaimSource.OrganizationId);
@@ -537,7 +537,7 @@ public sealed class ContactDirectoryPersistenceTests
         // A direct Principal's own mail names no Claim Source and reads nothing.
         statements.Reset();
         Assert.Null(await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("direct_principal"), CancellationToken.None));
+            context, Receipt("direct_principal"), "CSF01", null, CancellationToken.None));
         Assert.Empty(statements.Statements);
     }
 
@@ -585,20 +585,20 @@ public sealed class ContactDirectoryPersistenceTests
 
         statements.Reset();
         var established = await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("FILL FIXTURE BODYSHOP")), CancellationToken.None);
+            context, Receipt(RepairerName("FILL FIXTURE BODYSHOP")), "AX", null, CancellationToken.None);
         Assert.InRange(statements.Count, 0, 1);
         Assert.NotNull(established);
         Assert.Equal(named.OrganizationId, established.Repairer.OrganizationId);
 
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("Fill fixture closed bodyshop")), CancellationToken.None));
+            context, Receipt(RepairerName("Fill fixture closed bodyshop")), "AX", null, CancellationToken.None));
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("Fill fixture source only")), CancellationToken.None));
+            context, Receipt(RepairerName("Fill fixture source only")), "AX", null, CancellationToken.None));
 
         // An instruction that names no repairer reads nothing.
         statements.Reset();
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(), CancellationToken.None));
+            context, Receipt(), "AX", null, CancellationToken.None));
         Assert.Empty(statements.Statements);
     }
 

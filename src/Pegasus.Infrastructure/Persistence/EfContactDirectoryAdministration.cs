@@ -137,7 +137,7 @@ public sealed class EfContactDirectoryAdministration(
     /// The active contacts of one role in name order, each with the codes of
     /// the Principals it is linked to, in one statement. The role lists read
     /// it, and so does the intake acceptance, inside its own transaction, to
-    /// fill a new Case's Claim Source (R1014).
+    /// fill a new Case's Claim Source and Repairer (R1014, R1027, R1264).
     /// </summary>
     internal static Task<IReadOnlyList<ContactChoice>> ReadActiveByRoleAsync(
         PegasusDbContext context,
