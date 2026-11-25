@@ -146,7 +146,8 @@ public sealed class CaseSearchTests
             GetCaseHeaderQuery query,
             CancellationToken cancellationToken) => Task.FromResult<CaseHeader?>(null);
 
-        public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseTimeline> ListTimelineAsync(
+            Guid caseId, int notesPage, int historyPage, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(Guid caseId, CancellationToken cancellationToken) =>

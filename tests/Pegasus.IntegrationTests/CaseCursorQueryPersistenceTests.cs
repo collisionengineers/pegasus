@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -392,6 +393,110 @@ public sealed class CaseCursorQueryPersistenceTests
         Assert.Equal(3, pages);
         Assert.Equal(seen.Count, seen.Distinct().Count());
         Assert.Equal(entryIds.ToHashSet(), seen.ToHashSet());
+    }
+
+    /// <summary>
+    /// The Notes section's two tabs (operator, 25 November 2026; R1253, R1255
+    /// and R1256): the Case notes, and every other entry of the timeline with
+    /// a session's saves shown once (R466), each newest first and fifty at a
+    /// time with no ceiling, in at most three commands.
+    /// </summary>
+    [Fact]
+    public async Task TheTimelineSplitsNotesFromHistoryAndPagesEachFiftyAtATimeWithNoCeiling()
+    {
+        var counter = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(counter));
+        var (_, lineageId, principalId) = await SeedPrincipalAsync(database, "TMLN");
+        var caseId = await SeedCaseAsync(database, principalId, lineageId, "TMLN31001", 1, BaseUtcNow);
+        var noteIds = new List<Guid>();
+        var eventIds = new List<Guid>();
+        Guid earlierSave;
+        Guid laterSave;
+        int seededHistory;
+        await using (var context = await database.CreateContextAsync())
+        {
+            seededHistory = await context.CaseWorkflowEvents.CountAsync(item => item.CaseId == caseId);
+
+            Guid Add(string eventType, int minute, long before, long after)
+            {
+                var id = Guid.NewGuid();
+                context.Add(new CaseWorkflowEventEntity
+                {
+                    Id = id,
+                    CaseId = caseId,
+                    EventType = eventType,
+                    OperationKey = $"timeline:{id:N}",
+                    RequestHash = new string('0', 64),
+                    ActorKind = nameof(ActorKind.Staff),
+                    ActorSubjectId = Guid.NewGuid().ToString(),
+                    ActorRolesJson = "[]",
+                    Reason = "Timeline fixture.",
+                    OccurredAtUtc = BaseUtcNow.AddMinutes(minute),
+                    BeforeVersion = before,
+                    AfterVersion = after
+                });
+                return id;
+            }
+
+            for (var i = 0; i < 205; i++)
+            {
+                eventIds.Add(Add("case_report_artifact_downloaded", i + 1, 1, 1));
+            }
+            for (var i = 0; i < 52; i++)
+            {
+                noteIds.Add(Add("operator_note", 300 + i, 1, 1));
+            }
+            // Two saves of one edit session: the later one names every field.
+            earlierSave = Add("case_workspace_saved", 400, 5000, 5001);
+            laterSave = Add("case_workspace_saved", 401, 5000, 5002);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<ICaseQueryStore>();
+
+        counter.Reset();
+        var first = await store.ListTimelineAsync(caseId, 1, 1, CancellationToken.None);
+        var commands = counter.Count;
+
+        Assert.True(commands <= 3, $"The Notes section sent {commands} commands; at most 3 are allowed.");
+        Assert.Equal(52, first.Notes.Total);
+        Assert.Equal(2, first.Notes.PageCount);
+        Assert.Equal(CaseTimelinePage.Size, first.Notes.Items.Count);
+        Assert.All(first.Notes.Items, entry => Assert.Equal("operator_note", entry.EventType));
+        Assert.Equal(noteIds[^1], first.Notes.Items[0].EntryId);
+        Assert.Equal(seededHistory + 206, first.History.Total);
+        Assert.Equal(CaseTimelinePage.Size, first.History.Items.Count);
+        Assert.DoesNotContain(first.History.Items, entry => entry.EventType == "operator_note");
+        Assert.Equal(laterSave, first.History.Items[0].EntryId);
+        Assert.Equal(
+            first.History.Items.OrderByDescending(entry => entry.OccurredAtUtc).Select(entry => entry.EntryId),
+            first.History.Items.Select(entry => entry.EntryId));
+
+        var history = new List<Guid>();
+        for (var page = 1; page <= first.History.PageCount; page++)
+        {
+            var read = await store.ListTimelineAsync(caseId, 1, page, CancellationToken.None);
+            Assert.Equal(page, read.History.Page);
+            history.AddRange(read.History.Items.Select(entry => entry.EntryId));
+        }
+        Assert.Equal(first.History.Total, history.Count);
+        Assert.Equal(history.Count, history.Distinct().Count());
+        Assert.Superset(eventIds.ToHashSet(), history.ToHashSet());
+        Assert.Contains(laterSave, history);
+        Assert.DoesNotContain(earlierSave, history);
+
+        // A page past the end reads the last, and one before the first reads the first.
+        var past = await store.ListTimelineAsync(caseId, 99, 0, CancellationToken.None);
+        Assert.Equal(2, past.Notes.Page);
+        Assert.Equal(2, past.Notes.Items.Count);
+        Assert.Equal(noteIds[0], past.Notes.Items[^1].EntryId);
+        Assert.Equal(1, past.History.Page);
+
+        var none = await store.ListTimelineAsync(Guid.NewGuid(), 1, 1, CancellationToken.None);
+        Assert.Equal(0, none.Notes.Total);
+        Assert.Empty(none.History.Items);
     }
 
     [Fact]

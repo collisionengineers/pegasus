@@ -719,6 +719,163 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain(automationSubjectId, html, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static CaseHistoryEntry TimelineEntry(
+        string eventType,
+        ActorKind actorKind,
+        string actorName,
+        DateTimeOffset occurredAtUtc,
+        string? reason) =>
+        new(eventType, Guid.NewGuid().ToString("D"), actorKind.ToString(), occurredAtUtc, reason, 1, 1)
+        {
+            ActorDisplayName = actorName
+        };
+
+    private static WebApplicationFactory<Program> NotesFactory(
+        IntakeWebApplicationFactory baseFactory,
+        RecordingCaseDetailsStore store) =>
+        baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCaseEditBasis>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+
+    private static (string Notes, string History) NotesPanels(string html)
+    {
+        var notes = html.IndexOf("id=\"case-notes-notes\"", StringComparison.Ordinal);
+        var history = html.IndexOf("id=\"case-notes-history\"", StringComparison.Ordinal);
+        Assert.True(notes >= 0 && history > notes, "The Notes section draws its Notes panel, then its History panel.");
+        var end = html.IndexOf("</section>", history, StringComparison.Ordinal);
+        Assert.True(end > history, "The Notes section is closed.");
+        return (html[notes..history], html[history..end]);
+    }
+
+    /// <summary>
+    /// The Notes section is two tabs drawn with one row (v53; operator,
+    /// 25 November 2026, R1253 to R1260): the Case note box above them, a note
+    /// only on Notes and every other entry only on History, the date once as
+    /// a day heading, the AI tag beside the Automation, and a reason that
+    /// only repeats its label printed once.
+    /// </summary>
+    [Fact]
+    public async Task NotesSectionDrawsNotesAndHistoryAsTwoTabsWithOneRow()
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var store = new RecordingCaseDetailsStore
+        {
+            HistoryEntries =
+            [
+                TimelineEntry("operator_note", ActorKind.Staff, "alex", new(2031, 5, 6, 9, 30, 0, TimeSpan.Zero), "Customer rang about the hire car."),
+                TimelineEntry("operator_note", ActorKind.Automation, "Automation", new(2031, 5, 5, 14, 0, 0, TimeSpan.Zero), "Images checked against the estimate."),
+                TimelineEntry("case_report_artifact_downloaded", ActorKind.Staff, "alex", new(2031, 5, 6, 9, 0, 0, TimeSpan.Zero), "Report downloaded"),
+                TimelineEntry("case_returned_to_review", ActorKind.Staff, "alex", new(2031, 5, 6, 8, 0, 0, TimeSpan.Zero), "Missing instructions.")
+            ]
+        };
+        using var factory = NotesFactory(baseFactory, store);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
+
+        Assert.Contains("data-file-tab=\"notes\">Notes · 2<", html, StringComparison.Ordinal);
+        Assert.Contains("data-file-tab=\"history\">History · 2<", html, StringComparison.Ordinal);
+        Assert.True(
+            html.IndexOf("data-case-note-form", StringComparison.Ordinal)
+                < html.IndexOf("data-case-notes-tabs", StringComparison.Ordinal),
+            "The Case note box sits above the tab row.");
+        var (notes, history) = NotesPanels(html);
+
+        Assert.Contains("Customer rang about the hire car.", notes, StringComparison.Ordinal);
+        Assert.Contains("Images checked against the estimate.", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("Missing instructions.", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("Customer rang about the hire car.", history, StringComparison.Ordinal);
+        Assert.Contains("Missing instructions.", history, StringComparison.Ordinal);
+
+        // The date is a heading once a day; a row carries its time.
+        Assert.Equal(2, Regex.Count(notes, "class=\"notes-day-title\""));
+        Assert.Equal(1, Regex.Count(history, "class=\"notes-day-title\""));
+        Assert.Contains(">06 May 2031</h4>", notes, StringComparison.Ordinal);
+        Assert.Contains(">05 May 2031</h4>", notes, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"nw\">10:30</span>", notes, StringComparison.Ordinal);
+
+        // The Automation's note carries the AI tag; a member of staff's does not.
+        Assert.Equal(1, Regex.Count(notes, "src-tag--ai"));
+        Assert.DoesNotContain("src-tag--ai", history, StringComparison.Ordinal);
+
+        // A view or download is History's (R1255), said once (R1258).
+        Assert.Equal(1, Regex.Count(history, "Report downloaded"));
+
+        Assert.DoesNotContain("data-notes-pager", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-notes-empty", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Each tab shows 50 entries at a time with no ceiling (R1256): Newer and
+    /// Older are addresses that keep the section and name the tab, the
+    /// fragment route reads the same page, and an address that is not a page
+    /// reads the first.
+    /// </summary>
+    [Fact]
+    public async Task NotesSectionPagesATabFiftyAtATime()
+    {
+        using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
+        var start = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            HistoryEntries =
+            [
+                .. Enumerable.Range(0, 60).Select(index => TimelineEntry(
+                    "case_returned_to_review",
+                    ActorKind.Staff,
+                    "alex",
+                    start.AddMinutes(index),
+                    string.Create(CultureInfo.InvariantCulture, $"Entry {index:000}.")))
+            ]
+        };
+        using var factory = NotesFactory(baseFactory, store);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var first = NotesPanels(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes"));
+
+        Assert.Contains(">No notes</p>", first.Notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-notes-pager", first.Notes, StringComparison.Ordinal);
+        Assert.Contains("data-notes-pager=\"history\"", first.History, StringComparison.Ordinal);
+        Assert.Contains("<span>1 to 50 of 60</span>", first.History, StringComparison.Ordinal);
+        Assert.Contains("Entry 059.", first.History, StringComparison.Ordinal);
+        Assert.DoesNotContain("Entry 009.", first.History, StringComparison.Ordinal);
+        Assert.Contains("historyPage=2#case-notes-history\" data-notes-page>Older</a>", first.History, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Newer</a>", first.History, StringComparison.Ordinal);
+
+        var second = NotesPanels(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes&historyPage=2"));
+
+        Assert.Contains("<span>51 to 60 of 60</span>", second.History, StringComparison.Ordinal);
+        Assert.Contains("Entry 009.", second.History, StringComparison.Ordinal);
+        Assert.DoesNotContain("Entry 059.", second.History, StringComparison.Ordinal);
+        Assert.Contains("section=notes#case-notes-history\" data-notes-page>Newer</a>", second.History, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Older</a>", second.History, StringComparison.Ordinal);
+
+        var fragment = NotesPanels(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=notes&historyPage=2"));
+        Assert.Contains("<span>51 to 60 of 60</span>", fragment.History, StringComparison.Ordinal);
+
+        // A page past the end is the last; one that is not a number is the first.
+        var past = NotesPanels(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes&historyPage=9"));
+        Assert.Contains("<span>51 to 60 of 60</span>", past.History, StringComparison.Ordinal);
+        var unread = NotesPanels(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes&historyPage=two"));
+        Assert.Contains("<span>1 to 50 of 60</span>", unread.History, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(CaseType.Audit, false, true)]
     [InlineData(CaseType.Audit, true, false)]

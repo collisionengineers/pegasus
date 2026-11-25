@@ -402,8 +402,9 @@ public sealed class CaseSectionQueryValidationTests
         public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             PageFrame?.Invoke() ?? throw new NotSupportedException();
 
-        public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CaseHistoryEntry>>([]);
+        public Task<CaseTimeline> ListTimelineAsync(
+            Guid caseId, int notesPage, int historyPage, CancellationToken cancellationToken) =>
+            Task.FromResult(new CaseTimeline(CaseTimelinePage.Empty, CaseTimelinePage.Empty));
 
         public Task<IReadOnlyList<CaseQueryItem>> ListCaseQueriesAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseQueryItem>>([]);

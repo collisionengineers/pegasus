@@ -1107,8 +1107,22 @@ internal static partial class CaseWebTestSupport
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
+            // The store's split and paging, over the fixture's entries.
+            CaseTimelinePage Page(bool notes, int requested)
+            {
+                var all = HistoryEntries
+                    .Where(entry => (entry.EventType == AddCaseNote.EventType) == notes)
+                    .OrderByDescending(entry => entry.OccurredAtUtc)
+                    .ToArray();
+                var page = CaseTimelinePage.Clamp(requested, all.Length);
+                return new(
+                    all.Skip((page - 1) * CaseTimelinePage.Size).Take(CaseTimelinePage.Size).ToArray(),
+                    all.Length,
+                    page);
+            }
+
             return Task.FromResult<CaseNotesSection?>(query.CaseId == CaseId
-                ? new(query.Frame ?? FocusedFrame(), HistoryEntries)
+                ? new(query.Frame ?? FocusedFrame(), Page(true, query.NotesPage), Page(false, query.HistoryPage))
                 : null);
         }
 

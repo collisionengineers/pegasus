@@ -332,7 +332,9 @@ public sealed record GetCaseSectionQuery(
     IReadOnlyList<CaseDocument>? Documents = null,
     CaseSectionFrame? Frame = null,
     CaseWorkSelector Work = CaseWorkSelector.Current,
-    bool ColleagueIsEditing = false);
+    bool ColleagueIsEditing = false,
+    int NotesPage = 1,
+    int HistoryPage = 1);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -418,9 +420,35 @@ public sealed record CaseValuationSection(
     CaseDataProjection Data,
     CaseAssessmentProjection? Assessment);
 
+/// <summary>
+/// One page of a Notes section tab, newest first, with the number of entries
+/// the tab holds in all (operator, 25 November 2026; R1253 and R1256).
+/// </summary>
+public sealed record CaseTimelinePage(IReadOnlyList<CaseHistoryEntry> Items, int Total, int Page)
+{
+    /// <summary>The entries a tab shows at a time.</summary>
+    public const int Size = 50;
+
+    public static CaseTimelinePage Empty { get; } = new([], 0, 1);
+
+    public int PageCount => PageCountOf(Total);
+
+    public static int PageCountOf(int total) => Math.Max(1, (total + Size - 1) / Size);
+
+    /// <summary>The page shown for a requested one: the first for none, the last for one past the end.</summary>
+    public static int Clamp(int requested, int total) => Math.Clamp(requested, 1, PageCountOf(total));
+}
+
+/// <summary>
+/// The Case's timeline as the Notes section reads it: what was written
+/// about the Case, and everything else that happened to it.
+/// </summary>
+public sealed record CaseTimeline(CaseTimelinePage Notes, CaseTimelinePage History);
+
 public sealed record CaseNotesSection(
     CaseSectionFrame Frame,
-    IReadOnlyList<CaseHistoryEntry> History);
+    CaseTimelinePage Notes,
+    CaseTimelinePage History);
 
 /// <summary>
 /// The Queries body: every query raised on the Case, open ones first, each
@@ -529,9 +557,15 @@ public interface ICaseQueryStore
         CaseWorkSelector work,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads only the ordered history body used by Notes.</summary>
-    Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
+    /// <summary>
+    /// Reads the Notes section's two tabs, each newest first and
+    /// <see cref="CaseTimelinePage.Size"/> at a time: the Case notes, and
+    /// every other entry of the timeline. A page past the end reads the last.
+    /// </summary>
+    Task<CaseTimeline> ListTimelineAsync(
         Guid caseId,
+        int notesPage,
+        int historyPage,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -891,17 +925,22 @@ public sealed class GetCaseNotesSection(
             return null;
         }
 
-        var history = await store.ListHistoryAsync(query.CaseId, cancellationToken);
-        var staffIds = history
+        var timeline = await store.ListTimelineAsync(
+            query.CaseId, query.NotesPage, query.HistoryPage, cancellationToken);
+        var staffIds = timeline.Notes.Items.Concat(timeline.History.Items)
             .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
             .Select(entry => Guid.Parse(entry.Actor));
         var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, staffIds, cancellationToken);
-        return new(frame, history.Select(entry => entry with
+        CaseTimelinePage Named(CaseTimelinePage page) => page with
         {
-            ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var kind)
-                ? ActorDisplayNames.Resolve(kind, entry.Actor, names)
-                : ActorDisplayNames.UnknownStaff
-        }).ToArray());
+            Items = page.Items.Select(entry => entry with
+            {
+                ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var kind)
+                    ? ActorDisplayNames.Resolve(kind, entry.Actor, names)
+                    : ActorDisplayNames.UnknownStaff
+            }).ToArray()
+        };
+        return new(frame, Named(timeline.Notes), Named(timeline.History));
     }
 }
 

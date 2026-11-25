@@ -1,21 +1,131 @@
 @*
-    Notes (v26): the Case note form at the top, Record chase beside it, then
-    the one account of the Case — what Pegasus did and what an operator wrote
-    about it are the same kind of record here, and the actor is what tells
-    them apart. Tasks are the Actions menu's Tasks dialog (CASE-20). A note takes no edit lease;
-    a chase carries the lease and is offered while a chase is scheduled.
+    Notes (v26, v53): the Case note form at the top, Record chase beside it,
+    then two tabs drawn with one row. Notes is what was written about the
+    Case; History is everything else Pegasus recorded. Each shows 50 entries
+    at a time under a heading for each day (operator, 25 November 2026,
+    R1253 to R1260). The tabs are the Files section's: every panel is in the
+    page and the shell's tab script shows one. Tasks are the Actions menu's
+    Tasks dialog (CASE-20). A note takes no edit lease; a chase carries the
+    lease and is offered while a chase is scheduled.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Cases
+@using Pegasus.Core.Identity
 @using Pegasus.Web.Presentation
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@using NotesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Notes
 @{
     var section = Model.NotesSection;
     var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var entries = (section?.History ?? []).OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
+    var notes = section?.Notes ?? CaseTimelinePage.Empty;
+    var history = section?.History ?? CaseTimelinePage.Empty;
     var offersNote = workflow.Archive is null;
     var offersChase = mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled };
+
+    // A page of one tab keeps the other tab's page, and names its tab in the # part.
+    string? PageHref(string tab, int page)
+    {
+        var notesPage = tab == NotesLabels.NotesKey ? page : notes.Page;
+        var historyPage = tab == NotesLabels.HistoryKey ? page : history.Page;
+        return Url.Page(
+            "/Cases/Details",
+            pageHandler: null,
+            values: new
+            {
+                id = workflow.CaseId,
+                section = "notes",
+                view = Model.ViewRoute,
+                notesPage = notesPage > 1 ? notesPage : (int?)null,
+                historyPage = historyPage > 1 ? historyPage : (int?)null
+            },
+            protocol: null,
+            host: null,
+            fragment: NotesLabels.HashPrefix + tab);
+    }
+
+    void Who(string name, bool automation)
+    {
+        <span class="note-actor"><b>@name</b>@if (automation) { <text> @OperatorLabels.SourceTagWord.Ai.Render()</text> }</span>
+    }
+
+    // The one row of both tabs: the time, who, then the words. A note's words
+    // sit under its author; an entry's label and reason sit beside the actor.
+    void Entry(CaseHistoryEntry entry)
+    {
+        var clock = OperatorLabels.OfficeClock(entry.OccurredAtUtc);
+        var automation = entry.ActorKind == nameof(ActorKind.Automation);
+        if (entry.EventType == AddCaseNote.EventType)
+        {
+            <div class="note" data-history-event="@entry.EventType">
+                <span class="nw">@clock</span>
+                <div class="nb">@{ Who(entry.ActorDisplayName, automation); }<div class="note-text">@entry.Reason</div></div>
+            </div>
+            return;
+        }
+        if (entry.EventType != "case_guidance_applied")
+        {
+            // An Original report entry is its reason alone (R295).
+            var words = entry.EventType == "original_report_recorded"
+                ? entry.Reason
+                : NotesLabels.Words(OperatorLabels.HistoryEvent(entry.EventType), entry.Reason);
+            <div class="note sys" data-history-event="@entry.EventType">
+                <span class="nw">@clock</span>
+                <div class="nb">@{ Who(entry.ActorDisplayName, automation); } — @words</div>
+            </div>
+        }
+        foreach (var guidance in entry.Guidance)
+        {
+            <div class="note sys" data-history-event="@guidance.EventType">
+                <span class="nw">@clock</span>
+                <div class="nb"><b>@guidance.OrganizationName</b> — @OperatorLabels.HistoryEvent(guidance.EventType) — @guidance.Text</div>
+            </div>
+        }
+    }
+
+    void Panel(string tab, string title, string empty, CaseTimelinePage page)
+    {
+        <div id="@(NotesLabels.HashPrefix + tab)" role="tabpanel" data-file-tab-panel="@tab" data-notes-total="@page.Total">
+            <h3 class="tab-panel-title">@title</h3>
+            @if (page.Items.Count == 0)
+            {
+                @* One empty state across the page: a muted sentence in a row (v36 f46). *@
+                <p class="empty-line" data-notes-empty="@tab">@empty</p>
+            }
+            else
+            {
+                <div class="notes-timeline" data-case-history="@tab">
+                    @foreach (var day in page.Items.GroupBy(entry => OperatorLabels.OfficeDate(entry.OccurredAtUtc)))
+                    {
+                        <div class="notes-day">
+                            <h4 class="notes-day-title">@day.Key</h4>
+                            @foreach (var entry in day)
+                            {
+                                Entry(entry);
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (page.PageCount > 1)
+            {
+                <nav class="pagination" aria-label="@NotesLabels.Pages(title)" data-notes-pager="@tab">
+                    <span>@NotesLabels.Range(page)</span>
+                    <div class="button-row">
+                        @if (page.Page > 1)
+                        {
+                            <a class="btn btn--small" href="@PageHref(tab, page.Page - 1)" data-notes-page>@NotesLabels.Newer</a>
+                        }
+                        @if (page.Page < page.PageCount)
+                        {
+                            <a class="btn btn--small" href="@PageHref(tab, page.Page + 1)" data-notes-page>@NotesLabels.Older</a>
+                        }
+                    </div>
+                </nav>
+            }
+        </div>
+    }
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.notes") @(Model.IsEditing && !Model.SectionIsEditable("notes") ? "is-locked" : null)" id="section-notes" data-section="notes" data-collapse="case.notes" aria-labelledby="section-notes-title">
@@ -53,49 +163,16 @@
             </form>
         }
 
-        @if (entries.Length == 0)
-        {
-            @* One empty state across the page: a muted sentence in a row (v36 f46). *@
-            <p class="empty-line" data-notes-empty>No notes</p>
-        }
-        else
-        {
-            <div class="notes-timeline" data-case-history>
-                @foreach (var entry in entries)
-                {
-                    var isNote = entry.EventType == "operator_note";
-                    var isOriginalReport = entry.EventType == "original_report_recorded";
-                    @if (entry.EventType != "case_guidance_applied")
-                    {
-                        <div class="note @(isNote ? null : "sys")" data-history-event="@entry.EventType">
-                            <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
-                            <div class="nb">
-                                <b>@entry.ActorDisplayName</b>
-                                @if (isNote || isOriginalReport)
-                                {
-                                    <text> — @entry.Reason</text>
-                                }
-                                else
-                                {
-                                    <text> — @OperatorLabels.HistoryEvent(entry.EventType)</text>
-                                    @if (!string.IsNullOrWhiteSpace(entry.Reason))
-                                    {
-                                        <text> — @entry.Reason</text>
-                                    }
-                                }
-                            </div>
-                        </div>
-                    }
-                    @foreach (var guidance in entry.Guidance)
-                    {
-                        <div class="note sys" data-history-event="@guidance.EventType">
-                            <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
-                            <div class="nb"><b>@guidance.OrganizationName</b> — @OperatorLabels.HistoryEvent(guidance.EventType) — @guidance.Text</div>
-                        </div>
-                    }
-                }
+        <div class="notes-tabs" data-file-tabs-wrap data-file-tabs-hash="@NotesLabels.HashPrefix" data-case-notes-tabs>
+            <div class="tabs" role="tablist" aria-label="@NotesLabels.NotesTab" data-file-tabs hidden>
+                <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="@(NotesLabels.HashPrefix + NotesLabels.NotesKey)" data-file-tab="@NotesLabels.NotesKey">@NotesLabels.NotesTab · @notes.Total</button>
+                <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="@(NotesLabels.HashPrefix + NotesLabels.HistoryKey)" data-file-tab="@NotesLabels.HistoryKey">@NotesLabels.HistoryTab · @history.Total</button>
             </div>
-        }
+            @{
+                Panel(NotesLabels.NotesKey, NotesLabels.NotesTab, NotesLabels.NoNotes, notes);
+                Panel(NotesLabels.HistoryKey, NotesLabels.HistoryTab, NotesLabels.NoHistory, history);
+            }
+        </div>
     </div>
 </section>
 
