@@ -237,7 +237,7 @@ public static partial class ContactDirectoryPolicy
         }
         if (!Enum.IsDefined(request.PrincipalInspectionMode))
         {
-            throw new ArgumentOutOfRangeException(nameof(request.PrincipalInspectionMode), "The inspection mode is not one of the choices.");
+            throw Refused("The inspection mode is not one of the choices.", nameof(request.PrincipalInspectionMode));
         }
         if (request.DefaultFee is { } fee)
         {
@@ -252,7 +252,7 @@ public static partial class ContactDirectoryPolicy
             ? null
             : PrincipalReportSendingRules.IsAddress(request.SendFromMailbox)
                 ? Required(request.SendFromMailbox, MaximumEmailLength, nameof(request.SendFromMailbox))
-                : throw new ArgumentException("The Send from mailbox must be one e-mail address.", nameof(request.SendFromMailbox));
+                : throw Refused("The Send from mailbox must be one e-mail address.", nameof(request.SendFromMailbox));
 
         return request with
         {
@@ -289,7 +289,7 @@ public static partial class ContactDirectoryPolicy
             ? PrincipalDefaultFeePolicy.Require(fee, nameof(request.DefaultFee))
             : creatingPrincipal
                 ? PrincipalDefaultFeePolicy.Standard
-                : throw new ArgumentException("A Principal's default fee is required.", nameof(request.DefaultFee));
+                : throw Refused("A Principal's default fee is required.", nameof(request.DefaultFee));
     }
 
     /// <summary>
@@ -313,12 +313,18 @@ public static partial class ContactDirectoryPolicy
         var normalizedPostcode = Optional(postcode, MaximumPostcodeLength, nameof(SaveContactRequest.DefaultInspectionPostcode));
         if (normalizedAddress is null && (normalizedLabel is not null || normalizedPostcode is not null))
         {
-            throw new ArgumentException(
+            throw Refused(
                 "A physical default inspection location requires an address.",
                 nameof(SaveContactRequest.DefaultInspectionAddress));
         }
         return (normalizedLabel, normalizedAddress, normalizedPostcode);
     }
+
+    /// <summary>
+    /// A refusal keyed to the request field it is about, so the page can show
+    /// it at that field: the field is not one of the method's own parameters.
+    /// </summary>
+    private static ArgumentException Refused(string message, string field) => new(message, field);
 
     internal static string Required(string value, int max, string name) =>
         OrganizationAdministrationPolicy.NormalizeRequiredText(value, max, name);
