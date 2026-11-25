@@ -554,7 +554,7 @@ public sealed class EditModel(
         return Page();
     }
 
-    private static IReadOnlyList<ReportSendingRule> Moved(IReadOnlyList<ReportSendingRule> rules, int from, int to)
+    private static List<ReportSendingRule> Moved(IReadOnlyList<ReportSendingRule> rules, int from, int to)
     {
         var moved = rules.ToList();
         (moved[from], moved[to]) = (moved[to], moved[from]);

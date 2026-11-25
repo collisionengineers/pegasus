@@ -547,7 +547,7 @@
             var addressKind = SendingRuleDraft.TakesAddresses(action.Kind) ? action.Kind : ReportSendingActionKind.SendTo;
             var textKind = SendingRuleDraft.TakesText(action.Kind) ? action.Kind : ReportSendingActionKind.Task;
             <div class="rule-row rule-row--action" data-rule-action>
-                <select class="select" name="@(name).Kind" aria-label="@Sending.ActionField" data-rule-choice>@foreach (var section in kinds.GroupBy(Sending.ActionGroup)) { <optgroup label="@section.Key">@foreach (var kind in section) { <option value="@kind" selected="@(action.Kind == kind)">@Sending.Action(kind)</option> }</optgroup> }</select>
+                <select class="select" name="@(name).Kind" aria-label="@Sending.ActionField" data-rule-choice>@foreach (var kindGroup in kinds.GroupBy(item => Sending.ActionGroup(item))) { <optgroup label="@kindGroup.Key">@foreach (var kind in kindGroup) { <option value="@kind" selected="@(action.Kind == kind)">@Sending.Action(kind)</option> }</optgroup> }</select>
                 <div class="rule-value">
                     <div data-rule-value="SendTo Cc NeverCc"><input type="text" name="@(name).Addresses" value="@(SendingRuleDraft.TakesAddresses(action.Kind) ? action.Text : string.Empty)" autocomplete="off" aria-label="@Sending.Action(addressKind)" data-rule-named /><p class="field-hint">@Sending.ValueHint</p></div>
                     <div data-rule-value="Attach DoNotAttach"><select class="select" name="@(name).File" aria-label="@Sending.FileField">@foreach (var file in files) { <option value="@file" selected="@(action.File == file)">@Sending.File(file)</option> }</select></div>
