@@ -317,53 +317,105 @@ public static partial class OperatorLabels
                 Pegasus.Core.Reports.ReportNamesRule.TooLong => ": too long to name a file.",
                 _ => ": use only {REG}, {CASE REF} and {OUTCOME}.",
             };
-        public const string ReportSending = "Report sending";
-        public const string SaveReportSending = "Save report sending";
         public const string SendFrom = "Send from";
         public const string SendFromNone = "Not set";
-        public const string SendTo = "Send to";
-        public const string SendToHint = "Empty: the original instruction sender.";
-        public const string SendToOnly = "Send to only";
-        public const string ReplyAll = "Reply all";
-        public const string Cc = "Cc";
-        public const string NeverCc = "Never cc";
-        public const string Attach = "Attach";
-        public const string FeeNoteSeparate = "Fee note is a separate PDF";
-        public const string AttachEstimate = "Estimate";
-        public const string AttachAudatex = "Audatex";
         public const string ReportImages = "Report carries vehicle images";
-        public const string VehicleImagesDocument = "Vehicle images document required";
-        public const string FigureBreakdown = "Figure breakdown required";
-        // The Offer ticks (operator, 17 November 2026; R1151).
-        public const string OfferExternalEstimates = "Offer external estimates (unticked)";
-        public const string OfferRepairInvoices = "Offer repair invoices (unticked)";
-        public const string GarageFigures = "Garage figures";
-        public const string Hold = "Hold";
         public const string HoldHint = "Send stays off until staff tick this as done.";
-        public const string Reminders = "Reminders";
-        public const string AddAddress = "Add address";
-        public const string AddReminder = "Add reminder";
+        public const string StopHint = "Send is refused; staff may override with a reason.";
+        public const string ValueHint = "Separate several with commas.";
+
+        // The Contact tab's three headed sections (operator, 25 November 2026; v55 item B).
+        public const string OrganisationSection = "Organisation";
+        public const string CasesSection = "Cases";
+        public const string EmailSection = "E-mail";
+
+        // The Sending rules tab and its dialogs (operator, 25 November 2026; v55, R1266 to R1272).
+        public const string SendingRules = "Sending rules";
+        public const string OnEveryCase = "On every Case";
         public const string Rules = "Rules";
-        public const string Rule = "Rule";
         public const string AddRule = "Add rule";
+        public const string Edit = "Edit";
+        public const string NewRule = "New rule";
+        public static string RuleNumber(int number) => $"Rule {number}";
+        public const string If = "If";
+        public const string Then = "Then";
+        public const string And = "And";
+        public const string Or = "Or";
+        /// <summary>The joins a rule's If line reads between conditions and between groups.</summary>
+        public const string JoinAnd = "and";
+        public const string JoinOr = "or";
+        public const string Is = "is";
+        public const string IsNot = "is not";
+        public const string AddAction = "Add action";
         public const string RemoveRule = "Remove rule";
-        public const string RuleMatch = "Match";
-        public const string RuleMatchAll = "All conditions";
-        public const string RuleMatchAny = "Any condition";
+        public static string RemoveRuleNumber(int number) => $"Remove rule {number}";
+        public const string SaveRule = "Save rule";
+        public const string Save = "Save";
+        public const string NoRules = "No rules.";
+        public const string NoActions = "No actions.";
+        public const string NoPreviousJob = "No previous job";
+        public static string LinkedTo(string principalName) => $"Linked to {principalName}";
+        public const string OtherContacts = "Other contacts";
+        public static string MoveRuleUp(int number) => $"Move rule {number} up";
+        public static string MoveRuleDown(int number) => $"Move rule {number} down";
+        // Accessible names of a dialog row's controls.
+        public const string RemoveCondition = "Remove condition";
+        public const string RemoveAction = "Remove action";
+        public const string IsOrIsNot = "Is or is not";
         public const string Condition = "Condition";
-        public const string NoCondition = "No condition";
-        public const string ConditionValueHint = "Separate several with commas.";
-        public const string ActionCcAdd = "Cc add";
-        public const string ActionCcRemove = "Cc remove";
-        public const string ActionRemind = "Remind";
-        public const string ActionHold = "Hold";
-        public const string ActionStop = "Stop";
-        public const string ActionStopHint = "Send is refused; staff may override with a reason.";
-        public const string ActionRateCard = "Rate card";
-        /// <summary>A rule's three choices for each attach flag (operator, 16 October 2026).</summary>
-        public const string AttachAsThePrincipal = "As the Principal";
-        public const string AttachOverrideOn = "Attach";
-        public const string AttachOverrideOff = "Do not attach";
+        public const string ActionField = "Action";
+        public const string FileField = "File";
+
+        /// <summary>What a condition of a sending rule reads.</summary>
+        public static string Fact(Pegasus.Core.Reports.ReportSendingFact fact) => fact switch
+        {
+            Pegasus.Core.Reports.ReportSendingFact.ClaimSource => "Claim Source",
+            Pegasus.Core.Reports.ReportSendingFact.Repairer => "Repairer",
+            Pegasus.Core.Reports.ReportSendingFact.Outcome => "Outcome",
+            Pegasus.Core.Reports.ReportSendingFact.CaseType => "Case type",
+            Pegasus.Core.Reports.ReportSendingFact.Sender => "Sender",
+            Pegasus.Core.Reports.ReportSendingFact.RefPrefix => "Reference prefix",
+            Pegasus.Core.Reports.ReportSendingFact.PreviousJob => "Previous job",
+            _ => fact.ToString()
+        };
+
+        /// <summary>What an action of a sending rule does.</summary>
+        public static string Action(Pegasus.Core.Reports.ReportSendingActionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingActionKind.SendTo => "Send to",
+            Pegasus.Core.Reports.ReportSendingActionKind.SendToOnly => "Send to only",
+            Pegasus.Core.Reports.ReportSendingActionKind.ReplyAll => "Reply all",
+            Pegasus.Core.Reports.ReportSendingActionKind.Cc => "Cc",
+            Pegasus.Core.Reports.ReportSendingActionKind.NeverCc => "Never cc",
+            Pegasus.Core.Reports.ReportSendingActionKind.Attach => "Attach",
+            Pegasus.Core.Reports.ReportSendingActionKind.DoNotAttach => "Do not attach",
+            Pegasus.Core.Reports.ReportSendingActionKind.Hold => "Hold",
+            Pegasus.Core.Reports.ReportSendingActionKind.Stop => "Stop",
+            Pegasus.Core.Reports.ReportSendingActionKind.Task => "Add a Case task",
+            _ => kind.ToString()
+        };
+
+        /// <summary>The group an action is listed under in the dialog's action choice.</summary>
+        public static string ActionGroup(Pegasus.Core.Reports.ReportSendingActionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingActionKind.Attach or Pegasus.Core.Reports.ReportSendingActionKind.DoNotAttach => "Attachments",
+            Pegasus.Core.Reports.ReportSendingActionKind.Hold or Pegasus.Core.Reports.ReportSendingActionKind.Stop => "Before sending",
+            Pegasus.Core.Reports.ReportSendingActionKind.Task => "After sending",
+            _ => "Recipients"
+        };
+
+        /// <summary>A file an Attach or Do not attach action names.</summary>
+        public static string File(Pegasus.Core.Reports.ReportSendingFile file) => file switch
+        {
+            Pegasus.Core.Reports.ReportSendingFile.FeeNoteSeparate => "Separate fee note",
+            Pegasus.Core.Reports.ReportSendingFile.Estimate => "Estimate",
+            Pegasus.Core.Reports.ReportSendingFile.Audatex => "Audatex",
+            Pegasus.Core.Reports.ReportSendingFile.VehicleImagesDocument => "Vehicle images document",
+            Pegasus.Core.Reports.ReportSendingFile.FigureBreakdown => "Figure breakdown",
+            Pegasus.Core.Reports.ReportSendingFile.OfferExternalEstimates => "External estimates (offered, unticked)",
+            Pegasus.Core.Reports.ReportSendingFile.OfferRepairInvoices => "Repair invoices (offered, unticked)",
+            _ => file.ToString()
+        };
         public const string RefPrefixLettersOnly = "A reference prefix is letters only.";
 
         // A Principal panel's notices and refusals on the contact page.
@@ -373,8 +425,6 @@ public static partial class OperatorLabels
         public const string ReportSettingsUpdated = "The principal's report settings were updated.";
         public const string ReportSendingUpdated = "The principal's report sending rules were updated.";
         public const string AddressRequired = "An address is required.";
-        public const string DefaultLocationUpdated = "The principal's default inspection location was updated.";
-        public const string DefaultLocationNotAccepted = "The default location was not accepted.";
         public const string NewCodeRequired = "A new principal code is required.";
         // The form's own field words, as a refusal names them (R539).
         public const string CodeField = "principal code";
@@ -412,20 +462,6 @@ public static partial class OperatorLabels
             OrganizationAdministrationError.StaleVersion => "The principal changed after this page was loaded. Review the current settings and retry.",
             OrganizationAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
             _ => "The settings change was not accepted."
-        };
-
-        /// <summary>A report sending condition as the rule row names it.</summary>
-        public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
-        {
-            Pegasus.Core.Reports.ReportSendingConditionKind.ClaimSource => "Claim Source",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Repairer => "Repairer",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
-            Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
-            Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
-            Pegasus.Core.Reports.ReportSendingConditionKind.RefPrefix => "Reference prefix",
-            Pegasus.Core.Reports.ReportSendingConditionKind.PreviousJob => "Previous job",
-            _ => kind.ToString()
         };
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>

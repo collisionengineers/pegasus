@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Microsoft.Extensions.Options;
@@ -26,7 +25,6 @@ public sealed class EditModel(
     IResumePrincipalCredential resumeCredential,
     IRevokePrincipalCredential revokeCredential,
     IUpdatePrincipalReportSettings updatePrincipalReportSettings,
-    IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation,
     IUpdatePrincipalReportSending updatePrincipalReportSending,
     IApprovedMailboxStore approvedMailboxes,
     IReplacePrincipal replacePrincipal,
@@ -41,15 +39,15 @@ public sealed class EditModel(
     // picks the one panel the server renders, and each panel's save comes back to it.
     public const string ContactTab = "contact";
     public const string ReportGenerationTab = "report-generation";
+    // The Sending rules tab keeps the key of the Report sending tab it
+    // replaced, so its address does not move (operator, 25 November 2026).
     public const string ReportSendingTab = "report-sending";
-    public const string LocationTab = "default-inspection-location";
     public const string ApiTab = "principal-api";
     public static readonly IReadOnlyList<(string Key, string Label)> PrincipalTabs =
     [
         (ContactTab, OperatorLabels.PrincipalAdministration.ContactTab),
         (ReportGenerationTab, OperatorLabels.PrincipalAdministration.ReportGeneration),
-        (ReportSendingTab, OperatorLabels.PrincipalAdministration.ReportSending),
-        (LocationTab, OperatorLabels.PrincipalAdministration.DefaultInspectionLocation),
+        (ReportSendingTab, OperatorLabels.PrincipalAdministration.SendingRules),
         (ApiTab, OperatorLabels.PrincipalAdministration.PrincipalApi)
     ];
     [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
@@ -134,8 +132,20 @@ public sealed class EditModel(
     [BindProperty] public Guid[] LinkedPrincipalIds { get; set; } = [];
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
 
-    [BindProperty] public long PrincipalExpectedVersion { get; set; }
+    // A Principal's Case defaults, edited in Cases and E-mail on the Contact
+    // tab and saved by Save contact (operator, 25 November 2026; R1266, R1267).
     [BindProperty] public decimal? DefaultFee { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.LocationLabelField), StringLength(ContactDirectoryPolicy.MaximumDefaultInspectionLocationLabelLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationLabel { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(ContactDirectoryPolicy.MaximumDefaultInspectionAddressLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationAddress { get; set; }
+    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(ContactDirectoryPolicy.MaximumPostcodeLength, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationPostcode { get; set; }
+    [BindProperty] public string? SendFromMailbox { get; set; }
+    // The Outgoing mailboxes that can send, as the report send form offers
+    // them, read only for a Principal's Contact tab, the one tab that draws them.
+    public IReadOnlyList<string> SendFromChoices { get; private set; } = [];
+
+    [BindProperty] public long PrincipalExpectedVersion { get; set; }
+    // Whether the Principal's reports carry vehicle images (Report generation).
+    [BindProperty] public bool ReportImages { get; set; }
     // The VAT number the Principal's fee notes print; empty is the standard number.
     [BindProperty] public string? FeeNoteVatNumber { get; set; }
     // What the Principal's standalone Audits work from (R1138), the invoice
@@ -154,17 +164,29 @@ public sealed class EditModel(
     [BindProperty] public string? AuditReportNameResend { get; set; }
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public string? ReportSendingOperationKey { get; set; } = NewOperationKey();
-    // The report sending rules as shown: the stored rules, or what was typed
-    // when a save was refused.
+    // The Principal's stored sending rules, as the Sending rules tab draws them.
     public PrincipalReportSendingRules ReportSendingRules { get; private set; } = PrincipalReportSendingRules.Default;
-    public IReadOnlyList<string> SendFromChoices { get; private set; } = [];
     public IReadOnlyList<ContactChoice> ClaimSourceChoices { get; private set; } = [];
     public IReadOnlyList<ContactChoice> RepairerChoices { get; private set; } = [];
-    [BindProperty] public bool LocationIsImageBasedAssessment { get; set; }
-    [BindProperty, Display(Name = OperatorLabels.PrincipalAdministration.LocationLabelField), StringLength(200, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationLabel { get; set; }
-    [BindProperty, Display(Name = OperatorLabels.Contacts.AddressField), StringLength(500, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationAddress { get; set; }
-    [BindProperty, Display(Name = OperatorLabels.Contacts.PostcodeField), StringLength(20, ErrorMessage = OperatorLabels.TooLongFormat)] public string? LocationPostcode { get; set; }
-    [BindProperty] public string? LocationOperationKey { get; set; } = NewOperationKey();
+
+    // The Sending rules tab's dialogs open by address on the tab, so each
+    // works without script (as the Contacts list's New dialogs do):
+    // ?rule=new, ?rule={number from 1}, ?every=1 and ?remove={number}.
+    public const string NewRuleKey = "new";
+    [BindProperty(SupportsGet = true, Name = "rule")] public string? RuleKey { get; set; }
+    [BindProperty(SupportsGet = true, Name = "every")] public string? EveryKey { get; set; }
+    [BindProperty(SupportsGet = true, Name = "remove")] public string? RemoveKey { get; set; }
+    /// <summary>The Sending rules dialog the address opens, if any.</summary>
+    public SendingDialog Dialog { get; private set; }
+    /// <summary>The rule the open dialog edits or removes, from 0; null for a new rule and the every-Case list.</summary>
+    public int? DialogRuleIndex { get; private set; }
+    /// <summary>What the rule or On every Case dialog draws: the stored rule, or the draft as posted.</summary>
+    public SendingRuleDraft? Draft { get; private set; }
+    // A row the dialog adds or removes without script (SendingRuleDraft.Change).
+    [BindProperty] public string? DraftChange { get; set; }
+    // Move up and Move down: the rule's number from 1, and the step.
+    [BindProperty] public int RuleNumber { get; set; }
+    [BindProperty] public int MoveBy { get; set; }
     [BindProperty] public long CredentialVersion { get; set; }
     [BindProperty] public string? CredentialOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
@@ -181,7 +203,7 @@ public sealed class EditModel(
         CopyFrom(Contact);
         await LoadPrincipalAsync(actor, cancellationToken, readCredential: CurrentTab == ApiTab);
         InitializePrincipalSettings();
-        await LoadReportSendingChoicesAsync(actor, cancellationToken);
+        await LoadTabChoicesAsync(actor, cancellationToken);
         await LoadPrincipalChoicesAsync(actor, cancellationToken);
         await LoadPhotoLinkAsync(cancellationToken);
         return Page();
@@ -347,8 +369,16 @@ public sealed class EditModel(
             try
             {
                 var isPrincipal = Contact.Role == ContactRole.Principal;
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, PrincipalInspectionMode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
-                    Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
+                // A field the form did not carry keeps the record's value; the
+                // Principal's Case defaults belong to a Principal only.
+                var mode = Posted(nameof(PrincipalInspectionMode)) ? PrincipalInspectionMode : Contact.PrincipalInspectionMode ?? PrincipalInspectionMode;
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, Email, Telephone, Address, Postcode, Active, Contact.Role, isPrincipal ? PrincipalCode : null, mode, isPrincipal ? [] : LinkedPrincipalIds, OperationKey,
+                    Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase,
+                    isPrincipal ? Posted(nameof(DefaultFee)) ? DefaultFee : Contact.DefaultFee : null,
+                    isPrincipal ? Posted(nameof(LocationLabel)) ? LocationLabel : Contact.DefaultInspectionLocationLabel : null,
+                    isPrincipal ? Posted(nameof(LocationAddress)) ? LocationAddress : Contact.DefaultInspectionAddress : null,
+                    isPrincipal ? Posted(nameof(LocationPostcode)) ? LocationPostcode : Contact.DefaultInspectionPostcode : null,
+                    isPrincipal ? Posted(nameof(SendFromMailbox)) ? SendFromMailbox : Contact.SendFromMailbox : null), cancellationToken);
                 TempData["AdministrationStatus"] = OperatorLabels.Contacts.Saved;
                 return RedirectToPage("Index");
             }
@@ -357,14 +387,16 @@ public sealed class EditModel(
             {
                 // A named field error is keyed to its own control; every other
                 // refusal keeps the general notice.
-                if (exception.ParamName == nameof(Telephone))
+                var (field, message) = exception.ParamName switch
                 {
-                    ModelState.AddModelError(nameof(Telephone), OperatorLabels.Contacts.PhoneMustBeDigits);
-                }
-                else
-                {
-                    ModelState.AddModelError(string.Empty, OperatorLabels.Contacts.DetailsNotAccepted);
-                }
+                    nameof(Telephone) => (nameof(Telephone), OperatorLabels.Contacts.PhoneMustBeDigits),
+                    nameof(SaveContactRequest.DefaultFee) => (nameof(DefaultFee), OperatorLabels.PrincipalAdministration.SubmittedValueInvalid),
+                    nameof(SaveContactRequest.DefaultInspectionAddress) => (nameof(LocationAddress), OperatorLabels.PrincipalAdministration.AddressRequired),
+                    nameof(SaveContactRequest.SendFromMailbox) => (nameof(SendFromMailbox), OperatorLabels.PrincipalAdministration.SubmittedValueInvalid),
+                    nameof(SaveContactRequest.PrincipalInspectionMode) => (nameof(PrincipalInspectionMode), OperatorLabels.Contacts.SelectInspectionMode),
+                    _ => (string.Empty, OperatorLabels.Contacts.DetailsNotAccepted)
+                };
+                ModelState.AddModelError(field, message);
             }
         }
         await PopulateAsync(actor, cancellationToken, copyContactFields: false);
@@ -378,7 +410,7 @@ public sealed class EditModel(
         ContactId = id;
         Tab = ReportGenerationTab;
         ClearModelStatePreservingErrors(
-            nameof(DefaultFee),
+            nameof(ReportImages),
             nameof(FeeNoteVatNumber),
             nameof(AuditWorkflow),
             nameof(PrincipalInvoice),
@@ -401,7 +433,7 @@ public sealed class EditModel(
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings",
-                    DefaultFee ?? 0m,
+                    ReportImages,
                     ExpectedVersion,
                     new PrincipalReportNames(
                         InspectionReportNameFirst,
@@ -421,16 +453,26 @@ public sealed class EditModel(
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
-        var typed = (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
+        var typed = (ReportImages, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend);
         var typedInvoice = (AuditWorkflow, PrincipalInvoice, InvoiceVatNumber, InvoicePaymentTerms);
         await PopulateAsync(actor, cancellationToken);
         // What was typed stays.
-        (DefaultFee, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
+        (ReportImages, FeeNoteVatNumber, InspectionReportNameFirst, InspectionReportNameResend, AuditReportNameFirst, AuditReportNameResend) = typed;
         (AuditWorkflow, PrincipalInvoice, InvoiceVatNumber, InvoicePaymentTerms) = typedInvoice;
         return Page();
     }
 
-    public async Task<IActionResult> OnPostUpdateReportSendingAsync(Guid id, CancellationToken cancellationToken)
+    // The Sending rules tab (operator, 25 November 2026; R1266 to R1272):
+    // each dialog and each Move saves the Principal's whole rules value, its
+    // own change made to the rules as stored; Normalize is the one check.
+    public Task<IActionResult> OnPostSaveRuleAsync(Guid id, CancellationToken cancellationToken) => SaveSendingAsync(id, SendingSave.Rule, cancellationToken);
+    public Task<IActionResult> OnPostSaveEveryCaseAsync(Guid id, CancellationToken cancellationToken) => SaveSendingAsync(id, SendingSave.EveryCase, cancellationToken);
+    public Task<IActionResult> OnPostRemoveRuleAsync(Guid id, CancellationToken cancellationToken) => SaveSendingAsync(id, SendingSave.Remove, cancellationToken);
+    public Task<IActionResult> OnPostMoveRuleAsync(Guid id, CancellationToken cancellationToken) => SaveSendingAsync(id, SendingSave.Move, cancellationToken);
+
+    private enum SendingSave { Rule, EveryCase, Remove, Move }
+
+    private async Task<IActionResult> SaveSendingAsync(Guid id, SendingSave save, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
@@ -439,68 +481,120 @@ public sealed class EditModel(
         ClearModelStatePreservingErrors(
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
-            nameof(ReportSendingOperationKey));
+            nameof(ReportSendingOperationKey),
+            nameof(RuleNumber),
+            nameof(MoveBy));
         var expectedVersion = PrincipalExpectedVersion;
-        var posted = PostedReportSending();
+        var draft = save is SendingSave.Rule or SendingSave.EveryCase ? SendingRuleDraft.Read(Request.Form) : null;
         if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
         if (!IsOperationKeyValid(ReportSendingOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
         if (ModelState.IsValid)
         {
-            try
+            var current = Principal!.ReportSending;
+            var rules = save switch
             {
-                await updatePrincipalReportSending.ExecuteAsync(new(
-                    Principal!.Id, expectedVersion, actor, ReportSendingOperationKey!,
-                    posted, ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSendingUpdated;
-                return RedirectToPage(new { id = ContactId, tab = Tab });
+                SendingSave.Rule when RuleKey == NewRuleKey => new PrincipalReportSendingRules(current.EveryCase, [.. current.Rules, draft!.ToRule()]),
+                SendingSave.Rule => RuleIndex(RuleKey, current) is { } index
+                    ? new PrincipalReportSendingRules(current.EveryCase, [.. current.Rules.Select((rule, at) => at == index ? draft!.ToRule() : rule)])
+                    : null,
+                SendingSave.EveryCase => new PrincipalReportSendingRules(draft!.ToActions(), current.Rules),
+                SendingSave.Remove => RuleIndex(RemoveKey, current) is { } index
+                    ? new PrincipalReportSendingRules(current.EveryCase, [.. current.Rules.Where((_, at) => at != index)])
+                    : null,
+                _ => MoveBy is -1 or 1
+                    && RuleIndex(RuleNumber.ToString(CultureInfo.InvariantCulture), current) is { } moving
+                    && moving + MoveBy >= 0
+                    && moving + MoveBy < current.Rules.Count
+                        ? new PrincipalReportSendingRules(current.EveryCase, Moved(current.Rules, moving, moving + MoveBy))
+                        : null
+            };
+            // The rule the form named is gone: the rules changed after the page was drawn.
+            if (rules is null) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.ErrorMessage(OrganizationAdministrationError.StaleVersion));
+            else
+            {
+                try
+                {
+                    await updatePrincipalReportSending.ExecuteAsync(new(
+                        Principal!.Id, expectedVersion, actor, ReportSendingOperationKey!,
+                        rules, ExpectedVersion), cancellationToken);
+                    TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.ReportSendingUpdated;
+                    return RedirectToPage(new { id = ContactId, tab = Tab });
+                }
+                catch (ReportSendingRulesException exception) { ModelState.AddModelError(string.Empty, ReportSendingRulesErrorMessage(exception)); }
+                catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
+                catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
+                catch (StaffAuthorizationException) { return Forbid(); }
             }
-            catch (ReportSendingRulesException exception) { ModelState.AddModelError(string.Empty, ReportSendingRulesErrorMessage(exception)); }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
-            catch (StaffAuthorizationException) { return Forbid(); }
         }
+        // The dialog is drawn again with what was typed and its refusal; a
+        // Move's refusal shows at the top of the panel.
+        Draft = draft;
         await PopulateAsync(actor, cancellationToken);
-        // What was typed stays.
-        ReportSendingRules = posted;
         return Page();
     }
 
-    public async Task<IActionResult> OnPostUpdateLocationAsync(Guid id, CancellationToken cancellationToken)
+    /// <summary>
+    /// The rule dialog with one row added or removed, as its And, Or, Add
+    /// action and remove buttons post it without script: nothing is saved,
+    /// and the dialog is drawn again from the posted draft.
+    /// </summary>
+    public async Task<IActionResult> OnPostRuleDraftAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (id == Guid.Empty) return BadRequest();
         ContactId = id;
-        Tab = LocationTab;
-        ClearModelStatePreservingErrors(
-            nameof(LocationIsImageBasedAssessment),
-            nameof(LocationLabel),
-            nameof(LocationAddress),
-            nameof(LocationPostcode),
-            nameof(PrincipalExpectedVersion),
-            nameof(ExpectedVersion),
-            nameof(LocationOperationKey));
-        var expectedVersion = PrincipalExpectedVersion;
-        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
-        if (!LocationIsImageBasedAssessment && string.IsNullOrWhiteSpace(LocationAddress)) ModelState.AddModelError(nameof(LocationAddress), OperatorLabels.PrincipalAdministration.AddressRequired);
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
-                    ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.DefaultLocationUpdated;
-                return RedirectToPage(new { id = ContactId, tab = Tab });
-            }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.DefaultLocationNotAccepted); }
-            catch (StaffAuthorizationException) { return Forbid(); }
-        }
-        var (imageBased, label, address, postcode) = (LocationIsImageBasedAssessment, LocationLabel, LocationAddress, LocationPostcode);
+        Tab = ReportSendingTab;
+        ClearModelStatePreservingErrors();
+        var posted = (PrincipalExpectedVersion, ReportSendingOperationKey);
+        Draft = SendingRuleDraft.Read(Request.Form).Change(DraftChange);
         await PopulateAsync(actor, cancellationToken);
-        // What was typed stays.
-        (LocationIsImageBasedAssessment, LocationLabel, LocationAddress, LocationPostcode) = (imageBased, label, address, postcode);
+        if (Contact is null || Principal is null) return NotFound();
+        // The draft still answers to the version and form the dialog was opened with.
+        (PrincipalExpectedVersion, ReportSendingOperationKey) = posted;
         return Page();
+    }
+
+    private static IReadOnlyList<ReportSendingRule> Moved(IReadOnlyList<ReportSendingRule> rules, int from, int to)
+    {
+        var moved = rules.ToList();
+        (moved[from], moved[to]) = (moved[to], moved[from]);
+        return moved;
+    }
+
+    // A rule's number from 1, as an address or a form names it, as its index; null when there is no such rule.
+    private static int? RuleIndex(string? number, PrincipalReportSendingRules rules) =>
+        int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) && parsed >= 1 && parsed <= rules.Rules.Count
+            ? parsed - 1
+            : null;
+
+    // The dialog the address opens, drawn only on an active Principal's Sending rules tab.
+    private void ResolveSendingDialog()
+    {
+        Dialog = SendingDialog.None;
+        DialogRuleIndex = null;
+        if (Principal is not { IsActive: true } || CurrentTab != ReportSendingTab) return;
+        var rules = ReportSendingRules;
+        if (RuleKey == NewRuleKey)
+        {
+            Dialog = SendingDialog.Rule;
+            Draft ??= SendingRuleDraft.NewRule;
+        }
+        else if (RuleIndex(RuleKey, rules) is { } rule)
+        {
+            Dialog = SendingDialog.Rule;
+            DialogRuleIndex = rule;
+            Draft ??= SendingRuleDraft.From(rules.Rules[rule]);
+        }
+        else if (!string.IsNullOrEmpty(EveryKey))
+        {
+            Dialog = SendingDialog.EveryCase;
+            Draft ??= SendingRuleDraft.FromActions(rules.EveryCase);
+        }
+        else if (RuleIndex(RemoveKey, rules) is { } removed)
+        {
+            Dialog = SendingDialog.Remove;
+            DialogRuleIndex = removed;
+        }
     }
 
     public Task<IActionResult> OnPostIssueCredentialAsync(Guid id, CancellationToken cancellationToken) => ChangeCredentialAsync(id, "issue", cancellationToken);
@@ -602,24 +696,31 @@ public sealed class EditModel(
             if (copyContactFields) CopyFrom(Contact);
             await LoadPrincipalAsync(actor, cancellationToken, readCredential: readCredential && CurrentTab == ApiTab);
             InitializePrincipalSettings();
-            await LoadReportSendingChoicesAsync(actor, cancellationToken);
+            await LoadTabChoicesAsync(actor, cancellationToken);
             await LoadPrincipalChoicesAsync(actor, cancellationToken);
         }
     }
 
-    // The mailboxes a new message may leave from (the Outgoing ones that can
-    // send, as the report send form offers them) and the contacts a rule may name,
-    // read only for the Report sending tab, the one tab that draws them (#1542).
-    private async Task LoadReportSendingChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
+    // Each tab reads only the choices it draws (#1542): a Principal's Contact
+    // tab the mailboxes a new message may leave from (the Outgoing ones that
+    // can send, as the report send form offers them), and the Sending rules
+    // tab the contacts a rule may name, then the dialog its address opens.
+    private async Task LoadTabChoicesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (Principal is not { IsActive: true } || CurrentTab != ReportSendingTab) return;
-        SendFromChoices = (await approvedMailboxes.ListAsync(cancellationToken))
-            .Where(mailbox => mailbox.CanSend)
-            .Select(mailbox => mailbox.Address)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        ClaimSourceChoices = await contacts.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken);
-        RepairerChoices = await contacts.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken);
+        if (CurrentTab == ContactTab && Contact is { Role: ContactRole.Principal })
+        {
+            SendFromChoices = (await approvedMailboxes.ListAsync(cancellationToken))
+                .Where(mailbox => mailbox.CanSend)
+                .Select(mailbox => mailbox.Address)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        if (Principal is { IsActive: true } && CurrentTab == ReportSendingTab)
+        {
+            ClaimSourceChoices = await contacts.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken);
+            RepairerChoices = await contacts.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken);
+        }
+        ResolveSendingDialog();
     }
 
     // The Principals a contact may link to: drawn only on the one panel of a
@@ -669,11 +770,9 @@ public sealed class EditModel(
     {
         if (Principal is null) return;
         PrincipalCode = Principal.Code;
-        // The mode the save compares with: the current Principal's, the one without a successor.
-        PrincipalInspectionMode = Contact?.PrincipalInspectionMode ?? Principal.InspectionMode;
         PrincipalExpectedVersion = Principal.Version;
         ReplacementExpectedVersion = Principal.Version;
-        DefaultFee = Principal.DefaultFee;
+        ReportImages = Principal.ReportImages;
         FeeNoteVatNumber = Principal.FeeNoteVatNumber;
         AuditWorkflow = Principal.AuditWorkflow;
         PrincipalInvoice = Principal.PrincipalInvoice;
@@ -683,117 +782,30 @@ public sealed class EditModel(
         InspectionReportNameResend = Principal.ReportNames.InspectionResend;
         AuditReportNameFirst = Principal.ReportNames.AuditFirst;
         AuditReportNameResend = Principal.ReportNames.AuditResend;
-        LocationIsImageBasedAssessment = Principal.DefaultInspectionAddress is null;
-        LocationLabel = Principal.DefaultInspectionLocationLabel;
-        LocationAddress = Principal.DefaultInspectionAddress;
-        LocationPostcode = Principal.DefaultInspectionPostcode;
         CredentialVersion = Credential?.Version ?? 0;
         ReportSendingRules = Principal.ReportSending;
-    }
-
-    // The panel posts plain fields: repeated inputs for the lists, and one
-    // numbered group of fields per rule, read in the order the RuleIndex
-    // fields list them. Nothing is checked here; Normalize refuses what is wrong.
-    private PrincipalReportSendingRules PostedReportSending()
-    {
-        var form = Request.Form;
-        string? Text(string name) => form[name].ToString() is { Length: > 0 } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
-        string[] Many(string name) => [.. form[name].Select(value => value ?? string.Empty)];
-        bool Flag(string name) => form.ContainsKey(name);
-        bool? Choice(string name) => form[name].ToString() switch { "true" => true, "false" => false, _ => null };
-        static string[] Split(string? value, params char[] separators) =>
-            (value ?? string.Empty).Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        char[] addressSeparators = [',', ';', ' ', '\r', '\n'];
-        char[] textSeparators = [',', ';', '\r', '\n'];
-
-        var rules = new List<ReportSendingRule>();
-        foreach (var rawIndex in form["RuleIndex"])
-        {
-            if (!int.TryParse(rawIndex, NumberStyles.None, CultureInfo.InvariantCulture, out var index)) continue;
-            var prefix = $"Rule{index}";
-            var conditions = new List<ReportSendingCondition>();
-            for (var slot = 0; form.ContainsKey($"{prefix}Cond{slot}Kind"); slot++)
-            {
-                var field = $"{prefix}Cond{slot}";
-                if (!Enum.TryParse<ReportSendingConditionKind>(form[$"{field}Kind"].ToString(), out var kind)
-                    || !Enum.IsDefined(kind)) continue;
-                IReadOnlyList<string> values = kind switch
-                {
-                    ReportSendingConditionKind.ClaimSource => Many($"{field}ClaimSource"),
-                    ReportSendingConditionKind.Repairer => Many($"{field}Repairer"),
-                    ReportSendingConditionKind.Outcome => Many($"{field}Outcome"),
-                    ReportSendingConditionKind.CaseType => Many($"{field}CaseType"),
-                    ReportSendingConditionKind.SenderNot => Split(Text($"{field}Text"), addressSeparators),
-                    ReportSendingConditionKind.PreviousJob => [],
-                    _ => Split(Text($"{field}Text"), textSeparators)
-                };
-                conditions.Add(new(kind, values));
-            }
-            var actions = new ReportSendingActions(
-                Split(Text($"{prefix}CcAdd"), addressSeparators),
-                Split(Text($"{prefix}CcRemove"), addressSeparators),
-                Text($"{prefix}Remind"),
-                Text($"{prefix}Hold"),
-                Text($"{prefix}Stop"),
-                Flag($"{prefix}RateCard"),
-                new ReportSendingAttachOverride(
-                    Choice($"{prefix}AttachFeeNoteSeparate"),
-                    Choice($"{prefix}AttachEstimate"),
-                    Choice($"{prefix}AttachAudatex"),
-                    Choice($"{prefix}AttachVehicleImagesDocument"),
-                    Choice($"{prefix}AttachFigureBreakdown"),
-                    Choice($"{prefix}AttachOfferExternalEstimates"),
-                    Choice($"{prefix}AttachOfferRepairInvoices")));
-            // A row left entirely blank is the spare row; it is not a rule.
-            if (conditions.Count == 0 && actions.IsEmpty) continue;
-            var match = Enum.TryParse<ReportSendingRuleMatch>(form[$"{prefix}Match"].ToString(), out var parsed)
-                && Enum.IsDefined(parsed) ? parsed : ReportSendingRuleMatch.All;
-            rules.Add(new(match, conditions, actions));
-        }
-
-        return new(
-            Text("RsSendFrom"),
-            Many("RsSendTo"),
-            Flag("RsSendToOnly"),
-            Flag("RsReplyAll"),
-            Many("RsCc"),
-            Many("RsNeverCc"),
-            new(
-                Flag("RsFeeNoteSeparate"),
-                Flag("RsEstimate"),
-                Flag("RsAudatex"),
-                Flag("RsReportImages"),
-                Flag("RsVehicleImagesDocument"),
-                Flag("RsFigureBreakdown"),
-                Flag("RsOfferExternalEstimates"),
-                Flag("RsOfferRepairInvoices")),
-            Flag("RsGarageFigures"),
-            Text("RsHold"),
-            Many("RsReminders"),
-            rules);
     }
 
     private void CopyFrom(ContactDirectoryRecord contact)
     {
         Name = contact.Name; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; LinkedPrincipalIds = (contact.LinkedPrincipalIds ?? []).ToArray();
+        // A Principal's Case defaults are its current Principal's, the one without a successor.
+        if (contact.PrincipalInspectionMode is { } mode) PrincipalInspectionMode = mode;
+        DefaultFee = contact.DefaultFee;
+        LocationLabel = contact.DefaultInspectionLocationLabel;
+        LocationAddress = contact.DefaultInspectionAddress;
+        LocationPostcode = contact.DefaultInspectionPostcode;
+        SendFromMailbox = contact.SendFromMailbox;
     }
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;
 
     private static string ReportSendingRulesErrorMessage(ReportSendingRulesException exception)
     {
+        // "Rule {n}" for a rule, "On every Case" for the every-Case list.
         var where = exception.RuleIndex is { } index
-            ? $"Rule {index + 1}"
-            : exception.Field switch
-            {
-                nameof(PrincipalReportSendingRules.SendFromMailbox) => OperatorLabels.PrincipalAdministration.SendFrom,
-                nameof(PrincipalReportSendingRules.SendTo) => OperatorLabels.PrincipalAdministration.SendTo,
-                nameof(PrincipalReportSendingRules.Cc) => OperatorLabels.PrincipalAdministration.Cc,
-                nameof(PrincipalReportSendingRules.NeverCc) => OperatorLabels.PrincipalAdministration.NeverCc,
-                nameof(PrincipalReportSendingRules.Hold) => OperatorLabels.PrincipalAdministration.Hold,
-                nameof(PrincipalReportSendingRules.Reminders) => OperatorLabels.PrincipalAdministration.Reminders,
-                _ => OperatorLabels.PrincipalAdministration.ReportSending
-            };
+            ? OperatorLabels.PrincipalAdministration.RuleNumber(index + 1)
+            : OperatorLabels.PrincipalAdministration.OnEveryCase;
         return exception.Rule switch
         {
             ReportSendingRulesRule.InvalidAddress => $"{where}: enter valid e-mail addresses.",

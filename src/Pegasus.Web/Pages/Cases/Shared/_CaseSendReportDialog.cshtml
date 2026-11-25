@@ -402,16 +402,6 @@
                         {
                             <span class="muted" data-report-warning>@warning</span>
                         }
-                        @if (plan.AfterSendTasks.Count > 0)
-                        {
-                            <span class="lbl">@ReportLabels.AfterSending</span>
-                            <div class="stack" data-report-after-sending>
-                                @foreach (var task in plan.AfterSendTasks)
-                                {
-                                    <div class="fv">@task</div>
-                                }
-                            </div>
-                        }
                         @* Each hold the Principal's rules set is ticked off as
                            done; Core refuses the send otherwise. *@
                         @foreach (var hold in plan.Holds)

@@ -1,8 +1,10 @@
 @page "{id:guid}"
 @model Pegasus.Web.Pages.Administration.Contacts.EditModel
+@using System.Globalization
 @using Pegasus.Core.Cases
 @using Pegasus.Core.Reports
 @using Microsoft.AspNetCore.Mvc.Rendering
+@using Sending = Pegasus.Web.Presentation.OperatorLabels.PrincipalAdministration
 @{
     ViewData["Title"] = Model.Contact!.Name;
     ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
@@ -21,6 +23,74 @@
     {
         if (status is not null) { <div class="notice notice--success" role="status"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg><span>@status</span></div> }
         if (!Model.ReplaceRefused && !Model.SavedAddressRefused) { <div asp-validation-summary="@(allErrors ? ValidationSummary.All : ValidationSummary.ModelOnly)" class="validation-summary" role="alert"></div> }
+    }
+
+    // The Sending rules tab reads a rule as a sentence, "If … Then …" (v55):
+    // a condition's values show their names, a contact that no longer exists
+    // its id.
+    var sending = Model.ReportSendingRules;
+    var outcomeCodes = Pegasus.Core.Assessment.AssessmentVocabulary.Definitions[Pegasus.Core.Assessment.AssessmentVocabulary.Outcome].Codes!;
+    var contactNames = Model.ClaimSourceChoices.Concat(Model.RepairerChoices)
+        .GroupBy(choice => choice.OrganizationId.ToString("D"), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(group => group.Key, group => group.First().Name, StringComparer.OrdinalIgnoreCase);
+    string ValueName(ReportSendingFact fact, string value) => fact switch
+    {
+        ReportSendingFact.ClaimSource or ReportSendingFact.Repairer => contactNames.TryGetValue(value, out var name) ? name : value,
+        ReportSendingFact.Outcome => OperatorLabels.Humanise(value),
+        ReportSendingFact.CaseType => OperatorLabels.CaseTypeName(value),
+        _ => value
+    };
+    async Task ConditionWords(ReportSendingCondition condition)
+    {
+        if (condition.Fact == ReportSendingFact.PreviousJob)
+        {
+            <span class="rule-condition"><span class="@(condition.Not ? "rule-pill rule-not" : "rule-pill")">@(condition.Not ? Sending.NoPreviousJob : Sending.Fact(ReportSendingFact.PreviousJob))</span></span>
+            return;
+        }
+        var typed = SendingRuleDraft.IsTyped(condition.Fact);
+        <span class="rule-condition"><span class="rule-fact">@Sending.Fact(condition.Fact)</span> @if (condition.Not) { <span class="rule-not">@Sending.IsNot</span> } else { <text>@Sending.Is</text> } @for (var v = 0; v < condition.Values.Count; v++) { if (v > 0) { <span class="muted">@Sending.JoinOr</span> } <span class="@(typed ? "rule-pill mono" : "rule-pill")">@ValueName(condition.Fact, condition.Values[v])</span> }</span>
+    }
+    async Task GroupWords(IReadOnlyList<ReportSendingCondition> group)
+    {
+        for (var c = 0; c < group.Count; c++)
+        {
+            if (c > 0) { <span class="rule-join">@Sending.JoinAnd</span> }
+            await ConditionWords(group[c]);
+        }
+    }
+    // Groups are joined by "or"; a group of several conditions among several
+    // groups is bracketed by the dashed box.
+    async Task IfWords(IReadOnlyList<IReadOnlyList<ReportSendingCondition>> groups)
+    {
+        for (var g = 0; g < groups.Count; g++)
+        {
+            if (g > 0) { <span class="rule-join rule-join--or">@Sending.JoinOr</span> }
+            if (groups.Count > 1 && groups[g].Count > 1) { <span class="rule-bracket">@{ await GroupWords(groups[g]); }</span> }
+            else { await GroupWords(groups[g]); }
+        }
+    }
+    async Task ActionDetail(ReportSendingAction action)
+    {
+        if (SendingRuleDraft.TakesAddresses(action.Kind)) { foreach (var address in action.Addresses ?? []) { <span class="rule-pill mono">@address</span> } }
+        else if (action.File is { } file) { <span class="rule-pill">@Sending.File(file)</span> }
+        else if (action.Text is { } text) { <span class="rule-quote">&ldquo;@text&rdquo;</span> }
+    }
+    async Task ThenWords(IReadOnlyList<ReportSendingAction> actions)
+    {
+        foreach (var action in actions)
+        {
+            <span class="rule-then-item"><span class="rule-verb">@Sending.Action(action.Kind)</span> @{ await ActionDetail(action); }</span>
+        }
+    }
+    async Task RuleLines(ReportSendingRule rule)
+    {
+        <p class="rule-line"><span class="rule-keyword">@Sending.If</span><span class="rule-words">@{ await IfWords(rule.If); }</span></p>
+        <p class="rule-line"><span class="rule-keyword">@Sending.Then</span><span class="rule-words">@{ await ThenWords(rule.Then); }</span></p>
+    }
+    // The fields every Sending rules form posts: the versions it answers to and its operation key.
+    async Task SendingFormFields(string operationKey)
+    {
+        <input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input type="hidden" name="ReportSendingOperationKey" value="@operationKey" />
     }
 }
 <partial name="Shared/_PageHeader" />
@@ -42,41 +112,71 @@
                 <partial name="Shared/_StatusChip" model="@(Model.Contact.Active ? "Active" : "Disabled")" />
             }
         </div>
+        @* One form in headed sections, saved by Save contact (operator, 25 November 2026; v55 items B to E, T):
+           Organisation and Cases for every contact, and E-mail for a Principal. *@
         <form method="post" asp-page-handler="Save" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">
             @{ await PanelMessages(false); }
             <input asp-for="ContactId" type="hidden" /><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input asp-for="OperationKey" type="hidden" />
-            @* Save posts the Principal's current inspection mode, so a contact save leaves the mode as it is (operator, 16 October 2026). *@
-            @if (isPrincipal) { <input type="hidden" name="PrincipalInspectionMode" value="@Model.PrincipalInspectionMode" /> }
-            <div class="form-grid form-grid--2">
-                <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
-                <div class="field"><label for="contact-type">Type</label><input id="contact-type" value="@OperatorLabels.Contacts.Type(contactRole)" readonly /></div>
+            <section class="contact-section" aria-labelledby="contact-organisation-title">
+                <h3 id="contact-organisation-title">@Sending.OrganisationSection</h3>
+                <div class="form-grid form-grid--2">
+                    <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
+                    <div class="field"><label for="contact-type">Type</label><input id="contact-type" value="@OperatorLabels.Contacts.Type(contactRole)" readonly /></div>
+                    @if (isPrincipal)
+                    {
+                        <div class="field"><label asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" class="mono" readonly /></div>
+                    }
+                    <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
+                    <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
+                    <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>
+                    <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /></div>
+                </div>
+            </section>
+            <section class="contact-section" aria-labelledby="contact-cases-title">
+                <h3 id="contact-cases-title">@Sending.CasesSection</h3>
                 @if (isPrincipal)
                 {
-                    <div class="field"><label asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" class="mono" readonly /></div>
+                    @* The fee a new Case agrees (R1266), and one Inspection setting: the mode, and for a
+                       physical address the default location (D4; amends R118). Without script the location
+                       shows for both modes, and Image Based Assessment clears it on save. *@
+                    <div class="form-grid form-grid--2">
+                        <div class="field"><label class="req" for="principal-default-fee">@OperatorLabels.PrincipalAdministration.DefaultFee</label><input id="principal-default-fee" name="DefaultFee" type="number" inputmode="decimal" min="0.01" step="0.01" required value="@Model.DefaultFee?.ToString("0.00", CultureInfo.InvariantCulture)" /><span asp-validation-for="DefaultFee"></span></div>
+                        <div class="field"><label for="principal-inspection-mode">@OperatorLabels.PrincipalAdministration.InspectionMode</label><select id="principal-inspection-mode" name="PrincipalInspectionMode" data-inspection-mode><option value="@CaseInspectionMode.PhysicalAddress" selected="@(Model.PrincipalInspectionMode == CaseInspectionMode.PhysicalAddress)">@OperatorLabels.InspectionMode(CaseInspectionMode.PhysicalAddress)</option><option value="@CaseInspectionMode.ImageBasedAssessment" selected="@(Model.PrincipalInspectionMode == CaseInspectionMode.ImageBasedAssessment)">@OperatorLabels.InspectionMode(CaseInspectionMode.ImageBasedAssessment)</option></select><span asp-validation-for="PrincipalInspectionMode"></span></div>
+                        <fieldset class="field-wide contact-subsection" data-location-physical>
+                            <legend>@OperatorLabels.PrincipalAdministration.DefaultInspectionLocation</legend>
+                            <div class="form-grid form-grid--2">
+                                <div class="field field-wide"><label asp-for="LocationLabel">Location label</label><input asp-for="LocationLabel" autocomplete="off" /><span asp-validation-for="LocationLabel"></span></div>
+                                <div class="field"><label asp-for="LocationAddress">Address</label><input asp-for="LocationAddress" autocomplete="off" /><span asp-validation-for="LocationAddress"></span></div>
+                                <div class="field"><label asp-for="LocationPostcode">Postcode</label><input asp-for="LocationPostcode" autocomplete="off" /><span asp-validation-for="LocationPostcode"></span></div>
+                            </div>
+                        </fieldset>
+                        @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. The box grows to its text (operator, 13 October 2026). *@
+                        <div class="field field-wide" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
+                    </div>
                 }
-                <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
-                <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
-                <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>
-                <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /></div>
-                @if (isPrincipal)
+                else
                 {
-                    <div class="field"><label for="principal-inspection-mode">@OperatorLabels.PrincipalAdministration.InspectionMode</label><input id="principal-inspection-mode" value="@OperatorLabels.InspectionMode(Model.PrincipalInspectionMode)" readonly /></div>
-                    <div class="field"><label for="principal-accepted-identities">@OperatorLabels.PrincipalAdministration.AcceptedIdentities</label><input id="principal-accepted-identities" value="@(Model.AcceptedIdentities.Count > 0 ? string.Join(", ", Model.AcceptedIdentities) : OperatorLabels.PrincipalAdministration.NoAcceptedRoute)" readonly /></div>
+                    <div class="stack">
+                        @if (contactRole == ContactRole.ClaimSource)
+                        {
+                            <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
+                        }
+                        <fieldset class="field fieldset-plain fieldset-plain--label"><legend>Linked principals</legend><div class="contact-links">@foreach (var principal in Model.PrincipalChoices) { <label class="choice"><input type="checkbox" name="LinkedPrincipalIds" value="@principal.Principal.Id" @(Model.LinkedPrincipalIds.Contains(principal.Principal.Id) ? "checked" : null) /> <span>@principal.Name (@principal.Principal.Code)</span></label> }</div></fieldset>
+                    </div>
                 }
-            </div>
-            @if (contactRole is ContactRole.Principal or ContactRole.ClaimSource)
-            {
-            <section class="contact-section">
-                @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. The box grows to its text (operator, 13 October 2026). *@
-                <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
             </section>
-            }
-            @if (!isPrincipal)
+            @if (isPrincipal)
             {
-            <section class="contact-section" aria-labelledby="linked-principals-title">
-                <h3 id="linked-principals-title">Linked principals</h3>
-                <div class="contact-links">@foreach (var principal in Model.PrincipalChoices) { <label class="choice"><input type="checkbox" name="LinkedPrincipalIds" value="@principal.Principal.Id" @(Model.LinkedPrincipalIds.Contains(principal.Principal.Id) ? "checked" : null) /> <span>@principal.Name (@principal.Principal.Code)</span></label> }</div>
-            </section>
+                @* Send from is the fallback mailbox for the Principal's Case mail (R655), so it is the contact's (v55 item E). *@
+                var sendFromChoices = Model.SendFromChoices.ToList();
+                if (!string.IsNullOrWhiteSpace(Model.SendFromMailbox) && !sendFromChoices.Contains(Model.SendFromMailbox, StringComparer.OrdinalIgnoreCase)) sendFromChoices.Add(Model.SendFromMailbox!);
+                <section class="contact-section" aria-labelledby="contact-email-title">
+                    <h3 id="contact-email-title">@Sending.EmailSection</h3>
+                    <div class="form-grid form-grid--2">
+                        <div class="field"><label for="principal-accepted-identities">@OperatorLabels.PrincipalAdministration.AcceptedIdentities</label><input id="principal-accepted-identities" value="@(Model.AcceptedIdentities.Count > 0 ? string.Join(", ", Model.AcceptedIdentities) : OperatorLabels.PrincipalAdministration.NoAcceptedRoute)" readonly /></div>
+                        <div class="field"><label for="principal-send-from">@Sending.SendFrom</label><select id="principal-send-from" name="SendFromMailbox"><option value="">@Sending.SendFromNone</option>@foreach (var address in sendFromChoices) { <option value="@address" selected="@string.Equals(address, Model.SendFromMailbox, StringComparison.OrdinalIgnoreCase)">@address</option> }</select><span asp-validation-for="SendFromMailbox"></span></div>
+                    </div>
+                </section>
             }
             <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
             <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save contact</button></div>
@@ -94,87 +194,78 @@
                 var resendId = $"report-name-{key}-resend";
                 <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@legend</legend><div class="form-grid form-grid--2"><div class="field"><label for="@firstId">@OperatorLabels.PrincipalAdministration.ReportNameFirst</label><input id="@firstId" name="@firstName" value="@first" placeholder="@OperatorLabels.PrincipalAdministration.ReportNameFirstStandard" autocomplete="off" /></div><div class="field"><label for="@resendId">@OperatorLabels.PrincipalAdministration.ReportNameResend</label><input id="@resendId" name="@resendName" value="@resend" placeholder="@OperatorLabels.PrincipalAdministration.ReportNameResendStandard" autocomplete="off" /></div></div><div class="button-row" role="group" aria-label="@OperatorLabels.EmailTemplates.Placeholders">@foreach (var placeholder in Pegasus.Core.Reports.PrincipalReportNames.Tokens) { var token = "{" + placeholder + "}"; <button type="button" class="btn btn--small" data-insert-placeholder="@token" data-insert-target="@firstId @resendId">@token</button> }</div></fieldset>
             }
-            <section class="panel" aria-labelledby="principal-report-title"><div class="panel-head"><h2 id="principal-report-title">@OperatorLabels.PrincipalAdministration.ReportGeneration</h2></div><form method="post" asp-page-handler="UpdateReportSettings" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSettingsOperationKey" type="hidden" /><div class="field"><label for="principal-default-fee">@OperatorLabels.PrincipalAdministration.DefaultFee</label><input id="principal-default-fee" name="DefaultFee" type="number" inputmode="decimal" min="0.01" step="0.01" required value="@Model.DefaultFee?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" /></div><div class="field"><label for="principal-fee-note-vat-number">@OperatorLabels.PrincipalAdministration.FeeNoteVatNumber</label><input id="principal-fee-note-vat-number" name="FeeNoteVatNumber" value="@Model.FeeNoteVatNumber" maxlength="@Pegasus.Core.Reports.AssessmentReportContract.MaximumVatNumberLength" placeholder="@Pegasus.Core.Reports.AssessmentReportContract.VatNumber" autocomplete="off" aria-describedby="principal-fee-note-vat-number-hint" /><p class="field-hint" id="principal-fee-note-vat-number-hint">@OperatorLabels.PrincipalAdministration.FeeNoteVatNumberHint</p></div><div class="field"><label for="principal-audit-workflow">@OperatorLabels.PrincipalAdministration.AuditWorkflow</label><select id="principal-audit-workflow" name="AuditWorkflow">@foreach (var choice in EditModel.AuditWorkflowChoices) { <option value="@choice" selected="@(Model.AuditWorkflow == choice)">@OperatorLabels.PrincipalAdministration.AuditWorkflowChoice(choice)</option> }</select></div><div class="field"><label for="principal-own-invoice">@OperatorLabels.PrincipalAdministration.PrincipalOwnInvoice</label><select id="principal-own-invoice" name="PrincipalInvoice">@foreach (var choice in EditModel.PrincipalInvoiceChoices) { <option value="@choice" selected="@(Model.PrincipalInvoice == choice)">@OperatorLabels.PrincipalAdministration.PrincipalInvoiceChoice(choice)</option> }</select></div><div class="field"><label for="principal-invoice-vat-number">@OperatorLabels.PrincipalAdministration.InvoiceVatNumber</label><input id="principal-invoice-vat-number" name="InvoiceVatNumber" value="@Model.InvoiceVatNumber" maxlength="@PrincipalInvoicePolicy.MaximumVatNumberLength" autocomplete="off" /></div><div class="field"><label for="principal-invoice-payment-terms">@OperatorLabels.PrincipalAdministration.InvoicePaymentTerms</label><input id="principal-invoice-payment-terms" name="InvoicePaymentTerms" value="@Model.InvoicePaymentTerms" maxlength="@PrincipalInvoicePolicy.MaximumPaymentTermsLength" autocomplete="off" /></div>@{ await ReportName("inspection", OperatorLabels.PrincipalAdministration.InspectionReportName, nameof(Model.InspectionReportNameFirst), Model.InspectionReportNameFirst, nameof(Model.InspectionReportNameResend), Model.InspectionReportNameResend); await ReportName("audit", OperatorLabels.PrincipalAdministration.AuditReportName, nameof(Model.AuditReportNameFirst), Model.AuditReportNameFirst, nameof(Model.AuditReportNameResend), Model.AuditReportNameResend); }<p class="field-hint">@OperatorLabels.PrincipalAdministration.ReportNameHint</p><div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save report settings</button></div></form></section>
+            @* Report carries vehicle images is read by report generation, so it is set here (v55 item F). *@
+            <section class="panel" aria-labelledby="principal-report-title"><div class="panel-head"><h2 id="principal-report-title">@OperatorLabels.PrincipalAdministration.ReportGeneration</h2></div><form method="post" asp-page-handler="UpdateReportSettings" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSettingsOperationKey" type="hidden" /><div class="field"><label for="principal-fee-note-vat-number">@OperatorLabels.PrincipalAdministration.FeeNoteVatNumber</label><input id="principal-fee-note-vat-number" name="FeeNoteVatNumber" value="@Model.FeeNoteVatNumber" maxlength="@Pegasus.Core.Reports.AssessmentReportContract.MaximumVatNumberLength" placeholder="@Pegasus.Core.Reports.AssessmentReportContract.VatNumber" autocomplete="off" aria-describedby="principal-fee-note-vat-number-hint" /><p class="field-hint" id="principal-fee-note-vat-number-hint">@OperatorLabels.PrincipalAdministration.FeeNoteVatNumberHint</p></div><div class="field"><label for="principal-audit-workflow">@OperatorLabels.PrincipalAdministration.AuditWorkflow</label><select id="principal-audit-workflow" name="AuditWorkflow">@foreach (var choice in EditModel.AuditWorkflowChoices) { <option value="@choice" selected="@(Model.AuditWorkflow == choice)">@OperatorLabels.PrincipalAdministration.AuditWorkflowChoice(choice)</option> }</select></div><div class="field"><label for="principal-own-invoice">@OperatorLabels.PrincipalAdministration.PrincipalOwnInvoice</label><select id="principal-own-invoice" name="PrincipalInvoice">@foreach (var choice in EditModel.PrincipalInvoiceChoices) { <option value="@choice" selected="@(Model.PrincipalInvoice == choice)">@OperatorLabels.PrincipalAdministration.PrincipalInvoiceChoice(choice)</option> }</select></div><div class="field"><label for="principal-invoice-vat-number">@OperatorLabels.PrincipalAdministration.InvoiceVatNumber</label><input id="principal-invoice-vat-number" name="InvoiceVatNumber" value="@Model.InvoiceVatNumber" maxlength="@PrincipalInvoicePolicy.MaximumVatNumberLength" autocomplete="off" /></div><div class="field"><label for="principal-invoice-payment-terms">@OperatorLabels.PrincipalAdministration.InvoicePaymentTerms</label><input id="principal-invoice-payment-terms" name="InvoicePaymentTerms" value="@Model.InvoicePaymentTerms" maxlength="@PrincipalInvoicePolicy.MaximumPaymentTermsLength" autocomplete="off" /></div>@{ await ReportName("inspection", OperatorLabels.PrincipalAdministration.InspectionReportName, nameof(Model.InspectionReportNameFirst), Model.InspectionReportNameFirst, nameof(Model.InspectionReportNameResend), Model.InspectionReportNameResend); await ReportName("audit", OperatorLabels.PrincipalAdministration.AuditReportName, nameof(Model.AuditReportNameFirst), Model.AuditReportNameFirst, nameof(Model.AuditReportNameResend), Model.AuditReportNameResend); }<p class="field-hint">@OperatorLabels.PrincipalAdministration.ReportNameHint</p><label class="choice"><input type="checkbox" name="ReportImages" value="true" checked="@Model.ReportImages" /> <span>@Sending.ReportImages</span></label><div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save report settings</button></div></form></section>
         }
         if (tab == EditModel.ReportSendingTab)
         {
-            @* Report sending rules (Report Sending SOP v8): who the report goes to and from, who is copied, what goes with it, and what holds or stops delivery.
-               A rule row left blank is ignored, so the list keeps one spare row to type into. *@
-                var sending = Model.ReportSendingRules;
-                var sendFromChoices = Model.SendFromChoices.ToList();
-                if (!string.IsNullOrWhiteSpace(sending.SendFromMailbox) && !sendFromChoices.Contains(sending.SendFromMailbox, StringComparer.OrdinalIgnoreCase)) sendFromChoices.Add(sending.SendFromMailbox);
-                var outcomeCodes = Pegasus.Core.Assessment.AssessmentVocabulary.Definitions[Pegasus.Core.Assessment.AssessmentVocabulary.Outcome].Codes!;
-                var ruleRows = sending.Rules.Append(new ReportSendingRule(ReportSendingRuleMatch.All, [], ReportSendingActions.None)).ToArray();
-                IEnumerable<(string Id, string Name)> ContactOptions(IReadOnlyList<ContactChoice> choices, IEnumerable<string> selected)
-                {
-                    var options = choices.Select(choice => (choice.OrganizationId.ToString("D"), choice.Name)).ToList();
-                    foreach (var id in selected)
-                    {
-                        if (!options.Any(option => string.Equals(option.Item1, id, StringComparison.OrdinalIgnoreCase))) options.Add((id, id));
-                    }
-                    return options;
-                }
-                // One attach flag of a rule: left unnamed it keeps the Principal value (Report Sending SOP v8, rule R14).
-                async Task AttachOverride(int index, string flag, string label, bool? value)
-                {
-                    <div class="field"><label for="Rule@(index)Attach@(flag)">@label</label><select id="Rule@(index)Attach@(flag)" name="Rule@(index)Attach@(flag)"><option value="">@OperatorLabels.PrincipalAdministration.AttachAsThePrincipal</option><option value="true" selected="@(value == true)">@OperatorLabels.PrincipalAdministration.AttachOverrideOn</option><option value="false" selected="@(value == false)">@OperatorLabels.PrincipalAdministration.AttachOverrideOff</option></select></div>
-                }
-            <section class="panel" aria-labelledby="principal-sending-title"><div class="panel-head"><h2 id="principal-sending-title">@OperatorLabels.PrincipalAdministration.ReportSending</h2></div><form method="post" asp-page-handler="UpdateReportSending" asp-route-id="@Model.ContactId" class="panel-body stack" data-report-sending-editor>@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="ReportSendingOperationKey" type="hidden" />
-                <div class="form-grid form-grid--2">
-                    <div class="field"><label for="rs-send-from">@OperatorLabels.PrincipalAdministration.SendFrom</label><select id="rs-send-from" name="RsSendFrom"><option value="">@OperatorLabels.PrincipalAdministration.SendFromNone</option>@foreach (var address in sendFromChoices) { <option value="@address" selected="@string.Equals(address, sending.SendFromMailbox, StringComparison.OrdinalIgnoreCase)">@address</option> }</select></div>
-                    <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.SendTo</legend><div class="stack" data-rs-items="RsSendTo">@foreach (var address in sending.SendTo) { <input name="RsSendTo" type="email" value="@address" aria-label="@OperatorLabels.PrincipalAdministration.SendTo" autocomplete="off" /> }</div><button type="button" class="btn btn--small" data-rs-add="RsSendTo" data-rs-label="@OperatorLabels.PrincipalAdministration.SendTo" data-rs-type="email">@OperatorLabels.PrincipalAdministration.AddAddress</button><p class="field-hint">@OperatorLabels.PrincipalAdministration.SendToHint</p></fieldset>
-                    <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.Cc</legend><div class="stack" data-rs-items="RsCc">@foreach (var address in sending.Cc) { <input name="RsCc" type="email" value="@address" aria-label="@OperatorLabels.PrincipalAdministration.Cc" autocomplete="off" /> }</div><button type="button" class="btn btn--small" data-rs-add="RsCc" data-rs-label="@OperatorLabels.PrincipalAdministration.Cc" data-rs-type="email">@OperatorLabels.PrincipalAdministration.AddAddress</button></fieldset>
-                    <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.NeverCc</legend><div class="stack" data-rs-items="RsNeverCc">@foreach (var address in sending.NeverCc) { <input name="RsNeverCc" type="email" value="@address" aria-label="@OperatorLabels.PrincipalAdministration.NeverCc" autocomplete="off" /> }</div><button type="button" class="btn btn--small" data-rs-add="RsNeverCc" data-rs-label="@OperatorLabels.PrincipalAdministration.NeverCc" data-rs-type="email">@OperatorLabels.PrincipalAdministration.AddAddress</button></fieldset>
-                    <div class="field stack"><label class="choice"><input type="checkbox" name="RsSendToOnly" value="true" checked="@sending.SendToOnly" /> <span>@OperatorLabels.PrincipalAdministration.SendToOnly</span></label><label class="choice"><input type="checkbox" name="RsReplyAll" value="true" checked="@sending.ReplyAll" /> <span>@OperatorLabels.PrincipalAdministration.ReplyAll</span></label><label class="choice"><input type="checkbox" name="RsGarageFigures" value="true" checked="@sending.GarageFigures" /> <span>@OperatorLabels.PrincipalAdministration.GarageFigures</span></label></div>
-                    <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.Attach</legend><div class="stack"><label class="choice"><input type="checkbox" name="RsFeeNoteSeparate" value="true" checked="@sending.Attach.FeeNoteSeparate" /> <span>@OperatorLabels.PrincipalAdministration.FeeNoteSeparate</span></label><label class="choice"><input type="checkbox" name="RsEstimate" value="true" checked="@sending.Attach.Estimate" /> <span>@OperatorLabels.PrincipalAdministration.AttachEstimate</span></label><label class="choice"><input type="checkbox" name="RsAudatex" value="true" checked="@sending.Attach.Audatex" /> <span>@OperatorLabels.PrincipalAdministration.AttachAudatex</span></label><label class="choice"><input type="checkbox" name="RsReportImages" value="true" checked="@sending.Attach.ReportImages" /> <span>@OperatorLabels.PrincipalAdministration.ReportImages</span></label><label class="choice"><input type="checkbox" name="RsVehicleImagesDocument" value="true" checked="@sending.Attach.VehicleImagesDocument" /> <span>@OperatorLabels.PrincipalAdministration.VehicleImagesDocument</span></label><label class="choice"><input type="checkbox" name="RsFigureBreakdown" value="true" checked="@sending.Attach.FigureBreakdown" /> <span>@OperatorLabels.PrincipalAdministration.FigureBreakdown</span></label><label class="choice"><input type="checkbox" name="RsOfferExternalEstimates" value="true" checked="@sending.Attach.OfferExternalEstimates" /> <span>@OperatorLabels.PrincipalAdministration.OfferExternalEstimates</span></label><label class="choice"><input type="checkbox" name="RsOfferRepairInvoices" value="true" checked="@sending.Attach.OfferRepairInvoices" /> <span>@OperatorLabels.PrincipalAdministration.OfferRepairInvoices</span></label></div></fieldset>
-                    <div class="field"><label for="rs-hold">@OperatorLabels.PrincipalAdministration.Hold</label><input id="rs-hold" name="RsHold" value="@sending.Hold" autocomplete="off" /><p class="field-hint">@OperatorLabels.PrincipalAdministration.HoldHint</p></div>
-                    <fieldset class="field fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.Reminders</legend><div class="stack" data-rs-items="RsReminders">@foreach (var reminder in sending.Reminders) { <input name="RsReminders" value="@reminder" aria-label="@OperatorLabels.PrincipalAdministration.Reminders" autocomplete="off" /> }</div><button type="button" class="btn btn--small" data-rs-add="RsReminders" data-rs-label="@OperatorLabels.PrincipalAdministration.Reminders" data-rs-type="text">@OperatorLabels.PrincipalAdministration.AddReminder</button></fieldset>
+            @* Sending rules (operator, 25 November 2026; v55, R1266 to R1272): what every Case's send
+               does, then the numbered rules, each "If … Then …". Nothing happens on a send unless an
+               action says so. Each rule is added, edited and removed in its own dialog, opened by
+               address so it works without script, and Move up / Move down save at once. *@
+            var rules = sending.Rules;
+            // One row per action kind: two Attach actions read as one row with two files; each text action is its own row.
+            var everyRows = new List<(ReportSendingActionKind Kind, List<ReportSendingAction> Actions)>();
+            foreach (var action in sending.EveryCase)
+            {
+                var at = SendingRuleDraft.TakesText(action.Kind) ? -1 : everyRows.FindIndex(row => row.Kind == action.Kind);
+                if (at < 0) { everyRows.Add((action.Kind, new List<ReportSendingAction> { action })); } else { everyRows[at].Actions.Add(action); }
+            }
+            <section class="panel" aria-labelledby="principal-sending-title">
+                <div class="panel-head">
+                    <h2 id="principal-sending-title">@Sending.SendingRules</h2>
+                    <a class="btn btn--small btn--primary" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-rule="@EditModel.NewRuleKey"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@Sending.AddRule</span></a>
                 </div>
-                <section class="contact-section stack" aria-labelledby="principal-sending-rules-title">
-                    <h3 id="principal-sending-rules-title">@OperatorLabels.PrincipalAdministration.Rules</h3>
-                    <div class="stack" data-rs-rules>
-                    @for (var r = 0; r < ruleRows.Length; r++)
-                    {
-                        var rule = ruleRows[r];
-                        var slots = Math.Max(3, rule.If.Count);
-                        <fieldset class="contact-section stack fieldset-plain fieldset-plain--label" data-rs-rule>
-                            <legend>@OperatorLabels.PrincipalAdministration.Rule @(r + 1)</legend>
-                            <input type="hidden" name="RuleIndex" value="@r" />
-                            <div class="field"><label for="Rule@(r)Match">@OperatorLabels.PrincipalAdministration.RuleMatch</label><select id="Rule@(r)Match" name="Rule@(r)Match"><option value="@ReportSendingRuleMatch.All" selected="@(rule.Match == ReportSendingRuleMatch.All)">@OperatorLabels.PrincipalAdministration.RuleMatchAll</option><option value="@ReportSendingRuleMatch.Any" selected="@(rule.Match == ReportSendingRuleMatch.Any)">@OperatorLabels.PrincipalAdministration.RuleMatchAny</option></select></div>
-                            @for (var s = 0; s < slots; s++)
-                            {
-                                var condition = s < rule.If.Count ? rule.If[s] : null;
-                                var values = condition?.Values ?? [];
-                                var isText = condition is not null && condition.Kind is ReportSendingConditionKind.Mentions or ReportSendingConditionKind.SenderNot or ReportSendingConditionKind.RefPrefix;
-                                <div class="form-grid form-grid--2" data-rs-condition>
-                                    <div class="field"><label for="Rule@(r)Cond@(s)Kind">@OperatorLabels.PrincipalAdministration.Condition</label><select id="Rule@(r)Cond@(s)Kind" name="Rule@(r)Cond@(s)Kind" data-rs-kind><option value="">@OperatorLabels.PrincipalAdministration.NoCondition</option>@foreach (var kind in Enum.GetValues<ReportSendingConditionKind>()) { <option value="@kind" selected="@(condition?.Kind == kind)">@OperatorLabels.PrincipalAdministration.ConditionKind(kind)</option> }</select></div>
-                                    <div class="field" data-rs-value="ClaimSource" hidden="@(condition is not null && condition.Kind != ReportSendingConditionKind.ClaimSource)"><label for="Rule@(r)Cond@(s)ClaimSource">@OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.ClaimSource)</label><select id="Rule@(r)Cond@(s)ClaimSource" name="Rule@(r)Cond@(s)ClaimSource" multiple size="3">@foreach (var option in ContactOptions(Model.ClaimSourceChoices, condition?.Kind == ReportSendingConditionKind.ClaimSource ? values : [])) { <option value="@option.Id" selected="@(condition?.Kind == ReportSendingConditionKind.ClaimSource && values.Contains(option.Id, StringComparer.OrdinalIgnoreCase))">@option.Name</option> }</select></div>
-                                    <div class="field" data-rs-value="Repairer" hidden="@(condition is not null && condition.Kind != ReportSendingConditionKind.Repairer)"><label for="Rule@(r)Cond@(s)Repairer">@OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.Repairer)</label><select id="Rule@(r)Cond@(s)Repairer" name="Rule@(r)Cond@(s)Repairer" multiple size="3">@foreach (var option in ContactOptions(Model.RepairerChoices, condition?.Kind == ReportSendingConditionKind.Repairer ? values : [])) { <option value="@option.Id" selected="@(condition?.Kind == ReportSendingConditionKind.Repairer && values.Contains(option.Id, StringComparer.OrdinalIgnoreCase))">@option.Name</option> }</select></div>
-                                    <div class="field" data-rs-value="Outcome" hidden="@(condition is not null && condition.Kind != ReportSendingConditionKind.Outcome)"><label for="Rule@(r)Cond@(s)Outcome">@OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.Outcome)</label><select id="Rule@(r)Cond@(s)Outcome" name="Rule@(r)Cond@(s)Outcome" multiple size="4">@foreach (var code in outcomeCodes) { <option value="@code" selected="@(condition?.Kind == ReportSendingConditionKind.Outcome && values.Contains(code, StringComparer.Ordinal))">@OperatorLabels.Humanise(code)</option> }</select></div>
-                                    <div class="field" data-rs-value="CaseType" hidden="@(condition is not null && condition.Kind != ReportSendingConditionKind.CaseType)"><label for="Rule@(r)Cond@(s)CaseType">@OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.CaseType)</label><select id="Rule@(r)Cond@(s)CaseType" name="Rule@(r)Cond@(s)CaseType" multiple size="3">@foreach (var caseType in PrincipalReportSendingRules.CaseTypeValues) { <option value="@caseType" selected="@(condition?.Kind == ReportSendingConditionKind.CaseType && values.Contains(caseType, StringComparer.Ordinal))">@OperatorLabels.CaseTypeName(caseType)</option> }</select></div>
-                                    <div class="field" data-rs-value="Text" hidden="@(condition is not null && !isText)"><label for="Rule@(r)Cond@(s)Text">@OperatorLabels.PrincipalAdministration.Condition</label><input id="Rule@(r)Cond@(s)Text" name="Rule@(r)Cond@(s)Text" value="@(isText ? string.Join(", ", values) : null)" autocomplete="off" /><p class="field-hint">@OperatorLabels.PrincipalAdministration.ConditionValueHint</p></div>
-                                </div>
-                            }
-                            <div class="form-grid form-grid--2">
-                                <div class="field"><label for="Rule@(r)CcAdd">@OperatorLabels.PrincipalAdministration.ActionCcAdd</label><input id="Rule@(r)CcAdd" name="Rule@(r)CcAdd" value="@string.Join(", ", rule.Then.CcAdd)" autocomplete="off" /></div>
-                                <div class="field"><label for="Rule@(r)CcRemove">@OperatorLabels.PrincipalAdministration.ActionCcRemove</label><input id="Rule@(r)CcRemove" name="Rule@(r)CcRemove" value="@string.Join(", ", rule.Then.CcRemove)" autocomplete="off" /></div>
-                                <div class="field"><label for="Rule@(r)Remind">@OperatorLabels.PrincipalAdministration.ActionRemind</label><input id="Rule@(r)Remind" name="Rule@(r)Remind" value="@rule.Then.Remind" autocomplete="off" /></div>
-                                <div class="field"><label for="Rule@(r)Hold">@OperatorLabels.PrincipalAdministration.ActionHold</label><input id="Rule@(r)Hold" name="Rule@(r)Hold" value="@rule.Then.Hold" autocomplete="off" /></div>
-                                <div class="field field-wide"><label for="Rule@(r)Stop">@OperatorLabels.PrincipalAdministration.ActionStop</label><input id="Rule@(r)Stop" name="Rule@(r)Stop" value="@rule.Then.Stop" autocomplete="off" /><p class="field-hint">@OperatorLabels.PrincipalAdministration.ActionStopHint</p></div>
-                                <div class="field"><label class="choice"><input type="checkbox" name="Rule@(r)RateCard" value="true" checked="@rule.Then.RateCard" /> <span>@OperatorLabels.PrincipalAdministration.ActionRateCard</span></label></div>
-                                <fieldset class="field field-wide fieldset-plain fieldset-plain--label"><legend>@OperatorLabels.PrincipalAdministration.Attach</legend><div class="form-grid form-grid--2">@{ var named = rule.Then.Attach; await AttachOverride(r,"FeeNoteSeparate", OperatorLabels.PrincipalAdministration.FeeNoteSeparate, named?.FeeNoteSeparate); await AttachOverride(r,"Estimate", OperatorLabels.PrincipalAdministration.AttachEstimate, named?.Estimate); await AttachOverride(r,"Audatex", OperatorLabels.PrincipalAdministration.AttachAudatex, named?.Audatex); await AttachOverride(r,"VehicleImagesDocument", OperatorLabels.PrincipalAdministration.VehicleImagesDocument, named?.VehicleImagesDocument); await AttachOverride(r,"FigureBreakdown", OperatorLabels.PrincipalAdministration.FigureBreakdown, named?.FigureBreakdown); await AttachOverride(r,"OfferExternalEstimates", OperatorLabels.PrincipalAdministration.OfferExternalEstimates, named?.OfferExternalEstimates); await AttachOverride(r,"OfferRepairInvoices", OperatorLabels.PrincipalAdministration.OfferRepairInvoices, named?.OfferRepairInvoices); }</div></fieldset>
-                            </div>
-                            <div class="button-row"><button type="button" class="btn btn--small" data-remove-rs-rule>@OperatorLabels.PrincipalAdministration.RemoveRule</button></div>
-                        </fieldset>
-                    }
-                    </div>
-                    <div class="button-row"><button type="button" class="btn btn--small" data-add-rs-rule>@OperatorLabels.PrincipalAdministration.AddRule</button></div>
-                </section>
-                <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.PrincipalAdministration.SaveReportSending</button></div></form></section>
-        }
-        if (tab == EditModel.LocationTab)
-        {
-            <section class="panel" aria-labelledby="principal-location-title"><div class="panel-head"><h2 id="principal-location-title">@OperatorLabels.PrincipalAdministration.DefaultInspectionLocation</h2></div><form method="post" asp-page-handler="UpdateLocation" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="LocationOperationKey" type="hidden" /><label class="choice"><input asp-for="LocationIsImageBasedAssessment" type="checkbox" /> <span>Default to Image Based Assessment</span></label><div class="field" data-location-physical><label asp-for="LocationLabel">Location label</label><input asp-for="LocationLabel" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationAddress">Address</label><input asp-for="LocationAddress" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationPostcode">Postcode</label><input asp-for="LocationPostcode" autocomplete="off" /></div><div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save default location</button></div></form></section>
+                <div class="panel-body stack">
+                    @* An open dialog shows its own refusal. *@
+                    @if (Model.Dialog == SendingDialog.None) { await PanelMessages(true); }
+                    <section class="sending-block" aria-labelledby="every-case-title">
+                        <div class="sending-block-head"><h3 id="every-case-title">@Sending.OnEveryCase</h3><a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-every="1">@Sending.Edit</a></div>
+                        @if (everyRows.Count == 0)
+                        {
+                            <p class="empty">@Sending.NoActions</p>
+                        }
+                        else
+                        {
+                            <ul class="every-case-list" data-every-case>
+                                @foreach (var row in everyRows)
+                                {
+                                    <li><span class="rule-verb">@Sending.Action(row.Kind)</span><span class="every-case-values">@foreach (var action in row.Actions) { await ActionDetail(action); }</span></li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                    <section class="sending-block" aria-labelledby="principal-sending-rules-title">
+                        <div class="sending-block-head"><h3 id="principal-sending-rules-title">@Sending.Rules</h3></div>
+                        @if (rules.Count == 0)
+                        {
+                            <p class="empty" data-no-rules>@Sending.NoRules</p>
+                        }
+                        else
+                        {
+                            <ol class="rule-list" data-sending-rules>
+                                @for (var i = 0; i < rules.Count; i++)
+                                {
+                                    var number = i + 1;
+                                    <li class="rule-card" data-rule-card="@number">
+                                        <span class="rule-number" aria-label="@Sending.RuleNumber(number)">@number</span>
+                                        <div class="rule-card-body">@{ await RuleLines(rules[i]); }</div>
+                                        <div class="rule-card-controls">
+                                            <form method="post" asp-page-handler="MoveRule" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" class="rule-card-move">
+                                                @{ await SendingFormFields(Pegasus.Web.Pages.StaffPageModel.NewOperationKey()); }
+                                                <input type="hidden" name="RuleNumber" value="@number" />
+                                                <button type="submit" class="icon-button" name="MoveBy" value="-1" aria-label="@Sending.MoveRuleUp(number)" hidden="@(i == 0)" data-busy-label="@OperatorLabels.Busy.Saving"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-up")" /></svg></button>
+                                                <button type="submit" class="icon-button" name="MoveBy" value="1" aria-label="@Sending.MoveRuleDown(number)" hidden="@(i == rules.Count - 1)" data-busy-label="@OperatorLabels.Busy.Saving"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-down")" /></svg></button>
+                                            </form>
+                                            <a class="btn btn--small" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-rule="@number">@Sending.Edit</a>
+                                        </div>
+                                    </li>
+                                }
+                            </ol>
+                        }
+                    </section>
+                </div>
+            </section>
         }
         if (tab == EditModel.ApiTab)
         {
@@ -382,6 +473,154 @@
             </form>
         </section>
     </div>
+}
+@if (tab == EditModel.ReportSendingTab && Model.Dialog != SendingDialog.None)
+{
+    // A Sending rules dialog opens by address on the tab and closes back to
+    // it: Close, Cancel, Escape and a click outside all ask for the tab.
+    async Task CloseForm(string titleId, string title)
+    {
+        <div class="dialog-head"><h2 id="@titleId" tabindex="-1" data-dialog-initial-focus>@title</h2><form id="sending-dialog-close" method="get" asp-page="Edit" asp-route-id="@Model.ContactId"><input type="hidden" name="tab" value="@EditModel.ReportSendingTab" /></form><button type="submit" form="sending-dialog-close" class="dialog-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+    }
+    // A refused save shows at the top of the dialog body, with what was typed.
+    async Task DialogMessages()
+    {
+        var refusals = ViewData.ModelState.Values.SelectMany(entry => entry.Errors).Select(error => error.ErrorMessage).Where(message => !string.IsNullOrWhiteSpace(message)).ToArray();
+        if (refusals.Length > 0) { <div class="notice notice--danger" role="alert"><span>@string.Join(" ", refusals)</span></div> }
+    }
+    if (Model.Dialog is SendingDialog.Rule or SendingDialog.EveryCase && Model.Draft is { } draft)
+    {
+        var every = Model.Dialog == SendingDialog.EveryCase;
+        var editing = Model.DialogRuleIndex is { } ruleIndex ? ruleIndex + 1 : (int?)null;
+        var title = every ? Sending.OnEveryCase : editing is { } shown ? Sending.RuleNumber(shown) : Sending.NewRule;
+        string? ruleRoute = every ? null : editing?.ToString(CultureInfo.InvariantCulture) ?? EditModel.NewRuleKey;
+        string? everyRoute = every ? "1" : null;
+        // And, Or, Add action and each remove post the draft here without script; nothing is saved.
+        var draftAction = Url.Page(null, "RuleDraft", new { id = Model.ContactId, tab = EditModel.ReportSendingTab, rule = ruleRoute, every = everyRoute });
+        var facts = Enum.GetValues<ReportSendingFact>();
+        var kinds = Enum.GetValues<ReportSendingActionKind>();
+        var files = Enum.GetValues<ReportSendingFile>();
+        var principalCode = Model.Principal?.Code;
+        // A Claim Source or Repairer list: the contacts linked to this Principal first (R1013, R1015), then the
+        // others; a chosen contact that no longer exists stays chosen under its id.
+        async Task ContactPicker(string name, string label, IReadOnlyList<ContactChoice> choices, IReadOnlyList<string> chosen)
+        {
+            var linked = choices.Where(choice => choice.IsLinkedTo(principalCode)).ToArray();
+            var others = choices.Where(choice => !choice.IsLinkedTo(principalCode)).ToArray();
+            var gone = chosen.Where(id => !choices.Any(choice => string.Equals(choice.OrganizationId.ToString("D"), id, StringComparison.OrdinalIgnoreCase))).ToArray();
+            <select class="select" name="@name" multiple size="5" aria-label="@label">
+                @if (linked.Length > 0) { <optgroup label="@Sending.LinkedTo(Model.Contact!.Name)">@foreach (var choice in linked) { var id = choice.OrganizationId.ToString("D"); <option value="@id" selected="@(chosen.Contains(id, StringComparer.OrdinalIgnoreCase))">@choice.Name</option> }</optgroup> }
+                @if (others.Length + gone.Length > 0) { <optgroup label="@Sending.OtherContacts">@foreach (var choice in others) { var id = choice.OrganizationId.ToString("D"); <option value="@id" selected="@(chosen.Contains(id, StringComparer.OrdinalIgnoreCase))">@choice.Name</option> }@foreach (var id in gone) { <option value="@id" selected="selected">@id</option> }</optgroup> }
+            </select>
+        }
+        // One condition: fact, is / is not, its value, remove. Every value control is drawn and the server reads
+        // the one that fits the fact; with script only that one shows.
+        async Task ConditionRow(SendingConditionDraft condition, string group, string row)
+        {
+            var name = $"{SendingRuleDraft.ConditionPrefix}.{group}.{row}";
+            var typedFact = SendingRuleDraft.IsTyped(condition.Fact) ? condition.Fact : ReportSendingFact.Sender;
+            <div class="rule-row" data-rule-condition>
+                <select class="select" name="@(name).Fact" aria-label="@Sending.Condition" data-rule-choice>@foreach (var fact in facts) { <option value="@fact" selected="@(condition.Fact == fact)">@Sending.Fact(fact)</option> }</select>
+                <select class="select" name="@(name).Not" aria-label="@Sending.IsOrIsNot"><option value="false" selected="@(!condition.Not)">@Sending.Is</option><option value="true" selected="@condition.Not">@Sending.IsNot</option></select>
+                <div class="rule-value">
+                    <div data-rule-value="ClaimSource">@{ await ContactPicker($"{name}.ClaimSource", Sending.Fact(ReportSendingFact.ClaimSource), Model.ClaimSourceChoices, condition.Fact == ReportSendingFact.ClaimSource ? condition.Choices : []); }</div>
+                    <div data-rule-value="Repairer">@{ await ContactPicker($"{name}.Repairer", Sending.Fact(ReportSendingFact.Repairer), Model.RepairerChoices, condition.Fact == ReportSendingFact.Repairer ? condition.Choices : []); }</div>
+                    <div class="rule-picks" data-rule-value="Outcome">@foreach (var code in outcomeCodes) { <label class="choice"><input type="checkbox" name="@(name).Outcome" value="@code" checked="@(condition.Fact == ReportSendingFact.Outcome && condition.Choices.Contains(code, StringComparer.Ordinal))" /> <span>@OperatorLabels.Humanise(code)</span></label> }</div>
+                    <div class="rule-picks" data-rule-value="CaseType">@foreach (var caseType in PrincipalReportSendingRules.CaseTypeValues) { <label class="choice"><input type="checkbox" name="@(name).CaseType" value="@caseType" checked="@(condition.Fact == ReportSendingFact.CaseType && condition.Choices.Contains(caseType, StringComparer.Ordinal))" /> <span>@OperatorLabels.CaseTypeName(caseType)</span></label> }</div>
+                    <div data-rule-value="Sender RefPrefix"><input type="text" name="@(name).Text" value="@(SendingRuleDraft.IsTyped(condition.Fact) ? condition.Text : string.Empty)" autocomplete="off" aria-label="@Sending.Fact(typedFact)" data-rule-named /><p class="field-hint">@Sending.ValueHint</p></div>
+                    <div class="rule-no-value" data-rule-value="PreviousJob">&mdash;</div>
+                </div>
+                <button type="submit" class="icon-button" formaction="@draftAction" name="DraftChange" value="remove-condition:@group:@row" aria-label="@Sending.RemoveCondition" data-busy-label="@OperatorLabels.Busy.Removing" data-rule-change><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+            </div>
+        }
+        async Task ConditionGroup(IReadOnlyList<SendingConditionDraft> conditions, string group)
+        {
+            <div class="rule-group-card" data-rule-group="@group">
+                @for (var c = 0; c < conditions.Count; c++) { await ConditionRow(conditions[c], group, c.ToString(CultureInfo.InvariantCulture)); }
+                <div class="button-row"><button type="submit" class="btn btn--small" formaction="@draftAction" name="DraftChange" value="and:@group" data-busy-label="@OperatorLabels.Busy.Adding" data-rule-change><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@Sending.And</span></button></div>
+            </div>
+        }
+        // One action: the action, its value, remove.
+        async Task ActionRow(SendingActionDraft action, string row)
+        {
+            var name = $"{SendingRuleDraft.ActionPrefix}.{row}";
+            var addressKind = SendingRuleDraft.TakesAddresses(action.Kind) ? action.Kind : ReportSendingActionKind.SendTo;
+            var textKind = SendingRuleDraft.TakesText(action.Kind) ? action.Kind : ReportSendingActionKind.Task;
+            <div class="rule-row rule-row--action" data-rule-action>
+                <select class="select" name="@(name).Kind" aria-label="@Sending.ActionField" data-rule-choice>@foreach (var section in kinds.GroupBy(Sending.ActionGroup)) { <optgroup label="@section.Key">@foreach (var kind in section) { <option value="@kind" selected="@(action.Kind == kind)">@Sending.Action(kind)</option> }</optgroup> }</select>
+                <div class="rule-value">
+                    <div data-rule-value="SendTo Cc NeverCc"><input type="text" name="@(name).Addresses" value="@(SendingRuleDraft.TakesAddresses(action.Kind) ? action.Text : string.Empty)" autocomplete="off" aria-label="@Sending.Action(addressKind)" data-rule-named /><p class="field-hint">@Sending.ValueHint</p></div>
+                    <div data-rule-value="Attach DoNotAttach"><select class="select" name="@(name).File" aria-label="@Sending.FileField">@foreach (var file in files) { <option value="@file" selected="@(action.File == file)">@Sending.File(file)</option> }</select></div>
+                    <div data-rule-value="Hold Stop Task"><input type="text" name="@(name).Text" value="@(SendingRuleDraft.TakesText(action.Kind) ? action.Text : string.Empty)" autocomplete="off" aria-label="@Sending.Action(textKind)" list="@(action.Kind == ReportSendingActionKind.Task ? "sending-task-texts" : null)" data-rule-named data-rule-task-list="sending-task-texts" /><p class="field-hint" data-rule-value="Hold">@Sending.HoldHint</p><p class="field-hint" data-rule-value="Stop">@Sending.StopHint</p></div>
+                    <div class="rule-no-value" data-rule-value="SendToOnly ReplyAll">&mdash;</div>
+                </div>
+                <button type="submit" class="icon-button" formaction="@draftAction" name="DraftChange" value="remove-action:@row" aria-label="@Sending.RemoveAction" data-busy-label="@OperatorLabels.Busy.Removing" data-rule-change><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button>
+            </div>
+        }
+        <div class="dialog-backdrop" data-dialog="sending-rule-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="sending-dialog-close">
+            <section class="dialog dialog--rule" role="dialog" aria-modal="true" aria-labelledby="sending-rule-dialog-title">
+                @{ await CloseForm("sending-rule-dialog-title", title); }
+                <form method="post" asp-page-handler="@(every ? "SaveEveryCase" : "SaveRule")" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-rule="@ruleRoute" asp-route-every="@everyRoute" data-sending-rule-form>
+                    @* The form's first submit button is the one Enter presses: without this
+                       one it would be the first row's remove, and Enter would drop that row. *@
+                    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">@(every ? Sending.Save : Sending.SaveRule)</button>
+                    <div class="dialog-body stack">
+                        @{ await DialogMessages(); }
+                        @{ await SendingFormFields(Model.ReportSendingOperationKey ?? string.Empty); }
+                        @if (!every)
+                        {
+                            @* Conditions in groups (v55 item I): And adds to a group, Or starts a new one. *@
+                            <fieldset class="rule-fieldset" data-rule-if>
+                                <legend>@Sending.If</legend>
+                                @for (var g = 0; g < draft.If.Count; g++)
+                                {
+                                    if (g > 0) { <div class="rule-or-divider" data-rule-or>@Sending.JoinOr</div> }
+                                    await ConditionGroup(draft.If[g], g.ToString(CultureInfo.InvariantCulture));
+                                }
+                                <div class="button-row"><button type="submit" class="btn btn--small" formaction="@draftAction" name="DraftChange" value="or" data-busy-label="@OperatorLabels.Busy.Adding" data-rule-change data-rule-add-group><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@Sending.Or</span></button></div>
+                                <template data-rule-group-template><div class="rule-or-divider" data-rule-or>@Sending.JoinOr</div>@{ await ConditionGroup([SendingRuleDraft.BlankCondition], "__G__"); }</template>
+                                <template data-rule-condition-template>@{ await ConditionRow(SendingRuleDraft.BlankCondition, "__G__", "__C__"); }</template>
+                            </fieldset>
+                        }
+                        <fieldset class="rule-fieldset" data-rule-then>
+                            <legend>@Sending.Then</legend>
+                            @for (var a = 0; a < draft.Then.Count; a++) { await ActionRow(draft.Then[a], a.ToString(CultureInfo.InvariantCulture)); }
+                            <div class="button-row"><button type="submit" class="btn btn--small" formaction="@draftAction" name="DraftChange" value="action" data-busy-label="@OperatorLabels.Busy.Adding" data-rule-change data-rule-add-action><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-plus")" /></svg><span>@Sending.AddAction</span></button></div>
+                            <template data-rule-action-template>@{ await ActionRow(SendingRuleDraft.BlankAction, "__A__"); }</template>
+                            @* Add a Case task offers the two fixed texts and takes any other (v55 item N). *@
+                            <datalist id="sending-task-texts"><option value="@ReportDispatchPolicy.GarageFiguresTask"></option><option value="@ReportDispatchPolicy.RateCardTask"></option></datalist>
+                        </fieldset>
+                    </div>
+                    <div class="dialog-foot">
+                        @if (editing is { } removable)
+                        {
+                            <div class="left"><a class="btn btn--danger" asp-page="Edit" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-remove="@removable">@Sending.RemoveRule</a></div>
+                        }
+                        <button type="submit" form="sending-dialog-close" class="btn">Cancel</button>
+                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@(every ? Sending.Save : Sending.SaveRule)</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    }
+    else if (Model.Dialog == SendingDialog.Remove && Model.DialogRuleIndex is { } removing)
+    {
+        // Remove rule asks first, showing the rule (v55 item Q).
+        var number = removing + 1;
+        <div class="dialog-backdrop" data-dialog="sending-remove-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="sending-dialog-close">
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="sending-remove-title">
+                @{ await CloseForm("sending-remove-title", Sending.RemoveRuleNumber(number)); }
+                <form method="post" asp-page-handler="RemoveRule" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-remove="@number">
+                    <div class="dialog-body stack">
+                        @{ await DialogMessages(); }
+                        @{ await SendingFormFields(Model.ReportSendingOperationKey ?? string.Empty); }
+                        @{ await RuleLines(sending.Rules[removing]); }
+                    </div>
+                    <div class="dialog-foot"><button type="submit" form="sending-dialog-close" class="btn">Cancel</button><button type="submit" class="btn btn--danger" data-busy-label="@OperatorLabels.Busy.Removing">@Sending.RemoveRule</button></div>
+                </form>
+            </section>
+        </div>
+    }
 }
 @section Styles {
     @if (tab == EditModel.PhotoLinksTab)

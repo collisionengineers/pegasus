@@ -1109,13 +1109,14 @@ public sealed partial class AssessmentReportDraftWebTests
     /// The delivery form follows the Principal's rules as one plan: it says
     /// when the work's report was already sent and from which mailbox this
     /// one leaves, seeds To and Cc from the plan and says what set the Cc and
-    /// what the rules removed, states its warnings and what staff do after
-    /// sending, and gives each hold its Done tick. It asks nothing (operator,
-    /// 12 November 2026; R1023, R1024): a rule whose fact the Case has not
-    /// set, here the instruction's text and the Claim Source, does not apply,
-    /// so neither its copy, its hold nor its Stop is on the form. The form
-    /// carries the fingerprint it was drawn from. There is no Prepare step
-    /// and no Still to do list.
+    /// what the rules removed, states its warnings, and gives each hold its
+    /// Done tick. It shows nothing for a Case task a rule adds after sending
+    /// (operator, 25 November 2026; D14). It asks nothing (operator, 12
+    /// November 2026; R1023, R1024): a rule whose fact the Case has not set,
+    /// here the Repairer and the Claim Source, does not apply, so neither its
+    /// copy, its hold nor its Stop is on the form. The form carries the
+    /// fingerprint it was drawn from. There is no Prepare step and no Still to
+    /// do list.
     /// </summary>
     [Fact]
     public async Task TheDeliveryFormFollowsThePrincipalsRules()
@@ -1124,22 +1125,24 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            PrincipalReportSendingRules.Default with
+            EveryCase(
+                new(ReportSendingActionKind.Cc, Addresses: ["office@principal.example"]),
+                new(ReportSendingActionKind.NeverCc, Addresses: ["noreply@principal.example"]),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex),
+                new(ReportSendingActionKind.Hold, Text: "Authorise the garage."),
+                new(ReportSendingActionKind.Task, Text: "Send the WhatsApp.")) with
             {
-                Cc = ["office@principal.example"],
-                NeverCc = ["noreply@principal.example"],
-                Attach = ReportSendingAttachments.Default with { Audatex = true },
-                Hold = "Authorise the garage.",
-                Reminders = ["Send the WhatsApp."],
-                GarageFigures = true,
                 Rules =
                 [
-                    new(ReportSendingRuleMatch.All,
-                        [new(ReportSendingConditionKind.Mentions, ["Luton"])],
-                        new(["luton@principal.example"], [])),
-                    new(ReportSendingRuleMatch.All,
-                        [new(ReportSendingConditionKind.ClaimSource, [Guid.NewGuid().ToString("D")])],
-                        new([], [], Hold: "Check the images.", Stop: "Images must come from the assessor."))
+                    new([[new(ReportSendingFact.Outcome, ["repairable"])]],
+                        [new(ReportSendingActionKind.Task, Text: ReportDispatchPolicy.GarageFiguresTask)]),
+                    new([[new(ReportSendingFact.Repairer, [Guid.NewGuid().ToString("D")])]],
+                        [new(ReportSendingActionKind.Cc, Addresses: ["luton@principal.example"])]),
+                    new([[new(ReportSendingFact.ClaimSource, [Guid.NewGuid().ToString("D")])]],
+                        [
+                            new(ReportSendingActionKind.Hold, Text: "Check the images."),
+                            new(ReportSendingActionKind.Stop, Text: "Images must come from the assessor.")
+                        ])
                 ]
             },
             new ReportInstructionMessage(
@@ -1193,7 +1196,7 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(["handler@principal.example"], InputValues(form, "toRecipients"));
         Assert.Equal(["copy@principal.example", "office@principal.example"], InputValues(form, "ccRecipients"));
         Assert.Contains(
-            "data-report-cc-hint>Cc set by: Instruction Cc; Principal Cc; removed: noreply@principal.example (never cc)</span>",
+            $"data-report-cc-hint>Cc set by: Instruction Cc; {ReportDispatchPolicy.EveryCaseSource}; removed: noreply@principal.example (never cc)</span>",
             form,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -1205,10 +1208,10 @@ public sealed partial class AssessmentReportDraftWebTests
             form,
             StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-filed-estimates", form, StringComparison.Ordinal);
-        var afterSending = Regex.Match(form, "<div class=\"stack\" data-report-after-sending>.*?</div>\\s*</div>", RegexOptions.Singleline);
-        Assert.True(afterSending.Success, "The form must list what staff do after sending.");
-        Assert.Contains("Send the WhatsApp.", afterSending.Value, StringComparison.Ordinal);
-        Assert.Contains(ReportDispatchPolicy.GarageFiguresTask, afterSending.Value, StringComparison.Ordinal);
+        // A Case task is made when Report sent is recorded; the dialog shows none (D14).
+        Assert.DoesNotContain("data-report-after-sending", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send the WhatsApp.", form, StringComparison.Ordinal);
+        Assert.DoesNotContain(ReportDispatchPolicy.GarageFiguresTask, form, StringComparison.Ordinal);
         Assert.Contains(
             "<input type=\"checkbox\" name=\"holdsDone\" value=\"Authorise the garage.\" required data-report-hold />",
             form,
@@ -1386,7 +1389,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            PrincipalReportSendingRules.Default with { Hold = "Authorise the garage." },
+            EveryCase(new(ReportSendingActionKind.Hold, Text: "Authorise the garage.")),
             null);
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, CaseReportSendHistory.None);
@@ -1498,15 +1501,12 @@ public sealed partial class AssessmentReportDraftWebTests
         var estimateOccurrence = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            PrincipalReportSendingRules.Default with
+            EveryCase(new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)) with
             {
-                SendFromMailbox = "principal-desk@collisionengineers.example",
-                Attach = ReportSendingAttachments.Default with { Audatex = true },
                 Rules =
                 [
-                    new(ReportSendingRuleMatch.All,
-                        [new(ReportSendingConditionKind.ClaimSource, [claimSourceId.ToString("D")])],
-                        new([], [], Stop: "Do not send reports for this Claim Source."))
+                    new([[new(ReportSendingFact.ClaimSource, [claimSourceId.ToString("D")])]],
+                        [new(ReportSendingActionKind.Stop, Text: "Do not send reports for this Claim Source.")])
                 ]
             },
             null,
@@ -1518,9 +1518,16 @@ public sealed partial class AssessmentReportDraftWebTests
         };
         var reports = OutgoingMailbox("reports@collisionengineers.example");
         var desk = OutgoingMailbox("principal-desk@collisionengineers.example");
+        // The Principal's own Send from (R1267) is where the send starts.
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId, feeNoteStatus: CaseReportArtifactStatus.Confirmed),
-            facts, CaseReportSendHistory.None, null, reports, desk);
+            facts, CaseReportSendHistory.None, null, reports, desk)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseInstructionEmailQueries>();
+                services.AddSingleton<ICaseInstructionEmailQueries>(
+                    new FixedInstructionEmail(caseId, null, "principal-desk@collisionengineers.example"));
+            }));
         using var client = Client(factory);
 
         var html = WebUtility.HtmlDecode(await EnterEditModeAsync(client, caseId));
@@ -1590,15 +1597,10 @@ public sealed partial class AssessmentReportDraftWebTests
             new(Guid.NewGuid(), Guid.NewGuid(), new string('a', 64), 500, "Audatex estimate.pdf", "application/pdf"));
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            PrincipalReportSendingRules.Default with
-            {
-                Attach = ReportSendingAttachments.Default with
-                {
-                    Audatex = true,
-                    OfferExternalEstimates = true,
-                    OfferRepairInvoices = true
-                }
-            },
+            EveryCase(
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferRepairInvoices)),
             null)
         {
             OriginalSender = "handler@principal.example",
@@ -1730,10 +1732,9 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            PrincipalReportSendingRules.Default with
-            {
-                Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true, FigureBreakdown = true }
-            },
+            EveryCase(
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.VehicleImagesDocument),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.FigureBreakdown)),
             null)
         {
             OriginalSender = "handler@principal.example"
@@ -2135,11 +2136,15 @@ public sealed partial class AssessmentReportDraftWebTests
                 if (mailboxes.Length > 0)
                 {
                     services.RemoveAll<ICaseInstructionEmailQueries>();
-                    services.AddSingleton<ICaseInstructionEmailQueries>(new FixedInstructionEmail(caseId, instruction, facts.Rules.SendFromMailbox));
+                    services.AddSingleton<ICaseInstructionEmailQueries>(new FixedInstructionEmail(caseId, instruction, null));
                     services.RemoveAll<IApprovedMailboxStore>();
                     services.AddSingleton<IApprovedMailboxStore>(new FixedMailboxes(mailboxes));
                 }
             }));
+
+    /// <summary>The standard On every Case actions (reply all, the separate fee note) and <paramref name="actions"/>, with no rule.</summary>
+    private static PrincipalReportSendingRules EveryCase(params ReportSendingAction[] actions) =>
+        new([.. PrincipalReportSendingRules.Default.EveryCase, .. actions], []);
 
     /// <summary>An Approved, activated and identified Outgoing mailbox: one that can send.</summary>
     private static ApprovedMailbox OutgoingMailbox(string address) => new(
