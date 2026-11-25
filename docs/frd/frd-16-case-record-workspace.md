@@ -1334,13 +1334,15 @@ The dialog also shows what the Principal's report sending rules decided
 - no question: the rules read the Case's own facts (operator, 12 November
   2026; R1023);
 - To and Cc seeded from the plan, with one line naming what set the Cc and what
-  was removed;
+  was removed, a recipient from the On every Case list named "On every
+  Case" and a rule's "Rule N: …" (operator, 25 November 2026;
+  [R1272](../rulings.md) item S);
 - the Files rows, with required companions always ticked and
   marked "(required for this Principal)", the other work's report and its
   documents as rows, off, once the Audit exists, and the filed estimates the
   rules attach as rows, on, under their filed names,
-  then each External estimate and Repair invoice the Principal's Offer ticks
-  list as a row, off, under its filed name and its document type, one the
+  then each External estimate and Repair invoice the rules offer,
+  as a row, off, under its filed name and its document type, one the
   filed estimates already carry left out
   ([R1151](../rulings.md), [R1158](../rulings.md)). Each of these Case
   file rows opens its file in the Case viewer from its name, as the Files
@@ -1350,8 +1352,12 @@ The dialog also shows what the Principal's report sending rules decided
   [R1176](../rulings.md)). A
   required companion that is not generated says so and withholds Send report,
   and its Generate is in the More menu. Any warning appears as a hint;
-- a read-only "After sending" list of what staff still owe, and
-  a Done tick for each hold.
+- a Done tick for each hold.
+
+There is no "After sending" list: a task the rules add becomes a Case task
+when Report sent is recorded and is shown nowhere before; holds and Stop stay
+in the dialog because they block the send (operator, 25 November 2026;
+[R1270](../rulings.md)).
 
 The Yes and No answers show their labels, and a hold's Done tick sits on the
 hold's own line (v41 K2, operator, 15 and 19 October 2026,

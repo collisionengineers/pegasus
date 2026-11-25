@@ -794,18 +794,23 @@ a warning, and the five hints on the Principal's Report sending panel. Two of
 them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
-A Report sending rule offers its conditions in one order: Claim Source,
-Repairer, Instruction mentions, Sender is not, Outcome,
-then Case type (operator, 13 October 2026), then Reference prefix
-and Previous job (Report Sending SOP v8; operator, 16 October 2026; Images
-from and Bodyshop mentions retired 12 November 2026, R1023). Outcome
+A sending rule's condition offers its facts in one order: Claim Source,
+Repairer, Outcome, Case type, Sender, Reference prefix and Previous job, each
+"is" or "is not", a Previous job condition reading "Previous job" or "No
+previous job" (Report Sending SOP v8; operator, 13 and 16 October 2026;
+"Instruction mentions" removed 25 November 2026, R1268; v55 item M,
+[R1272](../rulings.md)). Outcome
 and Case type are each a choice of their values; Case type names them as the
 Cases list does: Inspection, Audit, Inspection and audit. A refused rule says
 "choose a case type from the list", as it says "choose an outcome from the
-list". The v8 words are the operator's (16 October 2026): the action Rate
-card, a rule's five Attach choices As the Principal, Attach and Do not
-attach, and these two sentences, the refusal of a non-letter reference
-prefix and the after-sending task a rule's Rate card adds.
+list". The actions are Send to, Send to only, Reply all, Cc, Never cc,
+Attach, Do not attach, Hold, Stop and Add a Case task, and the files an
+Attach names are Separate fee note, Estimate, Audatex, Vehicle images
+document, Figure breakdown, External estimates (offered, unticked) and
+Repair invoices (offered, unticked) (v55 items K and L, R1272). These two
+sentences are the operator's (16 October 2026): the refusal of a non-letter
+reference prefix, and the Rate card task, now a text the Add a Case task box
+suggests (v55 item N, R1272).
 
 > A reference prefix is letters only.
 

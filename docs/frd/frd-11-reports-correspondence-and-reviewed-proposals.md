@@ -576,21 +576,23 @@ evidence whatever their transport label.
 **Recipients.** A delivery needs current addressing. It is planned from the
 Principal's report sending rules, in the order of Report Sending SOP rule R12.
 
-1. To is the Principal's fixed addresses when it has any, else the original
-   instruction sender.
+1. To is the applying Send to addresses when there are any, a later rule's
+   Send to replacing an earlier one's, else the original instruction sender.
 2. Cc starts as the instruction's own Cc list (for a staff forward held in
    instructions@, the original message's, read from its forwarded header,
-   less the mailbox that forwarded it; R651, R652, R653), unless the Principal turns that
-   off, then the Principal's Cc addresses, then the Cc of each rule that holds.
-3. A Principal set to send only to its fixed addresses has no Cc at all.
-4. The addresses the Principal never copies, and the ones a rule removes, are
-   taken out. Removals always win: an address staff type into To or Cc is taken
-   out at send too. The form says what the plan removed and why.
+   less the mailbox that forwarded it; R651, R652, R653) when a Reply all
+   action applies, then the Cc addresses of On every Case, then those of each
+   applying rule in order.
+3. When a Send to only action applies there is no Cc at all.
+4. The Never cc addresses of every applying action are taken out. Removals
+   always win: an address staff type into To or Cc is taken out at send too.
+   The form says what the plan removed and why.
 5. Duplicates are dropped without regard to case, and an address already in To
    is not copied.
 
 Each address carries where it came from, such as Original sender, Instruction
-Cc, Principal Cc or "Rule 2: Claim Source Car 2 Go". The original sender comes
+Cc, On every Case or "Rule 2: Claim Source Car 2 Go" (operator, 25 November
+2026; [R1272](../rulings.md) item S). The original sender comes
 from the originating instruction, never the latest reply; an unresolved sender
 adds no invented address. Claim Source is never copied implicitly. The plan
 only suggests: whoever sends the report, staff or the Automation actor, may
@@ -615,19 +617,31 @@ same click as Send report (operator, 4 November 2026, R665).
   forward held in instructions@ starts on the mailbox that forwarded it
   (R651, R652). An uploaded e-mail
   sits in no mailbox, so it takes the new message route.
-- **Rule conditions.** A rule's conditions read the Case's Claim Source,
-  Repairer, recorded outcome, Case type and the instruction's sender. A Case
-  type of Inspection or Audit reads the report being sent, which on an
-  Inspection + Audit Case is the view it is sent from (a send carrying both
-  reports counts as that view), and Inspection and audit holds for either
-  report (operator, 13 October 2026). A rule is true or
-  false: with All every condition holds, with Any at least one does. A fact
-  the Case has not set means its condition does not hold, so a rule on a Claim
-  Source or a Repairer applies only once the Case has that contact, from its
-  instruction or set by staff on the Case record (operator, 12 November 2026;
-  R1023, R1024). "Instruction mentions" is searched for in the
-  instruction e-mail's subject and text, ignoring case and spaces, and does
-  not hold when the Case holds no instruction text.
+- **Shape and order.** The rules are an On every Case list of actions and
+  numbered rules, each "If … Then …" (operator, 25 November 2026;
+  [R1267](../rulings.md), [R1272](../rulings.md) items O and P). A rule
+  applies when any of its If groups holds, and a group holds when every one
+  of its conditions does. On every Case applies first, then each applying
+  rule in order. Addresses and tasks add up; a removal (Never cc) wins over
+  an addition; where two disagree on a file or on Send to, the later wins;
+  the first applying Stop is the one shown. Nothing happens on a send unless
+  an action says so: the instruction's Cc is kept only by Reply all, and the
+  separate fee note is expected only by Attach Separate fee note.
+- **Rule conditions.** A condition reads the Case's Claim Source, Repairer,
+  recorded outcome, Case type, the instruction's sender, the report's
+  reference prefix or whether there is a previous job; several values in one
+  condition are alternatives. A Case type of Inspection or Audit reads the
+  report being sent, which on an Inspection + Audit Case is the view it is
+  sent from (a send carrying both reports counts as that view), and Inspection and audit holds for either
+  report (operator, 13 October 2026). A condition is "is" or "is not". A fact
+  the Case has not set means an "is" condition does not hold, so a rule on a
+  Claim Source or a Repairer applies only once the Case has that contact,
+  from its instruction or set by staff on the Case record (operator, 12
+  November 2026; R1023, R1024), and an "is not" condition holds (operator, 25
+  November 2026; [R1269](../rulings.md)). There is no "Instruction mentions"
+  condition: the instruction's text fills the Case's Claim Source or Repairer
+  when the Case is made, and a rule reads that contact (R1075;
+  [R1264](../rulings.md), [R1268](../rulings.md)).
   "Reference prefix" reads the report's reference (`a.PCH26118` has the
   prefix `a`), and "Previous job" whether another Case of the same Principal
   with the same vehicle registration already has a sent report (operator, 16
@@ -640,28 +654,28 @@ same click as Send report (operator, 4 November 2026, R665).
   November 2026; R1023). What a rule reads is on the Case record, where staff
   set or correct it before sending; the Cc line on the form names each rule
   that added or removed a copy.
-- **Holds.** The Principal's hold and the hold of each rule that holds are
-  ticked Done on the form, and Core refuses the send otherwise. The send
-  records them.
-- **Stop.** A rule that holds can stop the delivery. Send report is refused
+- **Holds.** Each applying Hold is ticked Done on the form, and Core refuses
+  the send otherwise. The send records them.
+- **Stop.** An applying Stop stops the delivery, and the first one is the one
+  shown. Send report is refused
   unless staff with casework give a reason to override it. The send records the
   Stop and the reason. Nothing else is a Stop: a send with no To address or no
   usable mailbox is simply refused until it has one.
-- **Attach overrides.** A rule that holds replaces the Attach choices it
-  names for that send, in rule order, so a later rule wins; the ones it
-  leaves As the Principal keep the Principal's (operator, 16 October 2026).
-  The companions, filed estimates, offered Case files and fee note below
-  follow the result.
-- **Required companions.** A Principal may require the images document, the
-  figure breakdown (the Repair Spec) or both. A required companion is ticked
+- **Attachments.** An applying Attach or Do not attach sets its file for that
+  send, a later one replacing an earlier one's; a file no applying action
+  names is not attached by the rules. The companions, filed estimates,
+  offered Case files and fee note below follow the result.
+- **Required companions.** Attach Vehicle images document requires the
+  images document, and Attach Figure breakdown the figure breakdown (the
+  Repair Spec). A required companion is ticked
   and cannot be unticked, and Send report is withheld while it is not
   generated. Generate offers it.
-- **Filed estimates.** A Principal that sends the Audatex attaches the Case's
-  recognised filed estimates in the Audatex format; one that sends the estimate
-  attaches the recognised ones in any other format. They are rechecked at send
+- **Filed estimates.** Attach Audatex attaches the Case's recognised filed
+  estimates in the Audatex format; Attach Estimate attaches the recognised
+  ones in any other format. They are rechecked at send
   like every other attachment. None filed is a warning, not a hold.
-- **Offered Case files.** A Principal that offers external estimates, repair
-  invoices or both lists each confirmed, current External estimate or Repair
+- **Offered Case files.** Attach External estimates (offered, unticked) and
+  Attach Repair invoices (offered, unticked) list each confirmed, current External estimate or Repair
   invoice on the Case, in the Case's file order, as a Files row on the form,
   unticked, after the ULA Invoice and the filed estimates; staff tick the
   ones that go. A file the Estimate or Audatex tick already attaches is not
@@ -673,28 +687,31 @@ same click as Send report (operator, 4 November 2026, R665).
   available. Review the attachments and try again." and sends nothing
   (operator, 17 November 2026; [R1151](../rulings.md),
   [R1158](../rulings.md)).
-- **Report images.** A Principal whose report carries no vehicle images has its
-  report generated without them
+- **Report images.** A Principal whose report carries no vehicle images, a
+  Report generation setting rather than a sending rule
+  ([R1272](../rulings.md) item F), has its report generated without them
   ([Report generation entry point](#report-generation-entry-point)); the images
   document carries them.
 - **Fee note.** A confirmed separate fee note is offered ticked under Attach. A
-  Principal that expects one gets a warning when none is confirmed.
+  send with an applying Attach Separate fee note gets a warning when none is
+  confirmed.
 - **ULA Invoice.** A confirmed ULA Invoice is offered ticked under Attach,
   after the fee note (operator, 17 November 2026; [R1151](../rulings.md)).
-- **After sending.** The Principal's reminders, the reminders of each rule that
-  holds, each followed by "Check the report's estimate against the Connexus
-  Repair Rate Card." when that rule has Rate card (operator, 15 and 16
-  October 2026), and "Send the figures to the garage." for a repairable
-  outcome when the Principal asks for it are shown on the form and recorded
-  with the send. They become Case tasks when Report sent is recorded
+- **Case tasks.** The text of each applying Add a Case task is recorded with
+  the send and shown nowhere before it; each becomes a Case task when Report
+  sent is recorded
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)).
+  Garage figures is the rule "If Outcome is Repairable, then Add a Case task
+  'Send the figures to the garage.'", and the Rate card task "Check the
+  report's estimate against the Connexus Repair Rate Card." is a task text
+  like any other (operator, 25 November 2026; [R1270](../rulings.md)).
 - **Name.** What the report is called is the Principal's report names, not a
   sending rule
   ([What a delivery is called](#companion-documents-and-what-a-delivery-attaches);
   R740).
 - **Changes.** A send carries the rules and Case facts its form was drawn from
-  (the rules, the instruction, its sender, the Claim Source, the Repairer, the
-  outcome and the instruction text). If any changed since, the send is refused
+  (the rules, the instruction, its sender, the Claim Source, the Repairer and
+  the outcome). If any changed since, the send is refused
   and the form is read again. A send drawn from no form, as the Automation
   actor's `pegasus_report_send` is, is planned from the rules as they are now:
   it ticks no hold and overrides no Stop, so it is refused wherever the rules
