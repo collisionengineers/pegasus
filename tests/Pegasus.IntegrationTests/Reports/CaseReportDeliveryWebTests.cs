@@ -1820,7 +1820,12 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var generation = new FakeCurrentGeneration(caseId, feeNoteStatus: CaseReportArtifactStatus.Confirmed);
+        // The re-offered form replays the report's own key, which the page
+        // accepts only in the form it issues keys in.
+        var generation = new FakeCurrentGeneration(
+            caseId,
+            feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+            reportOperationKey: Guid.NewGuid().ToString("N"));
         var recorder = new CaseWebTestSupport.RecordingGenerateReport
         {
             Outcome = CaseReportGenerationOutcome.Generated,
@@ -1854,7 +1859,11 @@ public sealed partial class AssessmentReportDraftWebTests
         // so the report is followed by the figure breakdown alone.
         Assert.Collection(
             recorder.Requests,
-            report => Assert.Equal(CaseReportArtifactKind.AssessmentReport, report.Kind),
+            report =>
+            {
+                Assert.Equal(CaseReportArtifactKind.AssessmentReport, report.Kind);
+                Assert.Equal(generation.Record.Snapshot.OperationKey, report.OperationKey);
+            },
             breakdown =>
             {
                 Assert.Equal(CaseReportArtifactKind.RepairSpecification, breakdown.Kind);
