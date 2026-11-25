@@ -34,6 +34,9 @@ $ErrorActionPreference = 'Stop'
 $productionSmoke = Join-Path $PSScriptRoot 'Invoke-ProductionSmoke.ps1'
 $deploymentPlan = Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1'
 $expectedSettingNames = @(Get-PegasusWorkerDisabledSettingNames)
+# The fixture pull request's merge commit on dev, set once the fixture has
+# merged it; New-Estate hands it to the fake gh (R1247).
+$script:fixturePullMergeSha = ''
 $approvedSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $root = Join-Path ([IO.Path]::GetTempPath()) "pegasus-release-validation-$([guid]::NewGuid().ToString('N'))"
 
@@ -235,6 +238,9 @@ function New-Estate {
         # The pull request's rollup as gh returns it, when a case needs more than one green check.
         [string] $PullChecksJson = '',
         [string[]] $Rulesets = @('dev', 'main', 'release tags'),
+        # The commit on dev that GitHub reports as the one pull request's merge
+        # (R1247); empty until the fixture has merged it.
+        [string] $PullMergeSha = $script:fixturePullMergeSha,
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
@@ -243,6 +249,7 @@ function New-Estate {
         pullClosesIssue = $PullClosesIssue
         pullHasChecks = $PullHasChecks
         pullChecksJson = $PullChecksJson
+        pullMergeSha = $PullMergeSha
         issueLabels = @($IssueLabels)
         devRunConclusion = $DevRunConclusion
         rulesets = @($Rulesets)
@@ -381,6 +388,15 @@ $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | Co
 # estate names (R691), one green pull request closing issue 7 when the estate
 # says so, whose labels the estate holds (R687).
 if ($Arguments[0] -eq 'run') { "[{`"status`":`"completed`",`"conclusion`":`"$($state.devRunConclusion)`",`"url`":`"https://example.test/runs/1`"}]"; exit 0 }
+# GitHub's answer for one commit (R1247): the pull request merged as that
+# commit, beside an open one that merely contains it and is not counted.
+if ($Arguments[0] -eq 'api' -and $Arguments[1] -match '/commits/([0-9a-f]{40})/pulls$') {
+    $commit = $Matches[1]
+    $pulls = @(@{ number = 9; merged_at = $null; merge_commit_sha = 'f' * 40 })
+    if ($state.pullMergeSha -and $commit -ceq [string]$state.pullMergeSha) { $pulls += @{ number = 1; merged_at = '2026-11-25T09:00:00Z'; merge_commit_sha = $commit } }
+    $pulls | ConvertTo-Json -Compress -AsArray -Depth 3
+    exit 0
+}
 if ($Arguments[0] -eq 'api') {
     @(@($state.rulesets) | ForEach-Object { @{ name = $_; target = $(if ($_ -like '*tags*') { 'tag' } else { 'branch' }); enforcement = 'active' } }) | ConvertTo-Json -Compress -AsArray -Depth 3
     exit 0
@@ -1247,11 +1263,22 @@ try {
     Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/placeholder.txt') -Value 'changed' -Encoding ascii
     & git -C $fixture.Work @($fixture.Git) add -A
     & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: change'
+    # The pull request is a combined one (R1247): its branch holds a member's
+    # merge, titled as combine-prs titles it, and the merge into dev carries a
+    # subject written by hand, not GitHub's default (#2189). The preflight
+    # reads neither subject: it asks GitHub for the commit on dev's own line.
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/member
+    Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/member.txt') -Value 'member' -Encoding ascii
+    & git -C $fixture.Work @($fixture.Git) add -A
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: member'
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet fixture/change
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge PR #2 (fixture/member) into fixture/change' fixture/member
     & git -C $fixture.Work @($fixture.Git) checkout --quiet dev
-    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge pull request #1 from fixture/change' fixture/change
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge PR #1 (fixture/change) into dev' fixture/change
     & git -C $fixture.Work push --quiet origin dev
     if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture pull request.' }
     $proposalSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+    $script:fixturePullMergeSha = $proposalSha
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Proposal for a feature'
@@ -1260,7 +1287,9 @@ try {
     Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes #7 (type:feature))')) $case 'did not propose a MINOR step for a feature.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Build version: 1.1.0 (proposed')) $case 'did not build the proposal.' $result.Diagnostic
     Assert-True ($result.Calls.Contains('gh issue view 7 --repo collisionengineers/pegasus --json labels')) $case 'did not read the closing issue.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ($result.Calls.Contains("gh api repos/collisionengineers/pegasus/commits/$proposalSha/pulls")) $case 'did not ask GitHub for the pull request merged as the commit on dev (R1247).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 0 not successful')) $case 'did not list the pull request merged into dev under a subject written by hand (#2189).' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('gh pr view 2 *', 'gh pr view 9 *'))
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -IssueLabels @('type:bug')) -MigrationHead $identity
     $case = 'Proposal for bug fixes only'

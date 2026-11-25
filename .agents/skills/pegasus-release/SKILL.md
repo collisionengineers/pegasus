@@ -87,8 +87,8 @@ released SHA gets its annotated tag `v<version>` in the promotion push after
 the smoke (R688). Nothing in source carries a release version:
 `Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
 release, the test instance included. The read-only run proposes the next
-version (R687): PATCH when every pull request in the range closes only
-`type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
+version (R687): PATCH when every pull request merged into `dev` in the range
+closes only `type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
 approval names the version it grants; the script refuses one that is not one
 step above the live version, or not the one the manifest was built with. A
 fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R689).
@@ -102,8 +102,10 @@ pwsh ./scripts/Invoke-Release.ps1
 ```
 
 It fetches, checks `main` is an ancestor of `dev`, lists the range, the
-candidate's push-to-`dev` CI run (R683) and the pull requests in it with their
-checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
+candidate's push-to-`dev` CI run (R683) and the pull requests merged into
+`dev` in it with their checks (GitHub is asked which pull request each commit
+on `dev`'s own line is the merge of, so a merge's subject does not matter and
+a combined pull request stands for its members, R1247), reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
 live migration head, prints the route and whether provision is needed, refuses
 a deployable candidate whose azd environment lacks a key the provision needs
@@ -119,8 +121,8 @@ validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
 before the build; `-Version <v>` builds another version than the proposal,
 the MAJOR when the agent classifies the range's migration as non-additive.
 
-Read the report. A candidate whose push-to-`dev` run or any pull request in
-the range is not green waits; nothing is waived, and `-Execute` refuses it
+Read the report. A candidate whose push-to-`dev` run or any pull request
+merged into `dev` in the range is not green waits; nothing is waived, and `-Execute` refuses it
 (R691). The `--- Protection ---` section reads the repository's rulesets back
 ([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
 `main` each carry an active one, and a missing one is a question before the
