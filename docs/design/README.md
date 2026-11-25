@@ -778,8 +778,6 @@ Approved necessary copy includes:
 
 > This Principal expects the fee note as a separate document and none is confirmed.
 
-> Empty: the original instruction sender.
-
 > Send stays off until staff tick this as done.
 
 > Use {ref}, {reg} and {outcome}. Empty: the standard name.
@@ -788,9 +786,11 @@ Approved necessary copy includes:
 
 > Send is refused; staff may override with a reason.
 
-The nine after it are report sending copy (operator, 6 October 2026): the
+The eight after it are report sending copy (operator, 6 October 2026): the
 tooltip on a greyed Archive, two delivery-form notices and
-a warning, and the five hints on the Principal's Report sending panel. Two of
+a warning, and the four hints on the Principal's Report generation and
+Sending rules panels; the Send to hint went with the fixed Send to box
+(operator, 25 November 2026; R1272). Two of
 them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
