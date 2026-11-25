@@ -38,7 +38,8 @@ The release preflight reads them back (`--- Protection ---`) and warns when
 `dev` or `main` has no active ruleset of that name; by hand:
 `gh api repos/collisionengineers/pegasus/rulesets --jq '.[] | [.name, .target, .enforcement] | @tsv'`.
 A skipped lane counts as a passed check, so a documentation-only pull request
-is not blocked. The SQL lane is required through its one aggregate check,
+is not blocked, and neither is a lane skipped because it has already passed on
+the identical tree (R1249). The SQL lane is required through its one aggregate check,
 `sql-integration-result`, never through the shard names: a path-skipped
 matrix reports a single skipped `sql-integration` and no `sql-integration (N)`,
 so a required shard name waits for ever on a documentation-only pull request.
@@ -533,11 +534,25 @@ action. Never manually repurpose these commands to remove another run,
 CI on the exact head is the evidence, and nothing it runs is repeated here.
 `.github/workflows/ci.yml` decides the lanes from the paths a change set
 touches: Markdown, `docs/`, the skills, the Python helper tests, the
-reference-data generator and the classifier agent are prose to the .NET lanes
-and run only the `invariants` checks; any other path runs the unit and SQL
-lanes; `infra/`, the migrations folder, the release scripts and the workflow
-itself add the `infrastructure` job; the classifier agent adds its own. A
-file list the workflow cannot trust runs every lane.
+reference-data generator, the classifier agent and the scripts no .NET test
+reads are prose to the .NET lanes and run only the `invariants` checks; any
+other path runs the unit and SQL lanes; `infra/`, the migrations folder, the
+release scripts and the workflow itself add the `infrastructure` job; the
+classifier agent adds its own. A file list the workflow cannot trust needs
+every lane, and so does a push to `dev` (R683). The SQL lane is always its six
+shards: shards are not scoped to paths (R1250).
+
+A lane runs once for a tree (R1249). Each lane that passes uploads a marker
+artifact named `green-<lane>-<tree>`, where the tree is the one the run
+tested: the merge result for a pull request, the pushed commit for `dev`. The
+`changes` job looks for that name before it runs a lane and, on a hit, skips
+the lane and prints the run that passed it. So a body edit, a stacked pull
+request merged into its base and the push to `dev` after a merge that left
+the tree as the pull request's run tested it repeat nothing; a tree that is
+new, by so much as one documentation line, runs the lanes it needs. A lane
+that failed has no marker and runs again. The `infrastructure` lane always
+runs while a pull request changes a migration, because its class guard reads
+the body. A marker lasts as long as the repository keeps artifacts.
 
 Read a hosted failure with `scripts/Get-CiStatus.ps1`, which prints the failing
 test names from the job log; a shard's log is served while its siblings are

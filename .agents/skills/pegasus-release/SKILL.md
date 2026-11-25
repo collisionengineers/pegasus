@@ -129,7 +129,9 @@ merged into `dev` in the range is not green waits; nothing is waived, and `-Exec
 ([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
 `main` each carry an active one, and a missing one is a question before the
 approval. A head that differs from the candidate identity while the range adds
-no migration is a question, not a route.
+no migration is a question, not a route. A lane the `dev` run reports skipped
+passed on the identical tree in an earlier run, which its `changes` log names
+(R1249): the run is green, and no second run is asked for.
 
 ## 2. The one approval
 

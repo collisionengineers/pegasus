@@ -1,0 +1,38 @@
+name: Record that a lane passed on this tree
+description: >
+  Uploads a marker named for the lane and the tree it tested. The changes job
+  looks for that name before it runs a lane, so a lane that has passed on an
+  identical tree is not run again (R1249, #2164). The step runs last in its
+  lane, and only when everything before it passed.
+
+inputs:
+  lane:
+    description: The lane's name in the changes job's lookup (unit, sql, infrastructure, classifier).
+    required: true
+  tree:
+    description: The tree the run tested, from the changes job.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Write the marker
+      shell: pwsh
+      env:
+        LANE: ${{ inputs.lane }}
+        TREE: ${{ inputs.tree }}
+      run: |
+        if ($env:TREE -notmatch '^[0-9a-f]{40}$') { throw "The tested tree '$env:TREE' is not a tree id." }
+        $directory = Join-Path $env:RUNNER_TEMP 'lane-passed'
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+        Set-Content -LiteralPath (Join-Path $directory 'lane.txt') -Value "$env:LANE passed on tree $env:TREE in run $env:GITHUB_RUN_ID ($env:GITHUB_EVENT_NAME, $env:GITHUB_SHA)."
+    # An artifact, not a cache: a cache written by a pull request's run cannot
+    # be read from dev, and the artifact list is searched by name across every
+    # run. It lasts as long as the repository keeps artifacts; once it has
+    # expired the lane simply runs again.
+    - uses: actions/upload-artifact@v6
+      with:
+        name: green-${{ inputs.lane }}-${{ inputs.tree }}
+        path: ${{ runner.temp }}/lane-passed/lane.txt
+        if-no-files-found: error
+        overwrite: true
