@@ -196,6 +196,64 @@
                 }
             });
     }
+    // ---- Notes: a tab's Newer and Older (v53, R1256) ---------------------------
+    // The link is an address that works by itself. Here it reads the section
+    // from the fragment path and swaps the two tabs alone, so the Case note
+    // being typed, the chase dialog and an edit session's unsaved fields all
+    // stay. The # part names the tab, so the shell's tab binder opens it and a
+    // reload returns to the same page of it. A read that fails follows the link.
+    document.addEventListener('click', function (event) {
+        var link = event.target instanceof Element ? event.target.closest('#section-notes a[data-notes-page]') : null;
+        if (!link || event.defaultPrevented || event.button !== 0
+            || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+            return;
+        }
+        var current = link.closest('[data-case-notes-tabs]');
+        if (!current || current.dataset.notesPageState === 'loading') {
+            if (current) { event.preventDefault(); }
+            return;
+        }
+        event.preventDefault();
+        current.dataset.notesPageState = 'loading';
+        var address = new URL(link.href, window.location.href);
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) {
+            headers['X-Pegasus-Edit-Lease'] = lease;
+        }
+        fetch(fragmentPath + address.search, { credentials: 'same-origin', headers: headers })
+            .then(function (response) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                    throw new Error('notes page: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                var parsed = document.createElement('div');
+                parsed.innerHTML = html;
+                var next = parsed.querySelector('#section-notes [data-case-notes-tabs]');
+                if (!next || !current.isConnected) {
+                    throw new Error('notes page: invalid response');
+                }
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', address.pathname + address.search + address.hash);
+                }
+                current.replaceWith(next);
+                bindMounted(next.parentElement || next);
+                measure();
+                var top = next.getBoundingClientRect().top;
+                var line = stuckLine();
+                if (top < line) {
+                    window.scrollBy(0, top - line - 8);
+                }
+                var selected = next.querySelector('[data-file-tab][aria-selected="true"]');
+                if (selected) { selected.focus({ preventScroll: true }); }
+            })
+            .catch(function () {
+                window.location.assign(link.href);
+            });
+    });
+
     // The Tasks dialog's body is fetched as it opens, as a section's body is
     // as it approaches (operator, 13 October 2026). A page that drew the
     // dialog open (?dialog=tasks) drew its body with it.

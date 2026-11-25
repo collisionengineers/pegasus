@@ -117,7 +117,7 @@ Important ownership decisions:
 - Decisions owns settlement decisions and settlement-only figures.
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Report not ready card (below).
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
-- Notes owns the single Case timeline, notes and chase recording.
+- Notes owns the Case timeline as two tabs, Notes and History, the Case note box above them and chase recording (R1253).
 - Tasks is not a section (operator, 13 October 2026): the Case's tasks (CASE-20) are the
   Actions menu's Tasks dialog, a dense table (task, assignee, state chip) with Complete,
   Cancel task, Assign (a select of the enabled named staff, operator, 6 October 2026; a task

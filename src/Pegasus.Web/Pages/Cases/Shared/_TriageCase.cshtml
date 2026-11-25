@@ -417,7 +417,7 @@
                                                            href="@view.PreviewUrl(entry)"
                                                            data-evidence-item
                                                            data-download-href="@view.DownloadUrl(entry)"
-                                                           data-media-type="@version.MediaType"
+                                                           data-media-type="@CaseDocumentPreviews.ShownMediaType(version.MediaType, version.FileName)"
                                                            data-file-name="@version.FileName">
                                                             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
                                                             <span>@FilesLabels.View</span>

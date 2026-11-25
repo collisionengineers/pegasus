@@ -83,11 +83,15 @@ public sealed class CaseDocumentDownloadWebTests
     /// <summary>
     /// A PDF the viewer shows is kept like an image: the URL names the
     /// version and the ETag is its SHA-256, so a kept copy is never stale.
+    /// A PDF stored as <c>application/octet-stream</c>, as AX's mailed
+    /// instructions arrive, is served as the PDF it is named as (R1246).
     /// </summary>
-    [Fact]
-    public async Task APdfPreviewIsCacheableByContentHash()
+    [Theory]
+    [InlineData("application/pdf")]
+    [InlineData("application/octet-stream")]
+    public async Task APdfPreviewIsCacheableByContentHash(string storedMediaType)
     {
-        var ports = new DocumentPorts { PreviewMediaType = "application/pdf", PreviewFileName = "estimate.pdf" };
+        var ports = new DocumentPorts { PreviewMediaType = storedMediaType, PreviewFileName = "estimate.pdf" };
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);

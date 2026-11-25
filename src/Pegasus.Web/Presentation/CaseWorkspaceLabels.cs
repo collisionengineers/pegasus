@@ -983,11 +983,55 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Notes section's two tabs (v53; operator, 25 November 2026, R1253):
+    /// what was written about the Case, and everything else that happened to
+    /// it. Each shows <see cref="Pegasus.Core.Cases.CaseTimelinePage.Size"/>
+    /// entries at a time (R1256).
+    /// </summary>
+    public static class Notes
+    {
+        public const string NotesKey = "notes";
+        public const string HistoryKey = "history";
+        /// <summary>The tab panels' id prefix, which the address's # part names a tab by.</summary>
+        public const string HashPrefix = "case-notes-";
+        public const string NotesTab = "Notes";
+        public const string HistoryTab = "History";
+        public const string NoNotes = "No notes";
+        public const string NoHistory = "No history";
+        public const string Newer = "Newer";
+        public const string Older = "Older";
+
+        public static string Pages(string tab) => tab + " pages";
+
+        /// <summary>Which entries of a tab the page shows: "51 to 100 of 120".</summary>
+        public static string Range(Pegasus.Core.Cases.CaseTimelinePage page)
+        {
+            var first = ((page.Page - 1) * Pegasus.Core.Cases.CaseTimelinePage.Size) + 1;
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{first} to {first + page.Items.Count - 1} of {page.Total}");
+        }
+
+        /// <summary>
+        /// An entry's words after its actor: its label, then its reason unless
+        /// the reason only repeats the label (R1258).
+        /// </summary>
+        public static string Words(string label, string? reason) =>
+            string.IsNullOrWhiteSpace(reason)
+            || string.Equals(reason.Trim(), label, StringComparison.OrdinalIgnoreCase)
+                ? label
+                : label + " — " + reason;
+    }
+
+    /// <summary>
     /// The Notes section's manual-chase form (PR 670 port): a chase names
     /// who was chased and what was said; the time is the server's.
     /// </summary>
     public static class Chase
     {
+        /// <summary>The Notes section tab a recorded chase is read back on.</summary>
+        public const string ReadBackFragment = Notes.HashPrefix + Notes.HistoryKey;
+
         public const string Recipient = "Recipient";
         public const string Content = "Content";
         public const string RecordChase = "Record chase";

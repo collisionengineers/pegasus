@@ -9,14 +9,18 @@ Authority order is defined once in the
 
 ## Delivery evidence
 
-Integrate reviewed work into `dev`. A push to `dev` runs the full CI lanes on
-the merged tree: that run is the exact-head evidence for the test instance and
-the release, and a push to `main` runs the history guard alone (R683). A
+Integrate reviewed work into `dev`. A push to `dev` needs every CI lane green
+on the merged tree: that run is the exact-head evidence for the test instance
+and the release, and a push to `main` runs the history guard alone (R683). A
+lane that has already passed on the identical tree is not run again: the run
+reports it skipped, which counts as passed, and its `changes` log names the
+run that passed it (R1249, 25 November 2026). A
 release's version is named at release and tagged on `main` (R686, R688);
 no pull request bumps a version in source. The primary agent records the candidate SHA and assigns one owner for heavy
 verification on the host.
 CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
-success or a justified path skip is evidence for that job only.
+success, a justified path skip or a pass on the identical tree is evidence for
+that job only.
 
 ## Documentation authoring
 

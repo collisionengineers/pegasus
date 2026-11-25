@@ -204,7 +204,10 @@ public enum CaseDocumentPreviewKind
 /// SVG is an image that executes script when it is navigated to, so it stays
 /// a download. A Word document is never served inline itself; the viewer is
 /// given a PDF rendering of the stored version, and the file a reader saves
-/// is still the Word document (operator, 11 November 2026, R949).
+/// is still the Word document (operator, 11 November 2026, R949). A PDF
+/// that arrived as <c>application/octet-stream</c>, as AX's instructions do,
+/// is known by its <c>.pdf</c> name and shown as the PDF it is (operator,
+/// 25 November 2026, R1246).
 /// </remarks>
 public static class CaseDocumentPreviews
 {
@@ -219,7 +222,9 @@ public static class CaseDocumentPreviews
     public const string RenditionVariant = "pdf-" + RenditionIdentity;
 
     /// <summary>What a rendering is served as.</summary>
-    public const string RenditionMediaType = "application/pdf";
+    public const string RenditionMediaType = PdfMediaType;
+
+    private const string PdfMediaType = "application/pdf";
 
     /// <summary>
     /// How long one request waits for a rendering that is still being made
@@ -229,9 +234,9 @@ public static class CaseDocumentPreviews
     public static readonly TimeSpan RenditionWait = TimeSpan.FromSeconds(3);
 
     /// <summary>
-    /// How this document is shown. A Word document is known by its media type,
-    /// or by its file name where it arrived as <c>application/octet-stream</c>,
-    /// as a mailed attachment often does.
+    /// How this document is shown. A PDF or a Word document is known by its
+    /// media type, or by its file name where it arrived as
+    /// <c>application/octet-stream</c>, as a mailed attachment often does.
     /// </summary>
     public static CaseDocumentPreviewKind KindOf(string? mediaType, string? fileName)
     {
@@ -239,7 +244,7 @@ public static class CaseDocumentPreviews
         {
             return CaseDocumentPreviewKind.None;
         }
-        if (type.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+        if (type.Equals(PdfMediaType, StringComparison.OrdinalIgnoreCase))
         {
             return CaseDocumentPreviewKind.Pdf;
         }
@@ -258,12 +263,29 @@ public static class CaseDocumentPreviews
         {
             return CaseDocumentPreviewKind.WordAsPdf;
         }
-        return type.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(fileName)
-            && IsWord(IntakeUploadFilePolicy.MediaTypeFor(fileName))
-                ? CaseDocumentPreviewKind.WordAsPdf
-                : CaseDocumentPreviewKind.None;
+        if (!type.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(fileName))
+        {
+            return CaseDocumentPreviewKind.None;
+        }
+        var named = IntakeUploadFilePolicy.MediaTypeFor(fileName);
+        if (string.Equals(named, PdfMediaType, StringComparison.OrdinalIgnoreCase))
+        {
+            return CaseDocumentPreviewKind.Pdf;
+        }
+        return IsWord(named) ? CaseDocumentPreviewKind.WordAsPdf : CaseDocumentPreviewKind.None;
     }
+
+    /// <summary>
+    /// The media type a preview is served and drawn as: <c>application/pdf</c>
+    /// for a PDF stored under another type, and the stored media type
+    /// otherwise. The saved download keeps the stored type.
+    /// </summary>
+    public static string ShownMediaType(string mediaType, string? fileName) =>
+        KindOf(mediaType, fileName) == CaseDocumentPreviewKind.Pdf
+        && !string.Equals(BareMediaType(mediaType), PdfMediaType, StringComparison.OrdinalIgnoreCase)
+            ? PdfMediaType
+            : mediaType;
 
     /// <summary>
     /// Whether the stored bytes themselves may be dispositioned for display

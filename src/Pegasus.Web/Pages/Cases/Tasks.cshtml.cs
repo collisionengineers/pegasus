@@ -107,7 +107,15 @@ public sealed class TasksModel(
                     content),
                 cancellationToken),
             "The manual chase was recorded and the next chase date was scheduled.",
-            RedirectToNotes);
+            RedirectToChase);
+
+    /// <summary>A chase is an entry of the History tab, so that is where it is read back.</summary>
+    private RedirectToPageResult RedirectToChase(Guid id) =>
+        RedirectToPage(
+            "/Cases/Details",
+            pageHandler: null,
+            routeValues: new { id, section = "notes", view = ReturnView },
+            fragment: Pegasus.Web.Presentation.CaseWorkspaceLabels.Chase.ReadBackFragment);
 
     /// <summary>
     /// Mark report sent and Unlink are Actions-menu items: in and out of an

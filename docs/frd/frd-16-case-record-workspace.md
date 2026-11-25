@@ -1066,13 +1066,32 @@ on Documents.
 
 ### Notes
 
-Notes merges Case notes, business events, chase outcomes and AI events,
-newest first, each with date, time and actor. A general correspondence send
-appears here once its Sent item is observed, as its sender (the member of
-staff, or Automation for the Automation Actor), **Correspondence sent** and
-the subject; the message body is never history
+Notes is one section with two tabs, **Notes** and **History**, each showing
+how many entries it holds; it opens on Notes (operator, 25 November 2026;
+R1253, R1259,
+[v53](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v53-case-notes/v53_planning/current/v53-notes.md)).
+The Notes tab lists every Case note. The History tab lists every other entry
+of the Case: business events, chase outcomes, AI events, and the views and
+downloads [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)
+records (R1255). Both are newest first and drawn with one row: the date once
+as a heading over a day's entries, then each entry's time, its actor and its
+words (R1254). A note's words sit under its author; any other entry's label
+and reason follow its actor, and a reason that only repeats the label is
+printed once (R1258). An entry by the Automation Actor carries the **AI**
+source tag (R1257). Each tab shows 50 entries at a time, with **Newer** and
+**Older** once it holds more, and no entry is beyond reach (R1256). The tabs
+work as the Files tabs do: both lists are in the page, the address's `#` part
+names the open tab, and without script the two lists stand one under the
+other (R1260).
+
+A general correspondence send appears on History once its Sent item is
+observed, as its sender (the member of staff, or Automation for the
+Automation Actor), **Correspondence sent** and the subject; the message body
+is never history
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
-**Add Case note** sits at the top and needs no edit session. **Record chase** is a dialog, offered while a
+**Add Case note** sits above the tab row and needs no edit session; a note
+just added is read back on the Notes tab, a chase just recorded on History
+(R1259). **Record chase** is a dialog, offered while a
 chase is scheduled and the lease is held
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)); a
 chaser sent from the Actions menu records its chase here by itself once its

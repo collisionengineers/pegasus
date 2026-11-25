@@ -184,6 +184,22 @@ public sealed partial class DetailsModel(
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? SectionFilter { get; set; }
 
+    /// <summary>
+    /// The page of each Notes section tab the address asks for (R1256). Text,
+    /// so an address that is not a number reads page one rather than
+    /// failing the page.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "notesPage")]
+    public string? NotesPageFilter { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "historyPage")]
+    public string? HistoryPageFilter { get; set; }
+
+    private static int TimelinePage(string? value) =>
+        int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var page)
+            ? Math.Max(1, page)
+            : 1;
+
     public string Section
     {
         get
@@ -1005,7 +1021,13 @@ public sealed partial class DetailsModel(
                     ApplyAssessmentAccess(actor, ValuationSection.Frame.Workflow);
                     break;
                 case "notes":
-                    NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    NotesSection = await getCaseNotesSection.ExecuteAsync(
+                        new(
+                            id,
+                            actor,
+                            NotesPage: TimelinePage(NotesPageFilter),
+                            HistoryPage: TimelinePage(HistoryPageFilter)),
+                        cancellationToken);
                     if (NotesSection is null)
                     {
                         return FragmentNotFound();
@@ -1104,7 +1126,9 @@ public sealed partial class DetailsModel(
             // The roster read by the Tasks body depends on it, and the extras
             // below name the same colleague once they have run.
             ColleagueIsEditing: Case.ActiveEditLease is { } lease
-                && !CaseEditAuthority.IsHolder(lease.HolderKind, lease.Holder, actor));
+                && !CaseEditAuthority.IsHolder(lease.HolderKind, lease.Holder, actor),
+            NotesPage: TimelinePage(NotesPageFilter),
+            HistoryPage: TimelinePage(HistoryPageFilter));
         var rendered = LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)).ToHashSet(StringComparer.Ordinal);
         using var reads = new Pegasus.Web.Presentation.BoundedReads(cancellationToken);
         var vehicle = rendered.Contains("vehicle")

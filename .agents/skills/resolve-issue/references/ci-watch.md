@@ -48,6 +48,8 @@ moves the head away from what was tested.
 - A green run on this PR's exact head is the evidence. Record the head SHA
   with it.
 - A deferred or skipped job (stack-aware CI) is not evidence. Read which jobs
-  actually ran.
+  actually ran. In Pegasus a lane is skipped only because no changed path
+  needs it or because it already passed on the identical tree (R1249); the
+  `changes` job's log says which, and names the run that passed it.
 - Flaky-looking failures: check whether the same test failed on a recent
   integration-branch run (`gh run list --branch <base> --workflow ci.yml`).

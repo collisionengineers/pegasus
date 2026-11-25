@@ -7,10 +7,11 @@ that promotes, deploys and prints the record.
 
 .DESCRIPTION
 The default run writes nothing to GitHub or Azure. It fetches both remote
-heads, lists the candidate range and its pull requests, reads the deployed
-state and the live migration head, says which route the candidate needs and
-whether provisioning is needed, builds the exact-SHA artifacts in a detached
-worktree, validates them, and prints the one approval request.
+heads, lists the candidate range and the pull requests merged into dev in it,
+reads the deployed state and the live migration head, says which route the
+candidate needs and whether provisioning is needed, builds the exact-SHA
+artifacts in a detached worktree, validates them, and prints the one approval
+request.
 
 -Execute is the approved run. Its parameters are the words of the approval:
 the exact SHA, the manifest SHA-256, the version, the route, whether to
@@ -74,11 +75,6 @@ param(
     [Parameter(ParameterSetName = 'Execute')]
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $ApprovedOldWebSourceSha,
-
-    # Normal route only: the release adds or changes WEBSITE_WARMUP_PATH or
-    # WEBSITE_WARMUP_STATUSES, so the package deploys before provisioning.
-    [Parameter(ParameterSetName = 'Execute')]
-    [switch] $WarmupSettingsChange,
 
     # Promote the exact SHA and stop: no build, no Azure write.
     [Parameter(Mandatory, ParameterSetName = 'PromoteOnly')]
@@ -537,6 +533,32 @@ function Assert-AzdEnvironmentComplete {
     Write-Host "azd environment: complete ($($required.Count) required keys present)."
 }
 
+function Get-LostStartupSettings {
+    # R1248 (#2165): the Web App settings the live package cannot start under
+    # once the candidate's template is provisioned. A key the Web host
+    # requires at start-up at the live SHA (Program.cs, the Production loop)
+    # whose setting the live template sets and the candidate's does not; and
+    # a warm-up path or status the candidate adds or changes, which the live
+    # package cannot answer. Provisioning first would restart the live
+    # package onto settings it stops on (Release 5.2.0), and deploying first
+    # would start the new package without its own, so the normal route stops
+    # the site for both. A file that cannot be read is a refusal, never "none".
+    param([Parameter(Mandatory)][string] $LiveSha, [Parameter(Mandatory)][string] $CandidateSha)
+    if ($LiveSha -ceq $CandidateSha) { return @() }
+    $program = (Invoke-Git -Failure "Unable to read src/Pegasus.Web/Program.cs at $LiveSha." -Arguments @('show', "${LiveSha}:src/Pegasus.Web/Program.cs")) -join "`n"
+    $required = @(Get-PegasusWebRequiredKeys -ProgramText $program)
+    if ($required.Count -eq 0) { throw "The Production required keys could not be read from src/Pegasus.Web/Program.cs at $LiveSha (R1248)." }
+    $template = 'infra/modules/platform.bicep'
+    $live = Get-PegasusWebAppSettings -TemplateText ((Invoke-Git -Failure "Unable to read $template at $LiveSha." -Arguments @('show', "${LiveSha}:$template")) -join "`n")
+    $candidate = Get-PegasusWebAppSettings -TemplateText ((Invoke-Git -Failure "Unable to read $template at $CandidateSha." -Arguments @('show', "${CandidateSha}:$template")) -join "`n")
+    if ($live.Count -eq 0 -or $candidate.Count -eq 0) { throw "The Web App settings could not be read from $template at $LiveSha and $CandidateSha (R1248)." }
+    $lost = @($required | ForEach-Object { $_.Replace(':', '__') } | Where-Object { $live.Contains($_) -and -not $candidate.Contains($_) })
+    foreach ($name in 'WEBSITE_WARMUP_PATH', 'WEBSITE_WARMUP_STATUSES') {
+        if ($candidate.Contains($name) -and [string]$live[$name] -cne [string]$candidate[$name]) { $lost += $name }
+    }
+    return $lost
+}
+
 function Copy-AzdEnvironment {
     # The folder's contents, so a reused worktree's copy is refreshed rather
     # than nested inside itself; the dotfile .env goes with the rest.
@@ -992,10 +1014,11 @@ function Select-CurrentChecks {
 
 function Read-CandidateChecks {
     # The push-to-dev run on the candidate is its exact-head evidence (R683);
-    # the merged pull requests in the range and their checks are listed with
-    # it, and what they close decides the proposed version step (R687). A run
-    # that is not green is counted and never waived (R691): the read-only run
-    # reports it and the approved run refuses before any write.
+    # the pull requests merged into dev in the range and their checks are
+    # listed with it, and what they close decides the proposed version step
+    # (R687, R1247). A run that is not green is counted and never waived
+    # (R691): the read-only run reports it and the approved run refuses before
+    # any write.
     param([Parameter(Mandatory)][string] $MainSha, [Parameter(Mandatory)][string] $DevSha)
     $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
     $devRun = $null
@@ -1004,9 +1027,25 @@ function Read-CandidateChecks {
     elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
     else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
     Write-Host ''
-    Write-Host '--- Pull requests in the range ---'
-    $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
-        ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
+    Write-Host '--- Pull requests merged into dev in the range ---'
+    # R1247: the pull requests counted are the ones merged into dev itself.
+    # GitHub is asked which pull request each commit on dev's own line is the
+    # merge of, so no merge subject is read (#2189): a merge titled by hand is
+    # found, and the members of a combined pull request, merged inside its
+    # branch, are judged through it and not apart from it. The answer also
+    # lists open pull requests that merely contain the commit; only the one
+    # merged as that commit is kept.
+    $pullNumbers = @()
+    foreach ($commit in @(Invoke-Git -Arguments @('rev-list', '--first-parent', "$mainSha..$devSha") | ForEach-Object { "$_".Trim() } | Where-Object { $_ })) {
+        $json = (& gh api "repos/$gitHubRepository/commits/$commit/pulls" 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "gh could not read the pull requests of ${commit}: $json" }
+        foreach ($pull in @($json | ConvertFrom-Json)) {
+            $merged = $pull.PSObject.Properties['merged_at']
+            $mergeCommit = $pull.PSObject.Properties['merge_commit_sha']
+            if ($null -ne $merged -and $null -ne $merged.Value -and $null -ne $mergeCommit -and [string]$mergeCommit.Value -ceq $commit) { $pullNumbers += [int]$pull.number }
+        }
+    }
+    $pullNumbers = @($pullNumbers | Sort-Object -Unique)
     # R687: what the pull requests close decides the proposed version step.
     # GitHub links a closing reference only on a pull request into the default
     # branch, and these target dev, so the body's own "Closes #N" lines are
@@ -1166,11 +1205,16 @@ function Invoke-Preflight {
         elseif ($retained.Hash -cne $envHash) { "the azd environment changed since $($retained.Release)" }
         else { "no infra path changed and the azd environment equals $($retained.Release)'s" }
     Write-Host "Provision: $(if ($provisionNeeded) { 'needed' } else { 'not needed' }) ($reason)"
+    $lostSettings = @(if ($deployable.Count -gt 0) { Get-LostStartupSettings -LiveSha $mainSha -CandidateSha $devSha })
+    if ($lostSettings.Count -gt 0) {
+        Write-Host "Web App settings: the candidate's template drops or changes $($lostSettings -join ', '), which the live package cannot start under. The normal route stops the Web App, deploys the package to the stopped site, provisions and starts it (R1248)."
+    }
 
     return [pscustomobject]@{
         MainSha = $mainSha; DevSha = $devSha; Route = $route; PromotionOnly = ($deployable.Count -eq 0)
         ProvisionNeeded = $provisionNeeded; ServingSha = $servingSha; Head = $head; CandidateIdentity = $candidateIdentity
         ClassifierPresent = $classifierPresent; LiveVersion = $live; BuildVersion = $buildVersion; Proposal = $proposal; NotGreen = $checks.NotGreen
+        LostStartupSettings = $lostSettings
     }
 }
 
@@ -1233,6 +1277,9 @@ function Write-ApprovalRequest {
     Write-Host "  Migration          head $($Preflight.Head) -> $($Build.MigrationIdentity)"
     Write-Host "  Route              $($Preflight.Route)"
     Write-Host "  Provision          $(if ($Preflight.ProvisionNeeded) { 'yes' } else { 'no' })"
+    if ($Preflight.LostStartupSettings.Count -gt 0) {
+        Write-Host "  Web App stopped    on the normal route, for the package deploy and provision: the template drops or changes $($Preflight.LostStartupSettings -join ', '), which the live package cannot start under (R1248)"
+    }
     Write-Host "  Targets            $webApp, $workerApp$(if ($Preflight.ClassifierPresent) { ", $classifierApp" }), SQL pegasus-prod-sql-252ow37gij/pegasus"
     Write-Host "  Old Web SHA        $($Preflight.ServingSha) (destructive route only; the approval names it and a window)"
     Write-Host ''
@@ -1258,21 +1305,45 @@ function Invoke-NormalRoute {
     }
     # The Worker is expected live and approved, as before any normal release:
     # a census disabled on purpose is refused, not quietly re-enabled.
-    if ($WarmupSettingsChange) {
-        # The previous package cannot answer a new warm-up path or status, so
-        # the platform would keep failing its start after provision: deploy
-        # first, read the exact release back, then provision and read it back
-        # again.
-        if (-not $Provision) { throw '-WarmupSettingsChange needs -Provision: the warm-up setting is provisioned.' }
-        Publish-Web -PackagePath $WebPackagePath -Restart $true
-        Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
+    #
+    # R1248 (#2165): settings change only when the release provisions. When
+    # the template then drops or changes a setting the live package cannot
+    # start under, neither order of provision and deploy is safe on a running
+    # site, so the site is stopped, takes the package and the settings, and is
+    # started. A run resumed with the site
+    # already Stopped continues from there; one that finds the release already
+    # serving has nothing left to protect and takes the ordinary order.
+    $lostSettings = @()
+    if ($Provision) {
+        $lostSettings = @(Get-LostStartupSettings -LiveSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -CandidateSha $ApprovedReleaseSha)
+    }
+    $serving = Get-WebVersion
+    $servingRelease = $null -ne $serving -and [string]$serving.sourceSha -ceq $ApprovedReleaseSha
+    if ($lostSettings.Count -gt 0 -and -not $servingRelease) {
+        if ([string](Get-WebSite).state -ceq 'Stopped') {
+            Write-Host 'Resuming: the Web App is already Stopped; it is not stopped again.'
+        }
+        else {
+            Write-Host "The template drops or changes $($lostSettings -join ', '), which the live package cannot start under: stopping the Web App for the package deploy and provision (R1248)."
+            Invoke-Az -Failure "Unable to stop $webApp." -Arguments @('webapp', 'stop', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
+            Wait-WebStopped
+            Write-Host 'Web App read back Stopped and unserved.'
+            Set-RecordValue 'Web stopped' ("for the package deploy and provision at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z ($($lostSettings -join ', '))")
+        }
+        # The package goes on first, as on the destructive route: a start,
+        # however caused, then runs the release and never the live package
+        # under settings it stops on.
+        Publish-Web -PackagePath $WebPackagePath -Restart $false
+        if ([string](Get-WebSite).state -cne 'Stopped') { throw 'The Web App did not remain Stopped after the package deployment.' }
         Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
+        Invoke-Az -Failure 'Web App start failed.' -Arguments @('webapp', 'start', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
     }
     else {
         if ($Provision) {
             # Provision may restart the site onto the previous package; on this
-            # route that package runs against a compatible schema.
+            # route that package runs against a compatible schema and, with no
+            # setting it requires dropped, compatible settings.
             Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
         }
         else {

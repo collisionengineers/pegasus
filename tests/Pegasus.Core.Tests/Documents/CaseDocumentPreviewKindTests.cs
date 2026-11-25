@@ -80,13 +80,37 @@ public sealed class CaseDocumentPreviewKindTests
     }
 
     [Theory]
-    [InlineData("notes.txt")]
     [InlineData("estimate.pdf")]
+    [InlineData("ESTIMATE.PDF")]
+    [InlineData("InspectionRequest_1103177.pdf")]
+    public void AnOctetStreamNamedAsAPdfIsShownAsAPdf(string fileName)
+    {
+        Assert.Equal(
+            CaseDocumentPreviewKind.Pdf,
+            CaseDocumentPreviews.KindOf("application/octet-stream", fileName));
+        Assert.Equal(
+            "application/pdf",
+            CaseDocumentPreviews.ShownMediaType("application/octet-stream", fileName));
+    }
+
+    [Theory]
+    [InlineData("application/octet-stream", "notes.txt")]
+    [InlineData("application/octet-stream", "letter.docx")]
+    [InlineData("application/pdf; charset=binary", "estimate.pdf")]
+    [InlineData("image/jpeg", "photograph.pdf")]
+    [InlineData("text/html", "page.pdf")]
+    public void AnythingElseIsShownAsItsStoredMediaType(string mediaType, string fileName)
+    {
+        Assert.Equal(mediaType, CaseDocumentPreviews.ShownMediaType(mediaType, fileName));
+    }
+
+    [Theory]
+    [InlineData("notes.txt")]
     [InlineData("letter")]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
-    public void AnOctetStreamNotNamedAsAWordDocumentIsADownload(string? fileName)
+    public void AnOctetStreamNotNamedAsAWordDocumentOrAPdfIsADownload(string? fileName)
     {
         Assert.Equal(
             CaseDocumentPreviewKind.None,

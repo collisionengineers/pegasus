@@ -21,6 +21,41 @@ if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Coun
     @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
     throw 'Worker Disabled setting producer must return the exact distinct five-name census.'
 }
+# R1248 (#2165): the release route reads the Web host's Production required
+# keys and the Web App's settings as text, at two SHAs. Both readers are held
+# to the real files here, on every change, so a rewrite of either file fails
+# this check and never a release.
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$webRequiredKeys = @(Get-PegasusWebRequiredKeys -ProgramText (Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'src/Pegasus.Web/Program.cs')))
+if ($webRequiredKeys.Count -lt 5 -or 'ConnectionStrings:Pegasus' -notin $webRequiredKeys -or
+    @($webRequiredKeys | Select-Object -Unique).Count -ne $webRequiredKeys.Count) {
+    throw 'The Web required-key reader must return the distinct keys of the Production loop in src/Pegasus.Web/Program.cs.'
+}
+$webAppSettings = Get-PegasusWebAppSettings -TemplateText (Get-Content -Raw -LiteralPath (Join-Path $repositoryRoot 'infra/modules/platform.bicep'))
+foreach ($name in 'Runtime__Profile', 'WEBSITE_WARMUP_PATH', 'WEBSITE_WARMUP_STATUSES', 'WEBSITE_RUN_FROM_PACKAGE') {
+    if (-not $webAppSettings.Contains($name)) { throw "The Web App settings reader did not find $name in infra/modules/platform.bicep." }
+}
+if (@($webAppSettings.Keys | Where-Object { $_ -like 'AzureWebJobs.*' }).Count -ne 0) {
+    throw 'The Web App settings reader must stop at the webApp resource; it returned a Worker setting.'
+}
+$unprovisionedKeys = @($webRequiredKeys | Where-Object { -not $webAppSettings.Contains($_.Replace(':', '__')) })
+if ($unprovisionedKeys.Count -ne 0) {
+    throw "The Web host requires $($unprovisionedKeys -join ', ') at start-up, which the webApp resource in infra/modules/platform.bicep does not set."
+}
+if (@(Get-PegasusWebRequiredKeys -ProgramText 'var keys = new[] { "A:B" };').Count -ne 0 -or (Get-PegasusWebAppSettings -TemplateText 'resource workerApp x = {}').Count -ne 0) {
+    throw 'The readers must return nothing when the loop or the webApp resource is absent.'
+}
+$settingsProbe = Get-PegasusWebAppSettings -TemplateText @"
+resource webApp 'Microsoft.Web/sites@2024-04-01' = {
+        { name: 'A__B', value: '@Microsoft.KeyVault(SecretUri=`${aSecretUri})' }
+}
+resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
+        { name: 'C__D', value: 'worker' }
+}
+"@
+if ($settingsProbe.Count -ne 1 -or [string]$settingsProbe['A__B'] -cne "'@Microsoft.KeyVault(SecretUri=`${aSecretUri})'") {
+    throw 'The Web App settings reader must return each webApp setting with its value expression as written.'
+}
 # The release identity is the newest migration source and nothing else that
 # shares the folder: not a Designer file, the snapshot, or an .editorconfig.
 $identityProbe = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-identity-" + [Guid]::NewGuid().ToString('N'))
