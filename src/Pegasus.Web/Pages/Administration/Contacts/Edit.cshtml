@@ -563,7 +563,7 @@
                 <form method="post" asp-page-handler="@(every ? "SaveEveryCase" : "SaveRule")" asp-route-id="@Model.ContactId" asp-route-tab="@EditModel.ReportSendingTab" asp-route-rule="@ruleRoute" asp-route-every="@everyRoute" data-sending-rule-form>
                     @* The form's first submit button is the one Enter presses: without this
                        one it would be the first row's remove, and Enter would drop that row. *@
-                    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true">@(every ? Sending.Save : Sending.SaveRule)</button>
+                    <button type="submit" class="sr-only" tabindex="-1" aria-hidden="true" data-busy-label="@OperatorLabels.Busy.Saving">@(every ? Sending.Save : Sending.SaveRule)</button>
                     <div class="dialog-body stack">
                         @{ await DialogMessages(); }
                         @{ await SendingFormFields(Model.ReportSendingOperationKey ?? string.Empty); }
