@@ -173,16 +173,59 @@ public sealed class ContactDirectoryPersistenceTests
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
+        // The mode is the Principal's, so its version moves with the contact's
+        // (R1267); the Cases already made keep the mode they took.
+        var principal = await context.Principals
+            .Where(item => item.OrganizationId == request.OrganizationId)
+            .Select(item => new { item.InspectionMode, item.Version })
+            .SingleAsync();
         Assert.Equal(
-            PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
-            await context.Principals
-                .Where(item => item.OrganizationId == request.OrganizationId)
-                .Select(item => item.InspectionMode)
-                .SingleAsync());
+            (PrincipalInspectionModePolicy.ImageBasedAssessmentCode, 1L),
+            (principal.InspectionMode, principal.Version));
         var history = await context.ActionHistory.SingleAsync(item => item.CorrelationId == changedKey);
         Assert.Equal(("contact", request.OrganizationId.ToString("D"), "contact_saved"), (history.AggregateType, history.AggregateId, history.EventKind));
         Assert.Equal(CaseInspectionMode.PhysicalAddress, HistoryRecord(history.BeforeJson).PrincipalInspectionMode);
         Assert.Equal(CaseInspectionMode.ImageBasedAssessment, HistoryRecord(history.AfterJson).PrincipalInspectionMode);
+    }
+
+    /// <summary>
+    /// A new Principal that posts no fee takes the standard one; one that
+    /// posts a fee keeps it; and a fee, a default inspection location or a
+    /// Send from mailbox is refused for any other type (R1266, R1267).
+    /// </summary>
+    [Fact]
+    public async Task ANewPrincipalTakesTheStandardFeeAndOtherTypesTakeNoCaseDefaults()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var standard = await SaveAsync(database, NewPrincipal("Standard fee principal", "CPF01") with { DefaultFee = null });
+        var agreed = await SaveAsync(database, NewPrincipal("Agreed fee principal", "CPF02") with
+        {
+            DefaultFee = 199.99m,
+            SendFromMailbox = "engineers@collisionengineers.co.uk"
+        });
+
+        Assert.Equal(PrincipalDefaultFeePolicy.Standard, standard.DefaultFee);
+        Assert.Equal(199.99m, agreed.DefaultFee);
+        Assert.Equal("engineers@collisionengineers.co.uk", agreed.SendFromMailbox);
+        await using (var scope = database.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var stored = await context.Principals.AsNoTracking()
+                .SingleAsync(item => item.OrganizationId == agreed.OrganizationId);
+            Assert.Equal((199.99m, "engineers@collisionengineers.co.uk", 0L), (stored.DefaultFee, stored.SendFromMailbox, stored.Version));
+        }
+
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewContact(Guid.NewGuid(), 0) with { DefaultFee = 180.00m }));
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            SendFromMailbox = "engineers@collisionengineers.co.uk"
+        }));
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewPrincipal("Bad send from", "CPF03") with
+        {
+            SendFromMailbox = "not an address"
+        }));
     }
 
     /// <summary>
@@ -797,7 +840,8 @@ public sealed class ContactDirectoryPersistenceTests
         code,
         CaseInspectionMode.PhysicalAddress,
         [],
-        Guid.NewGuid().ToString("N"));
+        Guid.NewGuid().ToString("N"),
+        DefaultFee: PrincipalDefaultFeePolicy.Standard);
 
     private static CaseEntity Case(
         PrincipalEntity principal,

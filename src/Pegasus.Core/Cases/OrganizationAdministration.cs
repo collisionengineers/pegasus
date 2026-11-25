@@ -1,5 +1,4 @@
-﻿using Pegasus.Core.Address;
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Cases;
@@ -47,7 +46,9 @@ public sealed record PrincipalAdministrationSummary(
     AuditWorkflowKind AuditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
     PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
     string? InvoiceVatNumber = null,
-    string? InvoicePaymentTerms = null)
+    string? InvoicePaymentTerms = null,
+    string? SendFromMailbox = null,
+    bool ReportImages = true)
 {
     /// <summary>The Principal's report sending rules; the defaults when none were named.</summary>
     public PrincipalReportSendingRules ReportSending { get; init; } =
@@ -97,57 +98,6 @@ public interface IOrganizationAdministrationStore
     Task<Principal> UpdatePrincipalReportSendingAsync(
         UpdatePrincipalReportSendingRequest request,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// EXT-18/S05 item 6: the principal's one default inspection-location
-    /// choice — Image Based Assessment, or one sourced/manual physical
-    /// address. This never changes B's separate
-    /// CE assessment method and never touches the shared <see cref="Principal"/>
-    /// record; it is C's own directory-facing summary field.
-    /// </summary>
-    Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
-        UpdatePrincipalDefaultInspectionLocationRequest request,
-        CancellationToken cancellationToken);
-}
-
-/// <param name="Kind">
-/// <see cref="InspectionAddressEvidenceKind.ImageBasedAssessment"/>
-/// clears every address field below; <see cref="InspectionAddressEvidenceKind.PhysicalAddress"/>
-/// requires <paramref name="Address"/>.
-/// </param>
-public sealed record UpdatePrincipalDefaultInspectionLocationRequest(
-    ActionActor Actor,
-    Guid PrincipalId,
-    long ExpectedVersion,
-    string OperationKey,
-    InspectionAddressEvidenceKind Kind,
-    string? Label,
-    string? Address,
-    string? Postcode,
-    string? SourceKind,
-    Guid? SourceRecordId,
-    long? SourceVersion,
-    long ExpectedContactVersion);
-
-public interface IUpdatePrincipalDefaultInspectionLocation
-{
-    Task<PrincipalAdministrationSummary> ExecuteAsync(
-        UpdatePrincipalDefaultInspectionLocationRequest request,
-        CancellationToken cancellationToken);
-}
-
-public sealed class UpdatePrincipalDefaultInspectionLocation(IOrganizationAdministrationStore store)
-    : IUpdatePrincipalDefaultInspectionLocation
-{
-    private readonly IOrganizationAdministrationStore _store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<PrincipalAdministrationSummary> ExecuteAsync(
-        UpdatePrincipalDefaultInspectionLocationRequest request,
-        CancellationToken cancellationToken) =>
-        _store.UpdatePrincipalDefaultInspectionLocationAsync(
-            OrganizationAdministrationPolicy.Normalize(request),
-            cancellationToken);
 }
 
 public sealed class GetPrincipal(IOrganizationAdministrationQueries queries) : IGetPrincipal
@@ -263,6 +213,8 @@ public static class OrganizationAdministrationPolicy
                 predecessor.InspectionMode,
                 predecessor.ReportSending,
                 DefaultFee: predecessor.DefaultFee,
+                SendFromMailbox: predecessor.SendFromMailbox,
+                ReportImages: predecessor.ReportImages,
                 ReportNames: predecessor.ReportNames,
                 FeeNoteVatNumber: predecessor.FeeNoteVatNumber,
                 AuditWorkflow: predecessor.AuditWorkflow,
@@ -287,7 +239,6 @@ public static class OrganizationAdministrationPolicy
         RequireAdministrator(request.Actor);
         RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
         RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
-        PrincipalDefaultFeePolicy.Require(request.DefaultFee, nameof(request.DefaultFee));
         RequireDefined(request.AuditWorkflow, nameof(request.AuditWorkflow));
         RequireDefined(request.PrincipalInvoice, nameof(request.PrincipalInvoice));
         return request with
@@ -326,65 +277,10 @@ public static class OrganizationAdministrationPolicy
     }
 
     /// <summary>
-    /// EXT-18/S05 item 6: an Image Based Assessment choice carries no address;
-    /// a physical choice requires one.
-    /// </summary>
-    public static UpdatePrincipalDefaultInspectionLocationRequest Normalize(
-        UpdatePrincipalDefaultInspectionLocationRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor);
-        RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
-        RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
-        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
-        if (!Enum.IsDefined(request.Kind))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The default inspection location kind is invalid.");
-        }
-
-        var normalized = request with
-        {
-            OperationKey = NormalizeRequiredText(
-                request.OperationKey,
-                MaximumOperationKeyLength,
-                nameof(request.OperationKey))
-        };
-
-        if (normalized.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment)
-        {
-            return normalized with
-            {
-                Label = null,
-                Address = null,
-                Postcode = null,
-                SourceKind = null,
-                SourceRecordId = null,
-                SourceVersion = null
-            };
-        }
-
-        if (string.IsNullOrWhiteSpace(normalized.Address))
-        {
-            throw new ArgumentException(
-                "A physical default inspection location requires an address.",
-                nameof(request));
-        }
-
-        return normalized with
-        {
-            Address = normalized.Address.Trim(),
-            Postcode = string.IsNullOrWhiteSpace(normalized.Postcode)
-                ? null
-                : normalized.Postcode.Trim()
-        };
-    }
-
-    /// <summary>
-    /// The default fee, the report names, the fee note VAT number, the Audit
+    /// Report images, the report names, the fee note VAT number, the Audit
     /// workflow and the Principal's own invoice with its VAT number and
-    /// payment terms change, and nothing else does.
+    /// payment terms change, and nothing else does. The default fee is the
+    /// contact's Save's (R1266).
     /// The code, the organization, its notes, the lineage and the allocation
     /// history are untouched. A Case already created keeps the Audit workflow
     /// it took (R1138).
@@ -392,7 +288,7 @@ public static class OrganizationAdministrationPolicy
     public static Principal PlanPrincipalReportSettingsUpdate(
         Principal current,
         long expectedVersion,
-        decimal defaultFee,
+        bool reportImages,
         PrincipalReportNames? reportNames,
         string? feeNoteVatNumber = null,
         AuditWorkflowKind auditWorkflow = AuditWorkflowKind.OriginalEngineerReport,
@@ -417,14 +313,13 @@ public static class OrganizationAdministrationPolicy
                 OrganizationAdministrationError.PrincipalInactive);
         }
 
-        PrincipalDefaultFeePolicy.Require(defaultFee, nameof(defaultFee));
         var names = PrincipalReportNames.Normalize(reportNames);
         var vatNumber = AssessmentReportContract.NormalizeVatNumber(feeNoteVatNumber);
         RequireDefined(auditWorkflow, nameof(auditWorkflow));
         RequireDefined(principalInvoice, nameof(principalInvoice));
         var invoiceVat = PrincipalInvoicePolicy.NormalizeVatNumber(invoiceVatNumber);
         var invoiceTerms = PrincipalInvoicePolicy.NormalizePaymentTerms(invoicePaymentTerms);
-        var changed = current.DefaultFee != defaultFee
+        var changed = current.ReportImages != reportImages
             || current.ReportNames != names
             || !string.Equals(current.FeeNoteVatNumber, vatNumber, StringComparison.Ordinal)
             || current.AuditWorkflow != auditWorkflow
@@ -433,7 +328,7 @@ public static class OrganizationAdministrationPolicy
             || !string.Equals(current.InvoicePaymentTerms, invoiceTerms, StringComparison.Ordinal);
         return current with
         {
-            DefaultFee = defaultFee,
+            ReportImages = reportImages,
             ReportNames = names,
             FeeNoteVatNumber = vatNumber,
             AuditWorkflow = auditWorkflow,

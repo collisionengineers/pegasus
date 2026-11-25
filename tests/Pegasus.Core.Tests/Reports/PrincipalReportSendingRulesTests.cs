@@ -1,145 +1,229 @@
+using System.Text.Json;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.Core.Tests.Reports;
 
 /// <summary>
-/// The per-Principal report sending rules (Report Sending SOP v8, 15 October
-/// 2026): what Normalize accepts and refuses, and how two values compare.
+/// The per-Principal report sending rules, built as an every-Case list and
+/// "If … Then …" rules (operator, 25 November 2026; R1267): what Normalize
+/// accepts and refuses, how two values compare and how they are stored.
 /// </summary>
 public sealed class PrincipalReportSendingRulesTests
 {
-    private static readonly string ContactId = "00000000-0000-4000-8000-00000000f001";
+    private const string ContactId = "00000000-0000-4000-8000-00000000f001";
+    private const string OtherContactId = "00000000-0000-4000-8000-00000000f002";
 
     private static PrincipalReportSendingRules Rules() => PrincipalReportSendingRules.Default;
 
-    private static ReportSendingRule Rule(
-        ReportSendingConditionKind kind,
-        string[] values,
-        ReportSendingActions? then = null,
-        ReportSendingRuleMatch match = ReportSendingRuleMatch.All) =>
-        new(match, [new(kind, values)], then ?? new(["cc@example.com"], []));
+    private static ReportSendingCondition Is(ReportSendingFact fact, IReadOnlyList<string> values) => new(fact, values);
+
+    private static ReportSendingCondition IsNot(ReportSendingFact fact, IReadOnlyList<string> values) => new(fact, values, Not: true);
+
+    private static ReportSendingAction Cc(string address) => new(ReportSendingActionKind.Cc, [address]);
+
+    private static ReportSendingAction AddTask(string text) => new(ReportSendingActionKind.Task, Text: text);
+
+    private static ReportSendingRule Rule(ReportSendingCondition condition, ReportSendingAction? then = null) =>
+        new([[condition]], [then ?? Cc("cc@example.com")]);
+
+    private static ReportSendingRule Outcome(ReportSendingAction then) =>
+        Rule(Is(ReportSendingFact.Outcome, ["repairable"]), then);
+
+    private static PrincipalReportSendingRules With(IReadOnlyList<ReportSendingRule> rules) => Rules() with { Rules = rules };
+
+    private static PrincipalReportSendingRules EveryCase(IReadOnlyList<ReportSendingAction> actions) =>
+        new(actions, []);
 
     private static ReportSendingRulesException Refused(PrincipalReportSendingRules rules) =>
         Assert.Throws<ReportSendingRulesException>(() => PrincipalReportSendingRules.Normalize(rules));
 
     [Fact]
-    public void TheDefaultIsThePlainSopAndNormalizesToItself()
+    public void TheDefaultRepliesToAllWithTheFeeNoteSeparateAndNormalizesToItself()
     {
         var normalized = PrincipalReportSendingRules.Normalize(PrincipalReportSendingRules.Default);
 
         Assert.Equal(PrincipalReportSendingRules.Default, normalized);
-        Assert.Null(normalized.SendFromMailbox);
-        Assert.Empty(normalized.SendTo);
-        Assert.False(normalized.SendToOnly);
-        Assert.True(normalized.ReplyAll);
-        Assert.Equal(ReportSendingAttachments.Default, normalized.Attach);
-        Assert.True(normalized.Attach.FeeNoteSeparate);
-        Assert.True(normalized.Attach.ReportImages);
-        Assert.False(normalized.GarageFigures);
-        Assert.Null(normalized.Hold);
+        Assert.Equal(
+            [ReportSendingActionKind.ReplyAll, ReportSendingActionKind.Attach],
+            normalized.EveryCase.Select(action => action.Kind).ToArray());
+        Assert.Equal(ReportSendingFile.FeeNoteSeparate, normalized.EveryCase[1].File);
         Assert.Empty(normalized.Rules);
+    }
+
+    [Fact]
+    public void AnEmptyEveryCaseListIsKept()
+    {
+        var normalized = PrincipalReportSendingRules.Normalize(new([], []));
+
+        Assert.Empty(normalized.EveryCase);
+        Assert.Empty(normalized.Rules);
+        Assert.NotEqual(PrincipalReportSendingRules.Default, normalized);
     }
 
     [Fact]
     public void AddressesAreTrimmedDroppedWhenBlankAndUniqueWithoutCase()
     {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            SendFromMailbox = " engineers@collisionengineers.co.uk ",
-            SendTo = [" A@example.com ", "", "a@EXAMPLE.com", "b@example.com"],
-            Cc = ["c@example.com"],
-            NeverCc = ["d@example.com"]
-        });
+        var normalized = PrincipalReportSendingRules.Normalize(EveryCase([
+            new(ReportSendingActionKind.SendTo, [" A@example.com ", "", "a@EXAMPLE.com", "b@example.com"]),
+            new(ReportSendingActionKind.Cc, ["c@example.com"]),
+            new(ReportSendingActionKind.NeverCc, ["d@example.com"])]));
 
-        Assert.Equal("engineers@collisionengineers.co.uk", normalized.SendFromMailbox);
-        Assert.Equal(["A@example.com", "b@example.com"], normalized.SendTo.ToArray());
-        Assert.Equal("c@example.com", Assert.Single(normalized.Cc));
-        Assert.Equal("d@example.com", Assert.Single(normalized.NeverCc));
-    }
-
-    [Fact]
-    public void ABlankSendFromIsNone()
-    {
-        Assert.Null(PrincipalReportSendingRules.Normalize(Rules() with { SendFromMailbox = "  " }).SendFromMailbox);
+        Assert.Equal(["A@example.com", "b@example.com"], normalized.EveryCase[0].Addresses!.ToArray());
+        Assert.Equal("c@example.com", Assert.Single(normalized.EveryCase[1].Addresses!));
+        Assert.Equal("d@example.com", Assert.Single(normalized.EveryCase[2].Addresses!));
     }
 
     [Theory]
-    [InlineData("not an address")]
-    [InlineData("a@")]
-    public void AnInvalidAddressIsRefusedWhereverItIsTyped(string address)
+    [InlineData("SendTo", ReportSendingActionKind.SendTo)]
+    [InlineData("Cc", ReportSendingActionKind.Cc)]
+    [InlineData("NeverCc", ReportSendingActionKind.NeverCc)]
+    public void AnAddressActionRefusesAnInvalidAddressAndNoAddress(string name, ReportSendingActionKind kind)
     {
-        Assert.Equal(ReportSendingRulesRule.InvalidAddress, Refused(Rules() with { SendFromMailbox = address }).Rule);
-        Assert.Equal(ReportSendingRulesRule.InvalidAddress, Refused(Rules() with { SendTo = [address] }).Rule);
-        Assert.Equal(ReportSendingRulesRule.InvalidAddress, Refused(Rules() with { Cc = [address] }).Rule);
-        Assert.Equal(ReportSendingRulesRule.InvalidAddress, Refused(Rules() with { NeverCc = [address] }).Rule);
-        var inRule = Refused(Rules() with
+        foreach (var addresses in new IReadOnlyList<string>?[] { ["not an address"], ["a@"], [], [" "], null })
         {
-            Rules = [Rule(ReportSendingConditionKind.Outcome, ["repairable"], new([address], []))]
-        });
-        Assert.Equal(ReportSendingRulesRule.InvalidAddress, inRule.Rule);
-        Assert.Equal(0, inRule.RuleIndex);
-        Assert.Equal(nameof(ReportSendingActions.CcAdd), inRule.Field);
+            var everyCase = Refused(EveryCase([new(kind, addresses)]));
+            Assert.Equal(ReportSendingRulesRule.InvalidAddress, everyCase.Rule);
+            Assert.Null(everyCase.RuleIndex);
+            Assert.Equal(name, everyCase.Field);
+
+            var inRule = Refused(With([Outcome(AddTask("ok")), Outcome(new(kind, addresses))]));
+            Assert.Equal(ReportSendingRulesRule.InvalidAddress, inRule.Rule);
+            Assert.Equal(1, inRule.RuleIndex);
+            Assert.Equal(name, inRule.Field);
+        }
     }
 
     [Fact]
-    public void SendToOnlyNeedsAnAddress()
+    public void AnActionCarriesOnlyWhatItsKindUses()
     {
-        Assert.Equal(
-            ReportSendingRulesRule.SendToOnlyNeedsAddresses,
-            Refused(Rules() with { SendToOnly = true }).Rule);
+        var normalized = PrincipalReportSendingRules.Normalize(EveryCase([
+            new(ReportSendingActionKind.SendTo, ["a@example.com"], ReportSendingFile.Estimate, "text"),
+            new(ReportSendingActionKind.SendToOnly, ["a@example.com"], ReportSendingFile.Estimate, "text"),
+            new(ReportSendingActionKind.ReplyAll, ["a@example.com"], ReportSendingFile.Estimate, "text"),
+            new(ReportSendingActionKind.Attach, ["a@example.com"], ReportSendingFile.Estimate, "text"),
+            new(ReportSendingActionKind.Hold, ["a@example.com"], ReportSendingFile.Estimate, " Hold. ")]));
 
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with { SendToOnly = true, SendTo = ["a@example.com"] });
-        Assert.True(normalized.SendToOnly);
-    }
-
-    [Fact]
-    public void AnAddressCannotBeAlwaysCopiedAndNeverCopied()
-    {
-        var error = Refused(Rules() with { Cc = ["a@example.com"], NeverCc = ["A@EXAMPLE.com"] });
-
-        Assert.Equal(ReportSendingRulesRule.AddressInCcAndNeverCc, error.Rule);
-    }
-
-    [Fact]
-    public void TextsAreTrimmedBlankRemindersDroppedAndLongTextKept()
-    {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
+        Assert.All(normalized.EveryCase.Skip(1).Take(2), action =>
         {
-            Hold = "  WhatsApp the report first.  ",
-            Reminders = [" Authorise the garage. ", "", "  "]
+            Assert.Null(action.Addresses);
+            Assert.Null(action.File);
+            Assert.Null(action.Text);
         });
+        Assert.Null(normalized.EveryCase[0].File);
+        Assert.Null(normalized.EveryCase[0].Text);
+        Assert.Null(normalized.EveryCase[3].Addresses);
+        Assert.Null(normalized.EveryCase[3].Text);
+        Assert.Equal(ReportSendingFile.Estimate, normalized.EveryCase[3].File);
+        Assert.Null(normalized.EveryCase[4].Addresses);
+        Assert.Null(normalized.EveryCase[4].File);
+        Assert.Equal("Hold.", normalized.EveryCase[4].Text);
+    }
 
-        Assert.Equal("WhatsApp the report first.", normalized.Hold);
-        Assert.Equal("Authorise the garage.", Assert.Single(normalized.Reminders));
+    [Theory]
+    [InlineData("Attach", ReportSendingActionKind.Attach)]
+    [InlineData("DoNotAttach", ReportSendingActionKind.DoNotAttach)]
+    public void AnAttachActionNeedsAFile(string name, ReportSendingActionKind kind)
+    {
+        var missing = Refused(EveryCase([new(kind)]));
+        Assert.Equal(ReportSendingRulesRule.EmptyActions, missing.Rule);
+        Assert.Equal(name, missing.Field);
+        Assert.Null(missing.RuleIndex);
+
+        var undefined = Refused(With([Outcome(new(kind, File: (ReportSendingFile)99))]));
+        Assert.Equal(ReportSendingRulesRule.EmptyActions, undefined.Rule);
+        Assert.Equal(0, undefined.RuleIndex);
+    }
+
+    [Theory]
+    [InlineData("Hold", ReportSendingActionKind.Hold)]
+    [InlineData("Stop", ReportSendingActionKind.Stop)]
+    [InlineData("Task", ReportSendingActionKind.Task)]
+    public void ATextActionNeedsTextAndKeepsLongTextTrimmed(string name, ReportSendingActionKind kind)
+    {
+        foreach (var text in new[] { null, "", "  " })
+        {
+            var refused = Refused(EveryCase([new(kind, Text: text)]));
+            Assert.Equal(ReportSendingRulesRule.TextRequired, refused.Rule);
+            Assert.Equal(name, refused.Field);
+        }
 
         var longText = new string('x', 501);
-        Assert.Equal(longText, PrincipalReportSendingRules.Normalize(Rules() with { Hold = longText }).Hold);
-        Assert.Equal(longText, Assert.Single(PrincipalReportSendingRules.Normalize(Rules() with { Reminders = [longText] }).Reminders));
-        Assert.Null(PrincipalReportSendingRules.Normalize(Rules() with { Hold = " " }).Hold);
+        Assert.Equal(longText, Assert.Single(PrincipalReportSendingRules.Normalize(EveryCase([new(kind, Text: $" {longText} ")])).EveryCase).Text);
+    }
+
+    [Fact]
+    public void AnUndefinedActionKindIsRefused()
+    {
+        Assert.Equal(
+            ReportSendingRulesRule.EmptyActions,
+            Refused(EveryCase([new((ReportSendingActionKind)99)])).Rule);
+    }
+
+    [Fact]
+    public void SendToOnlyNeedsASendToInItsListOrForARuleOnEveryCase()
+    {
+        var everyCase = Refused(EveryCase([new(ReportSendingActionKind.SendToOnly)]));
+        Assert.Equal(ReportSendingRulesRule.SendToOnlyNeedsAddresses, everyCase.Rule);
+        Assert.Null(everyCase.RuleIndex);
+        Assert.Equal(nameof(ReportSendingActionKind.SendTo), everyCase.Field);
+
+        var inRule = Refused(With([Outcome(new(ReportSendingActionKind.SendToOnly))]));
+        Assert.Equal(ReportSendingRulesRule.SendToOnlyNeedsAddresses, inRule.Rule);
+        Assert.Equal(0, inRule.RuleIndex);
+
+        // A Send to in the same list, or for a rule on every Case, is enough.
+        _ = PrincipalReportSendingRules.Normalize(EveryCase([
+            new(ReportSendingActionKind.SendTo, ["a@example.com"]),
+            new(ReportSendingActionKind.SendToOnly)]));
+        _ = PrincipalReportSendingRules.Normalize(new(
+            [],
+            [new([[Is(ReportSendingFact.Outcome, ["repairable"])]],
+                [new(ReportSendingActionKind.SendToOnly), new(ReportSendingActionKind.SendTo, ["a@example.com"])])]));
+        _ = PrincipalReportSendingRules.Normalize(new(
+            [new(ReportSendingActionKind.SendTo, ["a@example.com"])],
+            [Outcome(new(ReportSendingActionKind.SendToOnly))]));
+    }
+
+    [Fact]
+    public void AnAddressCannotBeCopiedAndNeverCopiedInOneList()
+    {
+        var everyCase = Refused(EveryCase([
+            new(ReportSendingActionKind.Cc, ["a@example.com"]),
+            new(ReportSendingActionKind.NeverCc, ["A@EXAMPLE.com"])]));
+        Assert.Equal(ReportSendingRulesRule.AddressInCcAndNeverCc, everyCase.Rule);
+        Assert.Null(everyCase.RuleIndex);
+        Assert.Equal(nameof(ReportSendingActionKind.NeverCc), everyCase.Field);
+
+        var inRule = Refused(With([new([[Is(ReportSendingFact.Outcome, ["repairable"])]],
+            [Cc("a@example.com"), new(ReportSendingActionKind.NeverCc, ["a@example.com"])])]));
+        Assert.Equal(ReportSendingRulesRule.AddressInCcAndNeverCc, inRule.Rule);
+        Assert.Equal(0, inRule.RuleIndex);
+
+        // Two lists may disagree: a rule may keep out what every Case copies.
+        _ = PrincipalReportSendingRules.Normalize(new(
+            [Cc("a@example.com")],
+            [Outcome(new(ReportSendingActionKind.NeverCc, ["a@example.com"]))]));
     }
 
     [Fact]
     public void ContactConditionsTakeContactIdsAndKeepThemInOneForm()
     {
-        var upper = ContactId.ToUpperInvariant();
-        foreach (var kind in new[] { ReportSendingConditionKind.ClaimSource, ReportSendingConditionKind.Repairer })
+        foreach (var fact in new[] { ReportSendingFact.ClaimSource, ReportSendingFact.Repairer })
         {
-            var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-            {
-                Rules = [Rule(kind, [upper, ContactId, "00000000-0000-4000-8000-00000000f002"])]
-            });
+            var normalized = PrincipalReportSendingRules.Normalize(With([
+                Rule(Is(fact, [ContactId.ToUpperInvariant(), ContactId, OtherContactId]))]));
 
-            var condition = Assert.Single(Assert.Single(normalized.Rules).If);
-            Assert.Equal(kind, condition.Kind);
-            Assert.Equal([ContactId, "00000000-0000-4000-8000-00000000f002"], condition.Values.ToArray());
+            var condition = Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If));
+            Assert.Equal(fact, condition.Fact);
+            Assert.Equal([ContactId, OtherContactId], condition.Values.ToArray());
 
+            var named = Refused(With([Rule(Is(fact, ["Car 2 Go"]))]));
+            Assert.Equal(ReportSendingRulesRule.UnknownContact, named.Rule);
+            Assert.Equal(fact.ToString(), named.Field);
             Assert.Equal(
                 ReportSendingRulesRule.UnknownContact,
-                Refused(Rules() with { Rules = [Rule(kind, ["Car 2 Go"])] }).Rule);
-            Assert.Equal(
-                ReportSendingRulesRule.UnknownContact,
-                Refused(Rules() with { Rules = [Rule(kind, [Guid.Empty.ToString()])] }).Rule);
+                Refused(With([Rule(Is(fact, [Guid.Empty.ToString()]))])).Rule);
         }
     }
 
@@ -148,14 +232,11 @@ public sealed class PrincipalReportSendingRulesTests
     {
         foreach (var code in new[] { "total_loss", "repairable", "cash_in_lieu", "contract_repair" })
         {
-            var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-            {
-                Rules = [Rule(ReportSendingConditionKind.Outcome, [code])]
-            });
-            Assert.Equal(code, Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If).Values));
+            var normalized = PrincipalReportSendingRules.Normalize(With([Rule(Is(ReportSendingFact.Outcome, [code]))]));
+            Assert.Equal(code, Assert.Single(Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If)).Values));
         }
 
-        var error = Refused(Rules() with { Rules = [Rule(ReportSendingConditionKind.Outcome, ["Repairable"])] });
+        var error = Refused(With([Rule(Is(ReportSendingFact.Outcome, ["Repairable"]))]));
         Assert.Equal(ReportSendingRulesRule.UnknownOutcome, error.Rule);
         Assert.Equal(0, error.RuleIndex);
     }
@@ -166,300 +247,106 @@ public sealed class PrincipalReportSendingRulesTests
     {
         foreach (var type in new[] { "Inspection", "Audit", "InspectionAndAudit" })
         {
-            var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-            {
-                Rules = [Rule(ReportSendingConditionKind.CaseType, [type])]
-            });
-            Assert.Equal(type, Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If).Values));
+            var normalized = PrincipalReportSendingRules.Normalize(With([Rule(Is(ReportSendingFact.CaseType, [type]))]));
+            Assert.Equal(type, Assert.Single(Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If)).Values));
         }
 
         foreach (var unknown in new[] { "Triage", "audit", "Desktop" })
         {
-            var error = Refused(Rules() with { Rules = [Rule(ReportSendingConditionKind.CaseType, [unknown])] });
+            var error = Refused(With([Rule(Is(ReportSendingFact.CaseType, [unknown]))]));
             Assert.Equal(ReportSendingRulesRule.UnknownCaseType, error.Rule);
             Assert.Equal(0, error.RuleIndex);
         }
     }
 
     [Fact]
-    public void SenderConditionsTakeAddressesAndTextConditionsTakeText()
+    public void SenderConditionsTakeAddresses()
     {
-        var sender = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules = [Rule(ReportSendingConditionKind.SenderNot, [" a@example.com "])]
-        });
-        Assert.Equal("a@example.com", Assert.Single(Assert.Single(Assert.Single(sender.Rules).If).Values));
-        Assert.Equal(
-            ReportSendingRulesRule.InvalidAddress,
-            Refused(Rules() with { Rules = [Rule(ReportSendingConditionKind.SenderNot, ["Luton"])] }).Rule);
+        var sender = PrincipalReportSendingRules.Normalize(With([Rule(IsNot(ReportSendingFact.Sender, [" a@example.com ", "A@example.com"]))]));
+        var condition = Assert.Single(Assert.Single(Assert.Single(sender.Rules).If));
+        Assert.Equal("a@example.com", Assert.Single(condition.Values));
+        Assert.True(condition.Not);
 
-        var text = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules =
-            [
-                Rule(ReportSendingConditionKind.Mentions, [" Luton ", "luton"]),
-                Rule(ReportSendingConditionKind.Mentions, [" Guardian ", "guardian", "James Claims"])
-            ]
-        });
-        Assert.Equal("Luton", Assert.Single(Assert.Single(text.Rules[0].If).Values));
-        Assert.Equal(["Guardian", "James Claims"], Assert.Single(text.Rules[1].If).Values.ToArray());
-
-        var longText = new string('x', 501);
-        Assert.Equal(
-            longText,
-            Assert.Single(Assert.Single(PrincipalReportSendingRules.Normalize(Rules() with
-            {
-                Rules = [Rule(ReportSendingConditionKind.Mentions, [longText])]
-            }).Rules).If).Values.Single());
+        var refused = Refused(With([Rule(Is(ReportSendingFact.Sender, ["Luton"]))]));
+        Assert.Equal(ReportSendingRulesRule.InvalidAddress, refused.Rule);
+        Assert.Equal(nameof(ReportSendingFact.Sender), refused.Field);
     }
 
     /// <summary>A reference prefix is letters only, without the dot (Report Sending SOP v8).</summary>
     [Fact]
     public void ReferencePrefixesAreLettersTrimmedAndUniqueWithoutCase()
     {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules = [Rule(ReportSendingConditionKind.RefPrefix, [" a ", "A", "ab"])]
-        });
-        Assert.Equal(["a", "ab"], Assert.Single(Assert.Single(normalized.Rules).If).Values.ToArray());
+        var normalized = PrincipalReportSendingRules.Normalize(With([Rule(Is(ReportSendingFact.RefPrefix, [" a ", "A", "ab"]))]));
+        Assert.Equal(["a", "ab"], Assert.Single(Assert.Single(Assert.Single(normalized.Rules).If)).Values.ToArray());
 
         foreach (var refused in new[] { "a.", "a1", "a b" })
         {
-            var error = Refused(Rules() with
-            {
-                Rules =
-                [
-                    Rule(ReportSendingConditionKind.Mentions, ["audit"]),
-                    Rule(ReportSendingConditionKind.RefPrefix, [refused])
-                ]
-            });
+            var error = Refused(With([
+                Rule(Is(ReportSendingFact.Outcome, ["repairable"])),
+                Rule(Is(ReportSendingFact.RefPrefix, [refused]))]));
             Assert.Equal(ReportSendingRulesRule.InvalidRefPrefix, error.Rule);
             Assert.Equal(1, error.RuleIndex);
         }
     }
 
-    /// <summary>A previous job takes no value, so one with none is kept and any typed value is dropped.</summary>
+    /// <summary>A previous job takes no value, so one with none is kept and any typed value is dropped; "is not" is kept.</summary>
     [Fact]
-    public void APreviousJobConditionIsKeptWithNoValue()
+    public void APreviousJobConditionIsKeptWithNoValueAndItsNot()
     {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules =
-            [
-                Rule(ReportSendingConditionKind.PreviousJob, []),
-                Rule(ReportSendingConditionKind.PreviousJob, ["typed"])
-            ]
-        });
+        var normalized = PrincipalReportSendingRules.Normalize(With([
+            Rule(Is(ReportSendingFact.PreviousJob, [])),
+            Rule(IsNot(ReportSendingFact.PreviousJob, ["typed"]))]));
 
-        Assert.All(normalized.Rules, rule =>
-        {
-            var condition = Assert.Single(rule.If);
-            Assert.Equal(ReportSendingConditionKind.PreviousJob, condition.Kind);
-            Assert.Empty(condition.Values);
-        });
-    }
-
-    /// <summary>
-    /// A Rate card or an attach override naming a flag is an action of its
-    /// own; an override naming no flag is dropped, so it alone is no action.
-    /// </summary>
-    [Fact]
-    public void ARateCardAndAnAttachOverrideAreActionsAndAnOverrideNamingNoFlagIsDropped()
-    {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules =
-            [
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], RateCard: true)),
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(Estimate: true, FigureBreakdown: false))),
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["a@example.com"], [], Attach: new()))
-            ]
-        });
-
-        Assert.True(normalized.Rules[0].Then.RateCard);
-        Assert.Null(normalized.Rules[0].Then.Attach);
-        Assert.Equal(new ReportSendingAttachOverride(Estimate: true, FigureBreakdown: false), normalized.Rules[1].Then.Attach);
-        Assert.False(normalized.Rules[1].Then.RateCard);
-        Assert.Null(normalized.Rules[2].Then.Attach);
-
-        var error = Refused(Rules() with
-        {
-            Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new()))]
-        });
-        Assert.Equal(ReportSendingRulesRule.EmptyActions, error.Rule);
-    }
-
-    /// <summary>
-    /// The stored text: the default and a rule with neither a Rate card nor an
-    /// attach override write what they wrote before them, and both new fields
-    /// round trip.
-    /// </summary>
-    [Fact]
-    public void TheStoredTextOfTheDefaultAndOfARuleWithoutTheNewFieldsIsUnchanged()
-    {
-        Assert.Equal(
-            """{"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":[],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[]}""",
-            EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default));
-
-        var plain = Rules() with
-        {
-            Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], ["b@example.com"], Remind: "Tell Andy."))]
-        };
-        Assert.EndsWith(
-            ""","rules":[{"match":"All","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"remind":"Tell Andy."}}]}""",
-            EfOrganizationAdministration.ToReportSendingJson(plain),
-            StringComparison.Ordinal);
-
-        var v8 = Rules() with
-        {
-            Rules =
-            [
-                new(
-                    ReportSendingRuleMatch.Any,
-                    [new(ReportSendingConditionKind.RefPrefix, ["a"]), new(ReportSendingConditionKind.PreviousJob, [])],
-                    new([], ["b@example.com"], RateCard: true, Attach: new(Audatex: false)))
-            ]
-        };
-        var json = EfOrganizationAdministration.ToReportSendingJson(v8);
-        Assert.EndsWith(
-            ""","rules":[{"match":"Any","if":[{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["b@example.com"],"rateCard":true,"attach":{"audatex":false}}}]}""",
-            json,
-            StringComparison.Ordinal);
-        Assert.Equal(v8, EfOrganizationAdministration.ReadReportSending(json));
-    }
-
-    /// <summary>
-    /// The Offer ticks (R1151) are stored only when on, as a rule's Rate card
-    /// is, so the default and every rule set saved before them keep their
-    /// text; stored text without them reads both off, and both round trip.
-    /// </summary>
-    [Fact]
-    public void TheOfferTicksAreStoredOnlyWhenOnAndRoundTrip()
-    {
-        var plainJson = EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default);
-        Assert.DoesNotContain("offer", plainJson, StringComparison.OrdinalIgnoreCase);
-        var read = EfOrganizationAdministration.ReadReportSending(plainJson);
-        Assert.False(read.Attach.OfferExternalEstimates);
-        Assert.False(read.Attach.OfferRepairInvoices);
-
-        var offering = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
-        };
-        var json = EfOrganizationAdministration.ToReportSendingJson(offering);
-        Assert.Contains(
-            ""","figureBreakdown":false,"offerExternalEstimates":true,"offerRepairInvoices":true},""",
-            json,
-            StringComparison.Ordinal);
-        Assert.Equal(offering, EfOrganizationAdministration.ReadReportSending(json));
-
-        var one = Rules() with { Attach = ReportSendingAttachments.Default with { OfferRepairInvoices = true } };
-        var oneJson = EfOrganizationAdministration.ToReportSendingJson(one);
-        Assert.Contains(""","figureBreakdown":false,"offerRepairInvoices":true},""", oneJson, StringComparison.Ordinal);
-        Assert.DoesNotContain("offerExternalEstimates", oneJson, StringComparison.Ordinal);
-        Assert.Equal(one, EfOrganizationAdministration.ReadReportSending(oneJson));
-
-        // A rule's override names either tick, on or off, and only then.
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules =
-            [
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(OfferExternalEstimates: false))),
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], Attach: new(OfferRepairInvoices: true)))
-            ]
-        });
-        Assert.Equal(new ReportSendingAttachOverride(OfferExternalEstimates: false), normalized.Rules[0].Then.Attach);
-        Assert.Equal(new ReportSendingAttachOverride(OfferRepairInvoices: true), normalized.Rules[1].Then.Attach);
-        var overriddenJson = EfOrganizationAdministration.ToReportSendingJson(normalized);
-        Assert.Contains("""attach":{"offerExternalEstimates":false}""", overriddenJson, StringComparison.Ordinal);
-        Assert.Contains("""attach":{"offerRepairInvoices":true}""", overriddenJson, StringComparison.Ordinal);
-        Assert.Equal(normalized, EfOrganizationAdministration.ReadReportSending(overriddenJson));
-    }
-
-    /// <summary>A rule's override replaces only the Offer ticks it names (R1151).</summary>
-    [Fact]
-    public void AnOverrideReplacesOnlyTheOfferTicksItNames()
-    {
-        var principal = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true };
-
-        var off = new ReportSendingAttachOverride(OfferExternalEstimates: false).Over(principal);
-        Assert.False(off.OfferExternalEstimates);
-        Assert.True(off.OfferRepairInvoices);
-
-        var kept = new ReportSendingAttachOverride(Estimate: true).Over(principal);
-        Assert.True(kept.OfferExternalEstimates);
-        Assert.True(kept.OfferRepairInvoices);
-
-        var on = new ReportSendingAttachOverride(OfferRepairInvoices: true).Over(ReportSendingAttachments.Default);
-        Assert.False(on.OfferExternalEstimates);
-        Assert.True(on.OfferRepairInvoices);
-        Assert.False(new ReportSendingAttachOverride(OfferRepairInvoices: false).IsEmpty);
+        var first = Assert.Single(Assert.Single(normalized.Rules[0].If));
+        var second = Assert.Single(Assert.Single(normalized.Rules[1].If));
+        Assert.Empty(first.Values);
+        Assert.False(first.Not);
+        Assert.Empty(second.Values);
+        Assert.True(second.Not);
     }
 
     [Fact]
     public void EveryRuleNeedsAConditionWithAValueAndAnAction()
     {
-        var noConditions = Refused(Rules() with
-        {
-            Rules = [new(ReportSendingRuleMatch.All, [], new(["a@example.com"], []))]
-        });
-        Assert.Equal(ReportSendingRulesRule.EmptyRule, noConditions.Rule);
+        var noGroups = Refused(With([new([], [Cc("a@example.com")])]));
+        Assert.Equal(ReportSendingRulesRule.EmptyRule, noGroups.Rule);
+        Assert.Equal(0, noGroups.RuleIndex);
 
-        var noValue = Refused(Rules() with
-        {
-            Rules = [Rule(ReportSendingConditionKind.Mentions, [" ", ""])]
-        });
+        // Empty groups are dropped first, so a rule of only empty groups has no condition.
+        var emptyGroups = Refused(With([new([[], []], [Cc("a@example.com")])]));
+        Assert.Equal(ReportSendingRulesRule.EmptyRule, emptyGroups.Rule);
+
+        var noValue = Refused(With([Rule(Is(ReportSendingFact.Outcome, [" ", ""]))]));
         Assert.Equal(ReportSendingRulesRule.EmptyCondition, noValue.Rule);
+        Assert.Equal(nameof(ReportSendingFact.Outcome), noValue.Field);
 
-        var noAction = Refused(Rules() with
-        {
-            Rules =
-            [
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], new([], [], "ok")),
-                Rule(ReportSendingConditionKind.Mentions, ["Luton"], ReportSendingActions.None)
-            ]
-        });
+        var noAction = Refused(With([Rule(Is(ReportSendingFact.Outcome, ["repairable"])), new([[Is(ReportSendingFact.Outcome, ["repairable"])]], [])]));
         Assert.Equal(ReportSendingRulesRule.EmptyActions, noAction.Rule);
         Assert.Equal(1, noAction.RuleIndex);
     }
 
     [Fact]
-    public void ARuleKeepsItsMatchAndAllItsActions()
+    public void EmptyGroupsAreDroppedAndTheRestKeptInOrder()
     {
-        var normalized = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            Rules =
-            [
-                new(
-                    ReportSendingRuleMatch.Any,
-                    [
-                        new(ReportSendingConditionKind.Mentions, ["Luton"]),
-                        new(ReportSendingConditionKind.ClaimSource, [ContactId])
-                    ],
-                    new(["a@example.com"], ["b@example.com"], " Remind. ", " Hold. ", " Stop. "))
-            ]
-        });
+        var normalized = PrincipalReportSendingRules.Normalize(With([new(
+            [[], [Is(ReportSendingFact.Outcome, ["repairable"]), IsNot(ReportSendingFact.PreviousJob, [])], [], [Is(ReportSendingFact.RefPrefix, ["a"])]],
+            [Cc("a@example.com"), AddTask(" Tell Andy. ")])]));
 
         var rule = Assert.Single(normalized.Rules);
-        Assert.Equal(ReportSendingRuleMatch.Any, rule.Match);
         Assert.Equal(2, rule.If.Count);
-        Assert.Equal("a@example.com", Assert.Single(rule.Then.CcAdd));
-        Assert.Equal("b@example.com", Assert.Single(rule.Then.CcRemove));
-        Assert.Equal("Remind.", rule.Then.Remind);
-        Assert.Equal("Hold.", rule.Then.Hold);
-        Assert.Equal("Stop.", rule.Then.Stop);
-        Assert.False(rule.Then.IsEmpty);
+        Assert.Equal(
+            [ReportSendingFact.Outcome, ReportSendingFact.PreviousJob],
+            rule.If[0].Select(condition => condition.Fact).ToArray());
+        Assert.Equal(ReportSendingFact.RefPrefix, Assert.Single(rule.If[1]).Fact);
+        Assert.Equal("Tell Andy.", rule.Then[1].Text);
     }
 
     [Fact]
     public void NormalizeIsIdempotent()
     {
-        var once = PrincipalReportSendingRules.Normalize(Rules() with
-        {
-            SendTo = [" a@example.com "],
-            Cc = ["B@example.com"],
-            Rules = [Rule(ReportSendingConditionKind.ClaimSource, [ContactId.ToUpperInvariant()])]
-        });
+        var once = PrincipalReportSendingRules.Normalize(new(
+            [new(ReportSendingActionKind.SendTo, [" a@example.com "]), Cc("B@example.com")],
+            [Rule(Is(ReportSendingFact.ClaimSource, [ContactId.ToUpperInvariant()]))]));
 
         Assert.Equal(once, PrincipalReportSendingRules.Normalize(once));
         Assert.Equal(once.Canonical(), PrincipalReportSendingRules.Normalize(once).Canonical());
@@ -468,9 +355,9 @@ public sealed class PrincipalReportSendingRulesTests
     [Fact]
     public void ValuesCompareByContentAndAddressesWithoutCase()
     {
-        var one = Rules() with { SendTo = ["a@example.com"], Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"])] };
-        var same = Rules() with { SendTo = ["A@EXAMPLE.com"], Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"])] };
-        var different = Rules() with { SendTo = ["a@example.com"], Rules = [Rule(ReportSendingConditionKind.Mentions, ["Dunstable"])] };
+        var one = new PrincipalReportSendingRules([Cc("a@example.com")], [Rule(Is(ReportSendingFact.RefPrefix, ["a"]))]);
+        var same = new PrincipalReportSendingRules([Cc("A@EXAMPLE.com")], [Rule(Is(ReportSendingFact.RefPrefix, ["a"]))]);
+        var different = new PrincipalReportSendingRules([Cc("a@example.com")], [Rule(Is(ReportSendingFact.RefPrefix, ["b"]))]);
 
         Assert.Equal(one, same);
         Assert.Equal(one.GetHashCode(), same.GetHashCode());
@@ -481,38 +368,114 @@ public sealed class PrincipalReportSendingRulesTests
     }
 
     [Fact]
-    public void EveryFieldMovesTheCanonicalText()
+    public void EveryPartMovesTheCanonicalText()
     {
-        var baseline = Rules().Canonical();
+        var outcome = Is(ReportSendingFact.Outcome, ["repairable"]);
+        var refPrefix = Is(ReportSendingFact.RefPrefix, ["a"]);
+        var baseline = new PrincipalReportSendingRules([Cc("a@example.com")], [new([[outcome]], [AddTask("One.")])]);
         var changes = new[]
         {
-            Rules() with { SendFromMailbox = "engineers@collisionengineers.co.uk" },
-            Rules() with { SendTo = ["a@example.com"] },
-            Rules() with { SendToOnly = true },
-            Rules() with { ReplyAll = false },
-            Rules() with { Cc = ["a@example.com"] },
-            Rules() with { NeverCc = ["a@example.com"] },
-            Rules() with { Attach = new(FeeNoteSeparate: false) },
-            Rules() with { Attach = new(Estimate: true) },
-            Rules() with { Attach = new(Audatex: true) },
-            Rules() with { Attach = new(ReportImages: false) },
-            Rules() with { Attach = new(VehicleImagesDocument: true) },
-            Rules() with { Attach = new(FigureBreakdown: true) },
-            Rules() with { Attach = new(OfferExternalEstimates: true) },
-            Rules() with { Attach = new(OfferRepairInvoices: true) },
-            Rules() with { GarageFigures = true },
-            Rules() with { Hold = "Hold." },
-            Rules() with { Reminders = ["Remind."] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"])] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], match: ReportSendingRuleMatch.Any)] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], RateCard: true))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: true)))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(Estimate: false)))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(OfferExternalEstimates: true)))] },
-            Rules() with { Rules = [Rule(ReportSendingConditionKind.Mentions, ["Luton"], new(["cc@example.com"], [], Attach: new(OfferRepairInvoices: false)))] }
+            baseline with { EveryCase = [] },
+            baseline with { EveryCase = [Cc("b@example.com")] },
+            baseline with { EveryCase = [new(ReportSendingActionKind.NeverCc, ["a@example.com"])] },
+            baseline with { EveryCase = [Cc("a@example.com"), new(ReportSendingActionKind.ReplyAll)] },
+            baseline with { EveryCase = [new(ReportSendingActionKind.ReplyAll), Cc("a@example.com")] },
+            baseline with { Rules = [] },
+            baseline with { Rules = [new([[IsNot(ReportSendingFact.Outcome, ["repairable"])]], [AddTask("One.")])] },
+            baseline with { Rules = [new([[outcome, refPrefix]], [AddTask("One.")])] },
+            baseline with { Rules = [new([[outcome], [refPrefix]], [AddTask("One.")])] },
+            baseline with { Rules = [new([[refPrefix], [outcome]], [AddTask("One.")])] },
+            baseline with { Rules = [new([[outcome]], [AddTask("Two.")])] },
+            baseline with { Rules = [new([[outcome]], [new(ReportSendingActionKind.Hold, Text: "One.")])] },
+            baseline with { Rules = [new([[outcome]], [new(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate)])] },
+            baseline with { Rules = [new([[outcome]], [new(ReportSendingActionKind.DoNotAttach, File: ReportSendingFile.Estimate)])] },
+            baseline with { Rules = [new([[outcome]], [new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)])] },
+            baseline with { Rules = [new([[outcome]], [AddTask("One.")]), new([[outcome]], [AddTask("One.")])] }
         };
 
-        Assert.All(changes, changed => Assert.NotEqual(baseline, changed.Canonical()));
+        Assert.All(changes, changed => Assert.NotEqual(baseline.Canonical(), changed.Canonical()));
         Assert.Equal(changes.Length, changes.Select(changed => changed.Canonical()).Distinct().Count());
+    }
+
+    [Fact]
+    public void NamesAndMayAttachReadEveryList()
+    {
+        var rules = new PrincipalReportSendingRules(
+            [new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates)],
+            [
+                new([[Is(ReportSendingFact.Outcome, ["repairable"])], [IsNot(ReportSendingFact.PreviousJob, [])]],
+                    [new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferRepairInvoices),
+                     new(ReportSendingActionKind.DoNotAttach, File: ReportSendingFile.Estimate)])
+            ]);
+
+        Assert.True(rules.Names(ReportSendingFact.Outcome));
+        Assert.True(rules.Names(ReportSendingFact.PreviousJob));
+        Assert.False(rules.Names(ReportSendingFact.ClaimSource));
+        Assert.True(rules.MayAttach(ReportSendingFile.OfferExternalEstimates));
+        Assert.True(rules.MayAttach(ReportSendingFile.OfferRepairInvoices));
+        // Do not attach never attaches.
+        Assert.False(rules.MayAttach(ReportSendingFile.Estimate));
+        Assert.False(PrincipalReportSendingRules.Default.Names(ReportSendingFact.PreviousJob));
+        Assert.True(PrincipalReportSendingRules.Default.MayAttach(ReportSendingFile.FeeNoteSeparate));
+    }
+
+    /// <summary>The stored text is the built shape: names for every enum, nothing a value does not carry.</summary>
+    [Fact]
+    public void TheStoredTextIsTheBuiltShapeAndRoundTrips()
+    {
+        Assert.Equal(
+            """{"everyCase":[{"kind":"ReplyAll"},{"kind":"Attach","file":"FeeNoteSeparate"}],"rules":[]}""",
+            EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default));
+        Assert.Equal(
+            EfOrganizationAdministration.ToReportSendingJson(PrincipalReportSendingRules.Default),
+            EfOrganizationAdministration.DefaultReportSendingJson);
+
+        var built = new PrincipalReportSendingRules(
+            [
+                new(ReportSendingActionKind.ReplyAll),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.FeeNoteSeparate),
+                Cc("a@b.c")
+            ],
+            [
+                new(
+                    [[Is(ReportSendingFact.Repairer, [ContactId]), Is(ReportSendingFact.Outcome, ["repairable"])], [IsNot(ReportSendingFact.PreviousJob, [])]],
+                    [AddTask("Authorise the garage")])
+            ]);
+        var json = EfOrganizationAdministration.ToReportSendingJson(built);
+
+        Assert.Equal(
+            $$"""{"everyCase":[{"kind":"ReplyAll"},{"kind":"Attach","file":"FeeNoteSeparate"},{"kind":"Cc","addresses":["a@b.c"]}],"rules":[{"if":[[{"fact":"Repairer","values":["{{ContactId}}"]},{"fact":"Outcome","values":["repairable"]}],[{"fact":"PreviousJob","values":[],"not":true}]],"then":[{"kind":"Task","text":"Authorise the garage"}]}]}""",
+            json);
+        Assert.Equal(built, EfOrganizationAdministration.ReadReportSending(json));
+    }
+
+    /// <summary>
+    /// History and receipts are written with the general serializer, which
+    /// writes enums as numbers; the rules' enums carry their own names.
+    /// </summary>
+    [Fact]
+    public void HistoryWritesTheRulesEnumsByName()
+    {
+        var rules = new PrincipalReportSendingRules(
+            [new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)],
+            [Rule(IsNot(ReportSendingFact.Sender, ["a@example.com"]), AddTask("One."))]);
+
+        var json = JsonSerializer.Serialize(rules, EfOrganizationAdministration.SerializerOptions);
+
+        Assert.Contains("\"kind\":\"Attach\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"file\":\"Audatex\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"fact\":\"Sender\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("null", json, StringComparison.Ordinal);
+        Assert.Equal(rules, JsonSerializer.Deserialize<PrincipalReportSendingRules>(json, EfOrganizationAdministration.SerializerOptions));
+    }
+
+    /// <summary>No reader for the earlier shape remains (R1267): its text fails as JSON.</summary>
+    [Fact]
+    public void TheEarlierShapeIsNotRead()
+    {
+        Assert.ThrowsAny<JsonException>(() => EfOrganizationAdministration.ReadReportSending(
+            """{"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":[],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[]}"""));
+        Assert.ThrowsAny<JsonException>(() => EfOrganizationAdministration.ReadReportSending(
+            """{"everyCase":[],"rules":[{"match":"All","if":[{"kind":"Outcome","values":["repairable"]}],"then":{"ccAdd":["a@example.com"],"ccRemove":[]}}]}"""));
     }
 }

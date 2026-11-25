@@ -34,7 +34,14 @@ public sealed record Principal(
     // VAT number and payment terms that invoice prints (R1148); null leaves the row out.
     PrincipalInvoiceKind PrincipalInvoice = PrincipalInvoiceKind.None,
     string? InvoiceVatNumber = null,
-    string? InvoicePaymentTerms = null)
+    string? InvoicePaymentTerms = null,
+    // The Outgoing mailbox a report send starts on when no mailbox the
+    // instruction e-mail arrived in can send it; staff may change it, as they
+    // may any From (R655). Its own setting since 25 November 2026 (R1267).
+    string? SendFromMailbox = null,
+    // Whether its reports carry vehicle images; false generates them without
+    // (operator, 6 October 2026). Its own setting since 25 November 2026 (R1267).
+    bool ReportImages = true)
 {
     /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8). Every
@@ -324,9 +331,10 @@ public interface ILinkedCaseReplacementStore
 
 
 /// <summary>
-/// Change an existing principal's report settings: the default fee and what
-/// its reports are called (R740). The notes shown on every Case belong to the
-/// contact and its Save.
+/// Change an existing principal's report settings: whether its reports carry
+/// vehicle images and what they are called (R740). The default fee, the
+/// default inspection location, the Send from mailbox and the notes shown on
+/// every Case belong to the contact and its Save (R1266, R1267).
 /// </summary>
 public sealed record UpdatePrincipalReportSettingsRequest(
     Guid PrincipalId,
@@ -334,7 +342,7 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     ActionActor Actor,
     string OperationKey,
     string? Reason,
-    decimal DefaultFee,
+    bool ReportImages,
     long ExpectedContactVersion,
     PrincipalReportNames? ReportNames = null,
     string? FeeNoteVatNumber = null,

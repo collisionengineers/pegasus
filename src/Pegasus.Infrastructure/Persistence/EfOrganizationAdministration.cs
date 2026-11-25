@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -19,8 +18,6 @@ public sealed class EfOrganizationAdministration(
 {
     private const string UpdatePrincipalReportSettingsKind = "update_principal_report_settings";
     private const string UpdatePrincipalReportSendingKind = "update_principal_report_sending";
-    private const string UpdatePrincipalDefaultInspectionLocationKind =
-        "update_principal_default_inspection_location";
     private const string ReplacePrincipalKind = "replace_principal";
     private const string PolicyVersion = "organization-principal-administration/v1";
     internal static readonly JsonSerializerOptions SerializerOptions =
@@ -71,15 +68,9 @@ public sealed class EfOrganizationAdministration(
             token => UpdatePrincipalReportSendingOnceAsync(request, token),
             cancellationToken);
 
-    public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
-        UpdatePrincipalDefaultInspectionLocationRequest request,
-        CancellationToken cancellationToken) =>
-        ExecuteWithConcurrencyRetryAsync(
-            token => UpdatePrincipalDefaultInspectionLocationOnceAsync(request, token),
-            cancellationToken);
-
     /// <summary>
-    /// Changes a principal's default fee and notes.
+    /// Changes a principal's report settings: Report images, its report names,
+    /// its fee note VAT number, its Audit workflow and its own invoice.
     ///
     /// The only principal attribute that changes in place. Everything else
     /// about a principal is immutable once work has been allocated against it,
@@ -105,7 +96,7 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedVersion,
             request.ExpectedContactVersion,
             request.Reason,
-            request.DefaultFee,
+            request.ReportImages,
             request.ReportNames,
             request.FeeNoteVatNumber,
             request.AuditWorkflow,
@@ -136,7 +127,7 @@ public sealed class EfOrganizationAdministration(
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
             request.ExpectedVersion,
-            request.DefaultFee,
+            request.ReportImages,
             request.ReportNames,
             request.FeeNoteVatNumber,
             request.AuditWorkflow,
@@ -144,7 +135,7 @@ public sealed class EfOrganizationAdministration(
             request.InvoiceVatNumber,
             request.InvoicePaymentTerms);
 
-        entity.DefaultFee = result.DefaultFee;
+        entity.ReportImages = result.ReportImages;
         WriteReportNames(entity, result.ReportNames);
         entity.FeeNoteVatNumber = result.FeeNoteVatNumber;
         entity.AuditWorkflow = PrincipalAuditWorkflowPolicy.ToCode(result.AuditWorkflow);
@@ -249,110 +240,6 @@ public sealed class EfOrganizationAdministration(
         return result;
     }
 
-    /// <summary>
-    /// EXT-18/S05 item 6: the principal's one default inspection-location
-    /// choice. Writes only the directory-facing summary columns F/G1 added to
-    /// <see cref="PrincipalEntity"/> — the shared <see cref="Principal"/>
-    /// record and B's separate CE assessment method are untouched.
-    /// </summary>
-    private async Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationOnceAsync(
-        UpdatePrincipalDefaultInspectionLocationRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var requestHash = HashRequest(new
-        {
-            command = UpdatePrincipalDefaultInspectionLocationKind,
-            actor = ActorMaterial(request.Actor),
-            request.PrincipalId,
-            request.ExpectedVersion,
-            request.ExpectedContactVersion,
-            kind = request.Kind.ToString(),
-            request.Label,
-            request.Address,
-            request.Postcode,
-            request.SourceKind,
-            request.SourceRecordId,
-            request.SourceVersion
-        });
-
-        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
-        if (receipt is not null)
-        {
-            var replay = ReadReplay<PrincipalAdministrationSummary>(
-                receipt,
-                UpdatePrincipalDefaultInspectionLocationKind,
-                requestHash);
-            await transaction.CommitAsync(cancellationToken);
-            return replay;
-        }
-
-        var entity = await context.Principals
-            .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
-            ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactVersionAsync(
-            context, entity, request.ExpectedContactVersion, cancellationToken);
-        if (entity.Version != request.ExpectedVersion)
-        {
-            throw Error(OrganizationAdministrationError.StaleVersion);
-        }
-        if (!entity.IsActive)
-        {
-            throw Error(OrganizationAdministrationError.PrincipalInactive);
-        }
-
-        var isImageBased = request.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment;
-        var changed = entity.DefaultInspectionLocationLabel != request.Label
-            || entity.DefaultInspectionAddress != (isImageBased ? null : request.Address)
-            || entity.DefaultInspectionPostcode != request.Postcode
-            || entity.DefaultInspectionSourceKind != request.SourceKind
-            || entity.DefaultInspectionSourceRecordId != request.SourceRecordId?.ToString("D")
-            || entity.DefaultInspectionSourceVersion != request.SourceVersion;
-
-        // The allocated-case count is unaffected by this mutation, so it is
-        // computed once and reused for both the before and after snapshots
-        // (EXT-18/S05 item 6: a staff override keeps the fact it replaced).
-        var allocatedCaseCount = await context.Cases
-            .AsNoTracking()
-            .CountAsync(item => item.PrincipalId == entity.Id, cancellationToken);
-        var before = ToSummary(entity, allocatedCaseCount, entity.Organization?.NotesOnEveryCase);
-
-        entity.DefaultInspectionLocationLabel = request.Label;
-        entity.DefaultInspectionAddress = isImageBased ? null : request.Address;
-        entity.DefaultInspectionPostcode = request.Postcode;
-        entity.DefaultInspectionSourceKind = request.SourceKind;
-        entity.DefaultInspectionSourceRecordId = request.SourceRecordId?.ToString("D");
-        entity.DefaultInspectionSourceVersion = request.SourceVersion;
-        entity.Version = changed ? checked(entity.Version + 1) : entity.Version;
-
-        var result = ToSummary(entity, allocatedCaseCount, entity.Organization?.NotesOnEveryCase);
-        var now = _timeProvider.GetUtcNow();
-        AddReceipt(
-            context,
-            request.OperationKey,
-            UpdatePrincipalDefaultInspectionLocationKind,
-            requestHash,
-            result,
-            now);
-        AddHistory(
-            context,
-            "principal",
-            entity.Id,
-            "principal_default_inspection_location_updated",
-            request.Actor,
-            request.OperationKey,
-            now,
-            null,
-            before,
-            result);
-        AdvancePrincipalContactVersion(contact);
-        await SaveChangesAsync(context, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return result;
-    }
-
     private async Task<Principal> ReplacePrincipalOnceAsync(
         ReplacePrincipalRequest request,
         CancellationToken cancellationToken)
@@ -411,6 +298,8 @@ public sealed class EfOrganizationAdministration(
             IsActive = result.IsActive,
             InspectionMode = PrincipalInspectionModePolicy.ToCode(result.InspectionMode),
             DefaultFee = result.DefaultFee,
+            SendFromMailbox = result.SendFromMailbox,
+            ReportImages = result.ReportImages,
             ReportSendingRulesJson = ToReportSendingJson(result.ReportSending),
             InspectionReportNameFirst = result.ReportNames.InspectionFirst,
             InspectionReportNameResend = result.ReportNames.InspectionResend,
@@ -529,7 +418,9 @@ public sealed class EfOrganizationAdministration(
             PrincipalAuditWorkflowPolicy.Parse(entity.AuditWorkflow),
             PrincipalInvoicePolicy.Parse(entity.PrincipalInvoice),
             entity.InvoiceVatNumber,
-            entity.InvoicePaymentTerms);
+            entity.InvoicePaymentTerms,
+            entity.SendFromMailbox,
+            entity.ReportImages);
 
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
@@ -550,7 +441,9 @@ public sealed class EfOrganizationAdministration(
             PrincipalAuditWorkflowPolicy.Parse(entity.AuditWorkflow),
             PrincipalInvoicePolicy.Parse(entity.PrincipalInvoice),
             entity.InvoiceVatNumber,
-            entity.InvoicePaymentTerms);
+            entity.InvoicePaymentTerms,
+            entity.SendFromMailbox,
+            entity.ReportImages);
 
     /// <summary>A Principal's report names as its four columns hold them.</summary>
     internal static PrincipalReportNames ReadReportNames(PrincipalEntity entity) =>
@@ -572,7 +465,11 @@ public sealed class EfOrganizationAdministration(
     internal static string ToReportSendingJson(PrincipalReportSendingRules rules) =>
         JsonSerializer.Serialize(rules, ReportSendingSerializerOptions);
 
-    /// <summary>Stored rules are read back through the same rules they were saved under.</summary>
+    /// <summary>
+    /// Stored rules are read back through the same rules they were saved
+    /// under. Only the built shape is read (R1267): text in any earlier shape
+    /// fails as JSON.
+    /// </summary>
     internal static PrincipalReportSendingRules ReadReportSending(string json) =>
         PrincipalReportSendingRules.Normalize(
             JsonSerializer.Deserialize<PrincipalReportSendingRules>(json, ReportSendingSerializerOptions)!);

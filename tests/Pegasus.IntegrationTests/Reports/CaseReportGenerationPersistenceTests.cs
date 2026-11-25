@@ -2612,7 +2612,14 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 generation.Snapshot.CaseReference,
                 null,
                 null,
-                PrincipalReportSendingRules.Default with { SendTo = ["digital@collisionengineers.co.uk"] },
+                PrincipalReportSendingRules.Default with
+                {
+                    EveryCase =
+                    [
+                        .. PrincipalReportSendingRules.Default.EveryCase,
+                        new(ReportSendingActionKind.SendTo, Addresses: ["digital@collisionengineers.co.uk"])
+                    ]
+                },
                 null);
             await new SendCaseReport(
                     Store,
@@ -2840,11 +2847,7 @@ public sealed class CaseReportGenerationPersistenceTests(ReportGenerationDatabas
                 .Select(item => item.PrincipalId)
                 .SingleAsync();
             var principal = await context.Set<PrincipalEntity>().SingleAsync(item => item.Id == principalId);
-            principal.ReportSendingRulesJson = EfOrganizationAdministration.ToReportSendingJson(
-                PrincipalReportSendingRules.Default with
-                {
-                    Attach = ReportSendingAttachments.Default with { ReportImages = reportImages },
-                });
+            principal.ReportImages = reportImages;
             await context.SaveChangesAsync();
             snapshotSource.IncludeVehicleImages = reportImages;
         }

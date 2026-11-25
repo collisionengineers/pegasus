@@ -169,7 +169,9 @@ public sealed class EfContactDirectoryAdministration(
         {
             command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name,
             request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Role, request.PrincipalCode,
-            request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase
+            request.PrincipalInspectionMode, request.LinkedPrincipalIds, request.NotesOnEveryCase,
+            request.DefaultFee, request.DefaultInspectionLocationLabel, request.DefaultInspectionAddress,
+            request.DefaultInspectionPostcode, request.SendFromMailbox
         });
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
@@ -215,27 +217,64 @@ public sealed class EfContactDirectoryAdministration(
         entity.NotesOnEveryCase = request.NotesOnEveryCase;
 
         var isPrincipal = request.Role == ContactRole.Principal;
-        if (isPrincipal && entity.Principals.Count == 0)
+        var creatingPrincipal = isPrincipal && entity.Principals.Count == 0;
+        // A Principal contact's save carries its Case defaults (R1266): the fee
+        // is required on an existing Principal and standard on a new one that
+        // posts none.
+        var defaultFee = isPrincipal ? ContactDirectoryPolicy.PrincipalDefaultFee(request, creatingPrincipal) : 0m;
+        if (creatingPrincipal)
         {
             if (await context.Principals.AnyAsync(item => item.Code == request.PrincipalCode, cancellationToken))
                 throw new ContactDirectoryException(ContactDirectoryError.DuplicatePrincipalCode);
             var lineage = new PrincipalSequenceLineageEntity { Id = Guid.NewGuid(), CreatedAtUtc = _timeProvider.GetUtcNow() };
             context.PrincipalSequenceLineages.Add(lineage);
-            entity.Principals.Add(new PrincipalEntity { Id = Guid.NewGuid(), OrganizationId = entity.Id, Code = request.PrincipalCode!, SequenceLineageId = lineage.Id, SequenceLineage = lineage, IsActive = entity.Active, InspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode), ReportSendingRulesJson = EfOrganizationAdministration.DefaultReportSendingJson, Version = 0 });
+            var created = new PrincipalEntity { Id = Guid.NewGuid(), OrganizationId = entity.Id, Code = request.PrincipalCode!, SequenceLineageId = lineage.Id, SequenceLineage = lineage, IsActive = entity.Active, InspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode), DefaultFee = defaultFee, SendFromMailbox = request.SendFromMailbox, ReportSendingRulesJson = EfOrganizationAdministration.DefaultReportSendingJson, Version = 0 };
+            WriteDefaultInspectionLocation(created, request);
+            entity.Principals.Add(created);
             changed = true;
         }
         foreach (var principal in entity.Principals.Where(item => item.SuccessorId is null))
         {
+            var principalChanged = false;
             if (principal.IsActive != entity.Active)
             {
                 principal.IsActive = entity.Active;
-                changed = true;
+                principalChanged = true;
             }
-            // An existing Principal takes the posted mode (operator, 16 October 2026).
+            // An existing Principal takes the posted mode (operator, 16 October
+            // 2026); it applies to the Cases made afterwards, and no Case already
+            // made is rewritten.
             var inspectionMode = PrincipalInspectionModePolicy.ToCode(request.PrincipalInspectionMode);
             if (principal.InspectionMode != inspectionMode)
             {
                 principal.InspectionMode = inspectionMode;
+                principalChanged = true;
+            }
+            if (isPrincipal)
+            {
+                if (principal.DefaultFee != defaultFee)
+                {
+                    principal.DefaultFee = defaultFee;
+                    principalChanged = true;
+                }
+                if (principal.SendFromMailbox != request.SendFromMailbox)
+                {
+                    principal.SendFromMailbox = request.SendFromMailbox;
+                    principalChanged = true;
+                }
+                if (principal.DefaultInspectionLocationLabel != request.DefaultInspectionLocationLabel
+                    || principal.DefaultInspectionAddress != request.DefaultInspectionAddress
+                    || principal.DefaultInspectionPostcode != request.DefaultInspectionPostcode)
+                {
+                    WriteDefaultInspectionLocation(principal, request);
+                    principalChanged = true;
+                }
+            }
+            // A change to the Principal moves its version as well as the
+            // contact's, so a Principal form drawn before it is stale.
+            if (principalChanged)
+            {
+                principal.Version = checked(principal.Version + 1);
                 changed = true;
             }
         }
@@ -266,7 +305,21 @@ public sealed class EfContactDirectoryAdministration(
         return result;
     }
 
-    /// <summary>One statement over the choice's own columns: no Principal link, Principal or latest Case is read.</summary>
+    /// <summary>
+    /// A Principal's default inspection location as the save normalised it,
+    /// with its source as the Principal's own location form wrote it: a
+    /// location staff type is "manual", and none has no source.
+    /// </summary>
+    private static void WriteDefaultInspectionLocation(PrincipalEntity principal, SaveContactRequest request)
+    {
+        principal.DefaultInspectionLocationLabel = request.DefaultInspectionLocationLabel;
+        principal.DefaultInspectionAddress = request.DefaultInspectionAddress;
+        principal.DefaultInspectionPostcode = request.DefaultInspectionPostcode;
+        principal.DefaultInspectionSourceKind = request.DefaultInspectionAddress is null ? null : "manual";
+        principal.DefaultInspectionSourceRecordId = null;
+        principal.DefaultInspectionSourceVersion = null;
+    }
+
     /// <summary>
     /// The possible matches' read: the organisation's own columns and nothing
     /// else, since a match draws no Principal link (R373).
@@ -409,6 +462,9 @@ public sealed class EfContactDirectoryAdministration(
         IReadOnlyList<Guid>? linkedPrincipalIds = null)
     {
         var links = (linkedPrincipalIds ?? entity.PrincipalLinks.Select(item => item.PrincipalId)).Order().ToArray();
+        // The current Principal, the one without a successor: the mode and Case
+        // defaults a save compares with and writes.
+        var current = entity.Principals.FirstOrDefault(item => item.SuccessorId is null);
         return new(
             entity.Id,
             entity.Name,
@@ -426,9 +482,12 @@ public sealed class EfContactDirectoryAdministration(
             entity.NotesOnEveryCase,
             entity.Principals.OrderByDescending(item => item.IsActive).ThenBy(item => item.Code, StringComparer.Ordinal)
                 .Select(item => item.Code).FirstOrDefault(),
-            // The mode a save compares with: the current Principal's, the one without a successor.
-            entity.Principals.Where(item => item.SuccessorId is null)
-                .Select(item => (CaseInspectionMode?)PrincipalInspectionModePolicy.Parse(item.InspectionMode)).FirstOrDefault());
+            current is null ? null : PrincipalInspectionModePolicy.Parse(current.InspectionMode),
+            current?.DefaultFee,
+            current?.DefaultInspectionLocationLabel,
+            current?.DefaultInspectionAddress,
+            current?.DefaultInspectionPostcode,
+            current?.SendFromMailbox);
     }
 
     private sealed class LatestCaseRow
@@ -438,7 +497,7 @@ public sealed class EfContactDirectoryAdministration(
         public string Reference { get; init; } = string.Empty;
     }
 
-    private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), EfOrganizationAdministration.ReadReportSending(item.ReportSendingRulesJson)));
+    private static PrincipalAdministrationDetails ToPrincipalChoice(PrincipalEntity item) => new(item.Organization.Name, new(item.Id, item.OrganizationId, item.Code, item.SequenceLineageId, item.PredecessorId, item.SuccessorId, item.IsActive, item.Version, 0, PrincipalInspectionModePolicy.Parse(item.InspectionMode), EfOrganizationAdministration.ReadReportSending(item.ReportSendingRulesJson), SendFromMailbox: item.SendFromMailbox, ReportImages: item.ReportImages));
     private static string ToCode(ContactRole role) => role switch { ContactRole.Principal => "principal", ContactRole.ClaimSource => "claim_source", ContactRole.Repairer => "repairer", _ => throw new ArgumentOutOfRangeException(nameof(role)) };
     private static ContactRole ParseRole(string role) => role switch { "principal" => ContactRole.Principal, "claim_source" => ContactRole.ClaimSource, "repairer" => ContactRole.Repairer, _ => throw new InvalidOperationException("The contact role is invalid.") };
     private static bool IsRetryable(Exception error) => error is ContactDirectoryException { Error: ContactDirectoryError.StaleVersion or ContactDirectoryError.DuplicateOrganizationName or ContactDirectoryError.DuplicatePrincipalCode } || error is SqlException { Number: 1205 or 2601 or 2627 } || error.InnerException is not null && IsRetryable(error.InnerException);

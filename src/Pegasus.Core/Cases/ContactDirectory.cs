@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Cases;
 
@@ -12,6 +13,13 @@ public enum ContactRole
     Repairer
 }
 
+/// <summary>
+/// One directory organisation as the Contacts pages, a save's receipt and its
+/// history read it. A Principal contact also carries its current Principal's
+/// Case defaults, which its Save edits (operator, 25 November 2026; R1266,
+/// R1267): the default fee, the default inspection location and the Send from
+/// mailbox.
+/// </summary>
 public sealed record ContactDirectoryRecord(
     Guid OrganizationId,
     string Name,
@@ -28,7 +36,12 @@ public sealed record ContactDirectoryRecord(
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
     string? NotesOnEveryCase = null,
     string? PrincipalCode = null,
-    CaseInspectionMode? PrincipalInspectionMode = null);
+    CaseInspectionMode? PrincipalInspectionMode = null,
+    decimal? DefaultFee = null,
+    string? DefaultInspectionLocationLabel = null,
+    string? DefaultInspectionAddress = null,
+    string? DefaultInspectionPostcode = null,
+    string? SendFromMailbox = null);
 
 /// <summary>One directory organisation as a choice or a possible match offers it:
 /// the facts a Case link copies and a list draws, and the codes of the Principals it is
@@ -68,6 +81,16 @@ public sealed record ContactDirectoryPage(
     int PageNumber,
     bool HasNextPage);
 
+/// <summary>
+/// One contact's save. For a Principal it also carries the current
+/// Principal's Case defaults (operator, 25 November 2026; R1266, R1267):
+/// <paramref name="PrincipalInspectionMode"/>, which applies to Cases made
+/// afterwards; <paramref name="DefaultFee"/>, required on an existing
+/// Principal and the standard fee when a new one gives none; the default
+/// inspection location, which Image Based Assessment clears and which is
+/// optional for a physical address; and <paramref name="SendFromMailbox"/>.
+/// None of them is valid for another type.
+/// </summary>
 public sealed record SaveContactRequest(
     ActionActor Actor,
     Guid OrganizationId,
@@ -83,7 +106,12 @@ public sealed record SaveContactRequest(
     CaseInspectionMode PrincipalInspectionMode,
     IReadOnlyList<Guid> LinkedPrincipalIds,
     string OperationKey,
-    string? NotesOnEveryCase = null);
+    string? NotesOnEveryCase = null,
+    decimal? DefaultFee = null,
+    string? DefaultInspectionLocationLabel = null,
+    string? DefaultInspectionAddress = null,
+    string? DefaultInspectionPostcode = null,
+    string? SendFromMailbox = null);
 
 public interface IContactDirectoryQueries
 {
@@ -153,6 +181,8 @@ public static partial class ContactDirectoryPolicy
     public const int MaximumAddressLength = 1000;
     public const int MaximumPostcodeLength = 20;
     public const int MaximumNotesOnEveryCaseLength = 2000;
+    public const int MaximumDefaultInspectionLocationLabelLength = 200;
+    public const int MaximumDefaultInspectionAddressLength = 1000;
     public const int MaximumOperationKeyLength = 100;
     public const int PageSize = 50;
     public const int MaximumPage = int.MaxValue / PageSize;
@@ -196,9 +226,40 @@ public static partial class ContactDirectoryPolicy
         {
             throw new ArgumentException("A principal contact cannot link to a principal.", nameof(request));
         }
+        if (!isPrincipal
+            && (request.DefaultFee is not null
+                || !string.IsNullOrWhiteSpace(request.DefaultInspectionLocationLabel)
+                || !string.IsNullOrWhiteSpace(request.DefaultInspectionAddress)
+                || !string.IsNullOrWhiteSpace(request.DefaultInspectionPostcode)
+                || !string.IsNullOrWhiteSpace(request.SendFromMailbox)))
+        {
+            throw new ArgumentException("A Principal's Case defaults are only valid for a principal contact.", nameof(request));
+        }
+        if (!Enum.IsDefined(request.PrincipalInspectionMode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request.PrincipalInspectionMode), "The inspection mode is not one of the choices.");
+        }
+        if (request.DefaultFee is { } fee)
+        {
+            PrincipalDefaultFeePolicy.Require(fee, nameof(request.DefaultFee));
+        }
+        var location = DefaultInspectionLocation(
+            request.PrincipalInspectionMode,
+            request.DefaultInspectionLocationLabel,
+            request.DefaultInspectionAddress,
+            request.DefaultInspectionPostcode);
+        var sendFrom = string.IsNullOrWhiteSpace(request.SendFromMailbox)
+            ? null
+            : PrincipalReportSendingRules.IsAddress(request.SendFromMailbox)
+                ? Required(request.SendFromMailbox, MaximumEmailLength, nameof(request.SendFromMailbox))
+                : throw new ArgumentException("The Send from mailbox must be one e-mail address.", nameof(request.SendFromMailbox));
 
         return request with
         {
+            DefaultInspectionLocationLabel = location.Label,
+            DefaultInspectionAddress = location.Address,
+            DefaultInspectionPostcode = location.Postcode,
+            SendFromMailbox = sendFrom,
             Name = Required(request.Name, MaximumNameLength, nameof(request.Name)),
             Email = Optional(request.Email, MaximumEmailLength, nameof(request.Email)),
             Telephone = OptionalTelephone(request.Telephone, MaximumTelephoneLength, nameof(request.Telephone)),
@@ -214,6 +275,49 @@ public static partial class ContactDirectoryPolicy
                 ? null : OrganizationAdministrationPolicy.NormalizePrincipalCode(request.PrincipalCode, nameof(request.PrincipalCode)),
             OperationKey = Required(request.OperationKey, MaximumOperationKeyLength, nameof(request.OperationKey))
         };
+    }
+
+    /// <summary>
+    /// The fee a Principal contact's save writes: the posted one, or for a
+    /// new Principal that posts none the standard fee. An existing Principal
+    /// must post one.
+    /// </summary>
+    public static decimal PrincipalDefaultFee(SaveContactRequest request, bool creatingPrincipal)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return request.DefaultFee is { } fee
+            ? PrincipalDefaultFeePolicy.Require(fee, nameof(request.DefaultFee))
+            : creatingPrincipal
+                ? PrincipalDefaultFeePolicy.Standard
+                : throw new ArgumentException("A Principal's default fee is required.", nameof(request.DefaultFee));
+    }
+
+    /// <summary>
+    /// A Principal's default inspection location for its mode: Image Based
+    /// Assessment has none; a physical address may have none (no production
+    /// Principal holds one), and a label or postcode needs the address
+    /// (EXT-18/S05 item 6).
+    /// </summary>
+    public static (string? Label, string? Address, string? Postcode) DefaultInspectionLocation(
+        CaseInspectionMode mode,
+        string? label,
+        string? address,
+        string? postcode)
+    {
+        if (mode == CaseInspectionMode.ImageBasedAssessment)
+        {
+            return (null, null, null);
+        }
+        var normalizedAddress = Optional(address, MaximumDefaultInspectionAddressLength, nameof(SaveContactRequest.DefaultInspectionAddress));
+        var normalizedLabel = Optional(label, MaximumDefaultInspectionLocationLabelLength, nameof(SaveContactRequest.DefaultInspectionLocationLabel));
+        var normalizedPostcode = Optional(postcode, MaximumPostcodeLength, nameof(SaveContactRequest.DefaultInspectionPostcode));
+        if (normalizedAddress is null && (normalizedLabel is not null || normalizedPostcode is not null))
+        {
+            throw new ArgumentException(
+                "A physical default inspection location requires an address.",
+                nameof(SaveContactRequest.DefaultInspectionAddress));
+        }
+        return (normalizedLabel, normalizedAddress, normalizedPostcode);
     }
 
     internal static string Required(string value, int max, string name) =>

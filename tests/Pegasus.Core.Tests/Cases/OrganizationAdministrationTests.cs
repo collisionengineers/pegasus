@@ -1,4 +1,3 @@
-using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -77,144 +76,6 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
-    public void NormalizeDefaultInspectionLocationClearsAddressFieldsForImageBasedAssessment()
-    {
-        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
-            Administrator,
-            Guid.NewGuid(),
-            3,
-            "  op-key  ",
-            InspectionAddressEvidenceKind.ImageBasedAssessment,
-            Label: "Should be cleared",
-            Address: "Should be cleared",
-            Postcode: "Should be cleared",
-            SourceKind: "directory",
-            SourceRecordId: Guid.NewGuid(),
-            SourceVersion: 5,
-            ExpectedContactVersion: 3);
-
-        var normalized = OrganizationAdministrationPolicy.Normalize(request);
-
-        Assert.Equal("op-key", normalized.OperationKey);
-        Assert.Null(normalized.Label);
-        Assert.Null(normalized.Address);
-        Assert.Null(normalized.Postcode);
-        Assert.Null(normalized.SourceKind);
-        Assert.Null(normalized.SourceRecordId);
-        Assert.Null(normalized.SourceVersion);
-    }
-
-    [Fact]
-    public void NormalizeDefaultInspectionLocationTrimsAPhysicalAddressAndPostcode()
-    {
-        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
-            Administrator,
-            Guid.NewGuid(),
-            0,
-            "op-key",
-            InspectionAddressEvidenceKind.PhysicalAddress,
-            Label: "Yard",
-            Address: "  1 Test Street  ",
-            Postcode: "  TE1 1ST  ",
-            SourceKind: "manual",
-            SourceRecordId: null,
-            SourceVersion: null,
-            ExpectedContactVersion: 0);
-
-        var normalized = OrganizationAdministrationPolicy.Normalize(request);
-
-        Assert.Equal("1 Test Street", normalized.Address);
-        Assert.Equal("TE1 1ST", normalized.Postcode);
-    }
-
-    [Fact]
-    public void NormalizeDefaultInspectionLocationRequiresAnAddressForAPhysicalChoice()
-    {
-        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
-            Administrator,
-            Guid.NewGuid(),
-            0,
-            "op-key",
-            InspectionAddressEvidenceKind.PhysicalAddress,
-            Label: null,
-            Address: "   ",
-            Postcode: null,
-            SourceKind: null,
-            SourceRecordId: null,
-            SourceVersion: null,
-            ExpectedContactVersion: 0);
-
-        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
-    }
-
-    [Fact]
-    public void NormalizeDefaultInspectionLocationRejectsAnUndefinedKind()
-    {
-        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
-            Administrator,
-            Guid.NewGuid(),
-            0,
-            "op-key",
-            (InspectionAddressEvidenceKind)99,
-            null, null, null, null, null, null,
-            0);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => OrganizationAdministrationPolicy.Normalize(request));
-    }
-
-    [Fact]
-    public async Task UpdatePrincipalDefaultInspectionLocationDeniesNonAdministratorBeforePersistence()
-    {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var store = new RecordingStore();
-        var command = new UpdatePrincipalDefaultInspectionLocation(store);
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            command.ExecuteAsync(
-                new(
-                    actor,
-                    Guid.NewGuid(),
-                    0,
-                    "op-key",
-                    InspectionAddressEvidenceKind.ImageBasedAssessment,
-                    null, null, null, null, null, null,
-                    0),
-                default));
-
-        Assert.Empty(store.DefaultInspectionLocationUpdates);
-    }
-
-    [Fact]
-    public async Task UpdatePrincipalDefaultInspectionLocationNormalizesInputBeforeCallingPersistencePort()
-    {
-        var store = new RecordingStore();
-        var command = new UpdatePrincipalDefaultInspectionLocation(store);
-        var principalId = Guid.NewGuid();
-
-        await command.ExecuteAsync(
-            new(
-                Administrator,
-                principalId,
-                2,
-                "  op-key  ",
-                InspectionAddressEvidenceKind.PhysicalAddress,
-                "Yard",
-                "  1 Test Street  ",
-                "  TE1 1ST  ",
-                "manual",
-                null,
-                null,
-                2),
-            default);
-
-        var request = Assert.Single(store.DefaultInspectionLocationUpdates);
-        Assert.Equal(principalId, request.PrincipalId);
-        Assert.Equal("op-key", request.OperationKey);
-        Assert.Equal("1 Test Street", request.Address);
-        Assert.Equal("TE1 1ST", request.Postcode);
-    }
-
-    [Fact]
     public void ReplacementPolicyLinksSuccessorWithoutMutatingOriginalIdentity()
     {
         var predecessor = new Principal(
@@ -266,6 +127,28 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(210.00m, replacement.Successor.DefaultFee);
     }
 
+    /// <summary>R1267: a successor code starts on the predecessor's Send from and Report images.</summary>
+    [Fact]
+    public void ASuccessorInheritsItsPredecessorsSendFromAndReportImages()
+    {
+        var predecessor = Principal(version: 3) with
+        {
+            SendFromMailbox = "engineers@collisionengineers.co.uk",
+            ReportImages = false
+        };
+
+        var replacement = OrganizationAdministrationPolicy.PlanPrincipalReplacement(
+            predecessor,
+            3,
+            Guid.NewGuid(),
+            "NEXT",
+            codeAlreadyExists: false);
+
+        Assert.Equal("engineers@collisionengineers.co.uk", replacement.Successor.SendFromMailbox);
+        Assert.False(replacement.Successor.ReportImages);
+        Assert.False(replacement.Predecessor.ReportImages);
+    }
+
     /// <summary>R1006: a successor code prints the fee note VAT number its predecessor did.</summary>
     [Fact]
     public void ASuccessorInheritsItsPredecessorsFeeNoteVatNumber()
@@ -297,7 +180,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             feeNoteVatNumber: "  GB 123 4567 89 ");
 
@@ -307,14 +190,14 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             feeNoteVatNumber: "GB 123 4567 89").Version);
 
         var cleared = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             feeNoteVatNumber: "   ");
         Assert.Null(cleared.FeeNoteVatNumber);
@@ -323,7 +206,7 @@ public sealed class OrganizationAdministrationTests
         var standard = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             feeNoteVatNumber: AssessmentReportContract.VatNumber);
         Assert.Null(standard.FeeNoteVatNumber);
@@ -342,7 +225,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null,
                 feeNoteVatNumber: longest + "7"));
     }
@@ -390,7 +273,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
             principalInvoice: PrincipalInvoiceKind.UlaInvoice,
@@ -406,7 +289,7 @@ public sealed class OrganizationAdministrationTests
         var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
             principalInvoice: PrincipalInvoiceKind.UlaInvoice,
@@ -417,7 +300,7 @@ public sealed class OrganizationAdministrationTests
         var cleared = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: null,
             auditWorkflow: AuditWorkflowKind.GarageAuthorisationAndInvoice,
             principalInvoice: PrincipalInvoiceKind.UlaInvoice,
@@ -436,46 +319,48 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null,
                 invoiceVatNumber: new string('7', PrincipalInvoicePolicy.MaximumVatNumberLength + 1)));
         Assert.Throws<ArgumentException>(() =>
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null,
                 invoicePaymentTerms: new string('t', PrincipalInvoicePolicy.MaximumPaymentTermsLength + 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null,
                 auditWorkflow: (AuditWorkflowKind)99));
     }
 
     /// <summary>
-    /// The default fee is saved with the report settings and moves the
-    /// version only when it changes.
+    /// Report images is saved with the report settings and moves the version
+    /// only when it changes; the default fee is the contact's Save's (R1266).
     /// </summary>
     [Fact]
-    public void TheDefaultFeeChangesWithTheReportSettings()
+    public void ReportImagesChangesWithTheReportSettings()
     {
         var current = Principal(version: 3);
+        Assert.True(current.ReportImages);
 
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 200.00m,
+            reportImages: false,
             reportNames: null);
 
-        Assert.Equal(200.00m, updated.DefaultFee);
+        Assert.False(updated.ReportImages);
+        Assert.Equal(current.DefaultFee, updated.DefaultFee);
         Assert.Equal(4, updated.Version);
         Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: 200m,
+            reportImages: false,
             reportNames: null).Version);
     }
 
@@ -491,7 +376,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: new(null, null, " {REG}_{CASE REF}_AUDIT ", ""));
 
         Assert.Equal(new Pegasus.Core.Reports.PrincipalReportNames(null, null, "{REG}_{CASE REF}_AUDIT", null), updated.ReportNames);
@@ -499,38 +384,26 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal(4, OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             updated,
             expectedVersion: 4,
-            defaultFee: current.DefaultFee,
+            reportImages: true,
             reportNames: updated.ReportNames).Version);
         Assert.Throws<Pegasus.Core.Reports.ReportNamesException>(() =>
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 updated,
                 expectedVersion: 4,
-                defaultFee: current.DefaultFee,
+                reportImages: true,
                 reportNames: new("{ref}", null, null, null)));
     }
 
-    /// <summary>
-    /// The default fee is required: more than £0, in whole pence, the
-    /// agreed fee's own rule.
-    /// </summary>
-    [Theory]
-    [InlineData("0")]
-    [InlineData("-1")]
-    [InlineData("180.005")]
-    public void ADefaultFeeTheAgreedFeeWouldRefuseIsRefused(string fee)
+    [Fact]
+    public void TheReportSettingsRequestCarriesReportImagesThroughNormalize()
     {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var request = new UpdatePrincipalReportSettingsRequest(
-            Guid.NewGuid(), 1, actor, "fee-op", null,
-            decimal.Parse(fee, System.Globalization.CultureInfo.InvariantCulture), 1);
+            Guid.NewGuid(), 1, Administrator, " settings-op ", null, false, 1);
 
-        Assert.ThrowsAny<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
-        Assert.ThrowsAny<ArgumentException>(() =>
-            OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
-                Principal(version: 3),
-                expectedVersion: 3,
-                defaultFee: request.DefaultFee,
-                reportNames: null));
+        var normalized = OrganizationAdministrationPolicy.Normalize(request);
+
+        Assert.False(normalized.ReportImages);
+        Assert.Equal("settings-op", normalized.OperationKey);
     }
 
     [Fact]
@@ -576,9 +449,11 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSendingUpdate(
             Principal(version: 3),
             3,
-            PrincipalReportSendingRules.Default with { Cc = [" one@example.com ", "", "ONE@example.com"] });
+            new PrincipalReportSendingRules(
+                [new(ReportSendingActionKind.Cc, [" one@example.com ", "", "ONE@example.com"])],
+                []));
 
-        Assert.Equal("one@example.com", Assert.Single(updated.ReportSending.Cc));
+        Assert.Equal("one@example.com", Assert.Single(Assert.Single(updated.ReportSending.EveryCase).Addresses!));
     }
 
     [Fact]
@@ -618,7 +493,7 @@ public sealed class OrganizationAdministrationTests
 
         var request = Assert.Single(store.ReportSendingUpdates);
         Assert.Equal("sending-op", request.OperationKey);
-        Assert.Equal("one@example.com", Assert.Single(request.Rules.SendTo));
+        Assert.Equal("one@example.com", Assert.Single(Assert.Single(request.Rules.EveryCase).Addresses!));
         Assert.Equal(5, request.ExpectedContactVersion);
     }
 
@@ -650,10 +525,10 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 215.00m,
+            reportImages: false,
             reportNames: null);
 
-        Assert.Equal(215.00m, updated.DefaultFee);
+        Assert.False(updated.ReportImages);
         Assert.Equal(4, updated.Version);
         Assert.Equal(current.Id, updated.Id);
         Assert.Equal(current.Code, updated.Code);
@@ -673,7 +548,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: PrincipalDefaultFeePolicy.Standard,
+            reportImages: true,
             reportNames: null);
 
         Assert.Equal(3, updated.Version);
@@ -704,7 +579,7 @@ public sealed class OrganizationAdministrationTests
         var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             current,
             expectedVersion: 3,
-            defaultFee: 215.00m,
+            reportImages: false,
             reportNames: null);
 
         Assert.Equal("Always copy the fleet manager.", updated.NotesOnEveryCase);
@@ -718,7 +593,7 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 4),
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null));
 
         Assert.Equal(OrganizationAdministrationError.StaleVersion, error.Error);
@@ -735,14 +610,14 @@ public sealed class OrganizationAdministrationTests
             OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
                 Principal(version: 3) with { IsActive = false },
                 expectedVersion: 3,
-                defaultFee: PrincipalDefaultFeePolicy.Standard,
+                reportImages: true,
                 reportNames: null));
 
         Assert.Equal(OrganizationAdministrationError.PrincipalInactive, error.Error);
     }
 
     private static PrincipalReportSendingRules SendingRules(string sendTo) =>
-        PrincipalReportSendingRules.Default with { SendTo = [sendTo] };
+        new([new(ReportSendingActionKind.SendTo, [sendTo])], []);
 
     private static Principal Principal(long version) => new(
         Guid.NewGuid(),
@@ -777,7 +652,7 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
                 PrincipalReportSendingRules.Default,
-                DefaultFee: request.DefaultFee));
+                ReportImages: request.ReportImages));
         }
 
         public List<UpdatePrincipalReportSendingRequest> ReportSendingUpdates { get; } = [];
@@ -798,34 +673,6 @@ public sealed class OrganizationAdministrationTests
                 request.ExpectedVersion + 1,
                 CaseInspectionMode.PhysicalAddress,
                 request.Rules));
-        }
-
-        public List<UpdatePrincipalDefaultInspectionLocationRequest> DefaultInspectionLocationUpdates
-        { get; } = [];
-
-        public Task<PrincipalAdministrationSummary> UpdatePrincipalDefaultInspectionLocationAsync(
-            UpdatePrincipalDefaultInspectionLocationRequest request,
-            CancellationToken cancellationToken)
-        {
-            DefaultInspectionLocationUpdates.Add(request);
-            return Task.FromResult(new PrincipalAdministrationSummary(
-                request.PrincipalId,
-                Guid.NewGuid(),
-                "QDOS",
-                Guid.NewGuid(),
-                null,
-                null,
-                true,
-                request.ExpectedVersion + 1,
-                0,
-                CaseInspectionMode.PhysicalAddress,
-                PrincipalReportSendingRules.Default,
-                request.Label,
-                request.Address,
-                request.Postcode,
-                request.SourceKind,
-                request.SourceRecordId,
-                request.SourceVersion));
         }
 
         public Task<Principal> ReplacePrincipalAsync(

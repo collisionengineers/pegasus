@@ -295,8 +295,11 @@ public sealed class CaseReportDeliveryNamingTests
         var book = CaseReportDeliveryPolicy.AddressBook(Suggestions(
             PrincipalReportSendingRules.Default with
             {
-                SendTo = ["claims@principal.example"],
-                Cc = ["claims@principal.example", "reports@principal.example", "Copy@Insurer.example"]
+                EveryCase =
+                [
+                    new(ReportSendingActionKind.SendTo, ["claims@principal.example"]),
+                    new(ReportSendingActionKind.Cc, ["claims@principal.example", "reports@principal.example", "Copy@Insurer.example"])
+                ]
             },
             originalInstructionSender: "handler@insurer.example",
             instructionCc: ["copy@insurer.example"]));

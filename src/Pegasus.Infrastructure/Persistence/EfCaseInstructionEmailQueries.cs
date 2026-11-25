@@ -49,10 +49,9 @@ public sealed class EfCaseInstructionEmailQueries(
     public async Task<string?> SendFromAsync(Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var json = await context.Cases.AsNoTracking()
+        return await context.Cases.AsNoTracking()
             .Where(@case => @case.Id == caseId)
-            .Select(@case => @case.Principal.ReportSendingRulesJson)
+            .Select(@case => @case.Principal.SendFromMailbox)
             .SingleOrDefaultAsync(cancellationToken);
-        return json is null ? null : EfOrganizationAdministration.ReadReportSending(json).SendFromMailbox;
     }
 }

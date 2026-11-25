@@ -2,10 +2,10 @@ namespace Pegasus.Core.Cases;
 
 /// <summary>
 /// The one rule for whether a text names a name: capitals and spaces are
-/// ignored, so "Car Claims" names the contact "CarClaims". A report sending
-/// rule's "Instruction mentions" condition reads it (R1075), and so does the
-/// fill of a new Case's Claim Source and Repairer from the one linked contact
-/// its instruction's text names (operator, 25 November 2026; R1264).
+/// ignored, so "Car Claims" names the contact "CarClaims". The fill of a new
+/// Case's Claim Source and Repairer from the one linked contact its
+/// instruction's text names reads it (operator, 25 November 2026; R1264);
+/// report sending rules no longer read the instruction's text (R1268).
 /// </summary>
 public static class NamedInText
 {
