@@ -1464,6 +1464,24 @@ Read the current target and Worker activation before choosing any mutation.
    ./artifacts/releases/release-<version>-<sha8>/web.zip --type zip --clean true
    --restart true`, and verify `/diagnostics/version` reports the retained
    source revision and version.
+
+   That order restarts the serving package onto the retained release's
+   settings before the retained package is on. Take the other order (R1251,
+   as the release route does going forward, R1248) when the serving package
+   cannot start under those settings: a key it requires at start-up (the
+   Production loop in `src/Pegasus.Web/Program.cs` at the serving SHA) whose
+   setting the retained release's `webApp` resource in
+   `infra/modules/platform.bicep` does not set, or a `WEBSITE_WARMUP_PATH` or
+   `WEBSITE_WARMUP_STATUSES` the two releases set differently. A release
+   that renamed a required setting is the usual case; provisioning first
+   would stop the serving package at start-up naming the key, as on Release
+   5.2.0 in reverse. Then: stop the Web App (`az webapp stop --resource-group
+   rg-pegasus-prod --name pegasus-prod-web-252ow37gij`) and read it back
+   `Stopped` with `/health/live` no longer answering 2xx; deploy the retained
+   package with `--restart false --track-status false` in place of `--restart
+   true`; provision; start the Web App (`az webapp start` with the same
+   names) and verify `/diagnostics/version` as above. The Web App is down
+   from the stop to that read-back, and the approval names it.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
    ./artifacts/releases/release-<version>-<sha8>/worker.zip`.
