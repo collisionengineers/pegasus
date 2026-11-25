@@ -1389,7 +1389,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            EveryCase(new(ReportSendingActionKind.Hold, Text: "Authorise the garage.")),
+            EveryCase(new ReportSendingAction(ReportSendingActionKind.Hold, Text: "Authorise the garage.")),
             null);
         using var factory = WithDispatchFacts(
             baseFactory, caseId, new FakeCurrentGeneration(caseId), facts, CaseReportSendHistory.None);
@@ -1501,7 +1501,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var estimateOccurrence = Guid.NewGuid();
         var facts = new ReportDispatchFacts(
             "QDOS26001", "PK12TMZ", "Principal Ltd",
-            EveryCase(new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)) with
+            EveryCase(new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)) with
             {
                 Rules =
                 [
