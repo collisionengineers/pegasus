@@ -278,11 +278,14 @@ public static class CaseDocumentPreviews
 
     /// <summary>
     /// The media type a preview is served and drawn as: <c>application/pdf</c>
-    /// for a document shown as a PDF, whatever it was stored as, and the
-    /// stored media type otherwise. The saved download keeps the stored type.
+    /// for a PDF stored under another type, and the stored media type
+    /// otherwise. The saved download keeps the stored type.
     /// </summary>
     public static string ShownMediaType(string mediaType, string? fileName) =>
-        KindOf(mediaType, fileName) == CaseDocumentPreviewKind.Pdf ? PdfMediaType : mediaType;
+        KindOf(mediaType, fileName) == CaseDocumentPreviewKind.Pdf
+        && !string.Equals(BareMediaType(mediaType), PdfMediaType, StringComparison.OrdinalIgnoreCase)
+            ? PdfMediaType
+            : mediaType;
 
     /// <summary>
     /// Whether the stored bytes themselves may be dispositioned for display
