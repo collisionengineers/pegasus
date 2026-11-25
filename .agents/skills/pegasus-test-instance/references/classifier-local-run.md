@@ -83,10 +83,13 @@ WantedBy=timers.target
 ```
 
 `systemctl --user enable --now pegasus-classifier.timer` starts it;
-`journalctl --user -u pegasus-classifier` is its log. Rebuild (`npm ci && npm
-run build`) after each move of the checkout (skill section 6): `dist/` is
-ignored, so a new branch does not rebuild it and the timer keeps running the
-old one.
+`journalctl --user -u pegasus-classifier` is its log. `dist/` is ignored, so a
+move of the checkout does not change it by itself: on this host
+`Initialize-LocalDevelopment.ps1` (skill section 6) rebuilds it whenever the
+classifier folder's Git tree differs from the one recorded in
+`dist/.source-tree` by the last build, and Status's `ClassifierBuild` reads
+`current`, `stale` or `not built` (#2206). A build by hand writes no record,
+so the next Initialize builds again.
 
 The settings file carries `Box__OldSystemRootFolderId=3220448509`, so
 `pegasus_old_system_folder_search` answers `available` here as in production

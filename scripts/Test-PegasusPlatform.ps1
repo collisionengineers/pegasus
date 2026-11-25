@@ -683,5 +683,37 @@ finally {
     ${function:Get-PegasusDatabaseEngineKind} = $engineKindResolver
 }
 
+# #2206: the test instance's classifier build is current only when its stamp
+# names the checkout's classifier tree and the output it stamps exists.
+$classifierFixture = Join-Path ([System.IO.Path]::GetTempPath()) "pegasus-classifier-build-$([guid]::NewGuid().ToString('N'))"
+try {
+    $tree = 'a' * 40
+    [System.IO.Directory]::CreateDirectory((Join-Path $classifierFixture 'dist')) | Out-Null
+    $stampPath = Get-PegasusClassifierBuildStampPath -ClassifierRoot $classifierFixture
+    $cases = @(
+        @{ Case = 'no output, no stamp'; Cli = $false; Stamp = $null; Expected = 'not built' },
+        @{ Case = 'stamp without output'; Cli = $false; Stamp = $tree; Expected = 'not built' },
+        @{ Case = 'output without stamp'; Cli = $true; Stamp = $null; Expected = 'not built' },
+        @{ Case = 'stamp names the checkout'; Cli = $true; Stamp = "$tree`n"; Expected = 'current' },
+        @{ Case = 'stamp names another tree'; Cli = $true; Stamp = 'b' * 40; Expected = 'stale' }
+    )
+    foreach ($case in $cases) {
+        $cliPath = Join-Path $classifierFixture 'dist/cli.js'
+        if ($case.Cli) { [System.IO.File]::WriteAllText($cliPath, '') } elseif ([System.IO.File]::Exists($cliPath)) { [System.IO.File]::Delete($cliPath) }
+        if ($null -ne $case.Stamp) { [System.IO.File]::WriteAllText($stampPath, $case.Stamp) } elseif ([System.IO.File]::Exists($stampPath)) { [System.IO.File]::Delete($stampPath) }
+        $state = Get-PegasusClassifierBuildState -ClassifierRoot $classifierFixture -SourceTree $tree
+        if ($state.State -ne $case.Expected) {
+            throw "Classifier build state '$($case.Case)' expected '$($case.Expected)'; got '$($state.State)'."
+        }
+    }
+    $stale = Format-PegasusClassifierBuildState -BuildState (Get-PegasusClassifierBuildState -ClassifierRoot $classifierFixture -SourceTree $tree)
+    if ($stale -cne "stale (built $('b' * 9) / checkout $('a' * 9))") {
+        throw "Classifier build state formats a stale build as '$stale'."
+    }
+}
+finally {
+    if ([System.IO.Directory]::Exists($classifierFixture)) { [System.IO.Directory]::Delete($classifierFixture, $true) }
+}
+
 $global:LASTEXITCODE = 0
 Write-Output 'Pegasus platform LocalDB state classification passed.'

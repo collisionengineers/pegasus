@@ -450,8 +450,11 @@ FETCH_HEAD`), run `Initialize-LocalDevelopment.ps1`, and `Start -RunId
 <run-id>` with the same ports; the manifest's source and artifact evidence
 follow the new build, `--initialize-development` migrates the existing
 database forward, and the Tailscale proxy keeps working because the port is
-unchanged. Status prints `SourceSha` for the comparison with `origin/dev` or
-the named head, and the release preflight refuses a candidate the instance is
+unchanged. On the instance's host Initialize also rebuilds the classifier
+agent the instance's timer runs when its folder changed since the last build
+(#2206). Status prints `SourceSha` for the comparison with `origin/dev` or
+the named head, and `ClassifierBuild`, which reads `current` when that build
+is the checkout's; the release preflight refuses a candidate the instance is
 not serving (R684), so it is back on `dev`'s tip before a release. Migrations
 go forward only: a head that adds a migration is served only when the
 operator accepts that the return to `dev` waits for it to land or needs a
