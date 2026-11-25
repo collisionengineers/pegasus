@@ -138,7 +138,8 @@ jobs:
           # exit code is the last native command's.
           $global:LASTEXITCODE = 0
           foreach ($lane in $lanes.Keys) { "$lane=$($lanes[$lane].ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT }
-          Write-Host "Lanes to run on tree ${tree}: $(@($lanes.Keys | Where-Object { $lanes[$_] }) -join ', ')."
+          $running = @($lanes.Keys | Where-Object { $lanes[$_] })
+          Write-Host "Lanes to run on tree ${tree}: $(if ($running.Count -gt 0) { $running -join ', ' } else { 'none' })."
 
   invariants:
     # The cheap invariant checks, in one runner rather than three. They gate
