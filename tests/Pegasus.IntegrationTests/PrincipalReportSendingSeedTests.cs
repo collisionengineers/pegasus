@@ -374,9 +374,9 @@ public sealed class PrincipalReportSendingSeedTests
                 .Select(item => new { item.Code, item.ReportSendingRulesJson, item.SendFromMailbox, item.ReportImages })
                 .ToArrayAsync());
 
-        var wls = $$"""
-            {"sendFromMailbox":"desk@collisionengineers.co.uk","sendTo":["to@principal.example"],"sendToOnly":true,"replyAll":true,"cc":["cc@principal.example"],"neverCc":["never@principal.example"],"attach":{"feeNoteSeparate":true,"estimate":true,"audatex":false,"reportImages":false,"vehicleImagesDocument":true,"figureBreakdown":false,"offerRepairInvoices":true},"garageFigures":true,"hold":"Ring the "handler" first.","reminders":["First task","Second task"],"attachmentName":"stray","rules":[{"match":"All","if":[{"kind":"Repairer","values":["{{repairerId}}"]},{"kind":"Outcome","values":["repairable"]},{"kind":"Mentions","values":["audit"]}],"then":{"ccAdd":["garage@principal.example"],"ccRemove":[],"remind":"Authorise the garage","rateCard":true}},{"match":"Any","if":[{"kind":"SenderNot","values":["handler@principal.example"]},{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["cc@principal.example"],"hold":"Check it","stop":"Stop it","attach":{"estimate":false,"audatex":true}}},{"match":"Any","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":["luton@principal.example"],"ccRemove":[]}}]}
-            """;
+        var wls = """
+            {"sendFromMailbox":"desk@collisionengineers.co.uk","sendTo":["to@principal.example"],"sendToOnly":true,"replyAll":true,"cc":["cc@principal.example"],"neverCc":["never@principal.example"],"attach":{"feeNoteSeparate":true,"estimate":true,"audatex":false,"reportImages":false,"vehicleImagesDocument":true,"figureBreakdown":false,"offerRepairInvoices":true},"garageFigures":true,"hold":"Ring the "handler" first.","reminders":["First task","Second task"],"attachmentName":"stray","rules":[{"match":"All","if":[{"kind":"Repairer","values":["<repairerId>"]},{"kind":"Outcome","values":["repairable"]},{"kind":"Mentions","values":["audit"]}],"then":{"ccAdd":["garage@principal.example"],"ccRemove":[],"remind":"Authorise the garage","rateCard":true}},{"match":"Any","if":[{"kind":"SenderNot","values":["handler@principal.example"]},{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["cc@principal.example"],"hold":"Check it","stop":"Stop it","attach":{"estimate":false,"audatex":true}}},{"match":"Any","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":["luton@principal.example"],"ccRemove":[]}}]}
+            """.Replace("<repairerId>", repairerId, StringComparison.Ordinal);
         const string rjs = """
             {"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":["engreport@robertjameslaw.co.uk"],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[{"match":"Any","if":[{"kind":"Mentions","values":["Luton"]},{"kind":"Mentions","values":["Claim Specialist","Claims Specialist","claimsspecialists.co.uk"]}],"then":{"ccAdd":["accounts@claimsspecialists.co.uk"],"ccRemove":[]}},{"match":"All","if":[{"kind":"Mentions","values":["Accident Specialist"]}],"then":{"ccAdd":["admin@accidentspecialist.co.uk"],"ccRemove":[]}}]}
             """;
@@ -388,9 +388,9 @@ public sealed class PrincipalReportSendingSeedTests
 
         var builtWls = await PrincipalAsync("WLS");
         Assert.Equal(
-            $$"""
-            {"everyCase":[{"kind":"SendTo","addresses":["to@principal.example"]},{"kind":"SendToOnly"},{"kind":"ReplyAll"},{"kind":"Cc","addresses":["cc@principal.example"]},{"kind":"NeverCc","addresses":["never@principal.example"]},{"kind":"Attach","file":"FeeNoteSeparate"},{"kind":"Attach","file":"Estimate"},{"kind":"Attach","file":"VehicleImagesDocument"},{"kind":"Attach","file":"OfferRepairInvoices"},{"kind":"Hold","text":"Ring the "handler" first."},{"kind":"Task","text":"First task"},{"kind":"Task","text":"Second task"}],"rules":[{"if":[[{"fact":"Repairer","values":["{{repairerId}}"]},{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Cc","addresses":["garage@principal.example"]},{"kind":"Task","text":"Authorise the garage"},{"kind":"Task","text":"Check the report's estimate against the Connexus Repair Rate Card."}]},{"if":[[{"fact":"Sender","values":["handler@principal.example"],"not":true}],[{"fact":"RefPrefix","values":["a"]}],[{"fact":"PreviousJob","values":[]}]],"then":[{"kind":"NeverCc","addresses":["cc@principal.example"]},{"kind":"DoNotAttach","file":"Estimate"},{"kind":"Attach","file":"Audatex"},{"kind":"Hold","text":"Check it"},{"kind":"Stop","text":"Stop it"}]},{"if":[[{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Task","text":"Send the figures to the garage."}]}]}
-            """,
+            """
+            {"everyCase":[{"kind":"SendTo","addresses":["to@principal.example"]},{"kind":"SendToOnly"},{"kind":"ReplyAll"},{"kind":"Cc","addresses":["cc@principal.example"]},{"kind":"NeverCc","addresses":["never@principal.example"]},{"kind":"Attach","file":"FeeNoteSeparate"},{"kind":"Attach","file":"Estimate"},{"kind":"Attach","file":"VehicleImagesDocument"},{"kind":"Attach","file":"OfferRepairInvoices"},{"kind":"Hold","text":"Ring the "handler" first."},{"kind":"Task","text":"First task"},{"kind":"Task","text":"Second task"}],"rules":[{"if":[[{"fact":"Repairer","values":["<repairerId>"]},{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Cc","addresses":["garage@principal.example"]},{"kind":"Task","text":"Authorise the garage"},{"kind":"Task","text":"Check the report's estimate against the Connexus Repair Rate Card."}]},{"if":[[{"fact":"Sender","values":["handler@principal.example"],"not":true}],[{"fact":"RefPrefix","values":["a"]}],[{"fact":"PreviousJob","values":[]}]],"then":[{"kind":"NeverCc","addresses":["cc@principal.example"]},{"kind":"DoNotAttach","file":"Estimate"},{"kind":"Attach","file":"Audatex"},{"kind":"Hold","text":"Check it"},{"kind":"Stop","text":"Stop it"}]},{"if":[[{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Task","text":"Send the figures to the garage."}]}]}
+            """.Replace("<repairerId>", repairerId, StringComparison.Ordinal),
             builtWls.ReportSendingRulesJson);
         Assert.Equal("desk@collisionengineers.co.uk", builtWls.SendFromMailbox);
         Assert.False(builtWls.ReportImages);
@@ -403,9 +403,9 @@ public sealed class PrincipalReportSendingSeedTests
 
         var builtRjs = await PrincipalAsync("RJS");
         Assert.Equal(
-            $$"""
-            {"everyCase":[{"kind":"ReplyAll"},{"kind":"Cc","addresses":["engreport@robertjameslaw.co.uk"]},{"kind":"Attach","file":"FeeNoteSeparate"}],"rules":[{"if":[[{"fact":"ClaimSource","values":["{{claimSpecialistsId}}"]}]],"then":[{"kind":"Cc","addresses":["accounts@claimsspecialists.co.uk"]}]}]}
-            """,
+            """
+            {"everyCase":[{"kind":"ReplyAll"},{"kind":"Cc","addresses":["engreport@robertjameslaw.co.uk"]},{"kind":"Attach","file":"FeeNoteSeparate"}],"rules":[{"if":[[{"fact":"ClaimSource","values":["<claimSpecialistsId>"]}]],"then":[{"kind":"Cc","addresses":["accounts@claimsspecialists.co.uk"]}]}]}
+            """.Replace("<claimSpecialistsId>", claimSpecialistsId, StringComparison.Ordinal),
             builtRjs.ReportSendingRulesJson);
         Assert.Null(builtRjs.SendFromMailbox);
         Assert.True(builtRjs.ReportImages);
