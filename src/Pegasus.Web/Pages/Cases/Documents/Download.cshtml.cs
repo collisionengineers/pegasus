@@ -205,6 +205,9 @@ public sealed partial class DownloadModel(
             return await PdfRenditionAsync(
                 preview with { Sha256 = sha256 }, fileName, actor, renderer, cancellationToken);
         }
+        // A PDF stored as application/octet-stream (R1246) is drawn as the PDF
+        // it is named as; the saved download keeps the stored media type.
+        mediaType = CaseDocumentPreviews.ShownMediaType(mediaType, fileName);
 
         var wantsThumbnail = string.Equals(
                 size, CaseDocumentThumbnails.ThumbSizeToken, StringComparison.OrdinalIgnoreCase)

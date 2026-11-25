@@ -87,8 +87,8 @@ released SHA gets its annotated tag `v<version>` in the promotion push after
 the smoke (R688). Nothing in source carries a release version:
 `Directory.Build.props` stamps `0.0.0-dev` into every build that is not a
 release, the test instance included. The read-only run proposes the next
-version (R687): PATCH when every pull request in the range closes only
-`type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
+version (R687): PATCH when every pull request merged into `dev` in the range
+closes only `type:bug` issues, MAJOR when the route is destructive, MINOR otherwise. The
 approval names the version it grants; the script refuses one that is not one
 step above the live version, or not the one the manifest was built with. A
 fix is a PATCH of `dev`'s tip; there is no hotfix branch from `main` (R689).
@@ -102,10 +102,14 @@ pwsh ./scripts/Invoke-Release.ps1
 ```
 
 It fetches, checks `main` is an ancestor of `dev`, lists the range, the
-candidate's push-to-`dev` CI run (R683) and the pull requests in it with their
-checks, reads the deployed state (Web state and stack, `/diagnostics/version`,
+candidate's push-to-`dev` CI run (R683) and the pull requests merged into
+`dev` in it with their checks (GitHub is asked which pull request each commit
+on `dev`'s own line is the merge of, so a merge's subject does not matter and
+a combined pull request stands for its members, R1247), reads the deployed state (Web state and stack, `/diagnostics/version`,
 Worker and classifier states, the schedule and Disabled settings), reads the
-live migration head, prints the route and whether provision is needed, refuses
+live migration head, prints the route and whether provision is needed, names
+any Web App setting the candidate's template drops or changes that the live
+package cannot start under (R1248), refuses
 a deployable candidate whose azd environment lacks a key the provision needs
 (every key `infra/main.parameters.json` references without a default and every
 key PreProvision requires; the runbook's deployment inputs table names them)
@@ -119,13 +123,15 @@ validates them. It writes nothing to GitHub or Azure. `-PreflightOnly` stops
 before the build; `-Version <v>` builds another version than the proposal,
 the MAJOR when the agent classifies the range's migration as non-additive.
 
-Read the report. A candidate whose push-to-`dev` run or any pull request in
-the range is not green waits; nothing is waived, and `-Execute` refuses it
+Read the report. A candidate whose push-to-`dev` run or any pull request
+merged into `dev` in the range is not green waits; nothing is waived, and `-Execute` refuses it
 (R691). The `--- Protection ---` section reads the repository's rulesets back
 ([runbook](../../../docs/runbook.md#branch-and-tag-protection)); `dev` and
 `main` each carry an active one, and a missing one is a question before the
 approval. A head that differs from the candidate identity while the range adds
-no migration is a question, not a route.
+no migration is a question, not a route. A lane the `dev` run reports skipped
+passed on the identical tree in an earlier run, which its `changes` log names
+(R1249): the run is green, and no second run is asked for.
 
 ## 2. The one approval
 
@@ -167,6 +173,22 @@ exact SHA and version, deploys `worker.zip`, deploys `classifier.zip` when the
 classifier exists, and runs the full smoke. An additive migration runs before
 the packages.
 
+One provisioned release takes another order (R1248, #2165). The script
+compares the live SHA (`main`) with the candidate: a key the Web host requires
+at start-up (the Production loop in `src/Pegasus.Web/Program.cs`) whose
+setting the `webApp` resource in `infra/modules/platform.bicep` no longer
+sets, or a `WEBSITE_WARMUP_PATH` or `WEBSITE_WARMUP_STATUSES` the candidate
+adds or changes. Provisioning first would restart the live package onto
+settings it stops on, as on Release 5.2.0, and deploying first would start the
+new package without its own. So the read-only run and the approval request
+name those settings, and the approved run stops the Web App and reads it back
+`Stopped` and unserved, deploys `web.zip` to the stopped site with `--restart
+false --track-status false`, provisions, starts the Web App and waits for the
+exact read-back. The Web App is down from the stop to that read-back, which
+the approval grants by naming the route with those settings listed. A run that
+failed after the stop is resumed with the same line: the site is not stopped
+again. Every other normal release keeps the first order.
+
 The destructive route reads the Web App at the approved old SHA, sets every
 Disabled setting `true`, proves the disabled census, stages the approved
 `worker.zip` (staging is not activation), stops the classifier, the Worker and
@@ -197,10 +219,6 @@ when data must be recovered.
 
 ## 4. Judgement calls that stay with the agent
 
-- A release that adds or changes `WEBSITE_WARMUP_PATH` or
-  `WEBSITE_WARMUP_STATUSES` passes `-WarmupSettingsChange` with `-Provision`:
-  the previous package cannot answer the new warm-up, so the package deploys
-  and reads back before provision, then again after it.
 - A release that moves the Automation MCP server path (ADR-0087) has an
   Administrator re-add the one connector at `<origin>/mcp` and consent once;
   the classifier's `PEGASUS_MCP_URL` changes at provision, not with

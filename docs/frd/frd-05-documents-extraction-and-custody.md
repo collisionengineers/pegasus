@@ -364,6 +364,11 @@ made is waited for. Where Box makes none (a protected or damaged file, or a
 version Box no longer holds as the file's current one) the Preview is
 refused and the document is left to Save as.
 
+A PDF is likewise known by its `.pdf` name where it arrived as
+`application/octet-stream`, as AX's instructions do, and its Preview is
+served as `application/pdf`; Save as gives the stored file unchanged
+(operator, 25 November 2026, R1246).
+
 The Worker makes the plain gallery thumbnail of each newly filed image, and the
 thumbnail of its saved rotation and crop, in the background, a few at a time on
 its existing sweep. The first view then reads a small cached rendering. Nothing the user sees changes. An image the

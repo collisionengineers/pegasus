@@ -16,12 +16,19 @@ Each of these cost an earlier combination run time or correctness.
 - **A green descendant covers its ancestor's code**, so a stacked parent does not
   need its own rerun when a child containing it is green
   (`git merge-base --is-ancestor parent child`). It does not prove that the parent
-  merges cleanly on its own; `mergeable` answers that.
+  merges cleanly on its own; `mergeable` answers that. Pegasus's CI applies this
+  by tree, not by ancestry: a lane that has passed on the identical tree is
+  skipped and counts as passed (R1249), so a child merged into its parent, and
+  the push to the target after the merge, repeat no lane when the tree is the
+  one already tested. Any difference in the tree runs the lanes.
 - **Some repos run no CI on pushes** to the integration or target branch, only on
   PRs. The combined PR's run is then the only union evidence. Do not plan on
   "CI will run after the merge".
 - **Stack-aware CI** may defer heavy jobs on a PR in the middle of a stack. A
   deferred or skipped job is not evidence. Read which jobs actually ran.
+  Pegasus defers nothing: a lane is skipped there only because no changed path
+  needs it or because it passed on the identical tree, and the `changes` job's
+  log says which and names the earlier run (R1249).
 
 ## Watching checks
 

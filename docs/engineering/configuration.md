@@ -184,13 +184,16 @@ token endpoint, are shared by both accounts: production uses
 `https://uk-api.experian.com/ukci/automotive` and
 `https://uk-api.experian.com/oauth2/v1/token`, UAT the same paths on
 `uat-uk-api.experian.com`. Both must be HTTPS on an `experian.com` host. All
-ten are Production required settings (R749). The account values reach the Web
+ten are Production required settings (R749): the Web host checks at start-up
+that each is present, and stops naming the key when one is not (R1252). The
+account values reach the Web
 App as `Experian__HistoryAccount__*` and `Experian__CapAccount__*` through
 versioned secret URI references, each read through its own secret-scoped
 grant; the addresses are plain settings (`Experian__BaseUri`,
-`Experian__TokenUri`). The Worker receives none. They are read on each call,
-never at startup, so an unresolved reference makes that act unavailable rather
-than stopping the host. Rotating a secret is a new secret version and a
+`Experian__TokenUri`). The Worker receives none. Their values are read on
+each call, not at start-up, so a setting that is present but holds an
+unresolved Key Vault reference makes that act unavailable rather than stopping
+the host. Rotating a secret is a new secret version and a
 configuration read-back, not a release. `DevelopmentOffline` composes no
 Experian unless `Features:LiveExperian` is set, so its Vehicle history area
 says Experian is not connected and its CAP card says the source is

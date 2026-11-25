@@ -34,6 +34,9 @@ $ErrorActionPreference = 'Stop'
 $productionSmoke = Join-Path $PSScriptRoot 'Invoke-ProductionSmoke.ps1'
 $deploymentPlan = Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1'
 $expectedSettingNames = @(Get-PegasusWorkerDisabledSettingNames)
+# The fixture pull request's merge commit on dev, set once the fixture has
+# merged it; New-Estate hands it to the fake gh (R1247).
+$script:fixturePullMergeSha = ''
 $approvedSubscription = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $root = Join-Path ([IO.Path]::GetTempPath()) "pegasus-release-validation-$([guid]::NewGuid().ToString('N'))"
 
@@ -235,6 +238,9 @@ function New-Estate {
         # The pull request's rollup as gh returns it, when a case needs more than one green check.
         [string] $PullChecksJson = '',
         [string[]] $Rulesets = @('dev', 'main', 'release tags'),
+        # The commit on dev that GitHub reports as the one pull request's merge
+        # (R1247); empty until the fixture has merged it.
+        [string] $PullMergeSha = $script:fixturePullMergeSha,
         [Parameter(Mandatory)][string] $NewSha
     )
     return [ordered]@{
@@ -243,6 +249,7 @@ function New-Estate {
         pullClosesIssue = $PullClosesIssue
         pullHasChecks = $PullHasChecks
         pullChecksJson = $PullChecksJson
+        pullMergeSha = $PullMergeSha
         issueLabels = @($IssueLabels)
         devRunConclusion = $DevRunConclusion
         rulesets = @($Rulesets)
@@ -381,6 +388,15 @@ $state = Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_RELEASE_STATE_PATH | Co
 # estate names (R691), one green pull request closing issue 7 when the estate
 # says so, whose labels the estate holds (R687).
 if ($Arguments[0] -eq 'run') { "[{`"status`":`"completed`",`"conclusion`":`"$($state.devRunConclusion)`",`"url`":`"https://example.test/runs/1`"}]"; exit 0 }
+# GitHub's answer for one commit (R1247): the pull request merged as that
+# commit, beside an open one that merely contains it and is not counted.
+if ($Arguments[0] -eq 'api' -and $Arguments[1] -match '/commits/([0-9a-f]{40})/pulls$') {
+    $commit = $Matches[1]
+    $pulls = @(@{ number = 9; merged_at = $null; merge_commit_sha = 'f' * 40 })
+    if ($state.pullMergeSha -and $commit -ceq [string]$state.pullMergeSha) { $pulls += @{ number = 1; merged_at = '2026-11-25T09:00:00Z'; merge_commit_sha = $commit } }
+    $pulls | ConvertTo-Json -Compress -AsArray -Depth 3
+    exit 0
+}
 if ($Arguments[0] -eq 'api') {
     @(@($state.rulesets) | ForEach-Object { @{ name = $_; target = $(if ($_ -like '*tags*') { 'tag' } else { 'branch' }); enforcement = 'active' } }) | ConvertTo-Json -Compress -AsArray -Depth 3
     exit 0
@@ -399,7 +415,7 @@ function New-FixtureRepository {
     <#
         A small repository standing in for the checkout: the release scripts,
         the infrastructure the plan check reads, the migrations folder, and a
-        placeholder for src/Pegasus.Web. main is the first commit; dev adds one
+        placeholder and the real Program.cs for src/Pegasus.Web. main is the first commit; dev adds one
         documentation file. A bare clone is origin.
     #>
     param([Parameter(Mandatory)][string] $Directory)
@@ -429,6 +445,9 @@ exit $LASTEXITCODE
     Copy-Item -LiteralPath (Join-Path $repositoryRoot 'azure.yaml') -Destination (Join-Path $seed 'azure.yaml')
     New-Item -ItemType Directory -Force -Path (Join-Path $seed 'src/Pegasus.Web') | Out-Null
     Set-Content -LiteralPath (Join-Path $seed 'src/Pegasus.Web/placeholder.txt') -Value 'fixture' -Encoding ascii
+    # The Web host's own Production required keys, which the normal route
+    # reads at the live SHA beside the template (R1248).
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot 'src/Pegasus.Web/Program.cs') -Destination (Join-Path $seed 'src/Pegasus.Web/Program.cs')
     Set-Content -LiteralPath (Join-Path $seed '.gitignore') -Value @('artifacts/', '.azure/') -Encoding ascii
     $git = @('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false')
     & git -C $seed init --quiet -b main
@@ -1080,7 +1099,9 @@ try {
     Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
     Assert-Order -Result $result -Case $case -Patterns @('azd env set PEGASUS_WEB_ACTIVATION approved*', 'azd provision*', 'az webapp deploy*--restart true*')
     Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns @('*--no-state*')
+    # R1248: a template that drops no setting the live package requires keeps
+    # the ordinary order, and the site is never stopped.
+    Assert-NoCall -Result $result -Case $case -Patterns @('*--no-state*', 'az webapp stop*', 'az webapp start*')
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeNormal -Estate (New-Estate -NewSha $releaseSha -ClassifierPresent $false) -MigrationHead $identity
     $case = 'Normal route without a classifier'
@@ -1247,11 +1268,22 @@ try {
     Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/placeholder.txt') -Value 'changed' -Encoding ascii
     & git -C $fixture.Work @($fixture.Git) add -A
     & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: change'
+    # The pull request is a combined one (R1247): its branch holds a member's
+    # merge, titled as combine-prs titles it, and the merge into dev carries a
+    # subject written by hand, not GitHub's default (#2189). The preflight
+    # reads neither subject: it asks GitHub for the commit on dev's own line.
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet -b fixture/member
+    Set-Content -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/member.txt') -Value 'member' -Encoding ascii
+    & git -C $fixture.Work @($fixture.Git) add -A
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -m 'feat: member'
+    & git -C $fixture.Work @($fixture.Git) checkout --quiet fixture/change
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge PR #2 (fixture/member) into fixture/change' fixture/member
     & git -C $fixture.Work @($fixture.Git) checkout --quiet dev
-    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge pull request #1 from fixture/change' fixture/change
+    & git -C $fixture.Work @($fixture.Git) merge --quiet --no-ff -m 'Merge PR #1 (fixture/change) into dev' fixture/change
     & git -C $fixture.Work push --quiet origin dev
     if ($LASTEXITCODE -ne 0) { throw 'Unable to merge the fixture pull request.' }
     $proposalSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+    $script:fixturePullMergeSha = $proposalSha
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Proposal for a feature'
@@ -1260,7 +1292,9 @@ try {
     Assert-True ($result.Output.Contains('Proposed: 1.1.0 (MINOR: #1 closes #7 (type:feature))')) $case 'did not propose a MINOR step for a feature.' $result.Diagnostic
     Assert-True ($result.Output.Contains('Build version: 1.1.0 (proposed')) $case 'did not build the proposal.' $result.Diagnostic
     Assert-True ($result.Calls.Contains('gh issue view 7 --repo collisionengineers/pegasus --json labels')) $case 'did not read the closing issue.' $result.Diagnostic
-    Assert-NoCall -Result $result -Case $case -Patterns $writes
+    Assert-True ($result.Calls.Contains("gh api repos/collisionengineers/pegasus/commits/$proposalSha/pulls")) $case 'did not ask GitHub for the pull request merged as the commit on dev (R1247).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('#1 fixture: 1 checks, 0 not successful')) $case 'did not list the pull request merged into dev under a subject written by hand (#2189).' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns ($writes + @('gh pr view 2 *', 'gh pr view 9 *'))
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $proposalSha -IssueLabels @('type:bug')) -MigrationHead $identity
     $case = 'Proposal for bug fixes only'
@@ -1335,12 +1369,66 @@ try {
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '2.0.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a given version'
     Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('Web App settings:')) $case 'reported a dropped setting on a range that drops none (R1248).' $result.Diagnostic
     Assert-True ($result.Output.Contains('Build version: 2.0.0 (MAJOR, given)')) $case 'did not take the given version.' $result.Diagnostic
 
     $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly', '-Version', '1.2.0') -Estate (New-Estate -NewSha $proposalSha) -MigrationHead $identity
     $case = 'Preflight with a version that is not one step'
     Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
     Assert-True ($result.Output.Contains("1.2.0 is not one step above the live v$liveVersion")) $case 'did not refuse the version.' $result.Diagnostic
+
+    # --- A template that drops a setting the live package requires (#2165, R1248) ---
+    # dev gains a commit whose template no longer sets one of the settings the
+    # package on main requires at start-up. Provisioning first would restart
+    # that package onto settings it stops on (Release 5.2.0), so the read-only
+    # run names the setting and the approved run stops the Web App, puts the
+    # package on the stopped site, provisions and starts it.
+    $fixtureTemplatePath = Join-Path $fixture.Work 'infra/modules/platform.bicep'
+    $fixtureTemplate = Get-Content -Raw -LiteralPath $fixtureTemplatePath
+    $fixtureSettings = Get-PegasusWebAppSettings -TemplateText $fixtureTemplate
+    $droppedSetting = @(Get-PegasusWebRequiredKeys -ProgramText (Get-Content -Raw -LiteralPath (Join-Path $fixture.Work 'src/Pegasus.Web/Program.cs')) |
+        ForEach-Object { $_.Replace(':', '__') } | Where-Object { $fixtureSettings.Contains($_) })[-1]
+    $droppedLine = [regex]::new("(?m)^[^\r\n]*name: '$([regex]::Escape($droppedSetting))'[^\r\n]*\r?\n").Match($fixtureTemplate, $fixtureTemplate.IndexOf('resource webApp', [StringComparison]::Ordinal))
+    if (-not $droppedLine.Success) { throw "The fixture template has no $droppedSetting line to drop." }
+    Set-Content -LiteralPath $fixtureTemplatePath -Value $fixtureTemplate.Remove($droppedLine.Index, $droppedLine.Length) -NoNewline
+    & git -C $fixture.Work @($fixture.Git) commit --quiet -am 'infra: drop a required Web App setting'
+    & git -C $fixture.Work push --quiet origin dev
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to push the fixture commit that drops a setting.' }
+    $lostSha = (& git -C $fixture.Work rev-parse HEAD).Trim()
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments @('-PreflightOnly') -Estate (New-Estate -NewSha $lostSha) -MigrationHead $identity
+    $case = 'Preflight with a template that drops a required setting'
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("Web App settings: the candidate's template drops or changes $droppedSetting, which the live package cannot start under")) $case 'did not name the dropped setting (R1248).' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Provision: needed (the range touches infra/modules/platform.bicep')) $case 'did not say provision is needed.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns $writes
+
+    $lostWorktree = Join-Path (Split-Path -Parent $fixture.Work) "pegasus-worktrees/release-$($lostSha.Substring(0, 8))"
+    & git -C $fixture.Work worktree add --quiet --detach $lostWorktree $lostSha
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to add the fixture worktree for the dropped setting.' }
+    Copy-Item -Recurse -LiteralPath (Join-Path $fixture.Work '.azure') -Destination (Join-Path $lostWorktree '.azure')
+    $lostArtifacts = New-FixtureArtifacts -Worktree $lostWorktree -Sha $lostSha
+    $executeLost = @('-Execute', '-Version', $releaseVersion, '-Route', 'Normal', '-ApprovedReleaseSha', $lostSha, '-ApprovedManifestSha256', $lostArtifacts.ManifestSha256, '-Provision')
+
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeLost -Estate (New-Estate -NewSha $lostSha) -MigrationHead $lostArtifacts.MigrationIdentity
+    $case = 'Normal route with provision and a dropped required setting'
+    Assert-True ($result.ExitCode -ne 0) $case 'should stop at the full smoke run-from-package read.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("The template drops or changes $droppedSetting, which the live package cannot start under: stopping the Web App")) $case 'did not say why the Web App is stopped.' $result.Diagnostic
+    Assert-Order -Result $result -Case $case -Patterns @('az webapp stop*', 'az rest*/health/live*', 'az webapp deploy*--restart false*', 'azd provision*', 'az webapp start*', 'az functionapp deployment source config-zip*')
+    Assert-True ((Get-CallCount $result.Calls 'azd provision*') -eq 1) $case 'provisioned other than once.' $result.Diagnostic
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp deploy*--restart true*', '*--no-state*')
+    Assert-True ($result.Estate.web.state -eq 'Running' -and $result.Estate.web.sourceSha -eq $lostSha) $case 'did not leave the Web App Running at the release.' $result.Diagnostic
+
+    # The same line run again with the site already Stopped (the first run
+    # failed after the stop): it is not stopped again, and the run goes on.
+    $result = Invoke-ReleaseCase -WorkRoot $fixture.Work -Arguments $executeLost -Estate (New-Estate -NewSha $lostSha -WebState 'Stopped' -WebServing $false) -MigrationHead $lostArtifacts.MigrationIdentity
+    $case = 'Normal route resumed with the Web App stopped for a dropped setting'
+    Assert-True ($result.Output.Contains('WEBSITE_RUN_FROM_PACKAGE')) $case 'did not reach the full smoke.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Resuming: the Web App is already Stopped; it is not stopped again.')) $case 'did not report the resumed stop.' $result.Diagnostic
+    Assert-Order -Result $result -Case $case -Patterns @('az webapp deploy*--restart false*', 'azd provision*', 'az webapp start*')
+    Assert-NoCall -Result $result -Case $case -Patterns @('az webapp stop*', 'az webapp deploy*--restart true*')
+    Assert-True ($result.Estate.web.state -eq 'Running' -and $result.Estate.web.sourceSha -eq $lostSha) $case 'did not leave the Web App Running at the release.' $result.Diagnostic
 
     # A completed release removes its worktree itself (Complete-Release).
     if (Test-Path -LiteralPath $worktree) { & git -C $fixture.Work worktree remove --force $worktree }
