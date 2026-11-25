@@ -75,11 +75,6 @@ param(
     [ValidatePattern('^[0-9a-f]{40}$')]
     [string] $ApprovedOldWebSourceSha,
 
-    # Normal route only: the release adds or changes WEBSITE_WARMUP_PATH or
-    # WEBSITE_WARMUP_STATUSES, so the package deploys before provisioning.
-    [Parameter(ParameterSetName = 'Execute')]
-    [switch] $WarmupSettingsChange,
-
     # Promote the exact SHA and stop: no build, no Azure write.
     [Parameter(Mandatory, ParameterSetName = 'PromoteOnly')]
     [switch] $PromoteOnly,
@@ -535,6 +530,32 @@ function Assert-AzdEnvironmentComplete {
         throw "The classifier Function App exists but PEGASUS_CLASSIFIER_ACTIVATION is '$($Values['PEGASUS_CLASSIFIER_ACTIVATION'])', not 'approved': a provision would delete $classifierApp. Set it in the primary checkout and run again."
     }
     Write-Host "azd environment: complete ($($required.Count) required keys present)."
+}
+
+function Get-LostStartupSettings {
+    # R1248 (#2165): the Web App settings the live package cannot start under
+    # once the candidate's template is provisioned. A key the Web host
+    # requires at start-up at the live SHA (Program.cs, the Production loop)
+    # whose setting the live template sets and the candidate's does not; and
+    # a warm-up path or status the candidate adds or changes, which the live
+    # package cannot answer. Provisioning first would restart the live
+    # package onto settings it stops on (Release 5.2.0), and deploying first
+    # would start the new package without its own, so the normal route stops
+    # the site for both. A file that cannot be read is a refusal, never "none".
+    param([Parameter(Mandatory)][string] $LiveSha, [Parameter(Mandatory)][string] $CandidateSha)
+    if ($LiveSha -ceq $CandidateSha) { return @() }
+    $program = (Invoke-Git -Failure "Unable to read src/Pegasus.Web/Program.cs at $LiveSha." -Arguments @('show', "${LiveSha}:src/Pegasus.Web/Program.cs")) -join "`n"
+    $required = @(Get-PegasusWebRequiredKeys -ProgramText $program)
+    if ($required.Count -eq 0) { throw "The Production required keys could not be read from src/Pegasus.Web/Program.cs at $LiveSha (R1248)." }
+    $template = 'infra/modules/platform.bicep'
+    $live = Get-PegasusWebAppSettings -TemplateText ((Invoke-Git -Failure "Unable to read $template at $LiveSha." -Arguments @('show', "${LiveSha}:$template")) -join "`n")
+    $candidate = Get-PegasusWebAppSettings -TemplateText ((Invoke-Git -Failure "Unable to read $template at $CandidateSha." -Arguments @('show', "${CandidateSha}:$template")) -join "`n")
+    if ($live.Count -eq 0 -or $candidate.Count -eq 0) { throw "The Web App settings could not be read from $template at $LiveSha and $CandidateSha (R1248)." }
+    $lost = @($required | ForEach-Object { $_.Replace(':', '__') } | Where-Object { $live.Contains($_) -and -not $candidate.Contains($_) })
+    foreach ($name in 'WEBSITE_WARMUP_PATH', 'WEBSITE_WARMUP_STATUSES') {
+        if ($candidate.Contains($name) -and [string]$live[$name] -cne [string]$candidate[$name]) { $lost += $name }
+    }
+    return $lost
 }
 
 function Copy-AzdEnvironment {
@@ -1166,11 +1187,16 @@ function Invoke-Preflight {
         elseif ($retained.Hash -cne $envHash) { "the azd environment changed since $($retained.Release)" }
         else { "no infra path changed and the azd environment equals $($retained.Release)'s" }
     Write-Host "Provision: $(if ($provisionNeeded) { 'needed' } else { 'not needed' }) ($reason)"
+    $lostSettings = @(if ($deployable.Count -gt 0) { Get-LostStartupSettings -LiveSha $mainSha -CandidateSha $devSha })
+    if ($lostSettings.Count -gt 0) {
+        Write-Host "Web App settings: the candidate's template drops or changes $($lostSettings -join ', '), which the live package cannot start under. The normal route stops the Web App, deploys the package to the stopped site, provisions and starts it (R1248)."
+    }
 
     return [pscustomobject]@{
         MainSha = $mainSha; DevSha = $devSha; Route = $route; PromotionOnly = ($deployable.Count -eq 0)
         ProvisionNeeded = $provisionNeeded; ServingSha = $servingSha; Head = $head; CandidateIdentity = $candidateIdentity
         ClassifierPresent = $classifierPresent; LiveVersion = $live; BuildVersion = $buildVersion; Proposal = $proposal; NotGreen = $checks.NotGreen
+        LostStartupSettings = $lostSettings
     }
 }
 
@@ -1233,6 +1259,9 @@ function Write-ApprovalRequest {
     Write-Host "  Migration          head $($Preflight.Head) -> $($Build.MigrationIdentity)"
     Write-Host "  Route              $($Preflight.Route)"
     Write-Host "  Provision          $(if ($Preflight.ProvisionNeeded) { 'yes' } else { 'no' })"
+    if ($Preflight.LostStartupSettings.Count -gt 0) {
+        Write-Host "  Web App stopped    on the normal route, for the package deploy and provision: the template drops or changes $($Preflight.LostStartupSettings -join ', '), which the live package cannot start under (R1248)"
+    }
     Write-Host "  Targets            $webApp, $workerApp$(if ($Preflight.ClassifierPresent) { ", $classifierApp" }), SQL pegasus-prod-sql-252ow37gij/pegasus"
     Write-Host "  Old Web SHA        $($Preflight.ServingSha) (destructive route only; the approval names it and a window)"
     Write-Host ''
@@ -1258,21 +1287,45 @@ function Invoke-NormalRoute {
     }
     # The Worker is expected live and approved, as before any normal release:
     # a census disabled on purpose is refused, not quietly re-enabled.
-    if ($WarmupSettingsChange) {
-        # The previous package cannot answer a new warm-up path or status, so
-        # the platform would keep failing its start after provision: deploy
-        # first, read the exact release back, then provision and read it back
-        # again.
-        if (-not $Provision) { throw '-WarmupSettingsChange needs -Provision: the warm-up setting is provisioned.' }
-        Publish-Web -PackagePath $WebPackagePath -Restart $true
-        Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
+    #
+    # R1248 (#2165): settings change only when the release provisions. When
+    # the template then drops or changes a setting the live package cannot
+    # start under, neither order of provision and deploy is safe on a running
+    # site, so the site is stopped, takes the package and the settings, and is
+    # started. A run resumed with the site
+    # already Stopped continues from there; one that finds the release already
+    # serving has nothing left to protect and takes the ordinary order.
+    $lostSettings = @()
+    if ($Provision) {
+        $lostSettings = @(Get-LostStartupSettings -LiveSha (@(Invoke-Git -Arguments @('rev-parse', 'origin/main'))[0].Trim()) -CandidateSha $ApprovedReleaseSha)
+    }
+    $serving = Get-WebVersion
+    $servingRelease = $null -ne $serving -and [string]$serving.sourceSha -ceq $ApprovedReleaseSha
+    if ($lostSettings.Count -gt 0 -and -not $servingRelease) {
+        if ([string](Get-WebSite).state -ceq 'Stopped') {
+            Write-Host 'Resuming: the Web App is already Stopped; it is not stopped again.'
+        }
+        else {
+            Write-Host "The template drops or changes $($lostSettings -join ', '), which the live package cannot start under: stopping the Web App for the package deploy and provision (R1248)."
+            Invoke-Az -Failure "Unable to stop $webApp." -Arguments @('webapp', 'stop', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
+            Wait-WebStopped
+            Write-Host 'Web App read back Stopped and unserved.'
+            Set-RecordValue 'Web stopped' ("for the package deploy and provision at $([DateTimeOffset]::UtcNow.ToString('HH:mm:ss'))Z ($($lostSettings -join ', '))")
+        }
+        # The package goes on first, as on the destructive route: a start,
+        # however caused, then runs the release and never the live package
+        # under settings it stops on.
+        Publish-Web -PackagePath $WebPackagePath -Restart $false
+        if ([string](Get-WebSite).state -cne 'Stopped') { throw 'The Web App did not remain Stopped after the package deployment.' }
         Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
+        Invoke-Az -Failure 'Web App start failed.' -Arguments @('webapp', 'start', '--subscription', $subscriptionId, '--resource-group', $resourceGroup, '--name', $webApp, '--output', 'none') | Out-Null
         Wait-PegasusExpectedWebSite -ExpectedSourceRevision $ApprovedReleaseSha -ExpectedVersion $Version
     }
     else {
         if ($Provision) {
             # Provision may restart the site onto the previous package; on this
-            # route that package runs against a compatible schema.
+            # route that package runs against a compatible schema and, with no
+            # setting it requires dropped, compatible settings.
             Invoke-Provision -Root $Root -ExpectedLiveWorkerActivation 'approved-live-worker'
         }
         else {
