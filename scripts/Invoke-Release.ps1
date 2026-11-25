@@ -7,10 +7,11 @@ that promotes, deploys and prints the record.
 
 .DESCRIPTION
 The default run writes nothing to GitHub or Azure. It fetches both remote
-heads, lists the candidate range and its pull requests, reads the deployed
-state and the live migration head, says which route the candidate needs and
-whether provisioning is needed, builds the exact-SHA artifacts in a detached
-worktree, validates them, and prints the one approval request.
+heads, lists the candidate range and the pull requests merged into dev in it,
+reads the deployed state and the live migration head, says which route the
+candidate needs and whether provisioning is needed, builds the exact-SHA
+artifacts in a detached worktree, validates them, and prints the one approval
+request.
 
 -Execute is the approved run. Its parameters are the words of the approval:
 the exact SHA, the manifest SHA-256, the version, the route, whether to
@@ -992,10 +993,11 @@ function Select-CurrentChecks {
 
 function Read-CandidateChecks {
     # The push-to-dev run on the candidate is its exact-head evidence (R683);
-    # the merged pull requests in the range and their checks are listed with
-    # it, and what they close decides the proposed version step (R687). A run
-    # that is not green is counted and never waived (R691): the read-only run
-    # reports it and the approved run refuses before any write.
+    # the pull requests merged into dev in the range and their checks are
+    # listed with it, and what they close decides the proposed version step
+    # (R687, R1247). A run that is not green is counted and never waived
+    # (R691): the read-only run reports it and the approved run refuses before
+    # any write.
     param([Parameter(Mandatory)][string] $MainSha, [Parameter(Mandatory)][string] $DevSha)
     $runsJson = (& gh run list --repo $gitHubRepository --workflow repository-check --branch dev --commit $devSha --json 'status,conclusion,url' 2>&1) -join "`n"
     $devRun = $null
@@ -1004,9 +1006,25 @@ function Read-CandidateChecks {
     elseif ([string]$devRun.conclusion -cne 'success') { Write-Host "The dev run for $devSha is $($devRun.status)/$($devRun.conclusion): $($devRun.url)"; $notGreen = 1 }
     else { Write-Host "dev run for ${devSha}: success ($($devRun.url))"; $notGreen = 0 }
     Write-Host ''
-    Write-Host '--- Pull requests in the range ---'
-    $pullNumbers = @(Invoke-Git -Arguments @('log', '--merges', '--format=%s', "$mainSha..$devSha") |
-        ForEach-Object { if ($_ -match 'Merge pull request #(\d+)') { [int]$Matches[1] } } | Sort-Object -Unique)
+    Write-Host '--- Pull requests merged into dev in the range ---'
+    # R1247: the pull requests counted are the ones merged into dev itself.
+    # GitHub is asked which pull request each commit on dev's own line is the
+    # merge of, so no merge subject is read (#2189): a merge titled by hand is
+    # found, and the members of a combined pull request, merged inside its
+    # branch, are judged through it and not apart from it. The answer also
+    # lists open pull requests that merely contain the commit; only the one
+    # merged as that commit is kept.
+    $pullNumbers = @()
+    foreach ($commit in @(Invoke-Git -Arguments @('rev-list', '--first-parent', "$mainSha..$devSha") | ForEach-Object { "$_".Trim() } | Where-Object { $_ })) {
+        $json = (& gh api "repos/$gitHubRepository/commits/$commit/pulls" 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "gh could not read the pull requests of ${commit}: $json" }
+        foreach ($pull in @($json | ConvertFrom-Json)) {
+            $merged = $pull.PSObject.Properties['merged_at']
+            $mergeCommit = $pull.PSObject.Properties['merge_commit_sha']
+            if ($null -ne $merged -and $null -ne $merged.Value -and $null -ne $mergeCommit -and [string]$mergeCommit.Value -ceq $commit) { $pullNumbers += [int]$pull.number }
+        }
+    }
+    $pullNumbers = @($pullNumbers | Sort-Object -Unique)
     # R687: what the pull requests close decides the proposed version step.
     # GitHub links a closing reference only on a pull request into the default
     # branch, and these target dev, so the body's own "Closes #N" lines are
