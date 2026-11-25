@@ -6613,9 +6613,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasDefaultValue("{\"sendTo\":[],\"sendToOnly\":false,\"replyAll\":true,\"cc\":[],\"neverCc\":[],\"attach\":{\"feeNoteSeparate\":true,\"estimate\":false,\"audatex\":false,\"reportImages\":true,\"vehicleImagesDocument\":false,\"figureBreakdown\":false},\"garageFigures\":false,\"reminders\":[],\"rules\":[]}");
 
-                    b.Property<string>("SalvageMatrixJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid>("SequenceLineageId")
                         .HasColumnType("uniqueidentifier");
 

@@ -22,8 +22,6 @@ public sealed record Principal(
     // never copied. Null when the record carries none, or when a reader did not
     // load the organisation.
     string? NotesOnEveryCase = null,
-    // The Principal's salvage matrix (29 September 2026); null when it has none.
-    SalvageMatrix? SalvageMatrix = null,
     // The agreed fee a new Case of this Principal starts with (5 October 2026).
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
     // What its reports are called (6 November 2026, R740); none means the standard names.
@@ -353,25 +351,6 @@ public sealed record ReplacePrincipalRequest(
     string OperationKey,
     string? Reason,
     long ExpectedContactVersion);
-
-/// <summary>
-/// Replace a principal's salvage matrix with the one an administrator
-/// entered; a null matrix leaves the principal with none.
-/// </summary>
-public sealed record UpdatePrincipalSalvageMatrixRequest(
-    Guid PrincipalId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    SalvageMatrix? SalvageMatrix,
-    long ExpectedContactVersion);
-
-public interface IUpdatePrincipalSalvageMatrix
-{
-    Task<Principal> ExecuteAsync(
-        UpdatePrincipalSalvageMatrixRequest request,
-        CancellationToken cancellationToken);
-}
 
 /// <summary>
 /// Replace a principal's report sending rules with the ones an administrator

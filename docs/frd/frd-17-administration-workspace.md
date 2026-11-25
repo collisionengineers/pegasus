@@ -120,10 +120,11 @@ stays the only route to a new code. Notes on every Case grows to fit its
 text. Linked principals is one list in three columns. The label is Phone in
 the New dialog, on the contact and in the list. Save contact returns to the
 Contacts list. An active Principal's page is tabs: Contact, Report
-generation, Report sending, Salvage matrix, Default inspection location and
-Principal API, each its own address (`?tab=`) so the tabs work without
-script, with Replace code in the head of the Contact tab
-([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+generation, Report sending, Default inspection location and Principal API,
+each its own address (`?tab=`) so the tabs work without script, with Replace
+code in the head of the Contact tab
+([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+there is no Salvage matrix tab (operator, 25 November 2026; R1263).
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
 Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
@@ -169,10 +170,7 @@ Attach choices other than report images, each As the Principal, Attach or
 Do not attach (Report Sending SOP v8; operator, 16 October 2026). A
 non-letter reference prefix is refused: "A reference prefix is letters
 only." A Remove rule button per row, one spare blank row, an Add rule button,
-and one Save report sending. The Salvage matrix panel follows it: one
-table per salvage category, with From (£), To (£) and Percentage paid (%)
-columns, a Remove button per row, one spare blank row, an Add band button,
-and one Save salvage matrix. The list filters live as the operator types, 300
+and one Save report sending. The list filters live as the operator types, 300
 milliseconds after the last keystroke, alongside the Apply control for
 no-script use. Server-side filtering is unchanged. A telephone value accepts
 digits, spaces and an optional leading `+` only (UK numbers keep a leading

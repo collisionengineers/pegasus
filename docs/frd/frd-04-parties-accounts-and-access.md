@@ -243,17 +243,6 @@ The Principal section of a Contact carries:
   An empty name is the standard name. A name with another token, or one
   whose longest result could not be filed (120 characters), is refused. A
   successor code inherits its predecessor's;
-- the salvage matrix (operator, 29 September 2026): for each salvage
-  category (A, B, S and N) the bands of Engineer's Value, From £ to To £
-  inclusive, and the percentage of that value paid. It fills the Case's
-  salvage value
-  ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
-  Amounts are £0.00 or more, From is not more than To, the percentage is 0
-  to 100, and each takes two decimal places at most. A category's bands may
-  not overlap; a gap fills nothing. Blank rows are ignored, and a Principal
-  with no bands has no matrix. A refused save names the category and the
-  rule and keeps the typed rows. No Principal starts with one, and a
-  successor code inherits its predecessor's;
 - the report sending rules (operator, 5 and 6 October 2026), from the Report
   Sending SOP v8 (15 October 2026). Every Principal has them. They say where
   a report goes, from where, who is copied, what goes with it and what holds

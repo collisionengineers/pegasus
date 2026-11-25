@@ -172,34 +172,6 @@
                 </section>
                 <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.PrincipalAdministration.SaveReportSending</button></div></form></section>
         }
-        if (tab == EditModel.SalvageMatrixTab)
-        {
-            @* The Principal's salvage matrix (29 September 2026): each category's
-               Engineer's Value bands and the percentage paid. A blank row is
-               ignored, so each table keeps one spare row to type into. *@
-            <section class="panel" aria-labelledby="principal-salvage-title"><div class="panel-head"><h2 id="principal-salvage-title">@OperatorLabels.PrincipalAdministration.SalvageMatrix</h2></div><form method="post" asp-page-handler="UpdateSalvageMatrix" asp-route-id="@Model.ContactId" class="panel-body stack" data-salvage-matrix-editor>@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="SalvageMatrixOperationKey" type="hidden" />
-                @foreach (var category in Pegasus.Core.Assessment.SalvageMatrix.Categories)
-                {
-                    var categoryLabel = OperatorLabels.PrincipalAdministration.SalvageCategory(category);
-                    var rows = Model.SalvageRows.Where(row => row.Category == category)
-                        .Append(new Pegasus.Core.Assessment.SalvageMatrixEntry(category, null, null, null));
-                    <section class="contact-section stack" aria-labelledby="salvage-category-@category-title">
-                        <h3 id="salvage-category-@category-title">@categoryLabel</h3>
-                        <div class="table-wrap no-border"><table class="table table--compact">
-                            <caption class="sr-only">@categoryLabel</caption>
-                            <thead><tr><th scope="col">@OperatorLabels.PrincipalAdministration.SalvageFrom</th><th scope="col">@OperatorLabels.PrincipalAdministration.SalvageTo</th><th scope="col">@OperatorLabels.PrincipalAdministration.SalvagePercentage</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-                            <tbody data-salvage-bands="@category">
-                            @foreach (var row in rows)
-                            {
-                                <tr><td><input type="hidden" name="SalvageBandCategory" value="@category" /><input name="SalvageBandFrom" type="number" inputmode="decimal" min="0" step="0.01" value="@row.From" aria-label="@categoryLabel @OperatorLabels.PrincipalAdministration.SalvageFrom" /></td><td><input name="SalvageBandTo" type="number" inputmode="decimal" min="0" step="0.01" value="@row.To" aria-label="@categoryLabel @OperatorLabels.PrincipalAdministration.SalvageTo" /></td><td><input name="SalvageBandPercentage" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="@row.Percentage" aria-label="@categoryLabel @OperatorLabels.PrincipalAdministration.SalvagePercentage" /></td><td><button type="button" class="btn btn--small" data-remove-salvage-band>@OperatorLabels.PrincipalAdministration.RemoveSalvageBand</button></td></tr>
-                            }
-                            </tbody>
-                        </table></div>
-                        <div class="button-row"><button type="button" class="btn btn--small" data-add-salvage-band="@category">@OperatorLabels.PrincipalAdministration.AddSalvageBand</button></div>
-                    </section>
-                }
-                <div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.PrincipalAdministration.SaveSalvageMatrix</button></div></form></section>
-        }
         if (tab == EditModel.LocationTab)
         {
             <section class="panel" aria-labelledby="principal-location-title"><div class="panel-head"><h2 id="principal-location-title">@OperatorLabels.PrincipalAdministration.DefaultInspectionLocation</h2></div><form method="post" asp-page-handler="UpdateLocation" asp-route-id="@Model.ContactId" class="panel-body stack contact-editor">@{ await PanelMessages(true); }<input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="PrincipalExpectedVersion" value="@Model.PrincipalExpectedVersion" /><input asp-for="LocationOperationKey" type="hidden" /><label class="choice"><input asp-for="LocationIsImageBasedAssessment" type="checkbox" /> <span>Default to Image Based Assessment</span></label><div class="field" data-location-physical><label asp-for="LocationLabel">Location label</label><input asp-for="LocationLabel" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationAddress">Address</label><input asp-for="LocationAddress" autocomplete="off" /></div><div class="field" data-location-physical><label asp-for="LocationPostcode">Postcode</label><input asp-for="LocationPostcode" autocomplete="off" /></div><div class="button-row"><a asp-page="Index" class="btn">Cancel</a><button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">Save default location</button></div></form></section>

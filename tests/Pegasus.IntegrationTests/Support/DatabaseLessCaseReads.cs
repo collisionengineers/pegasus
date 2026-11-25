@@ -18,8 +18,8 @@ namespace Pegasus.IntegrationTests.Support;
 /// <remarks>
 /// A recording-store test serves its Case from the store, so these are the
 /// reads it used to send to a restored database: no kind, preparation,
-/// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason, salvage
-/// matrix, report, valuation, repairer, image intake or lease to resume; Send
+/// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason,
+/// report, valuation, repairer, image intake or lease to resume; Send
 /// to AI switched on, because no row says otherwise; and the reference rows the
 /// migrations seed (the labour-rate cards, the valuation presets, the built-in
 /// image tags and the claim sources). <c>DatabaseLessWebHostTests</c> compares
@@ -35,7 +35,6 @@ internal sealed class DatabaseLessCaseReads :
     IListCaseEstimates,
     ILabourRateCardStore,
     IUnroadworthyReasonBankStore,
-    IPrincipalSalvageMatrixQueries,
     ICaseReportSnapshotSource,
     ICaseReportGenerationStore,
     ISendToAiControl,
@@ -235,10 +234,6 @@ internal sealed class DatabaseLessCaseReads :
     Task<UnroadworthyReasonChange> IUnroadworthyReasonBankStore.RemoveAsync(
         Guid id, string renderedText, CancellationToken cancellationToken) =>
         Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
-
-    Task<SalvageMatrix?> IPrincipalSalvageMatrixQueries.GetForCaseAsync(
-        Guid caseId, CancellationToken cancellationToken) =>
-        Task.FromResult<SalvageMatrix?>(null);
 
     Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
         Guid caseId,

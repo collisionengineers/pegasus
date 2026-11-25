@@ -277,13 +277,6 @@ public static partial class OperatorLabels
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";
-        public const string SalvageMatrix = "Salvage matrix";
-        public const string SalvageFrom = "From (£)";
-        public const string SalvageTo = "To (£)";
-        public const string SalvagePercentage = "Percentage paid (%)";
-        public const string AddSalvageBand = "Add band";
-        public const string RemoveSalvageBand = "Remove";
-        public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
         // The VAT number the Principal's fee notes print (operator, 12 November 2026; R1006 to R1008).
         public const string FeeNoteVatNumber = "Fee note VAT number";
@@ -378,7 +371,6 @@ public static partial class OperatorLabels
         public const string SubmittedValueInvalid = "The submitted value is not valid.";
         public const string SettingsNotAccepted = "The settings were not accepted.";
         public const string ReportSettingsUpdated = "The principal's report settings were updated.";
-        public const string SalvageMatrixUpdated = "The principal's salvage matrix was updated.";
         public const string ReportSendingUpdated = "The principal's report sending rules were updated.";
         public const string AddressRequired = "An address is required.";
         public const string DefaultLocationUpdated = "The principal's default inspection location was updated.";
