@@ -1,8 +1,11 @@
 name: repository-check
 
 # dev is what the hosted test instance runs and what a release deploys, so a
-# push to dev runs the full lanes on the merged tree: that run is the
-# exact-head evidence the release preflight reads (R683). main receives the
+# push to dev needs every lane green on the merged tree: that run is the
+# exact-head evidence the release preflight reads (R683). A lane that has
+# already passed on the identical tree is not run again (R1249): the run then
+# reports it skipped, which counts as passed, and names the run that passed
+# it. main receives the
 # same SHA once the release's smoke has passed (R682), so a push to main runs
 # the history guard alone; its lanes already ran on dev. A pull request into
 # main is only the dev -> main promotion: its head is dev, whose push run
@@ -12,14 +15,18 @@ on:
   pull_request:
     branches-ignore: [main]
     # `edited` too: the migration class guard reads the body, so a body edit
-    # re-runs it (R760, #1845). The run is whole, not the guard alone: a lane
-    # skipped on the edit would report as passed over the head's verdict.
+    # re-runs it (R760, #1845). The run is whole, not the guard alone, because
+    # a lane skipped on the edit reports as passed over the head's verdict; a
+    # lane is skipped there only where it has already passed on this very tree
+    # (R1249), and one that failed has no marker and runs again.
     types: [opened, synchronize, reopened, edited]
   push:
     branches: [main, dev]
 
 permissions:
   contents: read
+  # The changes job looks up the lanes' markers in the artifact list (R1249).
+  actions: read
 
 # One live run per pull request: a newer head cancels the superseded run
 # instead of letting both finish (two ~15-minute runs started 2m15s apart on
@@ -38,18 +45,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.detect.outputs.code }}
+      unit: ${{ steps.detect.outputs.unit }}
+      sql: ${{ steps.detect.outputs.sql }}
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
       classifier: ${{ steps.detect.outputs.classifier }}
       migrations: ${{ steps.detect.outputs.migrations }}
+      tree: ${{ steps.detect.outputs.tree }}
     steps:
       - uses: actions/checkout@v7
         with:
           # Only the push-to-main history guard needs history. A full clone of
           # this repository takes about 2.5 minutes and every heavy lane waits
           # on this job, so a pull request checks out one commit and reads its
-          # changed files from the API instead.
-          fetch-depth: ${{ github.event_name == 'push' && '0' || '1' }}
+          # changed files from the API instead, and a push to dev, which runs
+          # every lane whatever changed, checks out one commit too.
+          fetch-depth: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '0' || '1' }}
       - name: Require main history to be contained in dev
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
@@ -66,15 +76,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # The changed paths: the API lists a pull request's files against the
-          # merge base; a push diffs from its before SHA. A list that cannot be
-          # trusted (an API failure, the 3,000-path cap, an unknown before SHA)
-          # runs every lane.
+          # merge base. A list that cannot be trusted (an API failure, the
+          # 3,000-path cap) needs every lane, and so does a push to dev, which
+          # reads no list.
           $all = $true
           $files = @()
           if ('${{ github.event_name }}' -eq 'push' -and '${{ github.ref }}' -eq 'refs/heads/main') {
             # main receives a SHA dev already ran (R682, R683): the guard above
             # is this push's whole check.
-            foreach ($lane in 'code', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
+            foreach ($lane in 'unit', 'sql', 'infrastructure', 'classifier') { "$lane=false" >> $env:GITHUB_OUTPUT }
             Write-Host 'Lanes: none (a push to main is guarded, not re-run; its lanes ran on dev).'
             exit 0
           }
@@ -84,7 +94,7 @@ jobs:
           }
           # A push to dev keeps $all: the merged tree is the release candidate
           # and the exact-head evidence the preflight reads (R683), so every
-          # lane runs on it whatever the last push alone touched.
+          # lane is needed on it whatever the last push alone touched.
           # Code is every path except the ones no .NET build or test reads:
           # Markdown, docs/ (bar the brand logo the report renderer embeds), the
           # skills, the Python helper tests, the reference-data generator, the
@@ -96,15 +106,39 @@ jobs:
           $code = $all -or [bool]($files | Where-Object { $_ -notmatch $prose } | Select-Object -First 1)
           $infra = $all -or [bool]($files | Where-Object { $_ -match $infrastructure } | Select-Object -First 1)
           $node = $all -or [bool]($files | Where-Object { $_ -match $classifier } | Select-Object -First 1)
-          "code=$($code.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "infrastructure=$($infra.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "classifier=$($node.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           # The changed migration sources the migration class guard reads, space
           # separated: a pull request's alone, and none when its list cannot be
           # trusted.
           $migrations = if ($all) { '' } else { @($files | Where-Object { $_ -match '^src/Pegasus\.Infrastructure/Persistence/Migrations/\d{14}_[A-Za-z0-9]+\.cs$' }) -join ' ' }
           "migrations=$migrations" >> $env:GITHUB_OUTPUT
-          Write-Host "Lanes: code=$code infrastructure=$infra classifier=$node ($($files.Count) changed paths$(if ($all) { '; the list could not be trusted, so every lane runs' }))."
+          Write-Host "Lanes needed: code=$code infrastructure=$infra classifier=$node ($($files.Count) changed paths$(if ($all) { '; no trusted list, so every lane is needed' }))."
+          # R1249 (#2164): a lane that has already passed on this exact tree is
+          # not run again. The tree is the one this run tests: the merge result
+          # for a pull request, the pushed commit for dev. Each lane uploads a
+          # marker named for itself and that tree when it passes
+          # (.github/actions/lane-passed), and a marker found here turns the
+          # lane off: the stacked pull request merged into its base, the body
+          # edit and the push to dev after a merge then repeat nothing. A lane
+          # that failed, or never ran, has no marker and runs. A lookup that
+          # fails runs the lane. The infrastructure lane always runs while the
+          # pull request changes a migration: its class guard reads the body,
+          # not the tree.
+          $tree = (git rev-parse 'HEAD^{tree}').Trim()
+          "tree=$tree" >> $env:GITHUB_OUTPUT
+          $lanes = [ordered]@{ unit = $code; sql = $code; infrastructure = $infra; classifier = $node }
+          foreach ($lane in @($lanes.Keys)) {
+            if (-not $lanes[$lane] -or ($lane -eq 'infrastructure' -and $migrations)) { continue }
+            $run = gh api "repos/${{ github.repository }}/actions/artifacts?name=green-$lane-$tree&per_page=1" --jq '.artifacts[] | select(.expired | not) | .workflow_run.id'
+            if ($LASTEXITCODE -eq 0 -and $run) {
+              $lanes[$lane] = $false
+              Write-Host "Lane ${lane}: already green on tree $tree in run $run; not run again (R1249)."
+            }
+          }
+          # A failed lookup has run its lane; it must not fail this step, whose
+          # exit code is the last native command's.
+          $global:LASTEXITCODE = 0
+          foreach ($lane in $lanes.Keys) { "$lane=$($lanes[$lane].ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT }
+          Write-Host "Lanes to run on tree ${tree}: $(@($lanes.Keys | Where-Object { $lanes[$_] }) -join ', ')."
 
   invariants:
     # The cheap invariant checks, in one runner rather than three. They gate
@@ -197,6 +231,10 @@ jobs:
       - name: Validate infrastructure plan locally
         shell: pwsh
         run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
+      - uses: ./.github/actions/lane-passed
+        with:
+          lane: infrastructure
+          tree: ${{ needs.changes.outputs.tree }}
 
   classifier:
     # The classifier agent is a Node Functions app; it typechecks, compiles
@@ -225,6 +263,10 @@ jobs:
         run: npm run build
       - name: Test
         run: npm test
+      - uses: ./.github/actions/lane-passed
+        with:
+          lane: classifier
+          tree: ${{ needs.changes.outputs.tree }}
 
   unit:
     # Both projects run whole and unfiltered. Core's Category=Corpus theories
@@ -235,7 +277,7 @@ jobs:
     # Linux, the platform Web and Worker deploy to. R657's measured run
     # (3 November 2026) was green at 209 s against 246-308 s on Windows.
     needs: [changes, invariants]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.unit == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -248,6 +290,10 @@ jobs:
         run: >
           dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build &&
           dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build
+      - uses: ./.github/actions/lane-passed
+        with:
+          lane: unit
+          tree: ${{ needs.changes.outputs.tree }}
 
   sql-integration:
     # All integration tests except the separately scoped corpus tests.
@@ -264,7 +310,7 @@ jobs:
     # discarded with the job. R657's measured run (3 November 2026) was green
     # with shards of 576-726 s against 772-1477 s on Windows.
     needs: [changes, invariants]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.sql == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -357,7 +403,7 @@ jobs:
     # `always()` so a failing shard still gets its coverage reported, but never
     # when the lane was path-skipped or skipped because a cheap invariant failed
     # upstream (there are no artifacts to verify then).
-    if: always() && needs.changes.outputs.code == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
+    if: always() && needs.changes.outputs.sql == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -388,3 +434,11 @@ jobs:
         with:
           name: test-shard-durations
           path: artifacts/test-shard-durations.json
+      # The SQL lane's marker: every shard passed and, above, the partition
+      # was verified. It is written here, not in sql-integration-result, which
+      # has no checkout to read the local action from.
+      - uses: ./.github/actions/lane-passed
+        if: needs.sql-integration.result == 'success'
+        with:
+          lane: sql
+          tree: ${{ needs.changes.outputs.tree }}
