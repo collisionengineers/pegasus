@@ -222,7 +222,7 @@ public static class ReportDispatchPolicy
             facts.ClaimSourceId?.ToString("N") ?? "",
             facts.RepairerId?.ToString("N") ?? "",
             facts.Outcome?.Trim() ?? "",
-            facts.InstructionText is null ? "" : Compact(facts.InstructionText));
+            facts.InstructionText is null ? "" : NamedInText.Compact(facts.InstructionText));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 
@@ -468,20 +468,16 @@ public static class ReportDispatchPolicy
 
     /// <summary>
     /// Whether <paramref name="text"/> mentions any of <paramref name="values"/>,
-    /// ignoring case and spaces ("Car Claims" is "CarClaims").
+    /// ignoring case and spaces ("Car Claims" is "CarClaims"), by the one rule
+    /// a new Case's contact fill also reads (<see cref="NamedInText"/>).
     /// </summary>
     public static bool Mentions(string text, IReadOnlyList<string> values)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(values);
-        var haystack = Compact(text);
-        return values
-            .Select(Compact)
-            .Any(needle => needle.Length > 0 && haystack.Contains(needle, StringComparison.Ordinal));
+        var haystack = NamedInText.Compact(text);
+        return values.Any(value => NamedInText.Names(haystack, value));
     }
-
-    private static string Compact(string value) =>
-        string.Concat(value.Where(character => !char.IsWhiteSpace(character))).ToUpperInvariant();
 
     private static bool IsAudatex(FiledEstimateAttachment estimate) =>
         string.Equals(estimate.Provider, EstimateFormats.AudatexProvider, StringComparison.OrdinalIgnoreCase);

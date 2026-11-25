@@ -6,14 +6,18 @@ namespace Pegasus.Core.Tests.Intake;
 /// <summary>
 /// R1014, R1017: a new Case takes the Claim Source its instruction names, when
 /// that name is an active Claim Source's; otherwise the one linked Claim
-/// Source its intermediary sender matches; otherwise none. Synthetic names
-/// and addresses only.
+/// Source its intermediary sender matches; otherwise (R1264) the one linked
+/// Claim Source its text names; otherwise none. Synthetic names and
+/// addresses only.
 /// </summary>
 public sealed class EstablishedIntakeClaimSourceTests
 {
     private static readonly ContactChoice Named = Source("Fleet Route Solutions", null);
     private static readonly ContactChoice Sender = Source("Claims Route", "desk@claims-route.example", "PCH", "QDOS");
     private static readonly ContactChoice Unlinked = Source("Other Route", "desk@other-route.example");
+    private static readonly ContactChoice CarClaims = Source("CarClaims", null, "AX", "PCH");
+    private static readonly ContactChoice HireRoute = Source("Hire Route Partners", null, "AX");
+    private static readonly ContactChoice BridgeClaims = Source("Bridge Claims", null, "QDOS");
 
     [Theory]
     [InlineData(EstablishedIntakeClaimSource.IntroducerField, "Fleet Route Solutions")]
@@ -144,6 +148,77 @@ public sealed class EstablishedIntakeClaimSourceTests
             mailbox,
             EstablishedIntakeClaimSource.For([], "YML", "Claims.Route@GMAIL.com", [mailbox])?.ClaimSource);
         Assert.Null(EstablishedIntakeClaimSource.For([], "YML", "someone.else@gmail.com", [mailbox]));
+    }
+
+    /// <summary>
+    /// R1264: otherwise the one active Claim Source linked to the Case's
+    /// Principal that the instruction's text names, capitals and spaces
+    /// ignored.
+    /// </summary>
+    [Theory]
+    [InlineData("exact", "Our client was introduced by CarClaims.")]
+    [InlineData("spaced", "Our client was introduced by Car Claims.")]
+    [InlineData("capitals", "OUR CLIENT WAS INTRODUCED BY car claims")]
+    public void TheOneLinkedClaimSourceTheTextNamesIsTaken(string row, string text)
+    {
+        Assert.NotEmpty(row);
+
+        var established = EstablishedIntakeClaimSource.For(
+            [], null, null, [Named, CarClaims, HireRoute, BridgeClaims], "AX", text);
+
+        Assert.NotNull(established);
+        Assert.Same(CarClaims, established.ClaimSource);
+        Assert.Equal(IntakeClaimSourceOrigin.InstructionText, established.Origin);
+        Assert.Null(established.Field);
+    }
+
+    [Fact]
+    public void TwoLinkedClaimSourcesTheTextNamesGiveNone()
+    {
+        Assert.Null(EstablishedIntakeClaimSource.For(
+            [], null, null, [CarClaims, HireRoute], "AX", "Introduced by CarClaims for Hire Route Partners."));
+    }
+
+    [Fact]
+    public void AClaimSourceTheTextNamesThatIsNotLinkedToThePrincipalGivesNone()
+    {
+        Assert.Null(EstablishedIntakeClaimSource.For(
+            [], null, null, [CarClaims, BridgeClaims], "AX", "Introduced by Bridge Claims."));
+        Assert.Null(EstablishedIntakeClaimSource.For(
+            [], null, null, [Named, CarClaims], "AX", "Introduced by Fleet Route Solutions."));
+    }
+
+    [Fact]
+    public void TheInstructionsNamedClaimSourceComesBeforeTheText()
+    {
+        var field = Field(EstablishedIntakeClaimSource.IntroducerField, "Fleet Route Solutions");
+
+        var established = EstablishedIntakeClaimSource.For(
+            [field], null, null, [Named, CarClaims], "AX", "Introduced by CarClaims.");
+
+        Assert.Same(Named, established?.ClaimSource);
+        Assert.Equal(IntakeClaimSourceOrigin.Instruction, established?.Origin);
+    }
+
+    [Fact]
+    public void TheSenderComesBeforeTheText()
+    {
+        var established = EstablishedIntakeClaimSource.For(
+            [], "PCH", "reports@claims-route.example", [Sender, CarClaims], "PCH", "Introduced by CarClaims.");
+
+        Assert.Same(Sender, established?.ClaimSource);
+        Assert.Equal(IntakeClaimSourceOrigin.Sender, established?.Origin);
+    }
+
+    [Fact]
+    public void NoTextGivesNone()
+    {
+        Assert.False(EstablishedIntakeClaimSource.HasEvidence([], null, null));
+        Assert.False(EstablishedIntakeClaimSource.HasEvidence([], null, "  "));
+        Assert.True(EstablishedIntakeClaimSource.HasEvidence([], null, "Introduced by CarClaims."));
+        Assert.Null(EstablishedIntakeClaimSource.For([], null, null, [CarClaims], "AX", null));
+        Assert.Null(EstablishedIntakeClaimSource.For([], null, null, [CarClaims], "AX", "  "));
+        Assert.Null(EstablishedIntakeClaimSource.For([], null, null, [CarClaims], null, "Introduced by CarClaims."));
     }
 
     private static InstructionReviewField Field(string name, string value) =>

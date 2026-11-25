@@ -87,8 +87,13 @@ The link copies the Contact's identity, version and name, and the address
 stays the instruction's. It is recorded as a choice on the Case is, so staff
 change or clear it; Cases made before the change are not linked (operator, 12
 November 2026; [R1027](../rulings.md), as [R1017](../rulings.md) and
-[R1018](../rulings.md) for a Claim Source). Staff otherwise either
-confirm that text or link the Case to an active Repairer-role Contact, chosen
+[R1018](../rulings.md) for a Claim Source). When the instruction's name links
+none, the Case is linked to the one active Repairer-role Contact linked to the
+Case's Principal that the instruction's text (its subject, body and the text
+of its attachments) names, capitals and spaces ignored ("Car Claims" names
+"CarClaims"); two or more such Contacts named, or none, link nothing, on new
+Cases only (operator, 25 November 2026; [R1264](../rulings.md)). Staff
+otherwise either confirm that text or link the Case to an active Repairer-role Contact, chosen
 from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so
 a later directory edit never changes the Case. A save keeps the link the Case
@@ -342,8 +347,10 @@ the Principal has none (operator ruling, 22 October 2026). The Claim source is c
 contacts, or none. A Case made from a received item is created with one where the item establishes it: the claim source its
 instruction names (DFD's Claim source, SBL's and OAK's Introducer), when that name is an active Claim Source's, ignoring
 capitals; otherwise, for mail accepted through an intermediary, the one active Claim Source linked to the route's Principal
-that the sender matches, by the rule that made it an intermediary. Two or more matches, or none, fill nothing, and a name
-that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
+that the sender matches, by the rule that made it an intermediary; otherwise the one active Claim Source linked to the
+Case's Principal that the instruction's text (its subject, body and the text of its attachments) names, capitals and spaces
+ignored ("Car Claims" names "CarClaims") (operator, 25 November 2026; [R1264](../rulings.md)). Two or more matches, or none,
+fill nothing, and a name that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
 before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
 [R1018](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
 notes follow the chosen record, and a changed choice must still be an active
