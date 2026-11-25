@@ -1,5 +1,4 @@
 ﻿using Pegasus.Core.Address;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 
@@ -42,7 +41,6 @@ public sealed record PrincipalAdministrationSummary(
     Guid? DefaultInspectionSourceRecordId = null,
     long? DefaultInspectionSourceVersion = null,
     string? NotesOnEveryCase = null,
-    SalvageMatrix? SalvageMatrix = null,
     decimal DefaultFee = PrincipalDefaultFeePolicy.Standard,
     PrincipalReportNames? ReportNames = null,
     string? FeeNoteVatNumber = null,
@@ -93,16 +91,8 @@ public interface IOrganizationAdministrationStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Replace the principal's salvage matrix in place, as its report
+    /// Replace the principal's report sending rules in place, as its report
     /// settings change in place.
-    /// </summary>
-    Task<Principal> UpdatePrincipalSalvageMatrixAsync(
-        UpdatePrincipalSalvageMatrixRequest request,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Replace the principal's report sending rules in place, as its salvage
-    /// matrix changes in place.
     /// </summary>
     Task<Principal> UpdatePrincipalReportSendingAsync(
         UpdatePrincipalReportSendingRequest request,
@@ -202,20 +192,6 @@ public sealed class UpdatePrincipalReportSettings(IOrganizationAdministrationSto
             cancellationToken);
 }
 
-public sealed class UpdatePrincipalSalvageMatrix(IOrganizationAdministrationStore store)
-    : IUpdatePrincipalSalvageMatrix
-{
-    private readonly IOrganizationAdministrationStore _store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<Principal> ExecuteAsync(
-        UpdatePrincipalSalvageMatrixRequest request,
-        CancellationToken cancellationToken) =>
-        _store.UpdatePrincipalSalvageMatrixAsync(
-            OrganizationAdministrationPolicy.Normalize(request),
-            cancellationToken);
-}
-
 public sealed class UpdatePrincipalReportSending(IOrganizationAdministrationStore store)
     : IUpdatePrincipalReportSending
 {
@@ -286,7 +262,6 @@ public static class OrganizationAdministrationPolicy
                 0,
                 predecessor.InspectionMode,
                 predecessor.ReportSending,
-                SalvageMatrix: predecessor.SalvageMatrix,
                 DefaultFee: predecessor.DefaultFee,
                 ReportNames: predecessor.ReportNames,
                 FeeNoteVatNumber: predecessor.FeeNoteVatNumber,
@@ -329,24 +304,6 @@ public static class OrganizationAdministrationPolicy
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason))
-        };
-    }
-
-    public static UpdatePrincipalSalvageMatrixRequest Normalize(
-        UpdatePrincipalSalvageMatrixRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor);
-        RequireIdentifier(request.PrincipalId, nameof(request.PrincipalId));
-        RequireExpectedVersion(request.ExpectedVersion, nameof(request.ExpectedVersion));
-        RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
-        return request with
-        {
-            OperationKey = NormalizeRequiredText(
-                request.OperationKey,
-                MaximumOperationKeyLength,
-                nameof(request.OperationKey)),
-            SalvageMatrix = SalvageMatrix.Normalize(request.SalvageMatrix?.Bands)
         };
     }
 
@@ -484,38 +441,6 @@ public static class OrganizationAdministrationPolicy
             InvoiceVatNumber = invoiceVat,
             InvoicePaymentTerms = invoiceTerms,
             Version = changed ? checked(current.Version + 1) : current.Version
-        };
-    }
-
-    /// <summary>
-    /// The salvage matrix changes, and nothing else does. A replaced
-    /// principal keeps its matrix as it keeps its other settings.
-    /// </summary>
-    public static Principal PlanPrincipalSalvageMatrixUpdate(
-        Principal current,
-        long expectedVersion,
-        SalvageMatrix? salvageMatrix)
-    {
-        ArgumentNullException.ThrowIfNull(current);
-        RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
-        if (current.Version != expectedVersion)
-        {
-            throw new OrganizationAdministrationException(
-                OrganizationAdministrationError.StaleVersion);
-        }
-        if (!current.IsActive)
-        {
-            throw new OrganizationAdministrationException(
-                OrganizationAdministrationError.PrincipalInactive);
-        }
-
-        var normalized = SalvageMatrix.Normalize(salvageMatrix?.Bands);
-        return current with
-        {
-            SalvageMatrix = normalized,
-            Version = Equals(current.SalvageMatrix, normalized)
-                ? current.Version
-                : checked(current.Version + 1)
         };
     }
 

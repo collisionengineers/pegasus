@@ -276,71 +276,6 @@ public sealed partial class OrganizationAdministrationWebTests
     }
 
     /// <summary>
-    /// The Principal's salvage matrix (29 September 2026): one table per
-    /// category, each with a spare row; a refused save names the category and
-    /// the rule and keeps what was typed; blank rows clear the matrix.
-    /// </summary>
-    [Fact]
-    public async Task ASalvageMatrixSavesFromTheContactAndARefusalKeepsTheTypedRows()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
-        var path = $"/Administration/Contacts/Edit/{contactId:D}";
-        var noMatrix = $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND SalvageMatrixJson IS NULL;";
-
-        var html = await EditContactAsync(client, path, "salvage-matrix");
-        Assert.Contains("Salvage matrix", html, StringComparison.Ordinal);
-        foreach (var category in new[] { "A", "B", "S", "N" })
-        {
-            Assert.Contains($"data-salvage-bands=\"{category}\"", html, StringComparison.Ordinal);
-        }
-        Assert.Equal(4, Regex.Count(html, "name=\"SalvageBandFrom\""));
-
-        using var refused = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(html, [("S", "1000.01", "2500", "2"), ("S", "2000", "5000", "4")]));
-        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
-        var refusedHtml = await refused.Content.ReadAsStringAsync();
-        Assert.Contains(
-            "Cat S: bands overlap (1,000.01 to 2,500.00 and 2,000.00 to 5,000.00).",
-            WebUtility.HtmlDecode(refusedHtml),
-            StringComparison.Ordinal);
-        Assert.Contains("value=\"2000\"", refusedHtml, StringComparison.Ordinal);
-        // The refusal shows at the top of the panel that refused.
-        AssertInsidePanel(refusedHtml, "principal-salvage-title", "Cat S: bands overlap");
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
-
-        html = await EditContactAsync(client, path, "salvage-matrix");
-        using var saved = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(html, [("S", "0.01", "1000", "0"), ("S", "1000.01", "9999999.99", "2"), ("N", "", "", "")]));
-        Assert.True(
-            saved.StatusCode == HttpStatusCode.Redirect,
-            $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
-        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
-        // The save comes back to its panel, with the notice inside it.
-        Assert.Equal($"{path}?tab=salvage-matrix", saved.Headers.Location?.OriginalString);
-        var reloaded = await EditContactAsync(client, path, "salvage-matrix");
-        Assert.Contains(
-            "The principal's salvage matrix was updated.",
-            WebUtility.HtmlDecode(reloaded),
-            StringComparison.Ordinal);
-        AssertInsidePanel(reloaded, "principal-salvage-title", "salvage matrix was updated.");
-        Assert.Contains("value=\"1000.01\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"9999999.99\"", reloaded, StringComparison.Ordinal);
-
-        using var cleared = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(reloaded, [("S", "", "", "")]));
-        Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
-    }
-
-    /// <summary>
     /// The Principal's report sending rules (Report Sending SOP v8): the tab
     /// follows Report generation, a refused save names the rule and keeps what
     /// was typed, and a good save is kept and shown again.
@@ -366,8 +301,8 @@ public sealed partial class OrganizationAdministrationWebTests
                 && settings < html.IndexOf(">Report sending</a>", StringComparison.Ordinal),
             "The Report sending tab follows Report generation.");
         Assert.True(
-            html.IndexOf(">Report sending</a>", StringComparison.Ordinal) < html.IndexOf(">Salvage matrix</a>", StringComparison.Ordinal),
-            "The Report sending tab comes before the Salvage matrix.");
+            html.IndexOf(">Report sending</a>", StringComparison.Ordinal) < html.IndexOf(">Default inspection location</a>", StringComparison.Ordinal),
+            "The Report sending tab comes before the Default inspection location.");
         Assert.Contains("data-report-sending-editor", html, StringComparison.Ordinal);
         Assert.Contains("name=\"RsSendFrom\"", html, StringComparison.Ordinal);
         Assert.Contains("data-rs-items=\"RsSendTo\"", html, StringComparison.Ordinal);
@@ -749,7 +684,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(1, counter.CountMentioning("PrincipalApiCredentials"));
         Assert.Equal("1", InputValue(apiTab, "CredentialVersion"));
 
-        foreach (var tab in new string?[] { null, "report-generation", "report-sending", "salvage-matrix", "default-inspection-location" })
+        foreach (var tab in new string?[] { null, "report-generation", "report-sending", "default-inspection-location" })
         {
             counter.Reset();
             _ = await EditContactAsync(client, path, tab);
@@ -798,7 +733,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.True(counter.CountMentioning("roleCode") > 0, "The Report sending tab read no contact list." + Environment.NewLine + counter.Describe());
         Assert.True(counter.CountMentioning("contactId") == 0, "A Principal read the Principal choices." + Environment.NewLine + counter.Describe());
 
-        foreach (var tab in new string?[] { null, "report-generation", "salvage-matrix", "default-inspection-location", "principal-api" })
+        foreach (var tab in new string?[] { null, "report-generation", "default-inspection-location", "principal-api" })
         {
             counter.Reset();
             _ = await EditContactAsync(client, path, tab);
@@ -821,27 +756,6 @@ public sealed partial class OrganizationAdministrationWebTests
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
-
-    private static FormUrlEncodedContent SalvageForm(
-        string html,
-        IEnumerable<(string Category, string From, string To, string Percentage)> rows)
-    {
-        var fields = new List<KeyValuePair<string, string>>
-        {
-            new("__RequestVerificationToken", InputValue(html, "__RequestVerificationToken")),
-            new("SalvageMatrixOperationKey", InputValue(html, "SalvageMatrixOperationKey")),
-            new("PrincipalExpectedVersion", InputValue(html, "PrincipalExpectedVersion")),
-            new("ExpectedVersion", InputValue(html, "ExpectedVersion"))
-        };
-        foreach (var row in rows)
-        {
-            fields.Add(new("SalvageBandCategory", row.Category));
-            fields.Add(new("SalvageBandFrom", row.From));
-            fields.Add(new("SalvageBandTo", row.To));
-            fields.Add(new("SalvageBandPercentage", row.Percentage));
-        }
-        return new FormUrlEncodedContent(fields);
-    }
 
     private static FormUrlEncodedContent SendingForm(
         string html,

@@ -680,7 +680,6 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.True(principal.IsActive);
         Assert.Equal("physical_address", principal.InspectionMode);
         Assert.Equal(180.00m, principal.DefaultFee);
-        Assert.Null(principal.SalvageMatrixJson);
         Assert.Null(principal.PredecessorId);
         Assert.Equal(PrincipalReportSendingRules.Default, principals["PRIVATE"].Rules);
         var organization = organizations[principal.OrganizationId];
@@ -723,7 +722,6 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(180.00m, principal.DefaultFee);
         Assert.Null(principal.InspectionReportNameFirst);
         Assert.Null(principal.AuditReportNameFirst);
-        Assert.Null(principal.SalvageMatrixJson);
         var offering = PrincipalReportSendingRules.Default with
         {
             Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
@@ -778,7 +776,6 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal("original_engineer_report", principal.AuditWorkflow);
         Assert.Equal("none", principal.PrincipalInvoice);
         Assert.Equal(180.00m, principal.DefaultFee);
-        Assert.Null(principal.SalvageMatrixJson);
         Assert.Equal(PrincipalReportSendingRules.Default, principals["PHOUSE"].Rules);
         var organization = organizations[principal.OrganizationId];
         Assert.Equal("Parkhouse", organization.Name);

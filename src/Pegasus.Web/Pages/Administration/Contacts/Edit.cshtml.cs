@@ -3,7 +3,6 @@ using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Address;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Microsoft.Extensions.Options;
@@ -28,7 +27,6 @@ public sealed class EditModel(
     IRevokePrincipalCredential revokeCredential,
     IUpdatePrincipalReportSettings updatePrincipalReportSettings,
     IUpdatePrincipalDefaultInspectionLocation updatePrincipalDefaultInspectionLocation,
-    IUpdatePrincipalSalvageMatrix updatePrincipalSalvageMatrix,
     IUpdatePrincipalReportSending updatePrincipalReportSending,
     IApprovedMailboxStore approvedMailboxes,
     IReplacePrincipal replacePrincipal,
@@ -44,7 +42,6 @@ public sealed class EditModel(
     public const string ContactTab = "contact";
     public const string ReportGenerationTab = "report-generation";
     public const string ReportSendingTab = "report-sending";
-    public const string SalvageMatrixTab = "salvage-matrix";
     public const string LocationTab = "default-inspection-location";
     public const string ApiTab = "principal-api";
     public static readonly IReadOnlyList<(string Key, string Label)> PrincipalTabs =
@@ -52,7 +49,6 @@ public sealed class EditModel(
         (ContactTab, OperatorLabels.PrincipalAdministration.ContactTab),
         (ReportGenerationTab, OperatorLabels.PrincipalAdministration.ReportGeneration),
         (ReportSendingTab, OperatorLabels.PrincipalAdministration.ReportSending),
-        (SalvageMatrixTab, OperatorLabels.PrincipalAdministration.SalvageMatrix),
         (LocationTab, OperatorLabels.PrincipalAdministration.DefaultInspectionLocation),
         (ApiTab, OperatorLabels.PrincipalAdministration.PrincipalApi)
     ];
@@ -157,10 +153,6 @@ public sealed class EditModel(
     [BindProperty] public string? AuditReportNameFirst { get; set; }
     [BindProperty] public string? AuditReportNameResend { get; set; }
     [BindProperty] public string? ReportSettingsOperationKey { get; set; } = NewOperationKey();
-    [BindProperty] public string? SalvageMatrixOperationKey { get; set; } = NewOperationKey();
-    // The salvage matrix rows as shown: the stored bands, or what was typed
-    // when a save was refused.
-    public IReadOnlyList<SalvageMatrixEntry> SalvageRows { get; private set; } = [];
     [BindProperty] public string? ReportSendingOperationKey { get; set; } = NewOperationKey();
     // The report sending rules as shown: the stored rules, or what was typed
     // when a save was refused.
@@ -438,41 +430,6 @@ public sealed class EditModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostUpdateSalvageMatrixAsync(Guid id, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (id == Guid.Empty) return BadRequest();
-        ContactId = id;
-        Tab = SalvageMatrixTab;
-        ClearModelStatePreservingErrors(
-            nameof(PrincipalExpectedVersion),
-            nameof(ExpectedVersion),
-            nameof(SalvageMatrixOperationKey));
-        var expectedVersion = PrincipalExpectedVersion;
-        var posted = PostedSalvageRows();
-        if (!await LoadPrincipalAsync(actor, cancellationToken, readCredential: false)) return NotFound();
-        if (!IsOperationKeyValid(SalvageMatrixOperationKey)) ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.FormExpired);
-        if (ModelState.IsValid)
-        {
-            try
-            {
-                await updatePrincipalSalvageMatrix.ExecuteAsync(new(
-                    Principal!.Id, expectedVersion, actor, SalvageMatrixOperationKey!,
-                    SalvageMatrix.FromEntries(posted), ExpectedVersion), cancellationToken);
-                TempData["AdministrationStatus"] = OperatorLabels.PrincipalAdministration.SalvageMatrixUpdated;
-                return RedirectToPage(new { id = ContactId, tab = Tab });
-            }
-            catch (SalvageMatrixException exception) { ModelState.AddModelError(string.Empty, SalvageMatrixErrorMessage(exception)); }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, OperatorLabels.PrincipalAdministration.SettingsNotAccepted); }
-            catch (StaffAuthorizationException) { return Forbid(); }
-        }
-        await PopulateAsync(actor, cancellationToken);
-        // What was typed stays; the blank spare rows are drawn again anyway.
-        SalvageRows = [.. posted.Where(row => !row.IsBlank)];
-        return Page();
-    }
-
     public async Task<IActionResult> OnPostUpdateReportSendingAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -732,31 +689,6 @@ public sealed class EditModel(
         LocationPostcode = Principal.DefaultInspectionPostcode;
         CredentialVersion = Credential?.Version ?? 0;
         ReportSendingRules = Principal.ReportSending;
-        SalvageRows = (Principal.SalvageMatrix?.Bands ?? [])
-            .Select(band => new SalvageMatrixEntry(
-                band.Category,
-                band.From.ToString("0.00", CultureInfo.InvariantCulture),
-                band.To.ToString("0.00", CultureInfo.InvariantCulture),
-                band.Percentage.ToString("0.00", CultureInfo.InvariantCulture)))
-            .ToArray();
-    }
-
-    // The rows post as four repeated fields read in order, so a blank cell
-    // keeps its row's place.
-    private SalvageMatrixEntry[] PostedSalvageRows()
-    {
-        var form = Request.Form;
-        var categories = form["SalvageBandCategory"];
-        var from = form["SalvageBandFrom"];
-        var to = form["SalvageBandTo"];
-        var percentage = form["SalvageBandPercentage"];
-        return Enumerable.Range(0, categories.Count)
-            .Select(index => new SalvageMatrixEntry(
-                categories[index] ?? string.Empty,
-                index < from.Count ? from[index] : null,
-                index < to.Count ? to[index] : null,
-                index < percentage.Count ? percentage[index] : null))
-            .ToArray();
     }
 
     // The panel posts plain fields: repeated inputs for the lists, and one
@@ -848,20 +780,6 @@ public sealed class EditModel(
 
     private bool TargetsContact(Guid id) => id != Guid.Empty && ContactId == id;
 
-    private static string SalvageMatrixErrorMessage(SalvageMatrixException exception)
-    {
-        var category = OperatorLabels.PrincipalAdministration.SalvageCategory(exception.Category);
-        return exception.Rule switch
-        {
-            SalvageMatrixRule.Incomplete => $"{category}: each band needs From, To and Percentage paid.",
-            SalvageMatrixRule.FromAfterTo => $"{category}: From must not be more than To.",
-            SalvageMatrixRule.InvalidAmount => $"{category}: amounts must be £0.00 or more.",
-            SalvageMatrixRule.InvalidPercentage => $"{category}: Percentage paid must be 0 to 100.",
-            SalvageMatrixRule.Overlap => $"{category}: bands overlap ({BandRange(exception.Band!)} and {BandRange(exception.OtherBand!)}).",
-            _ => OperatorLabels.PrincipalAdministration.SettingsNotAccepted
-        };
-    }
-
     private static string ReportSendingRulesErrorMessage(ReportSendingRulesException exception)
     {
         var where = exception.RuleIndex is { } index
@@ -892,9 +810,6 @@ public sealed class EditModel(
             _ => OperatorLabels.PrincipalAdministration.SettingsNotAccepted
         };
     }
-
-    private static string BandRange(SalvageMatrixBand band) =>
-        $"{band.From.ToString("#,##0.00", CultureInfo.InvariantCulture)} to {band.To.ToString("#,##0.00", CultureInfo.InvariantCulture)}";
 
     private string PrincipalAdministrationErrorMessage(OrganizationAdministrationException exception) =>
         exception.Error == OrganizationAdministrationError.StaleVersion

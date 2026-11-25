@@ -1252,7 +1252,6 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceKind { get; set; }
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
-    public string? SalvageMatrixJson { get; set; }
     public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
     public string ReportSendingRulesJson { get; set; } = EfOrganizationAdministration.DefaultReportSendingJson;
     // What its reports are called (R740); null is the standard name.
