@@ -1094,7 +1094,7 @@ public sealed class StartupWarmupTests
             throw new NotSupportedException();
 
         public Task<RetainedMailDetail?> GetAsync(
-            Guid id, CancellationToken cancellationToken, string? searchTerm = null) =>
+            Guid id, CancellationToken cancellationToken, string? searchTerm = null, bool withConversation = false) =>
             throw new NotSupportedException();
 
         public Task<RetainedMailDetail?> GetByOriginReceiptAsync(

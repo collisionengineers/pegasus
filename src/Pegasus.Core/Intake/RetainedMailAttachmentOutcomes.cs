@@ -4,7 +4,7 @@ using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Intake;
 
-/// <summary>What became of one attachment of a retained message (message planning, 13 September).</summary>
+/// <summary>What became of a retained message and its attachments (message planning, 13 September).</summary>
 public enum AttachmentOutcomeKind
 {
     NotYetProcessed,
@@ -27,20 +27,18 @@ public enum AttachmentOutcomeRecordKind
     Unidentified
 }
 
-/// <summary>The record an attachment's outcome opens.</summary>
+/// <summary>The record a message's outcome opens.</summary>
 public sealed record AttachmentOutcomeRecord(AttachmentOutcomeRecordKind Kind, Guid Id, string Reference);
 
-/// <param name="AssetId">The retained attachment asset on the message's receipt.</param>
+/// <summary>The one outcome of a retained message, said once for the message.</summary>
 /// <param name="Reason">Why it could not be read or failed, in the recorded words.</param>
-public sealed record RetainedMailAttachmentOutcome(
-    Guid AssetId,
-    string FileName,
+public sealed record RetainedMailOutcome(
     AttachmentOutcomeKind Kind,
     AttachmentOutcomeRecord? Record,
     string? Reason);
 
 /// <summary>
-/// The facts one attachment's outcome is decided from: the receipt that
+/// The facts a message's outcome is decided from: the receipt that
 /// processed it (the message's own receipt), the image
 /// record and Unidentified item that receipt or its group produced, and whether
 /// processing flagged the member as unreadable.
@@ -51,7 +49,7 @@ public sealed record AttachmentOutcomeFacts(
     UnidentifiedItem? Unidentified,
     bool MemberCouldNotBeRead);
 
-/// <summary>The one rule for what an attachment's outcome reads as.</summary>
+/// <summary>The one rule for what a message's outcome reads as.</summary>
 public static class RetainedMailAttachmentOutcomePolicy
 {
     /// <summary>
@@ -111,14 +109,15 @@ public static class RetainedMailAttachmentOutcomePolicy
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 }
 
-public interface IGetRetainedMailAttachmentOutcomes
+public interface IGetRetainedMailOutcome
 {
     /// <summary>
-    /// Each attachment asset of the message's receipt, with its own outcome. A
-    /// caller that already holds the receipt passes it as <paramref name="receipt"/>
-    /// to spare a second read; it is used only when it is the receipt asked for.
+    /// The message's one outcome, decided from its receipt; null when the
+    /// receipt is not found. A caller that already holds the receipt passes it
+    /// as <paramref name="receipt"/> to spare a second read; it is used only
+    /// when it is the receipt asked for.
     /// </summary>
-    Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
+    Task<RetainedMailOutcome?> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
         IntakeReceipt? receipt = null,
@@ -126,16 +125,16 @@ public interface IGetRetainedMailAttachmentOutcomes
 }
 
 /// <summary>
-/// Per-attachment outcomes for a retained message. A message is processed as
-/// one receipt, so photographs, PDFs and other document attachments share
-/// that receipt's destination without manufacturing child submissions.
+/// The outcome of a retained message. A message is processed as one receipt,
+/// so photographs, PDFs and other document attachments share that receipt's
+/// destination, and the outcome is said once for the message.
 /// </summary>
-public sealed class GetRetainedMailAttachmentOutcomes(
+public sealed class GetRetainedMailOutcome(
     IIntakeReceiptQueries receipts,
     IImageIntakeQueries imageIntakes,
-    IUnidentifiedStore unidentifiedStore) : IGetRetainedMailAttachmentOutcomes
+    IUnidentifiedStore unidentifiedStore) : IGetRetainedMailOutcome
 {
-    public async Task<IReadOnlyList<RetainedMailAttachmentOutcome>> ExecuteAsync(
+    public async Task<RetainedMailOutcome?> ExecuteAsync(
         ActionActor actor,
         Guid intakeReceiptId,
         IntakeReceipt? receipt = null,
@@ -153,23 +152,25 @@ public sealed class GetRetainedMailAttachmentOutcomes(
             : await receipts.GetAsync(intakeReceiptId, cancellationToken);
         if (receipt is null)
         {
-            return [];
+            return null;
         }
 
+        // A receipt that was read and has reached a Case states that Case
+        // whatever else it produced (the policy's order), so its image record
+        // and Unidentified item are read only where it has not.
+        var reachedCase = receipt.CurrentCaseId is not null
+            && receipt.Decision is not (IntakeDecision.Unsupported or IntakeDecision.OcrRequired);
         var messageFacts = new AttachmentOutcomeFacts(
             receipt,
-            await ImageRecordAsync(imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken)),
-            await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken),
+            reachedCase
+                ? null
+                : await ImageRecordAsync(imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken)),
+            reachedCase
+                ? null
+                : await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken),
             MemberCouldNotBeRead: false);
-
-        var outcomes = new List<RetainedMailAttachmentOutcome>();
-        foreach (var asset in receipt.AssetRecords.Where(asset => asset.Kind == IntakeAssetKind.Attachment))
-        {
-            var (kind, record, reason) = RetainedMailAttachmentOutcomePolicy.Decide(messageFacts);
-            outcomes.Add(new(asset.Id, asset.FileName, kind, record, reason));
-        }
-
-        return outcomes;
+        var (kind, record, reason) = RetainedMailAttachmentOutcomePolicy.Decide(messageFacts);
+        return new(kind, record, reason);
     }
 
     private static async Task<AttachmentOutcomeRecord?> ImageRecordAsync(Task<ImageIntakeDetail?> read) =>
