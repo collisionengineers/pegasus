@@ -29,86 +29,117 @@
         {
             <div class="notice notice--danger" role="alert"><span>@errorMessage</span></div>
         }
-        <partial name="Shared/_ErrorSummary" />
-
-        @* Every switch is shown in every deployment: a switch is read by Case
-           creation whether or not this host can answer the request. *@
-        <section class="panel" aria-labelledby="automatic-requests-panel-title">
-            <div class="panel-head">
-                <h2 id="automatic-requests-panel-title">@OperatorLabels.Integrations.AutomaticRequests</h2>
-            </div>
-            <div class="panel-body">
-                <form method="post" asp-page-handler="SaveAutomatic" class="stack" autocomplete="off">
-                    <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                    @* asp-for writes the unchecked fallback beside each box,
-                       so a cleared checkbox reaches the handler as false. *@
-                    <label class="choice">
-                        <input asp-for="GlassesValuationEnabled" type="checkbox" />
-                        <span>@OperatorLabels.Integrations.AutomaticGlassValuation</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="BregoValuationEnabled" type="checkbox" />
-                        <span>@OperatorLabels.Integrations.AutomaticBregoValuation</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="CazanaValuationEnabled" type="checkbox" />
-                        <span>@OperatorLabels.Integrations.AutomaticCazanaValuation</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="CapValuationEnabled" type="checkbox" />
-                        <span>@OperatorLabels.Integrations.AutomaticCapValuation</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="VehicleHistoryCheckEnabled" type="checkbox" />
-                        <span>@OperatorLabels.Integrations.AutomaticExperianCheck</span>
-                    </label>
-                    <div class="cluster admin-actions-end">
-                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
-                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
-                            <span>@OperatorLabels.Integrations.SaveAutomatic</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        @* One panel per login whose integration this host composes (R1288). A
-           stored value is never written back into a box: only the account's
-           name and when it was replaced are shown. *@
-        @foreach (var status in Model.Logins)
+        @* A refused login save shows its errors inside its own dialog. *@
+        @if (Model.RefusedLogin is null)
         {
-            var login = status.Login;
-            var titleId = $"login-{login}-title";
-            <section class="panel" aria-labelledby="@titleId">
-                <div class="panel-head">
-                    <h2 id="@titleId">@OperatorLabels.Integrations.Heading(login)</h2>
+            <partial name="Shared/_ErrorSummary" />
+        }
+
+        @* One table of the five integrations, every deployment's (R1296):
+           each row its account, when its login was replaced and its automatic
+           switch, with one Save for the switches; Settings opens the login's
+           dialog. *@
+        <section class="panel" aria-labelledby="integrations-title">
+            <div class="panel-head">
+                <h2 id="integrations-title">@OperatorLabels.Admin.Integrations</h2>
+            </div>
+            <form method="post" asp-page-handler="SaveAutomatic" autocomplete="off">
+                <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                <div class="table-wrap no-border">
+                    <table class="table table--compact integrations-table">
+                        <caption class="sr-only">@OperatorLabels.Admin.Integrations</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">@OperatorLabels.Integrations.Integration</th>
+                                <th scope="col">@OperatorLabels.Integrations.Account</th>
+                                <th scope="col">@OperatorLabels.Integrations.Updated</th>
+                                <th scope="col">@OperatorLabels.Integrations.Automatic</th>
+                                <th scope="col"><span class="sr-only">@OperatorLabels.Integrations.Settings</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var status in Model.Logins)
+                        {
+                            var kind = IntegrationsModel.AutomaticKind(status.Login);
+                            var switchName = IntegrationsModel.AutomaticFieldName(kind);
+                            <tr>
+                                <td><strong>@OperatorLabels.Integrations.Heading(status.Login)</strong></td>
+                                <td>@(status.Readable ? status.AccountName ?? OperatorLabels.Integrations.NotSet : OperatorLabels.Integrations.Unreadable)</td>
+                                <td class="nowrap">@OperatorLabels.OfficeTime(status.UpdatedAtUtc, "—")</td>
+                                <td>
+                                    @* The hidden fallback after the box makes a cleared
+                                       checkbox reach the handler as false. *@
+                                    <label class="choice">
+                                        <input type="checkbox" name="@switchName" value="true" checked="@Model.IsAutomaticChecked(kind)" />
+                                        <input type="hidden" name="@switchName" value="false" />
+                                        <span class="sr-only">@OperatorLabels.Integrations.AutomaticSwitch(kind)</span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn--small" data-dialog-open="integration-login-@status.Login">@OperatorLabels.Integrations.Settings</button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
-                <div class="panel-body stack">
-                    @if (!status.Readable)
-                    {
-                        <div class="notice notice--danger" role="alert"><span>@OperatorLabels.Integrations.Unreadable</span></div>
-                    }
-                    <div class="fact-grid">
-                        <dl class="fact">
-                            <dt>@OperatorLabels.Integrations.Account</dt>
-                            <dd>@(status.AccountName ?? OperatorLabels.Integrations.NotSet)</dd>
-                        </dl>
-                        <dl class="fact">
-                            <dt>@OperatorLabels.Integrations.Updated</dt>
-                            <dd>@OperatorLabels.OfficeTime(status.UpdatedAtUtc, "—")</dd>
-                        </dl>
-                    </div>
-                    <form method="post" asp-page-handler="SaveLogin" class="stack" autocomplete="off">
-                        <input type="hidden" name="login" value="@login" />
-                        <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion(status)" />
-                        <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                <div class="panel-foot admin-actions-end">
+                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
+                        <span>@OperatorLabels.Integrations.SaveAutomatic</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+
+@* One dialog per login. It opens by itself only for its refused save or, for
+   Brego, a sign-in that waits for its code (R1296). A stored value is never
+   written back into a box: only the account's name and when it was replaced
+   are shown. *@
+@foreach (var status in Model.Logins)
+{
+    var login = status.Login;
+    var dialogId = $"integration-login-{login}";
+    var formId = $"integration-login-form-{login}";
+    var dialogOpen = Model.IsDialogOpen(login);
+    <div class="dialog-backdrop" data-dialog="@dialogId"
+         data-dialog-open-on-load="@(dialogOpen ? "true" : null)"
+         hidden="@(dialogOpen ? null : "hidden")">
+        <section class="dialog dialog--contact" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
+            <div class="dialog-head"><h2 id="@dialogId-title" tabindex="-1">@OperatorLabels.Integrations.Heading(login)</h2><button type="reset" form="@formId" class="dialog-close" data-dialog-close aria-label="@OperatorLabels.Integrations.CloseDialog"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></button></div>
+            <div class="dialog-body stack">
+                @if (Model.RefusedLogin == login)
+                {
+                    <partial name="Shared/_ErrorSummary" />
+                }
+                @if (!status.Readable)
+                {
+                    <div class="notice notice--danger" role="alert"><span>@OperatorLabels.Integrations.Unreadable</span></div>
+                }
+                <div class="fact-grid">
+                    <dl class="fact">
+                        <dt>@OperatorLabels.Integrations.Account</dt>
+                        <dd>@(status.AccountName ?? OperatorLabels.Integrations.NotSet)</dd>
+                    </dl>
+                    <dl class="fact">
+                        <dt>@OperatorLabels.Integrations.Updated</dt>
+                        <dd>@OperatorLabels.OfficeTime(status.UpdatedAtUtc, "—")</dd>
+                    </dl>
+                </div>
+                <form id="@formId" method="post" asp-page-handler="SaveLogin" autocomplete="off">
+                    <input type="hidden" name="login" value="@login" />
+                    <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion(status)" />
+                    <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                    <div class="form-grid form-grid--2">
                         @foreach (var field in IntegrationLoginFields.Of(login))
                         {
                             var inputId = $"login-{login}-{field}";
                             var fieldName = IntegrationsModel.FieldName(field);
                             // Brego's password alone is optional (R1290).
                             var isRequired = IntegrationLoginFields.IsRequired(login, field);
-                            <div class="field field--narrow">
+                            <div class="field">
                                 <label class="@(isRequired ? "req" : null)" for="@inputId">@OperatorLabels.Integrations.Field(field)</label>
                                 @if (IntegrationsModel.IsSecret(field))
                                 {
@@ -124,62 +155,70 @@
                                 }
                             </div>
                         }
-                        <div class="cluster admin-actions-end">
-                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
-                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
-                                <span>@OperatorLabels.Integrations.Save</span>
-                            </button>
-                        </div>
-                    </form>
-                    @* Signing the Brego account in (R1290, #2180), offered only
-                       where the host composes it and the account's e-mail is
-                       saved. The link and the code are never written back. *@
-                    @if (login == IntegrationLogin.Brego && Model.BregoLinkOffered)
-                    {
-                        @* Refresh login signs in from Brego's own e-mail in one
-                           press, where this host reads the account's mailbox
-                           (R1294); the steps below are the fallback. *@
+                    </div>
+                </form>
+                @* Signing the Brego account in (R1290, R1294), offered only
+                   where the host composes it and the account's e-mail is saved.
+                   Each step is its own form, outside the credential form; its
+                   controls join it by the form attribute, so Enter in a box
+                   submits that box's step. The link and the code are never
+                   written back. *@
+                @if (login == IntegrationLogin.Brego && Model.BregoLinkOffered)
+                {
+                    <section class="contact-section" aria-labelledby="@dialogId-sign-in">
+                        <h3 id="@dialogId-sign-in">@OperatorLabels.Integrations.SignIn</h3>
                         @if (Model.BregoRefreshOffered)
                         {
-                            <form method="post" asp-page-handler="RefreshBregoLogin" class="cluster admin-actions-end">
+                            <form id="brego-refresh-form" method="post" asp-page-handler="RefreshBregoLogin">
                                 <input type="hidden" name="expectedVersion" value="@status.Version" />
                                 <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.RefreshBregoLogin</button>
                             </form>
                         }
-                        <form method="post" asp-page-handler="SendBregoLink" class="cluster admin-actions-end">
+                        <form id="brego-send-form" method="post" asp-page-handler="SendBregoLink">
                             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Integrations.SendBregoLink</button>
                         </form>
-                        <form method="post" asp-page-handler="LinkBrego" class="stack" autocomplete="off">
+                        <form id="brego-link-form" method="post" asp-page-handler="LinkBrego" autocomplete="off">
                             <input type="hidden" name="expectedVersion" value="@status.Version" />
                             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                            <div class="field field--narrow">
-                                <label class="req" for="brego-sign-in-link">@OperatorLabels.Integrations.BregoSignInLink</label>
-                                <input id="brego-sign-in-link" name="link" required maxlength="4096" autocomplete="off" />
-                            </div>
-                            <div class="cluster admin-actions-end">
-                                <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.LinkBrego</button>
-                            </div>
                         </form>
-                        @if (Model.BregoPending is { } pending)
+                        @if (Model.BregoPending is not null)
                         {
-                            <form method="post" asp-page-handler="ConfirmBregoCode" class="stack" autocomplete="off">
+                            <form id="brego-code-form" method="post" asp-page-handler="ConfirmBregoCode" autocomplete="off">
                                 <input type="hidden" name="expectedVersion" value="@status.Version" />
                                 <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                                <p>@OperatorLabels.Integrations.BregoCodeSent(pending.Email)</p>
-                                <div class="field field--narrow">
-                                    <label class="req" for="brego-code">@OperatorLabels.Integrations.BregoCode</label>
-                                    <input id="brego-code" name="code" required inputmode="numeric" autocomplete="one-time-code" />
-                                </div>
-                                <div class="cluster admin-actions-end">
-                                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.Integrations.ConfirmBregoCode</button>
-                                </div>
                             </form>
                         }
-                    }
-                </div>
-            </section>
-        }
+                        <div class="stack">
+                            <div class="cluster">
+                                @if (Model.BregoRefreshOffered)
+                                {
+                                    <button type="submit" form="brego-refresh-form" class="btn" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.RefreshBregoLogin</button>
+                                }
+                                <button type="submit" form="brego-send-form" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Integrations.SendBregoLink</button>
+                            </div>
+                            <div class="field">
+                                <label class="req" for="brego-sign-in-link">@OperatorLabels.Integrations.BregoSignInLink</label>
+                                <div class="cluster integrations-sign-in-row">
+                                    <input id="brego-sign-in-link" name="link" form="brego-link-form" required maxlength="4096" autocomplete="off" />
+                                    <button type="submit" form="brego-link-form" class="btn" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.LinkBrego</button>
+                                </div>
+                            </div>
+                            @if (Model.BregoPending is { } pending)
+                            {
+                                <p>@OperatorLabels.Integrations.BregoCodeSent(pending.Email)</p>
+                                <div class="field">
+                                    <label class="req" for="brego-code">@OperatorLabels.Integrations.BregoCode</label>
+                                    <div class="cluster integrations-sign-in-row">
+                                        <input id="brego-code" name="code" form="brego-code-form" required inputmode="numeric" autocomplete="one-time-code" />
+                                        <button type="submit" form="brego-code-form" class="btn" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.Integrations.ConfirmBregoCode</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+            <div class="dialog-foot"><button type="reset" form="@formId" class="btn" data-dialog-close>@OperatorLabels.Integrations.Cancel</button><button type="submit" form="@formId" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">@OperatorLabels.Integrations.Save</button></div>
+        </section>
     </div>
-</div>
+}

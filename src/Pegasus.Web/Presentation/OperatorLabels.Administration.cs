@@ -756,14 +756,20 @@ public static partial class OperatorLabels
 
     /// <summary>
     /// The Integrations administration area's words (operator, 26 November
-    /// 2026; R1289): the automatic requests panel and one panel per
-    /// integration login. <see cref="Admin.Integrations"/> is the area's name;
-    /// the wording the staff Glass's credential dialog already gives is reused
-    /// from its owner.
+    /// 2026; R1289, R1296): one table of the integrations with their automatic
+    /// switches, and a Settings dialog per login. <see cref="Admin.Integrations"/>
+    /// is the area's name; the wording the staff Glass's credential dialog and
+    /// Mail settings already give is reused from its owners.
     /// </summary>
     public static class Integrations
     {
-        public const string AutomaticRequests = "Automatic requests";
+        // The table's columns and the Brego dialog's sign-in section (R1296).
+        public const string Integration = "Integration";
+        public const string Automatic = "Automatic";
+        public const string SignIn = "Sign-in";
+        public const string Settings = MailSettings.Settings;
+        public const string Cancel = MailSettings.Cancel;
+        public const string CloseDialog = MailSettings.CloseDialog;
 
         /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
         public const string AutomaticGlassValuation = "Automatic Glass's valuation";
@@ -796,7 +802,18 @@ public static partial class OperatorLabels
         /// <summary>A stored login the key ring can no longer read.</summary>
         public const string Unreadable = "The stored login cannot be read. Save it again.";
 
-        /// <summary>The heading of one login's panel.</summary>
+        /// <summary>The label of one automatic request switch, read by a screen reader in its row.</summary>
+        public static string AutomaticSwitch(AutomaticRequestKind kind) => kind switch
+        {
+            AutomaticRequestKind.GlassesValuation => AutomaticGlassValuation,
+            AutomaticRequestKind.BregoValuation => AutomaticBregoValuation,
+            AutomaticRequestKind.CazanaValuation => AutomaticCazanaValuation,
+            AutomaticRequestKind.CapValuation => AutomaticCapValuation,
+            AutomaticRequestKind.VehicleHistoryCheck => AutomaticExperianCheck,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The automatic request kind is unknown.")
+        };
+
+        /// <summary>The name of one login's row and the heading of its dialog.</summary>
         public static string Heading(IntegrationLogin login) => login switch
         {
             IntegrationLogin.GlassValuation => "Glass's valuation account",
