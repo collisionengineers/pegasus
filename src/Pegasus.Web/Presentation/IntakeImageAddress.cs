@@ -26,6 +26,21 @@ public static class IntakeImageAddress
     public static string Asset(Guid receiptId, Guid assetId, string? contentHash) =>
         $"/Received/{receiptId:D}/Asset/{assetId:D}{Query(contentHash)}";
 
+    /// <summary>
+    /// The retained asset dispositioned for the viewer: inline where it is an
+    /// image or a PDF, and the same download as <see cref="Asset"/> otherwise.
+    /// </summary>
+    public static string AssetView(Guid receiptId, Guid assetId) =>
+        $"/Received/{receiptId:D}/Asset/{assetId:D}?inline=true";
+
+    /// <summary>
+    /// The PDF rendering the viewer shows for a retained Word file. It names
+    /// the rendering, so a changed renderer is a new address rather than a
+    /// week-cached earlier rendering.
+    /// </summary>
+    public static string AssetPdf(Guid receiptId, Guid assetId) =>
+        $"/Received/{receiptId:D}/Asset/{assetId:D}?handler=Pdf&renderer={CaseDocumentPreviews.RenditionIdentity}";
+
     /// <summary>The receipt's own image, named by its source hash when it is known.</summary>
     public static string Image(Guid receiptId, string? contentHash) =>
         $"/Received/{receiptId:D}/Image{Query(contentHash)}";

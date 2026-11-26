@@ -409,7 +409,6 @@ public static partial class OperatorLabels
         public const string LinkToCase = "Link to Case";
         public const string ChangeLinkedCase = "Change linked Case";
         public const string Unlink = "Unlink";
-        public const string OpenFile = "Open file";
 
         // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
@@ -441,6 +440,13 @@ public static partial class OperatorLabels
         public const string Pdf = "PDF";
         public const string Image = "Image";
         public const string Word = "Word";
+
+        /// <summary>
+        /// A message file the viewer cannot show, in place of its View (v54
+        /// D10, R1280): a Word file Box does not hold yet, a video, an SVG or
+        /// a type it does not know. The viewer's own refusal reads the same.
+        /// </summary>
+        public const string PreviewUnavailable = "Preview unavailable";
 
         /// <summary>A file's Type by how it is shown; null for a kind that has no Type word.</summary>
         public static string? FileType(Pegasus.Core.Documents.CaseDocumentPreviewKind kind) => kind switch

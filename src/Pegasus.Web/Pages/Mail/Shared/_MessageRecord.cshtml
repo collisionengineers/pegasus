@@ -152,19 +152,58 @@
                         </div>
                         @if (row.Files.Count > 0)
                         {
-                            <div class="mail-files" data-mail-files>
+                            @* One message's files are one set (v54 D10, D11; R1275, R1280):
+                               View opens the page's viewer, whose Previous and Next move
+                               among them and pass over one it cannot show; a Word file Box
+                               holds is viewed as its PDF rendering; Download is the file.
+                               A file with no retained asset is a plain row. *@
+                            <div class="mail-files" data-mail-files data-evidence-set>
                                 @foreach (var messageFile in row.Files)
                                 {
+                                    var fileName = messageFile.Attachment.FileName;
                                     var size = OperatorLabels.FileSize(messageFile.Attachment.ContentLength);
                                     <div class="mail-file" data-mail-file>
                                         <svg class="icon mail-file-glyph" aria-hidden="true"><use href="@IconSprite.Href(messageFile.Glyph)" /></svg>
                                         <span class="mail-file-main">
-                                            <span class="mail-file-name">@messageFile.Attachment.FileName</span>
+                                            <span class="mail-file-name">@fileName</span>
                                             <span class="mail-file-meta">@(messageFile.TypeLabel is { } typeLabel ? $"{typeLabel} · {size}" : size)</span>
                                         </span>
-                                        @if (messageFile.OpenHref is { } openHref)
+                                        @if (messageFile.DownloadHref is { } downloadHref)
                                         {
-                                            <a class="btn btn--small" href="@openHref" target="_blank" rel="noopener">@OperatorLabels.Inbox.OpenFile</a>
+                                            <span class="mail-file-actions">
+                                                @if (messageFile.ViewHref is { } viewHref)
+                                                {
+                                                    <a class="btn btn--small" href="@viewHref"
+                                                       data-evidence-item
+                                                       data-media-type="@messageFile.ViewMediaType"
+                                                       data-file-name="@fileName"
+                                                       data-download-href="@downloadHref">
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                        <span>@CaseWorkspaceLabels.Files.View</span>
+                                                    </a>
+                                                }
+                                                else if (messageFile.PdfHref is { } pdfHref)
+                                                {
+                                                    @* The viewer fetches the rendering first, so the wait for
+                                                       one still being made shows on this button. *@
+                                                    <a class="btn btn--small" href="@pdfHref"
+                                                       data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
+                                                       data-download-href="@downloadHref"
+                                                       data-file-name="@fileName">
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                        <span>@CaseWorkspaceLabels.Files.View</span>
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="muted" data-mail-unavailable>@OperatorLabels.Inbox.PreviewUnavailable</span>
+                                                }
+                                                <a class="icon-button" href="@downloadHref" download
+                                                   title="@($"{CaseWorkspaceLabels.Viewer.Download} {fileName}")"
+                                                   aria-label="@($"{CaseWorkspaceLabels.Viewer.Download} {fileName}")">
+                                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
+                                                </a>
+                                            </span>
                                         }
                                     </div>
                                 }

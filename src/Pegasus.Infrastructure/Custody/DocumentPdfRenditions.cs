@@ -16,6 +16,11 @@ public sealed class NoDocumentPdfRenderer : IRenderDocumentAsPdf
         ActionActor actor,
         CaseDocumentPreview preview,
         CancellationToken cancellationToken) => Task.FromResult<byte[]?>(null);
+
+    public Task<byte[]?> RenderIntakeAssetAsync(
+        ActionActor actor,
+        IntakeAssetPreview asset,
+        CancellationToken cancellationToken) => Task.FromResult<byte[]?>(null);
 }
 
 /// <summary>
@@ -65,6 +70,36 @@ internal sealed class CaseDocumentPdfRenditionReader(
                 token),
             "document.rendition.render.gate",
             logger ?? NullLogger<CaseDocumentPdfRenditionReader>.Instance,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Box's PDF representation of a retained intake file, asked for each
+    /// time: <see cref="DocumentThumbnailCache"/> keys its variants by a Case
+    /// document version, so an intake asset's rendering has no entry there.
+    /// </summary>
+    public async Task<byte[]?> RenderIntakeAssetAsync(
+        ActionActor actor,
+        IntakeAssetPreview asset,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(asset);
+        if (CaseDocumentPreviews.KindOf(asset.MediaType, asset.FileName) != CaseDocumentPreviewKind.WordAsPdf)
+        {
+            return null;
+        }
+        return await store.ReadPdfRepresentationAsync(
+            new(
+                Actor: actor,
+                DocumentId: null,
+                VersionId: null,
+                IntakeAssetId: asset.AssetId,
+                CaseId: null,
+                IntakeReceiptId: asset.ReceiptId,
+                ExpectedSha256: asset.Sha256,
+                ExpectedContentLength: asset.ContentLength),
+            CaseDocumentPreviews.RenditionWait,
             cancellationToken);
     }
 }

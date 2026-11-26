@@ -79,12 +79,24 @@ public sealed class MessageModel(
     /// <summary>The head's outcome chip; null where there is nothing to state beyond what Type says.</summary>
     public MailOutcome? Outcome { get; private set; }
 
-    /// <summary>One file of a conversation message: its Type word, its glyph and where it opens, if anywhere.</summary>
+    /// <summary>
+    /// One file of a conversation message: its Type word, its glyph, and what
+    /// its row offers (v54 D10, R1275, R1280). A file with a retained asset
+    /// has its download; an image or a PDF is also viewed inline, and a Word
+    /// file Box holds as its PDF rendering. A file with no asset is a plain row.
+    /// </summary>
+    /// <param name="DownloadHref">The retained file itself; null where the message's files were not retained as assets.</param>
+    /// <param name="ViewHref">The inline address the viewer draws; null where it draws nothing of the file's own.</param>
+    /// <param name="ViewMediaType">What the viewer draws <paramref name="ViewHref"/> as.</param>
+    /// <param name="PdfHref">The PDF rendering of a Word file Box holds.</param>
     public sealed record ConversationFile(
         RetainedMailAttachment Attachment,
         string? TypeLabel,
         string Glyph,
-        string? OpenHref);
+        string? DownloadHref = null,
+        string? ViewHref = null,
+        string? ViewMediaType = null,
+        string? PdfHref = null);
 
     /// <summary>
     /// One message of the dialog's stack (v54 D1 to D4): who sent it, its
@@ -785,17 +797,32 @@ public sealed class MessageModel(
     private static ConversationFile ConversationFileOf(RetainedMailAttachment attachment, Guid? intakeReceiptId)
     {
         var kind = Pegasus.Core.Documents.CaseDocumentPreviews.KindOf(attachment.MediaType, attachment.FileName);
+        var typeLabel = OperatorLabels.Inbox.FileType(kind);
+        var glyph = kind switch
+        {
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => "icon-file-text",
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => "icon-file-image",
+            _ => "icon-file"
+        };
+        if (intakeReceiptId is not { } receiptId || attachment.IntakeAssetId is not { } assetId)
+        {
+            return new(attachment, typeLabel, glyph);
+        }
+        // The viewer draws an image or a PDF itself, before a Case as after
+        // (R1275); a Word file only as the rendering Box makes of its copy.
+        var drawn = kind is Pegasus.Core.Documents.CaseDocumentPreviewKind.Image
+            or Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf;
         return new(
             attachment,
-            OperatorLabels.Inbox.FileType(kind),
-            kind switch
-            {
-                Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => "icon-file-text",
-                Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => "icon-file-image",
-                _ => "icon-file"
-            },
-            intakeReceiptId is { } receiptId && attachment.IntakeAssetId is { } assetId
-                ? $"/Received/{receiptId:D}/Asset/{assetId:D}"
+            typeLabel,
+            glyph,
+            DownloadHref: IntakeImageAddress.Asset(receiptId, assetId, contentHash: null),
+            ViewHref: drawn ? IntakeImageAddress.AssetView(receiptId, assetId) : null,
+            ViewMediaType: drawn
+                ? Pegasus.Core.Documents.CaseDocumentPreviews.ShownMediaType(attachment.MediaType, attachment.FileName)
+                : null,
+            PdfHref: kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.WordAsPdf && attachment.IsHeldInBox
+                ? IntakeImageAddress.AssetPdf(receiptId, assetId)
                 : null);
     }
 

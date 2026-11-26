@@ -924,9 +924,10 @@
     // top closes.
     // The Case viewer's host is spared too: a document opened from inside a
     // dialog (the Send report composer's Files rows, v48) shows over it and
-    // must stay reachable.
+    // must stay reachable. So is the evidence viewer, which an e-mail's files
+    // open over its dialog on the Inbox and a Triage Case (R1275).
     function inertOutside(dialog) {
-        return window.pegasusUi.inertOutside(dialog, '[data-dialog], [data-case-viewer-host]');
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog], [data-case-viewer-host], [data-evidence-viewer]');
     }
 
     var dialogOpeners = {};
@@ -1088,8 +1089,9 @@
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
                     return;
                 }
-                // The Case viewer over a dialog owns the keys while it shows
-                // (v48 item F): Escape closes the viewer first, then the dialog.
+                // A viewer over a dialog -- the Case's, or the evidence
+                // viewer -- owns the keys while it shows (v48 item F, v54
+                // D11): Escape closes the viewer first, then the dialog.
                 if (document.body.classList.contains('has-viewer')) {
                     return;
                 }
@@ -1207,10 +1209,16 @@
 
         var previewKind = window.pegasusUi.previewKind;
 
+        // Links are a[href], as in the dialogs above: a bare [href] matched an
+        // icon's <use>, which then stood as the last control, so Tab from Next
+        // left the viewer instead of wrapping. A control inside a hidden part
+        // (the pre-Case tools) has no box and is passed over.
         function focusable() {
             return Array.prototype.filter.call(
-                viewer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                function (element) { return !element.disabled && !element.hidden; });
+                viewer.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) {
+                    return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
+                });
         }
 
         function settle() {
@@ -1546,6 +1554,9 @@
             invoker = returnTo || trigger;
             viewer.hidden = false;
             release = inertOutside(viewer);
+            // Marks the page as the Case viewer does, so a dialog beneath
+            // (an e-mail's, R1275) leaves Escape and Tab to the viewer.
+            document.body.classList.add('has-viewer');
             document.addEventListener('keydown', onKeydown, true);
             show(start < 0 ? 0 : start);
             var controls = focusable();
@@ -1560,6 +1571,7 @@
                 release();
                 release = null;
             }
+            document.body.classList.remove('has-viewer');
             document.removeEventListener('keydown', onKeydown, true);
             // Drop the source so a large preview stops loading once it is off
             // screen; the next open sets it again.

@@ -59,7 +59,7 @@ public sealed partial class DownloadModel(
     /// What the viewer's script sends with a preview it fetches, so a refusal
     /// is an answer it can show rather than a file it did not ask to save.
     /// </summary>
-    private const string DocumentPreviewHeader = "X-Pegasus-Document-Preview";
+    internal const string DocumentPreviewHeader = "X-Pegasus-Document-Preview";
 
     public async Task<IActionResult> OnGetAsync(
         Guid caseId,
@@ -257,7 +257,7 @@ public sealed partial class DownloadModel(
                     StringComparison.Ordinal);
         }
         if (thumbnailAddressIsCurrent
-            && HoldsRepresentation(wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256)))
+            && HoldsRepresentation(Request, wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256)))
         {
             // The bytes are already held. Restate the caching terms, because a
             // 304 refreshes them, and send nothing else.
@@ -371,7 +371,7 @@ public sealed partial class DownloadModel(
         var etag = $"\"{preview.Sha256}-{CaseDocumentPreviews.RenditionVariant}\"";
         var addressIsCurrent = string.Equals(
             renderer, CaseDocumentPreviews.RenditionIdentity, StringComparison.Ordinal);
-        if (addressIsCurrent && HoldsRepresentation(etag))
+        if (addressIsCurrent && HoldsRepresentation(Request, etag))
         {
             SetPreviewCaching(etag, cacheable: true);
             return StatusCode(StatusCodes.Status304NotModified);
@@ -503,9 +503,9 @@ public sealed partial class DownloadModel(
     /// rendering can be produced is served uncached for that one request and
     /// must not become the tile's permanent answer.
     /// </summary>
-    private bool HoldsRepresentation(string expected)
+    internal static bool HoldsRepresentation(HttpRequest request, string expected)
     {
-        foreach (var header in Request.Headers.IfNoneMatch)
+        foreach (var header in request.Headers.IfNoneMatch)
         {
             foreach (var candidate in (header ?? string.Empty).Split(','))
             {
@@ -537,7 +537,7 @@ public sealed partial class DownloadModel(
     /// <see cref="IOException"/>, so it is classified before the transient
     /// rule below claims it.
     /// </summary>
-    private static bool IsMissing(Exception exception) =>
+    internal static bool IsMissing(Exception exception) =>
         exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException
@@ -549,7 +549,7 @@ public sealed partial class DownloadModel(
     /// Box or the cache said "later": the rate limit, a provider failure, or a
     /// read that did not complete.
     /// </summary>
-    private static bool IsTransient(Exception exception) =>
+    internal static bool IsTransient(Exception exception) =>
         exception is IOException or TimeoutException
         || exception is HttpRequestException http
             && (http.StatusCode == System.Net.HttpStatusCode.TooManyRequests

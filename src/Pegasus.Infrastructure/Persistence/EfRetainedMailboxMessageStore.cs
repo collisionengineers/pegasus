@@ -450,7 +450,14 @@ internal sealed class EfRetainedMailboxMessageStore(
             : await context.Set<IntakeAssetEntity>().AsNoTracking()
                 .Where(item => receiptIds.Contains(item.IntakeReceiptId)
                     && item.Kind == "attachment")
-                .Select(item => new AttachmentAssetRow(item.IntakeReceiptId, item.Id, item.SourceLabel))
+                .Select(item => new AttachmentAssetRow(
+                    item.IntakeReceiptId,
+                    item.Id,
+                    item.SourceLabel,
+                    item.CustodyStatus == ConfirmedCustody
+                        && item.BoxFileId != null
+                        && item.BoxVersionId != null
+                        && item.BoxParentFolderId != null))
                 .ToListAsync(cancellationToken);
         var documentsByReceipt = attachmentDocuments.ToLookup(item => item.IntakeReceiptId);
         var assetsByReceipt = attachmentAssets.ToLookup(item => item.IntakeReceiptId);
@@ -613,20 +620,25 @@ internal sealed class EfRetainedMailboxMessageStore(
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(item => item.SourceLabel).Distinct(StringComparer.Ordinal).ToArray());
-        var assetIdsBySourceLabel = assets
+        var assetsBySourceLabel = assets
             .GroupBy(item => item.SourceLabel, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(item => item.Id).Distinct().ToArray(),
+                group => group.DistinctBy(item => item.Id).ToArray(),
                 StringComparer.Ordinal);
         return attachments
             .OrderBy(item => item.Ordinal)
-            .Select(item => new RetainedMailAttachment(
-                item.FileName,
-                item.MediaType,
-                item.ContentLength,
-                searchableOrdinals.Contains(item.Ordinal),
-                IntakeAssetId(item.Ordinal, sourceLabelsByOrdinal, assetIdsBySourceLabel)))
+            .Select(item =>
+            {
+                var asset = AttachmentAsset(item.Ordinal, sourceLabelsByOrdinal, assetsBySourceLabel);
+                return new RetainedMailAttachment(
+                    item.FileName,
+                    item.MediaType,
+                    item.ContentLength,
+                    searchableOrdinals.Contains(item.Ordinal),
+                    asset?.Id,
+                    asset?.IsHeldInBox ?? false);
+            })
             .ToArray();
     }
 
@@ -1106,20 +1118,20 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.PolicyVersion = source.PolicyVersion;
     }
 
-    private static Guid? IntakeAssetId(
+    private static AttachmentAssetRow? AttachmentAsset(
         int attachmentOrdinal,
         Dictionary<int, string[]> sourceLabelsByOrdinal,
-        Dictionary<string, Guid[]> assetIdsBySourceLabel)
+        Dictionary<string, AttachmentAssetRow[]> assetsBySourceLabel)
     {
         if (!sourceLabelsByOrdinal.TryGetValue(attachmentOrdinal, out var sourceLabels)
             || sourceLabels.Length != 1
-            || !assetIdsBySourceLabel.TryGetValue(sourceLabels[0], out var assetIds)
-            || assetIds.Length != 1)
+            || !assetsBySourceLabel.TryGetValue(sourceLabels[0], out var labelled)
+            || labelled.Length != 1)
         {
             return null;
         }
 
-        return assetIds[0];
+        return labelled[0];
     }
 
     private static string SerializeSnapshot(MailClassificationResult value) =>
@@ -1766,10 +1778,15 @@ internal sealed class EfRetainedMailboxMessageStore(
         string SourceLabel,
         bool IsSearchable);
 
+    /// <param name="IsHeldInBox">Custody confirmed the file in Box, as the durable read requires it.</param>
     private sealed record AttachmentAssetRow(
         Guid IntakeReceiptId,
         Guid Id,
-        string SourceLabel);
+        string SourceLabel,
+        bool IsHeldInBox);
+
+    /// <summary>The custody status a confirmed intake asset carries (<see cref="IntakeAssetEntity.ConfirmCustody"/>).</summary>
+    private const string ConfirmedCustody = "confirmed";
 
     /// <summary>What the conversation reads of a member's receipt.</summary>
     private sealed record ConversationReceipt(
