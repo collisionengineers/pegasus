@@ -3028,7 +3028,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>The opening tags of the conversation's unfolded messages.</summary>
-    private static IReadOnlyList<string> OpenMessages(string html) =>
+    private static string[] OpenMessages(string html) =>
         Regex.Matches(html, "<details\\b[^>]*\\sdata-mail-msg=[^>]*>")
             .Select(match => match.Value)
             .Where(tag => Regex.IsMatch(tag, "\\sopen(=|\\s|>)"))
