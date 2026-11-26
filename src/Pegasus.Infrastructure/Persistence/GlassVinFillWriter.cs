@@ -11,8 +11,8 @@ using Pegasus.Core.Reports;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// Fills a work's empty VIN with the one Glass's named, inside the caller's
-/// transaction, as <see cref="GlassVinFillPolicy"/> decides. The fill is system
+/// Fills a work's empty VIN with the one Glass's or an estimate named, inside
+/// the caller's transaction, as <see cref="GlassVinFillPolicy"/> decides. The fill is system
 /// work of its own: the Case version advances, whoever is editing keeps their
 /// session, and its history records the value the work held before, so a Save
 /// prepared before the fill keeps it
@@ -21,6 +21,12 @@ namespace Pegasus.Infrastructure.Persistence;
 internal static class GlassVinFillWriter
 {
     public const string EventType = "glass_vin_filled";
+
+    /// <summary>The line a VIN Glass's named records.</summary>
+    public const string GlassReason = "Glass's VIN filled the Case's empty VIN.";
+
+    /// <summary>The line a VIN any other estimate states records (operator, 26 November 2026; R1283).</summary>
+    public const string EstimateReason = "The estimate's VIN filled the Case's empty VIN.";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -31,11 +37,13 @@ internal static class GlassVinFillWriter
         Guid workId,
         string? vin,
         string operationKey,
+        string reason,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var value = GlassVinFillPolicy.Carried(vin);
         if (value is null)
         {
@@ -62,7 +70,6 @@ internal static class GlassVinFillWriter
             [AssessmentVocabulary.VehicleVin] = null
         };
         var resultJson = JsonSerializer.Serialize(new { Filled = filled }, JsonOptions);
-        const string reason = "Glass's VIN filled the Case's empty VIN.";
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -141,7 +148,7 @@ internal sealed partial class EfGlassVinFill(
             CaseMutationGuard.RequireOpen(workflow, actor);
             var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
             if (!await GlassVinFillWriter.ApplyAsync(
-                    context, workflow, workId, vin, $"glass-vin:{Guid.NewGuid():N}",
+                    context, workflow, workId, vin, $"glass-vin:{Guid.NewGuid():N}", GlassVinFillWriter.GlassReason,
                     timeProvider.GetUtcNow(), cancellationToken))
             {
                 return;

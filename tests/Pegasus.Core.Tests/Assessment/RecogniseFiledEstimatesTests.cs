@@ -3,6 +3,7 @@ using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Assessment;
 
@@ -147,6 +148,129 @@ public sealed class RecogniseFiledEstimatesTests
         Assert.Empty(store.Recorded);
     }
 
+    /// <summary>
+    /// A newly recognised Audatex estimate records what it states on its Case
+    /// before its answer: the type its header gives, its VIN and its odometer
+    /// (R1140, R1141). One that states nothing records nothing there.
+    /// </summary>
+    [Fact]
+    public async Task AnEstimateRecordsWhatItStatesOnItsCaseBeforeItsAnswer()
+    {
+        var garage = Filed("Garage estimate.pdf", "GARAGE ESTIMATE");
+        var plain = Filed("Audatex report.pdf", "ESTIMATE");
+        var store = new Store([garage, plain]);
+
+        var result = await Sweep(store).ExecuteAsync(2);
+
+        Assert.Equal(new RecogniseFiledEstimatesResult(2, 2, 0, 0, null), result);
+        var (candidate, reading) = Assert.Single(store.Readings);
+        Assert.Equal(garage.Candidate, candidate);
+        Assert.Equal(
+            new FiledEstimateReading(DocumentSemanticRole.ExternalEstimate, "WVWZZZ1KZAW000001", 24534, "miles"),
+            reading);
+        Assert.Equal<(bool, string?)>(
+            (true, EstimateFormats.AudatexProvider), store.Recorded[garage.Candidate.VersionId]);
+    }
+
+    /// <summary>
+    /// An estimate recognised before is read again for its format alone,
+    /// never for what it states (R1281).
+    /// </summary>
+    [Fact]
+    public async Task AnEstimateReadAgainForItsFormatRecordsNothingOnItsCase()
+    {
+        var recognised = Filed("Garage estimate.pdf", "GARAGE ESTIMATE", isRecognised: true);
+        var store = new Store([recognised]);
+
+        await Sweep(store).ExecuteAsync(1);
+
+        Assert.Empty(store.Readings);
+        Assert.Equal(EstimateFormats.AudatexProvider, store.Providers[recognised.Candidate.VersionId]);
+    }
+
+    /// <summary>
+    /// While staff edit the Case its reading waits: the version is deferred
+    /// with no answer, so it is read again later and nothing is lost.
+    /// </summary>
+    [Fact]
+    public async Task ACaseBeingEditedDefersTheEstimateWithNoAnswer()
+    {
+        var garage = Filed("Garage estimate.pdf", "GARAGE ESTIMATE");
+        var store = new Store([garage]) { Editing = true };
+
+        var result = await Sweep(store).ExecuteAsync(1);
+
+        Assert.Equal(
+            new RecogniseFiledEstimatesResult(1, 0, 0, 1, nameof(IntakeDependencyUnavailableException)), result);
+        Assert.Equal(new[] { garage.Candidate.VersionId }, store.Deferred);
+        Assert.Empty(store.Recorded);
+    }
+
+    /// <summary>
+    /// A header naming Collision Engineers is a CE estimate, any other an
+    /// External estimate, and none leaves the file as filed (R1140, R1281).
+    /// </summary>
+    [Theory]
+    [InlineData("TEL: COLLISION ENGINEERS 01515590762 77-79 HOYLAKE ROAD", DocumentSemanticRole.CeEstimate)]
+    [InlineData("Collision Engineers Ltd", DocumentSemanticRole.CeEstimate)]
+    [InlineData("TEL: WILLOW BODYWORKS FAX: WANDLE WAY", DocumentSemanticRole.ExternalEstimate)]
+    [InlineData("CITYGATE GROUP BODYSHOPS TEL: 020", DocumentSemanticRole.ExternalEstimate)]
+    [InlineData(" ", null)]
+    [InlineData(null, null)]
+    public void TheHeaderGivesTheType(string? header, DocumentSemanticRole? expected) =>
+        Assert.Equal(expected, FiledEstimateTypePolicy.HeaderType(header));
+
+    /// <summary>
+    /// Only a type nobody chose is set from the header: a mailed attachment
+    /// as intake filed it (an Audatex estimate is not an Instruction, R1285),
+    /// an upload left on Other (R1281) and the import's dropped file. A type
+    /// changed after filing, one the Automation Actor or staff chose, and an
+    /// original source or Audit report are kept.
+    /// </summary>
+    [Theory]
+    [InlineData("mail-instruction", DocumentSource.Intake, DocumentSemanticRole.Instruction, null, false, true)]
+    [InlineData("mail-correspondence", DocumentSource.ExternalCorrespondence, DocumentSemanticRole.Correspondence, null, false, true)]
+    [InlineData("mail-changed", DocumentSource.Intake, DocumentSemanticRole.Correspondence, null, true, false)]
+    [InlineData("mail-source", DocumentSource.Intake, DocumentSemanticRole.OriginalSource, null, false, false)]
+    [InlineData("mail-audit-report", DocumentSource.Intake, DocumentSemanticRole.AuditReport, null, false, false)]
+    [InlineData("upload-other", DocumentSource.StaffUpload, DocumentSemanticRole.Other, "upload:1", false, true)]
+    [InlineData("upload-other-changed", DocumentSource.StaffUpload, DocumentSemanticRole.Other, "upload:1", true, false)]
+    [InlineData("upload-chosen", DocumentSource.StaffUpload, DocumentSemanticRole.Correspondence, "upload:1", false, false)]
+    [InlineData("upload-external", DocumentSource.StaffUpload, DocumentSemanticRole.ExternalEstimate, "upload:1", false, false)]
+    [InlineData("import-drop", DocumentSource.StaffUpload, DocumentSemanticRole.ExternalEstimate, "estimate-import:key", false, true)]
+    [InlineData("automation", DocumentSource.Automation, DocumentSemanticRole.Other, null, false, false)]
+    [InlineData("generated", DocumentSource.Generated, DocumentSemanticRole.Other, null, false, false)]
+    public void OnlyATypeNobodyChoseIsSetFromTheHeader(
+        string name,
+        DocumentSource source,
+        DocumentSemanticRole role,
+        string? identity,
+        bool changedAfterFiling,
+        bool expected)
+    {
+        Assert.NotEmpty(name);
+        Assert.Equal(expected, FiledEstimateTypePolicy.MayType(source, role, identity, changedAfterFiling));
+    }
+
+    /// <summary>
+    /// Only an Audatex estimate's reading is recorded, a VIN the vocabulary
+    /// cannot hold is dropped, and a reading of nothing is none.
+    /// </summary>
+    [Fact]
+    public void OnlyAnAudatexEstimateStatingSomethingIsAReading()
+    {
+        ParsedEstimate Parsed(RepairSpecificationSourceRoute route, string? header, string? vin, long? mileage) =>
+            new("1", [], "Provider", route, Vin: vin, Header: header, Mileage: mileage, MileageUnit: mileage is null ? null : "miles");
+
+        Assert.Null(FiledEstimateReading.From(
+            Parsed(RepairSpecificationSourceRoute.Json, "TEL: COLLISION ENGINEERS", null, 100)));
+        Assert.Null(FiledEstimateReading.From(Parsed(RepairSpecificationSourceRoute.AudatexPdf, null, null, null)));
+        Assert.Equal(
+            new FiledEstimateReading(DocumentSemanticRole.CeEstimate, null, null, null),
+            FiledEstimateReading.From(
+                Parsed(RepairSpecificationSourceRoute.AudatexPdf, "TEL: COLLISION ENGINEERS", "WING!", null)));
+    }
+
     private static RecogniseFiledEstimates Sweep(Store store) => new(store, store, [new PdfParser()]);
 
     private sealed record FiledVersion(EstimateRecognitionCandidate Candidate, byte[] Content);
@@ -175,6 +299,9 @@ public sealed class RecogniseFiledEstimatesTests
         public ParsedEstimate Parse(ReadOnlyMemory<byte> content) => Encoding.ASCII.GetString(content.Span) switch
         {
             "ESTIMATE" => new("1", [], EstimateFormats.AudatexProvider, RepairSpecificationSourceRoute.AudatexPdf),
+            "GARAGE ESTIMATE" => new(
+                "1", [], EstimateFormats.AudatexProvider, RepairSpecificationSourceRoute.AudatexPdf,
+                Vin: "WVWZZZ1KZAW000001", Header: "TEL: WILLOW BODYWORKS", Mileage: 24534, MileageUnit: "miles"),
             "FAULT" => throw new InvalidOperationException("The parser failed."),
             _ => throw new EstimateParseRejectedException("The PDF does not identify exactly one supported estimate provider."),
         };
@@ -190,6 +317,12 @@ public sealed class RecogniseFiledEstimatesTests
         public Dictionary<Guid, string> Providers { get; } = [];
 
         public List<Guid> Deferred { get; } = [];
+
+        /// <summary>What each newly recognised estimate recorded on its Case, in order.</summary>
+        public List<(EstimateRecognitionCandidate Candidate, FiledEstimateReading Reading)> Readings { get; } = [];
+
+        /// <summary>Whether a member of staff is editing every Case, so a reading waits.</summary>
+        public bool Editing { get; init; }
 
         public List<ReadLogicalDocumentVersionRequest> Reads { get; } = [];
 
@@ -213,6 +346,19 @@ public sealed class RecogniseFiledEstimatesTests
         }
 
         public void Defer(Guid versionId) => Deferred.Add(versionId);
+
+        public Task RecordReadingAsync(
+            EstimateRecognitionCandidate candidate,
+            FiledEstimateReading reading,
+            CancellationToken cancellationToken)
+        {
+            if (Editing)
+            {
+                throw new IntakeDependencyUnavailableException("Estimate recognition is waiting for the Case editor.");
+            }
+            Readings.Add((candidate, reading));
+            return Task.CompletedTask;
+        }
 
         public Task<LogicalDocumentContent> OpenAsync(
             ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)

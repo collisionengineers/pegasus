@@ -22,7 +22,11 @@ internal static class AudatexEstimateFixture
     /// asked, and each parts footer row ("Deduction from RRP", "Sundry
     /// Parts", "Total Parts") prints under the Sub Total when it is given; by
     /// default there is none, as on an older report. A joined asterisk prints
-    /// the REPAIR WING work units as one word, "12.0*".
+    /// the REPAIR WING work units as one word, "12.0*". A header prints above
+    /// the assessment number as page one names the company that produced the
+    /// report, and a VIN and odometer print as the vehicle details do, their
+    /// values at x 159 beside the Model Specs column at x 298; a second VIN
+    /// prints as a later page's vehicle data does.
     /// </summary>
     internal static byte[] Build(
         string partsSubTotal = "£620.20",
@@ -37,7 +41,11 @@ internal static class AudatexEstimateFixture
         (string Percent, string Amount)? partsDeduction = null,
         string? partsSundry = null,
         string? partsTotal = null,
-        bool joinedAsterisk = false)
+        bool joinedAsterisk = false,
+        string? header = null,
+        string? vin = null,
+        string? odometer = null,
+        string? secondVin = null)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -51,6 +59,32 @@ internal static class AudatexEstimateFixture
             Text(167, 700, "TEST01");
             Text(20, 688, "Version:");
             Text(80, 688, "V1/1");
+        }
+        if (header is not null)
+        {
+            Text(150, 790, header);
+            Text(150, 778, "1 TEST ROAD");
+        }
+        void VehicleRow(double y, string label, string? value, string specs)
+        {
+            Text(20, y, label);
+            if (value is not null)
+            {
+                Text(159, y, value);
+            }
+            Text(298, y, specs);
+        }
+        if (vin is not null)
+        {
+            VehicleRow(680, "VIN Number:", vin.Length == 0 ? null : vin, "WING EXTENSION");
+        }
+        if (odometer is not null)
+        {
+            VehicleRow(674, "Odometer:", odometer, "4 SPEAKER");
+        }
+        if (secondVin is not null)
+        {
+            VehicleRow(668, "VIN Number:", secondVin, "Type:");
         }
 
         // LABOUR: guide + description rows with the work-unit value on its

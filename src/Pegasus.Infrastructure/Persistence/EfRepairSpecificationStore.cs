@@ -516,7 +516,11 @@ public sealed class EfRepairSpecificationStore(
             // The document's VIN fills the work's empty VIN (operator,
             // 7 October 2026), as system work after the import.
             await GlassVinFillWriter.ApplyAsync(
-                context, workflow, workId, request.Vin, $"{request.OperationKey}:vin", now, cancellationToken);
+                context, workflow, workId, request.Vin, $"{request.OperationKey}:vin",
+                request.Source.Route == RepairSpecificationSourceRoute.Glasses
+                    ? GlassVinFillWriter.GlassReason
+                    : GlassVinFillWriter.EstimateReason,
+                now, cancellationToken);
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
