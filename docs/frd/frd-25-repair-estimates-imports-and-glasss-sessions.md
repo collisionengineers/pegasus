@@ -127,11 +127,13 @@ correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
 spec; an automation import through MCP stays a Draft.
 
-**A Glass's import fills an empty VIN.** The VIN a Glass's export or
-calculation sheet names fills the Case's VIN in the import's transaction,
-only where the Case holds none
+**An import fills an empty VIN.** The VIN a Glass's export or calculation
+sheet, or an Audatex report, names fills the Case's VIN in the import's
+transaction, only where the Case holds none
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md); operator, 7 October
-2026).
+2026). Its history line is "Glass's VIN filled the Case's empty VIN." for
+Glass's and "The estimate's VIN filled the Case's empty VIN." for any other
+estimate (operator, 26 November 2026; [R1283](../rulings.md)).
 
 **Glass's calculation PDFs.** These keep ordered rows from the sheet's
 operation sections (Body, Mechanical, Electrical, Auxiliary work,
@@ -614,7 +616,29 @@ calculation-sheet PDF and rejected XML the CE estimate type (operator, 17
 November 2026; [R1139](../rulings.md)); a file imported from where it already
 sits in Case Files keeps its type
 ([FRD-05](frd-05-documents-extraction-and-custody.md#document-types);
-operator, 22 October 2026).
+operator, 22 October 2026). When the Worker then recognises the stored
+source as an Audatex estimate, its header sets CE estimate or External
+estimate as FRD-05 says.
+
+**What a filed Audatex report states.** Page one prints the company that
+produced the report above its assessment number, and its vehicle details
+print `VIN Number:` and `Odometer:` (a reading with its unit, or
+`Not Known`). A value is read only from the details' own column, never from
+the Model Specs printed beside it, and a VIN or reading printed twice
+differently is not read. When the Worker first recognises a filed file as an
+Audatex estimate it records, on every Case, what the report states
+(operator, 17 and 26 November 2026; [R1141](../rulings.md),
+[R1281](../rulings.md), [R1284](../rulings.md)): the type its header gives
+([FRD-05](frd-05-documents-extraction-and-custody.md#document-types)), the
+reading in the Case's empty mileage, with its unit (miles when none is
+printed, R1080), and the VIN in the Case's empty VIN. Neither replaces a
+value the Case holds, a lookup's included, so the mileage fills as an
+original report's does
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#vehicle-details-and-mileage-evidence)),
+and a mileage-only Not ready Case moves to Review. The type and the mileage
+are one history line, "Estimate read: <file>" ([R1282](../rulings.md)); the
+VIN has its own. The reading waits while staff edit the Case, and an
+estimate recognised before 26 November 2026 is not read again.
 
 ## States and transitions
 

@@ -136,7 +136,11 @@ an exact MOT reading is never replaced (operator, 10 November 2026,
 recognised original report states fills an empty Case mileage, with its unit,
 sourced to the report, whether the report is recorded when the Case is
 created or later; it never replaces a mileage the Case holds, a lookup's
-included (operator, 11 November 2026, [R930](../rulings.md)). The
+included (operator, 11 November 2026, [R930](../rulings.md)). A filed
+Audatex estimate's odometer reading fills the same way, sourced to the
+estimate (operator, 17 and 26 November 2026; [R1141](../rulings.md),
+[R1284](../rulings.md);
+[FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import)). The
 odometer-vision capability does not imply an activated AI caller before its
 own accepted evaluation and integration contract. The estimate method is owned by
 [FRD-06](frd-06-vehicle-and-engineering-evidence.md#conservative-mot-mileage-estimation).

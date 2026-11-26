@@ -527,10 +527,8 @@ format, Audatex included. Repair invoice is never set by Pegasus: staff
 choose it on Upload or Change type, and the Automation Actor names it
 ([R1140](../rulings.md)). A file imported from where it already sits in Case
 Files keeps its type, as does an intake file the Worker recognised as an
-estimate (operator, 22 October 2026; R221). Pegasus does not yet type a
-recognised estimate by the company its header names: that rule
-([R1140](../rulings.md)) waits for the sample documents of
-[R1156](../rulings.md). Valuation Evidence is a Glass's, Brego or Cazana guide
+estimate (operator, 22 October 2026; R221), unless its header types it as
+below. Valuation Evidence is a Glass's, Brego or Cazana guide
 valuation report and the findings a Market research job files: Market
 research is part of Valuation Evidence and is no longer a type of its own
 (operator, 22 October 2026; R220). There are no staff-added custom types, and
@@ -567,6 +565,26 @@ yet filed included. An Audatex estimate Collision Engineers produced before
 the split therefore reads External estimate until staff change it. The
 migration is non-additive and forward-only, and Case history keeps the type
 name each earlier change recorded.
+
+A filed Audatex estimate takes its type from the company page one names
+above its assessment number (operator, 17 and 26 November 2026;
+[R1140](../rulings.md), [R1281](../rulings.md), [R1285](../rulings.md)):
+Collision Engineers makes it a CE estimate, any other company an External
+estimate, and a report that prints no header there keeps the type it was
+filed with. The Worker sets it when it first recognises the file as an
+estimate, on each of the Case's files of that version whose type nobody
+chose: a mailed attachment as intake filed it (Instruction or
+Correspondence: an Audatex estimate is not an instruction), an upload left
+on Other, and the file the Repair Spec import's drop filed as External
+estimate. A type staff or the Automation Actor chose, on Upload or Change
+type, is never overwritten, nor is an original source or an Audit report.
+An estimate recognised before 26 November 2026 is not read again for it.
+The change is system work on the Case's history, "Estimate read: <file>"
+([R1282](../rulings.md)), and waits while staff edit the Case; a Garage
+authorisation and invoice Audit it gives an External estimate moves on at
+the Worker's next sweep ([FRD-13](frd-13-case-lifecycle-and-workflow.md)).
+The same reading fills the Case's empty mileage and VIN
+([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import)).
 
 A file a member of staff uploads to a declared Case
 ([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) takes the
