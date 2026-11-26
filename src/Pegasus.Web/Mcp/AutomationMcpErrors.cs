@@ -39,12 +39,12 @@ internal static class AutomationMcpErrors
         {
             throw;
         }
-        catch (StaffAuthorizationException exception)
+        catch (StaffAuthorizationException)
         {
-            // A member of staff is refused in Core's own sentence, which names
-            // no actor; the Automation Actor in the one that names it.
+            // A member of staff reads the operator's sentence (R1304); the
+            // Automation Actor the one that names it.
             throw new McpException(context.IsStaff
-                ? exception.Message
+                ? Pegasus.Web.Presentation.OperatorLabels.DesktopSignIn.ActionNotAllowed
                 : "The Automation actor is not authorized for this action.");
         }
         catch (CaseEditLeaseExpiredException exception)

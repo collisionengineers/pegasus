@@ -23,7 +23,7 @@ Automation client, its Administrator consent and its tokens are unchanged.
 [ADR-0011](0011-restrict-mcp-to-automation-actor.md) was unchanged by this
 record as first accepted, when no tool acted for a member of staff.
 
-Amended 26 November 2026 (R1300): decision 7 is built. A Pegasus Desktop
+Amended 26 November 2026 (R1300, R1302 to R1304): decision 7 is built. A Pegasus Desktop
 token now resolves to the member of staff it names, every connector tool acts
 as that person, and ADR-0011's "ordinary staff have no MCP access" is amended
 for this one client.
@@ -116,11 +116,12 @@ one registered with a port matches that port only.
    rights decide what a call may do: every role does casework, sending
    included, and only an Administrator holds the management rights, which no
    tool reaches. Each call is recorded under their name, in Pegasus Desktop's
-   area of the Action logs, and what they change carries staff labels, not
-   Automation ones. A call the check refuses is recorded as
-   `desktop_access_denied` under the person, which is not counted as
-   Automation activity. The Automation client's Stop switch is not read for a
-   Pegasus Desktop token. `pegasus_session_get` answers who a connection
+   area of the Action logs, and what the assistant files stays marked AI: a
+   document keeps the Automation source, and an estimate is an AI draft that
+   waits for Use repair spec in Pegasus (R1302). A call the check refuses is
+   recorded as `desktop_access_denied` under the person, which is not counted
+   as Automation activity. The Automation client's Stop switch is not read
+   for a Pegasus Desktop token (R1303). `pegasus_session_get` answers who a connection
    acts as. Pegasus Desktop puts each change on a card that names the person,
    which they confirm before it is made; that is the application's rule, and
    Pegasus marks each tool that only reads as read-only so the application
@@ -179,7 +180,7 @@ The staff session's absolute lifetime is also eight hours.
 
 ## Links
 
-- Rulings: R1237, R1297, R1298, R1299, R1300 and R1301 in [rulings](../rulings.md).
+- Rulings: R1237 and R1297 to R1304 in [rulings](../rulings.md).
 - [FRD-04](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix),
   [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md),

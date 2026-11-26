@@ -30,6 +30,12 @@ public sealed record ImportRawEstimateRequest(
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 
     /// <summary>
+    /// An import that lands as a Draft whoever made it: the connector's, which
+    /// a member of staff puts in use in Pegasus itself (R1302).
+    /// </summary>
+    public bool AwaitsUse { get; init; }
+
+    /// <summary>
     /// The staff member's edit session continues past this import. A Glass's
     /// return lands its estimate under the session they hold and never ends it
     /// (operator, 6 October 2026); the file import they press keeps ending the
@@ -431,6 +437,7 @@ public sealed class ImportRawEstimate(
                     new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
                 {
                     Work = request.Work,
+                    AwaitsUse = request.AwaitsUse,
                     KeepsLease = request.KeepsLease,
                     GlassEstimate = request.GlassEstimate,
                     Vin = parsed.Vin,
@@ -468,6 +475,7 @@ public sealed class ImportRawEstimate(
                 SelectedRateCardId = card?.Id,
                 SelectedRateCardVersion = card?.Version,
                 Work = request.Work,
+                AwaitsUse = request.AwaitsUse,
                 KeepsLease = request.KeepsLease,
                 GlassEstimate = request.GlassEstimate,
                 Vin = parsed.Vin,

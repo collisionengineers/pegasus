@@ -122,12 +122,15 @@ browser; the member of staff signs in to Pegasus there, and a page headed
 under your name.", and offers **Sign in** and **Refuse**. The application
 never sees the password. Any enabled account may sign in, of any role; an
 account that must change its password changes it first. Either answer is a
-permanent history event under the person's name. The sign-in is offered only
+permanent history event under the person's name, which the Action logs read
+as "Signed in from Pegasus Desktop" and "Refused sign-in from Pegasus
+Desktop" (R1304). The sign-in is offered only
 where a deployment configures it: production does not, and there is no row
 for Pegasus Desktop on the Integrations page. A sign-in lasts 8 hours and is
 not extended by use. It ends sooner when the account is disabled, its
 password is reset, its role changes or an Administrator forces a logout, and
-when the application signs out. Signed in, the member of staff may do through
+when the application signs out; stopping the Automation client does not end
+it (R1303). Signed in, the member of staff may do through
 the application what they could do in Pegasus itself, recorded under their
 name (R1300); that is owned by
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop).

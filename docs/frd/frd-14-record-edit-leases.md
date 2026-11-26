@@ -178,7 +178,7 @@ under issue #2166).
   rules for staff: the call resumes a scope the person holds, and its write
   ends the scope.
 - Stopping the Automation client releases the Automation Actor's leases and
-  scopes only.
+  scopes only (R1303).
 
 **What goes in history.** A takeover, a deliberate recovery, and a refused or
 failed save that matters are permanent, attributable history. Routine

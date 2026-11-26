@@ -242,7 +242,10 @@ internal sealed class AssessmentMcpTools(
                     key,
                     token => importRawEstimate.ExecuteAsync(
                         new(context.Actor, caseId, expectedVersion, token,
-                            occurrenceId, documentVersionId, sha256, key, name),
+                            occurrenceId, documentVersionId, sha256, key, name)
+                        {
+                            AwaitsUse = context.EstimateAwaitsUse
+                        },
                         cancellationToken),
                     cancellationToken);
                 return new EstimateImportToolResult(

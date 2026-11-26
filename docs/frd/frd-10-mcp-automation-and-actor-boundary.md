@@ -7,8 +7,9 @@
 - MCP is a controlled entry point for one named Automation Actor. Ordinary
   staff use the Web UI.
 - A member of staff signed in from Pegasus Desktop reaches the same tools as
-  themselves: what they do is recorded under their name with staff labels,
-  and their own role decides what is allowed (R1300).
+  themselves: what they do is recorded under their name, what the assistant
+  files stays marked AI, and their own role decides what is allowed (R1300,
+  R1302).
 - Every tool calls the same Core command a staff member would. The Actor has
   its own identity and history and no management powers.
 - The tools are served by one MCP server, `pegasus-automation`, at `/mcp`. A
@@ -69,7 +70,9 @@ reports included, and every action is recorded under their name, not the
 AI's and not the Automation Actor's. The token holds all seven scopes, so
 `tools/list` holds every tool, and the person's own role decides what a call
 may do: every role does casework, and no tool reaches a right only an
-Administrator holds. Each call first reads the account, as the staff cookie
+Administrator holds; an action the account's role does not allow is refused
+with "Your account is not allowed to do this." (R1304). Each call first reads
+the account, as the staff cookie
 does on every request: enabled, not waiting on a password change, holding one
 staff role, and with the security stamp it had at the sign-in. A disabled
 account, a reset password, a changed role or a forced logout is therefore
@@ -81,33 +84,41 @@ the scopes the token holds.
 
 Wherever this document says what the Actor does or how its work is recorded,
 a member of staff signed in from Pegasus Desktop does the same through the
-same Core command, as themselves, with these differences:
+same Core command, under their name, but marked AI (operator, 26 November
+2026; R1302): the actor is the member of staff everywhere, for history,
+attribution and rights, and what the assistant files keeps the AI mark the
+Actor's carries.
 
-- Each call is recorded in the Action logs under their name, in the area
-  **Pegasus Desktop**, not the Actor's **Automation**. Case history, a note,
-  a send, a report approval and a settled inspection address name the member
-  of staff.
-- A document they add is a **Staff upload**, not Automation-sourced, and its
-  source identity carries the prefix `staff:`. A staged upload belongs to the
-  person who staged it.
-- An estimate they type in takes the manual route and is the Current repair
-  spec at once, as a staff estimate on the Case is; an import is Current at
-  once too. An assessment value they record is a staff value, with no AI
+- **Their name.** Each call is recorded in the Action logs under their name,
+  in the area **Pegasus Desktop**, not the Actor's **Automation**. Case
+  history, a note, a send, a report approval, a photo link and a settled
+  inspection address name the member of staff. A staged upload belongs to
+  the person who staged it, and a source submitted with
+  `pegasus_intake_submit` is staged under their name.
+- **Marked AI.** A document they add keeps the Automation source, which
+  draws its AI tag, and the `automation:` prefix of its source identity. An
+  estimate they type in is an AI draft. An estimate made this way, typed or
+  imported, is recorded as theirs and stays a Draft: a member of staff puts
+  it in use with **Use repair spec** in Pegasus itself, as for the Actor's. A
+  submitted source still arrives on the automation channel.
+- **One actor, no mark.** A field that holds one actor and nothing else names
+  the person and so carries no AI mark: a note, the recorder of an assessment
+  value or a valuation card, the settler of an inspection address. An
+  assessment value recorded this way reads as a staff value, with no AI
   source tag.
 - The AI job list is for automated agents: a member of staff is refused
   Take, Progress, Complete, Fail and Release, and
   `pegasus_ai_job_complete_market_research`, as in Pegasus itself. They may
   create a job, cancel one and confirm one.
-- The Automation client's Stop switch does not stop them. Disabling the
-  account or forcing its logout does.
+- The Automation client's Stop switch does not stop them. A sign-in from
+  Pegasus Desktop ends when the account is disabled, its password is reset,
+  an Administrator signs the person out, or after 8 hours (R1303).
 - Edit leases follow the staff rules of
-  [FRD-14](frd-14-record-edit-leases.md#pegasus-desktop), not the Actor's.
-- A source they submit with `pegasus_intake_submit` is staged under their
-  name and still arrives on the automation channel, which is the route.
+  [FRD-14](frd-14-record-edit-leases.md#pegasus-desktop), not the Actor's;
+  that rule is built to the answer recommended to the operator, whose ruling
+  is owed under issue #2166.
 
-The first of these is the operator's ruling (R1300). The rest are built to
-the answers recommended to the operator, whose rulings on them are owed under
-issue #2166. Pegasus Desktop puts each change on a card that names the member
+Pegasus Desktop puts each change on a card that names the member
 of staff, which they confirm before it is made; that is the application's
 rule, not Pegasus's. So that the application can tell a change from a read,
 every tool that only reads is marked read-only and no other tool is. Case
@@ -717,8 +728,9 @@ and the same replay rule. The caller does not choose a trusted provider
 route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
 document is refused without OCR or partial rows. A staff Import on the Case
-is the Current repair spec at once; the MCP import runs as the Automation
-actor, so it stays a Draft until a staff member uses it.
+is the Current repair spec at once; the MCP import stays a Draft until a
+staff member uses it, whether it runs as the Automation actor or for a member
+of staff signed in from Pegasus Desktop (R1302).
 
 **Estimate saves.** `pegasus_estimate_save` saves through the same Core
 command as the Case's Repair Spec editor (operator, 7 October 2026). A new

@@ -51,10 +51,10 @@ internal sealed record DocumentBatchDownloadToolResult(
 /// Automation Actor document tools (MCP-04): thin adapters over the same
 /// canonical case-document custody use cases as the staff app, guarded by the
 /// automation.documents scope. Retained content is provenance-labelled with
-/// the document source of whoever the call is made for
-/// (<see cref="AutomationActorContext.DocumentSource"/>): Automation for the
-/// Automation Actor, a Staff upload for a member of staff signed in from
-/// Pegasus Desktop; a mutation presents the case edit lease
+/// the Automation document source, which the context carries for the
+/// Automation Actor and for a member of staff signed in from Pegasus Desktop
+/// alike (<see cref="AutomationActorContext.DocumentSource"/>, R1302); a
+/// mutation presents the case edit lease
 /// and expected version like any staff save, or holds the lease for its one
 /// command when none is presented. A download hands the content back as
 /// native MCP content (<see cref="AutomationFileContent"/>) with the original

@@ -434,6 +434,19 @@ public sealed class EstimateTests
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])));
         // An AI draft only proposes (FRD-25): it waits for Use repair spec.
         Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(Client));
+
+        // So does what the assistant in Pegasus Desktop files under a member of
+        // staff's name (R1302): an AI draft, and an import marked to await use.
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            Engineer, RepairSpecificationSourceRoute.Manual, awaitsUse: false));
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            Engineer, RepairSpecificationSourceRoute.Json, awaitsUse: false));
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            Engineer, RepairSpecificationSourceRoute.AiDraft, awaitsUse: false));
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            User, RepairSpecificationSourceRoute.Json, awaitsUse: true));
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            Client, RepairSpecificationSourceRoute.AiDraft, awaitsUse: false));
     }
 
     [Fact]

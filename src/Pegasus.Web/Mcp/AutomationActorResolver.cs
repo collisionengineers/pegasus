@@ -17,11 +17,14 @@ namespace Pegasus.Web.Mcp;
 /// its grants) or for a member of staff signed in from Pegasus Desktop
 /// (ADR-0092); the resolver builds the one that applies and nothing else does.
 /// <para>
-/// What a member of staff does through the connector is recorded under their
-/// name (R1300) and carries staff labels, not Automation ones: each label
-/// below is decided here, in one place, from <see cref="ActionActor.Kind"/>.
-/// The labels are built to the answer recommended to the operator, whose
-/// ruling on them is still owed (issue #2166).
+/// What the assistant in Pegasus Desktop does for a member of staff is
+/// recorded under their name and marked AI (operator, 26 November 2026;
+/// R1300, R1302): the actor is the person, everywhere, and what a tool files
+/// keeps the provenance mark the Automation Actor's carries, the document
+/// source, its identity prefix, the AI-draft route and an estimate's wait for
+/// Use repair spec. Each is decided here, in one place. A field that holds
+/// one actor and nothing else (a note, an assessment value's recorder, a
+/// settled address) names the person and so carries no AI mark.
 /// </para>
 /// </summary>
 internal sealed class AutomationActorContext
@@ -104,21 +107,28 @@ internal sealed class AutomationActorContext
         ? AutomationClientRegistry.DesktopAggregateType
         : AutomationMcpAuditor.AutomationAggregateType;
 
-    /// <summary>The provenance a document added through the connector carries.</summary>
-    public DocumentSource DocumentSource => IsStaff ? DocumentSource.StaffUpload : DocumentSource.Automation;
+    /// <summary>
+    /// The provenance a document added through the connector carries, which
+    /// draws its AI tag: the Automation source, whoever the call is made for
+    /// (R1302).
+    /// </summary>
+    public DocumentSource DocumentSource { get; } = DocumentSource.Automation;
+
+    /// <summary>The prefix of such a document's source-occurrence identity, for either kind (R1302).</summary>
+    public string SourceIdentityPrefix { get; } = "automation:";
 
     /// <summary>
-    /// The prefix of a document's source-occurrence identity: the actor kind,
-    /// as <see cref="MailClassificationActor"/> writes it.
+    /// The route an estimate typed in through the connector lands on: an AI
+    /// draft, whoever it is recorded under (R1302).
     /// </summary>
-    public string SourceIdentityPrefix => IsStaff ? "staff:" : "automation:";
+    public RepairSpecificationSourceRoute EstimateRoute { get; } = RepairSpecificationSourceRoute.AiDraft;
 
     /// <summary>
-    /// The route an estimate typed in through the connector lands on: Core's
-    /// own editor rule, Manual for a member of staff and an AI draft for the
-    /// Automation Actor.
+    /// Whether an estimate made through the connector waits for Use repair
+    /// spec in Pegasus itself: always, for either kind (R1302). The
+    /// Automation Actor's waits by its kind; a member of staff's by this mark.
     /// </summary>
-    public RepairSpecificationSourceRoute EstimateRoute => RepairSpecificationPolicy.EditorRoute(Actor);
+    public bool EstimateAwaitsUse { get; } = true;
 }
 
 /// <summary>
@@ -243,11 +253,11 @@ internal sealed class AutomationActorResolver(
     /// the session at the next call (ADR-0092 decision 5). The role is the
     /// account's now, never one a token carries.
     /// <para>
-    /// Stopping the Automation client does not stop a Pegasus Desktop
-    /// session: the kill switch is the Automation client's and is not read
-    /// here, and disabling the account or forcing its sign-out is what ends
-    /// one. Built to the answer recommended to the operator, whose ruling is
-    /// still owed (issue #2166); this method is the one place that decides it.
+    /// Stopping the Automation client does not stop a member of staff signed
+    /// in from Pegasus Desktop (operator, 26 November 2026; R1303): the kill
+    /// switch is the Automation client's and is not read here. A sign-in ends
+    /// when the account is disabled, its password is reset, an Administrator
+    /// signs the person out, or after 8 hours.
     /// </para>
     /// </summary>
     private async Task<AutomationActorContext> RequireStaffAsync(

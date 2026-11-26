@@ -5,8 +5,8 @@ namespace Pegasus.ArchitectureTests;
 /// <summary>
 /// The connector acts for the Automation Actor or for a member of staff
 /// signed in from Pegasus Desktop (R1300, ADR-0092), so no tool may assume
-/// which. A tool reads the actor, and every label that follows from it, from
-/// the resolved context; and each place in Core and Infrastructure that names
+/// which. A tool reads the actor, and every label and AI mark that goes with
+/// it (R1302), from the resolved context, never naming one itself; and each place in Core and Infrastructure that names
 /// the Automation actor kind is listed here with what it does for a member of
 /// staff, so a new one is settled when it is written and not found later.
 /// </summary>
@@ -34,8 +34,8 @@ public sealed partial class ConnectorActorTableTests
         ("Pegasus.Core/Address/InspectionAddressResolution.cs", 3, "The settler is recorded by kind; a member of staff settles as staff."),
         ("Pegasus.Core/AiWork/AiJobOperations.cs", 3, "An AI job is the Automation Actor's to take, progress, complete, fail and release; a member of staff is refused those and may cancel or confirm, as in Pegasus."),
         ("Pegasus.Core/Assessment/AssessmentPolicy.cs", 2, "Admits both kinds; the other names a system fill's recorder."),
-        ("Pegasus.Core/Assessment/Estimates.cs", 1, "Holds the Automation Actor to an AI draft; a member of staff takes the Manual route."),
-        ("Pegasus.Core/Assessment/RepairSpecifications.cs", 1, "The editor route by kind, which the estimate tool reads through the context."),
+        ("Pegasus.Core/Assessment/Estimates.cs", 1, "Holds the Automation Actor to an AI draft; the connector files an AI draft for a member of staff too, from the context."),
+        ("Pegasus.Core/Assessment/RepairSpecifications.cs", 1, "The Case page's editor route by kind; the connector's estimate is an AI draft that waits for Use repair spec whoever it is recorded under."),
         ("Pegasus.Core/Cases/CaseWorkspace.cs", 1, "Admits both kinds to the Case save."),
         ("Pegasus.Core/Identity/IdentityContracts.cs", 1, "The Automation actor's factory."),
         ("Pegasus.Core/Identity/StaffAuthorization.cs", 1, "Casework for both kinds; the management rights are a staff Administrator's alone."),

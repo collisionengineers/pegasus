@@ -14,9 +14,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The connector as the member of staff (R1300, ADR-0092): a token issued by
 /// a Pegasus Desktop sign-in resolves to that person, every tool acts with
-/// their rights, and what they do is recorded under their name with staff
-/// labels, never the Automation Actor's. Each fact is driven over real HTTP
-/// with a token from the real sign-in.
+/// their rights, and what they do is recorded under their name, never the
+/// Automation Actor's, with what is filed still marked AI (R1302). Each fact
+/// is driven over real HTTP with a token from the real sign-in.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class DesktopConnectorIngressTests
@@ -107,13 +107,13 @@ public sealed class DesktopConnectorIngressTests
     }
 
     /// <summary>
-    /// What a member of staff does carries staff labels: an estimate typed in
-    /// takes the Manual route and is the one in use at once, a document added
-    /// is a Staff upload, and a staged upload belongs to the person who
-    /// staged it.
+    /// Under their name, but marked AI (R1302): an estimate typed in is the
+    /// person's and an AI draft that waits for Use repair spec, a document
+    /// added is the person's act and keeps the Automation source that draws
+    /// its AI tag, and a staged upload belongs to the person who staged it.
     /// </summary>
     [Fact]
-    public async Task AnEstimateIsManualAndInUseAndADocumentIsAStaffUploadThatBelongsToThePerson()
+    public async Task AnEstimateIsTheirsAndAnAiDraftAndADocumentIsTheirsAndMarkedAi()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var host = WithDesktopSignIn(factory);
@@ -136,13 +136,16 @@ public sealed class DesktopConnectorIngressTests
         {
             var estimate = (await ReadStructuredContentAsync(saved)).GetProperty("estimate");
             Assert.Equal(
-                nameof(Pegasus.Core.Assessment.RepairSpecificationSourceRoute.Manual),
+                nameof(Pegasus.Core.Assessment.RepairSpecificationSourceRoute.AiDraft),
                 estimate.GetProperty("sourceRoute").GetString());
-            Assert.True(estimate.GetProperty("isCurrent").GetBoolean());
+            Assert.Equal(
+                nameof(Pegasus.Core.Assessment.RepairSpecificationState.Draft),
+                estimate.GetProperty("state").GetString());
+            Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
             Assert.Contains(staffId.ToString("D"), estimate.GetProperty("createdBy").GetString(), StringComparison.Ordinal);
         }
 
-        // A document with no identity of its own takes one under the staff prefix.
+        // A document with no identity of its own takes one under the connector's prefix.
         var content = "desktop document fixture"u8.ToArray();
         using (var added = await PostMcpAsync(
             desktop,
@@ -151,25 +154,45 @@ public sealed class DesktopConnectorIngressTests
         {
             var structured = await ReadStructuredContentAsync(added);
             Assert.Equal(
-                "staff:mcp:desktop-document-1",
+                "automation:mcp:desktop-document-1",
                 structured.GetProperty("sourceOccurrenceIdentity").GetString());
         }
 
+        // The document is marked as the Automation Actor's are, and adding it is the person's act.
         var database = await factory.DatabaseAsync;
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM DocumentOccurrences
             WHERE CaseId = '{caseId:D}'
-              AND Source = N'{nameof(DocumentSource.StaffUpload)}'
-              AND SourceOccurrenceIdentity = N'staff:mcp:desktop-document-1'
+              AND Source = N'{nameof(DocumentSource.Automation)}'
+              AND SourceOccurrenceIdentity = N'automation:mcp:desktop-document-1'
             """));
         Assert.Equal(0, await database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM DocumentOccurrences
-            WHERE CaseId = '{caseId:D}' AND Source = N'{nameof(DocumentSource.Automation)}'
+            WHERE CaseId = '{caseId:D}' AND Source = N'{nameof(DocumentSource.StaffUpload)}'
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'{AutomationClientRegistry.DesktopAggregateType}'
+              AND EventKind = N'pegasus_document_add'
+              AND ActorKind = N'Staff'
+              AND ActorSubjectId = N'{staffId:D}'
+              AND Outcome = N'Succeeded'
+            """));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM ActionHistory WHERE ActorKind = N'Automation'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind = N'estimate_created'
+              AND ActorKind = N'Staff'
+              AND ActorSubjectId = N'{staffId:D}'
+              AND Outcome = N'Succeeded'
             """));
 
-        // An identity given under the Automation Actor's prefix is not a member of staff's.
+        // An identity of the caller's own carries the same prefix, for either kind.
         using (var refused = await PostMcpAsync(desktop, token, ToolCallPayload(3, "pegasus_document_add", new
         {
             caseId,
@@ -179,14 +202,13 @@ public sealed class DesktopConnectorIngressTests
             semanticRole = "Other",
             expectedCaseVersion = await GetWorkflowVersionAsync(host, caseId),
             operationKey = "mcp:desktop-document-2",
-            sourceOccurrenceIdentity = "automation:desktop-document-2"
+            sourceOccurrenceIdentity = "staff:desktop-document-2"
         })))
         {
             // The answer is JSON, which writes the sentence's quotation marks as escapes.
             var refusal = await ReadErrorTextAsync(refused);
             Assert.Contains("The source occurrence identity must start with", refusal, StringComparison.Ordinal);
-            Assert.Contains("staff:", refusal, StringComparison.Ordinal);
-            Assert.DoesNotContain("automation:", refusal, StringComparison.Ordinal);
+            Assert.Contains("automation:", refusal, StringComparison.Ordinal);
         }
 
         // A staged upload is the person's: a colleague cannot use it, the person can.

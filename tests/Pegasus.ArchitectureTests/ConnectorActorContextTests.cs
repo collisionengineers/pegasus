@@ -8,10 +8,10 @@ namespace Pegasus.ArchitectureTests;
 
 /// <summary>
 /// What a tool reads from the resolved context instead of assuming the
-/// Automation Actor (R1300, ADR-0092): the actor, and the labels a document,
-/// an estimate, a staged upload, a submitted source and the call's own
-/// history row carry, for the Automation Actor and for a member of staff
-/// signed in from Pegasus Desktop.
+/// Automation Actor (R1300, R1302, ADR-0092): the actor, and the labels a
+/// document, an estimate, a staged upload, a submitted source and the call's
+/// own history row carry. For a member of staff signed in from Pegasus
+/// Desktop the actor is the person and what is filed keeps its AI mark.
 /// </summary>
 public sealed class ConnectorActorContextTests
 {
@@ -36,6 +36,7 @@ public sealed class ConnectorActorContextTests
         Assert.Equal(DocumentSource.Automation, context.DocumentSource);
         Assert.Equal("automation:", context.SourceIdentityPrefix);
         Assert.Equal(RepairSpecificationSourceRoute.AiDraft, context.EstimateRoute);
+        Assert.True(context.EstimateAwaitsUse);
         Assert.Equal(AutomationMcpAuditor.AutomationAggregateType, context.AuditArea);
         Assert.Equal(Scopes, context.Scopes);
     }
@@ -44,7 +45,7 @@ public sealed class ConnectorActorContextTests
     [InlineData(StaffRole.User)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.Administrator)]
-    public void AMemberOfStaffCarriesStaffLabelsWhateverTheirRole(StaffRole role)
+    public void AMemberOfStaffIsTheActorAndWhatIsFiledKeepsItsAiMarkWhateverTheirRole(StaffRole role)
     {
         var context = AutomationActorContext.ForStaff(StaffId, role, Scopes, "trace-2");
 
@@ -55,16 +56,23 @@ public sealed class ConnectorActorContextTests
         Assert.Same(context.Actor, context.UploadActor);
         Assert.Equal($"staff:{StaffId:D}", context.UploadOwner);
         Assert.Equal($"staff:{StaffId:D}", context.IntakeSubmitter);
-        Assert.Equal(DocumentSource.StaffUpload, context.DocumentSource);
-        Assert.Equal("staff:", context.SourceIdentityPrefix);
-        Assert.Equal(RepairSpecificationSourceRoute.Manual, context.EstimateRoute);
         Assert.Equal(AutomationClientRegistry.DesktopAggregateType, context.AuditArea);
+
+        // Under their name, but marked AI (R1302).
+        Assert.Equal(DocumentSource.Automation, context.DocumentSource);
+        Assert.Equal("automation:", context.SourceIdentityPrefix);
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, context.EstimateRoute);
+        Assert.True(context.EstimateAwaitsUse);
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            context.Actor, context.EstimateRoute, awaitsUse: false));
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            context.Actor, RepairSpecificationSourceRoute.Json, context.EstimateAwaitsUse));
     }
 
     /// <summary>
     /// No tool reaches a right only an Administrator holds, so the refusal is
-    /// held here at its one translation: a member of staff reads Core's own
-    /// sentence, which names no actor, and the Automation Actor the sentence
+    /// held here at its one translation: a member of staff reads the
+    /// operator's sentence (R1304), and the Automation Actor the sentence
     /// that names it.
     /// </summary>
     [Fact]
@@ -82,7 +90,7 @@ public sealed class ConnectorActorContextTests
                     StaffAuthorization.Require(user.Actor, StaffAccessRight.ManageStaffAccounts);
                     return Task.FromResult(0);
                 }));
-        Assert.Equal("The current actor is not authorized to perform this operation.", staffRefusal.Message);
+        Assert.Equal(Pegasus.Web.Presentation.OperatorLabels.DesktopSignIn.ActionNotAllowed, staffRefusal.Message);
 
         var automation = AutomationActorContext.ForAutomation("pegasus-automation", "grant-7", Scopes, "trace-4");
         var automationRefusal = await Assert.ThrowsAsync<McpException>(() =>
