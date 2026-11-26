@@ -1,26 +1,32 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Web;
 
 namespace Pegasus.Infrastructure.Brego;
 
 /// <summary>
 /// Brego's platform API as the Brego web application calls it (ADR-0084):
-/// authorizer discovery, AWS Cognito token renewal from the stored refresh
-/// token (whose ID token names the tenant organisation and slug and the
-/// Cognito username), browser device-approval verification, BFF session
-/// exchange, VRM vehicle lookup, point-in-time valuation, derivative option
-/// configuration, and PDF valuation report rendering. Cognito tokens and
-/// session cookies travel only in request bodies and headers, never in a URL
-/// or log.
+/// authorizer discovery; AWS Cognito sign-in by e-mailed link (custom
+/// authentication), by password (<c>USER_SRP_AUTH</c>) and token renewal from
+/// a stored refresh token, whose ID token names the tenant organisation and
+/// slug and the Cognito username; browser device approval and its e-mailed
+/// code; BFF session exchange; VRM vehicle lookup; point-in-time valuation;
+/// derivative option configuration; and PDF valuation report rendering.
+/// Passwords, links, codes, Cognito tokens and session cookies travel only in
+/// request bodies and headers, never in a URL or log.
 /// </summary>
 internal sealed class BregoClient(HttpClient http)
 {
     internal static readonly Uri LoginBaseUri = new("https://www.brego.ai/");
     internal static readonly Uri AuthorizerUri = new(LoginBaseUri, "login/api/getAuthorizer");
     internal static readonly Uri DeviceChallengeUri = new(LoginBaseUri, "login/api/brego/users/me/device-approval/challenge");
+    internal static readonly Uri DeviceVerifyUri = new(LoginBaseUri, "login/api/brego/users/me/device-approval/verify");
     internal static readonly Uri SessionsUri = new(LoginBaseUri, "login/api/brego/v1/sessions");
     internal static readonly Uri AssetsBaseUri = new("https://assets.brego.io/");
 
@@ -39,7 +45,35 @@ internal sealed class BregoClient(HttpClient http)
     private const string JsonMediaType = "application/json";
     private const string CognitoJsonMediaType = "application/x-amz-json-1.1";
     private const string GetTokensFromRefreshTokenTarget = "AWSCognitoIdentityProviderService.GetTokensFromRefreshToken";
+    private const string InitiateAuthTarget = "AWSCognitoIdentityProviderService.InitiateAuth";
+    private const string RespondToAuthChallengeTarget = "AWSCognitoIdentityProviderService.RespondToAuthChallenge";
+    private const string CustomChallenge = "CUSTOM_CHALLENGE";
+    private const string MagicLinkSent = "MAGIC_LINK_SENT";
+    private const string LoginOrigin = "https://www.brego.ai";
     private const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/156.0.0.0";
+
+    // Standard AWS Cognito 3072-bit SRP group parameters.
+    private const string NHex =
+        "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" +
+        "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" +
+        "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245" +
+        "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED" +
+        "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D" +
+        "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F" +
+        "83655D23DCA3AD961C62F356208552BB9ED529077096966D" +
+        "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B" +
+        "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9" +
+        "DE2BCBF6955817183995497CEA956AE515D2261898FA0510" +
+        "15728E5A8AAAC42DAD33170D04507A33A85521ABDF1CBA64" +
+        "ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7" +
+        "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6B" +
+        "F12FFA06D98A0864D87602733EC86A64521F2B18177B200C" +
+        "BBE117577A615D6C770988C0BAD946E208E24FA074E5AB31" +
+        "43DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
+
+    internal static readonly BigInteger N = new(Convert.FromHexString(NHex), isUnsigned: true, isBigEndian: true);
+    internal static readonly BigInteger G = new(2);
+    internal static readonly BigInteger K = HashBigInteger(PadBytes(N), PadBytes(G));
 
     /// <summary>
     /// Renews the account's 24-hour Cognito tokens from the stored Cognito
@@ -48,11 +82,11 @@ internal sealed class BregoClient(HttpClient http)
     /// <c>brego-session</c> cookie is supplied, completes browser
     /// device-approval verification and exchanges the tokens at
     /// <c>POST /login/api/brego/v1/sessions</c> for a new 1-year
-    /// <c>brego-session</c> cookie. The account signs in to Brego by e-mailed
-    /// magic link only, so it is linked once by
-    /// <c>scripts/Connect-BregoAccount.ps1</c>, which stores the first refresh
-    /// token (ADR-0084). The session carries forward the refresh token Cognito
-    /// answers with, or the one supplied when Cognito does not rotate it.
+    /// <c>brego-session</c> cookie. The first refresh token is stored when an
+    /// Administrator links the account, or signs it in with its password, on
+    /// the Integrations page (ADR-0084, R1290). The session carries forward
+    /// the refresh token Cognito answers with, or the one supplied when
+    /// Cognito does not rotate it.
     /// </summary>
     public async Task<BregoSession> SignInAsync(
         string email,
@@ -61,129 +95,439 @@ internal sealed class BregoClient(HttpClient http)
         CancellationToken cancellationToken,
         string? existingBregoSessionCookie = null)
     {
-        string region;
-        string clientId;
-        using (var authorizers = await ExchangeJsonAsync(
-            "authorizer",
-            JsonRequest(HttpMethod.Post, AuthorizerUri, new { email, application = (string?)null }),
-            CallTimeout,
-            cancellationToken))
-        {
-            var first = authorizers.RootElement is { ValueKind: JsonValueKind.Array } array && array.GetArrayLength() > 0
-                ? array[0]
-                : (JsonElement?)null;
-            var authorizer = BregoJson.String(first, "authorizer") ?? "";
-            clientId = BregoJson.String(first, "authorizerId") ?? "";
-            var separator = authorizer.IndexOf('_');
-            if (string.IsNullOrWhiteSpace(clientId)
-                || separator <= 0
-                || separator == authorizer.Length - 1)
-            {
-                throw new BregoFailure("authorizer", null, "authorizer=absent");
-            }
-
-            region = authorizer[..separator];
-            if (!IsSafeHostLabel(region))
-            {
-                throw new BregoFailure("authorizer", null, "authorizer=absent");
-            }
-        }
-
-        var cognitoUri = new Uri($"https://cognito-idp.{region}.amazonaws.com/");
-        string accessToken;
-        string idToken;
-        int expiresIn;
+        var pool = await ResolvePoolAsync(email, cancellationToken);
+        BregoTokens tokens;
         using (var refreshed = await ExchangeJsonAsync(
             "cognito_refresh",
             CognitoRequest(
-                cognitoUri,
+                pool.CognitoUri,
                 GetTokensFromRefreshTokenTarget,
                 new
                 {
-                    ClientId = clientId,
+                    pool.ClientId,
                     RefreshToken = refreshToken,
                 }),
             CallTimeout,
             cancellationToken))
         {
-            var result = BregoJson.Get(refreshed.RootElement, "AuthenticationResult");
-            accessToken = BregoJson.String(result, "AccessToken") ?? "";
-            idToken = BregoJson.String(result, "IdToken") ?? "";
-            expiresIn = BregoJson.Int32(result, "ExpiresIn") is { } ttl && ttl > 0 ? ttl : 86400;
-            if (string.IsNullOrWhiteSpace(accessToken)
-                || string.IsNullOrWhiteSpace(idToken))
-            {
-                throw new BregoFailure("cognito_refresh", null, "tokens=absent");
-            }
-
             // The pool does not rotate refresh tokens today; if it starts
             // to, the rotated token replaces the stored one.
-            if (BregoJson.String(result, "RefreshToken") is { } rotated && !string.IsNullOrWhiteSpace(rotated))
-            {
-                refreshToken = rotated;
-            }
+            tokens = ReadTokens(refreshed.RootElement, "cognito_refresh", pool.ClientId, refreshToken);
         }
 
         // Brego's authorizer answer stopped naming the tenant in November
         // 2026; the ID token Cognito issues names it instead, and names the
         // Cognito username the session cookies are keyed by.
-        var (organizationId, slug, username) = ReadIdTokenClaims(idToken);
-        if (string.IsNullOrWhiteSpace(organizationId) || !IsSafeHostLabel(slug))
-        {
-            throw new BregoFailure("cognito_refresh", null, "tenant=absent");
-        }
-
-        if (string.IsNullOrWhiteSpace(username))
-        {
-            throw new BregoFailure("cognito_refresh", null, "username=absent");
-        }
-
-        var expiresAt = timeProvider.GetUtcNow().AddSeconds(Math.Max(60, expiresIn - 300));
+        var claims = ReadSessionClaims(tokens.IdToken, "cognito_refresh");
+        var expiresAt = ExpiresAt(timeProvider, tokens.ExpiresIn);
         if (!string.IsNullOrWhiteSpace(existingBregoSessionCookie))
         {
             var reusedCookie = existingBregoSessionCookie.Trim();
-            var reusedCookieHeader =
-                $"CognitoIdentityServiceProvider.{clientId}.LastAuthUser={username}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.accessToken={accessToken}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.idToken={idToken}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken={refreshToken}; " +
-                $"brego-session={reusedCookie}";
             return new BregoSession(
                 email,
-                refreshToken,
-                slug,
-                organizationId,
+                tokens.RefreshToken,
+                claims.Slug,
+                claims.OrganizationId,
                 reusedCookie,
-                reusedCookieHeader,
+                CookieHeader(tokens, claims.Username, reusedCookie),
                 expiresAt,
                 ReusedSessionCookie: true);
         }
 
-        using (var challenge = await ExchangeJsonAsync(
-            "device_approval",
-            BootstrapRequest(DeviceChallengeUri, accessToken, new { deviceId = DefaultDeviceId }),
+        if (!await IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken))
+        {
+            throw new BregoFailure("device_approval", null, "device=challenge_required");
+        }
+
+        return await MintAsync(email, tokens, claims, expiresAt, cancellationToken);
+    }
+
+    /// <summary>
+    /// The account's Cognito user pool and app client, as Brego's
+    /// <c>getAuthorizer</c> names them for its e-mail address.
+    /// </summary>
+    public async Task<BregoPool> ResolvePoolAsync(string email, CancellationToken cancellationToken)
+    {
+        using var authorizers = await ExchangeJsonAsync(
+            "authorizer",
+            JsonRequest(HttpMethod.Post, AuthorizerUri, new { email, application = (string?)null }),
+            CallTimeout,
+            cancellationToken);
+        var first = authorizers.RootElement is { ValueKind: JsonValueKind.Array } array && array.GetArrayLength() > 0
+            ? array[0]
+            : (JsonElement?)null;
+        var authorizer = BregoJson.String(first, "authorizer") ?? "";
+        var clientId = BregoJson.String(first, "authorizerId") ?? "";
+        var separator = authorizer.IndexOf('_');
+        if (string.IsNullOrWhiteSpace(clientId)
+            || separator <= 0
+            || separator == authorizer.Length - 1)
+        {
+            throw new BregoFailure("authorizer", null, "authorizer=absent");
+        }
+
+        var region = authorizer[..separator];
+        if (!IsSafeHostLabel(region))
+        {
+            throw new BregoFailure("authorizer", null, "authorizer=absent");
+        }
+
+        return new BregoPool(
+            new Uri($"https://cognito-idp.{region}.amazonaws.com/"),
+            clientId,
+            authorizer[(separator + 1)..]);
+    }
+
+    /// <summary>
+    /// Asks Brego to e-mail a sign-in link to <paramref name="email"/>, as
+    /// Brego's login page does: a custom-authentication session answered
+    /// <c>request</c>, which Brego confirms with <c>MAGIC_LINK_SENT</c>. The
+    /// link expires 15 minutes later.
+    /// </summary>
+    public async Task RequestLinkAsync(string email, CancellationToken cancellationToken)
+    {
+        var pool = await ResolvePoolAsync(email, cancellationToken);
+        var (session, username) = await StartCustomAuthAsync(pool, email, cancellationToken);
+        using var sent = await ExchangeJsonAsync(
+            "link_request",
+            CognitoRequest(
+                pool.CognitoUri,
+                RespondToAuthChallengeTarget,
+                new
+                {
+                    ChallengeName = CustomChallenge,
+                    pool.ClientId,
+                    Session = session,
+                    ChallengeResponses = new { USERNAME = username, ANSWER = "request" },
+                    ClientMetadata = new { action = "request", origin = LoginOrigin },
+                }),
+            CallTimeout,
+            cancellationToken);
+        if (!string.Equals(
+            BregoJson.String(sent.RootElement, "ChallengeParameters", "step"),
+            MagicLinkSent,
+            StringComparison.Ordinal))
+        {
+            throw new BregoFailure("link_request", null, "step=absent");
+        }
+    }
+
+    /// <summary>
+    /// Redeems the token of an e-mailed sign-in link in a fresh
+    /// custom-authentication session for the account's Cognito tokens. The
+    /// redemption names Pegasus's device, whose approval is read next.
+    /// </summary>
+    public async Task<BregoTokens> RedeemLinkAsync(
+        string email,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var pool = await ResolvePoolAsync(email, cancellationToken);
+        var (session, username) = await StartCustomAuthAsync(pool, email, cancellationToken);
+        using var redeemed = await ExchangeJsonAsync(
+            "link_redeem",
+            CognitoRequest(
+                pool.CognitoUri,
+                RespondToAuthChallengeTarget,
+                new
+                {
+                    ChallengeName = CustomChallenge,
+                    pool.ClientId,
+                    Session = session,
+                    ChallengeResponses = new { USERNAME = username, ANSWER = token },
+                    ClientMetadata = new { action = "redeem", deviceId = DefaultDeviceId },
+                }),
+            CallTimeout,
+            cancellationToken);
+        return ReadTokens(redeemed.RootElement, "link_redeem", pool.ClientId, null);
+    }
+
+    /// <summary>
+    /// Signs the account in with its password through Cognito
+    /// <c>USER_SRP_AUTH</c> and <c>PASSWORD_VERIFIER</c>. Both exchanges are
+    /// stage <c>password</c>; a wrong password is Cognito's
+    /// <c>NotAuthorizedException</c>, a <see cref="BregoFailure"/> that is
+    /// <see cref="BregoFailure.Forbidden"/>.
+    /// </summary>
+    public async Task<BregoTokens> PasswordSignInAsync(
+        string email,
+        string password,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var pool = await ResolvePoolAsync(email, cancellationToken);
+        var (a, aPub) = GenerateEphemeralKeyPair();
+
+        string userIdForSrp;
+        string username;
+        BigInteger salt;
+        BigInteger bPub;
+        string secretBlock;
+        byte[] secretBlockBytes;
+        using (var init = await ExchangeJsonAsync(
+            "password",
+            CognitoRequest(
+                pool.CognitoUri,
+                InitiateAuthTarget,
+                new
+                {
+                    AuthFlow = "USER_SRP_AUTH",
+                    AuthParameters = new
+                    {
+                        USERNAME = email,
+                        SRP_A = ToUnsignedHexLower(aPub),
+                    },
+                    pool.ClientId,
+                }),
             CallTimeout,
             cancellationToken))
         {
-            if (string.Equals(
-                BregoJson.String(challenge.RootElement, "status"),
-                "challenge_required",
-                StringComparison.OrdinalIgnoreCase))
+            var parameters = BregoJson.Get(init.RootElement, "ChallengeParameters");
+            userIdForSrp = BregoJson.String(parameters, "USER_ID_FOR_SRP") ?? "";
+            username = BregoJson.String(parameters, "USERNAME") ?? "";
+            var saltHex = BregoJson.String(parameters, "SALT") ?? "";
+            var srpBHex = BregoJson.String(parameters, "SRP_B") ?? "";
+            secretBlock = BregoJson.String(parameters, "SECRET_BLOCK") ?? "";
+            if (string.IsNullOrWhiteSpace(userIdForSrp)
+                || string.IsNullOrWhiteSpace(username)
+                || !TryParseHexUnsigned(saltHex, out salt)
+                || !TryParseHexUnsigned(srpBHex, out bPub)
+                || (bPub % N).IsZero
+                || !TryDecodeBase64(secretBlock, out secretBlockBytes))
             {
-                throw new BregoFailure("device_approval", null, "device=challenge_required");
+                throw new BregoFailure("password", null, "challenge=absent");
             }
         }
 
+        var now = timeProvider.GetUtcNow();
+        var timestamp = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{now:ddd MMM} {now.Day} {now:HH:mm:ss} UTC {now.Year}");
+        var signature = ComputePasswordClaimSignature(
+            pool.PoolName,
+            userIdForSrp,
+            password,
+            a,
+            aPub,
+            bPub,
+            salt,
+            secretBlockBytes,
+            timestamp);
+
+        using var verified = await ExchangeJsonAsync(
+            "password",
+            CognitoRequest(
+                pool.CognitoUri,
+                RespondToAuthChallengeTarget,
+                new
+                {
+                    ChallengeName = "PASSWORD_VERIFIER",
+                    pool.ClientId,
+                    ChallengeResponses = new
+                    {
+                        USERNAME = username,
+                        PASSWORD_CLAIM_SECRET_BLOCK = secretBlock,
+                        TIMESTAMP = timestamp,
+                        PASSWORD_CLAIM_SIGNATURE = signature,
+                    },
+                }),
+            CallTimeout,
+            cancellationToken);
+        return ReadTokens(verified.RootElement, "password", pool.ClientId, null);
+    }
+
+    /// <summary>
+    /// Whether Brego has approved Pegasus's device for the account. An
+    /// unapproved device makes Brego e-mail a six-digit code, so this is
+    /// read once before a code and once after it, never in a loop.
+    /// </summary>
+    public async Task<bool> IsDeviceApprovedAsync(string accessToken, CancellationToken cancellationToken)
+    {
+        using var challenge = await ExchangeJsonAsync(
+            "device_approval",
+            BootstrapRequest(DeviceChallengeUri, accessToken, new { deviceId = DefaultDeviceId }),
+            CallTimeout,
+            cancellationToken);
+        return !string.Equals(
+            BregoJson.String(challenge.RootElement, "status"),
+            "challenge_required",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Submits the six-digit code Brego e-mailed to approve Pegasus's device.</summary>
+    public async Task VerifyDeviceAsync(string accessToken, string code, CancellationToken cancellationToken)
+    {
+        await ExchangeBytesAsync(
+            "device_verify",
+            BootstrapRequest(DeviceVerifyUri, accessToken, new { deviceId = DefaultDeviceId, code }),
+            CallTimeout,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Exchanges the account's Cognito tokens, on an approved device, at
+    /// <c>POST /login/api/brego/v1/sessions</c> for a new 1-year
+    /// <c>brego-session</c> cookie.
+    /// </summary>
+    public Task<BregoSession> MintSessionAsync(
+        string email,
+        BregoTokens tokens,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(tokens);
+        return MintAsync(
+            email,
+            tokens,
+            ReadSessionClaims(tokens.IdToken, "session"),
+            ExpiresAt(timeProvider, tokens.ExpiresIn),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// The token of a pasted sign-in link, as Brego's login page reads it:
+    /// the whole link or its fragment, <c>#magic-link=&lt;token&gt;&amp;email=&lt;address&gt;</c>.
+    /// A link that names another e-mail address than the account's is
+    /// refused (<paramref name="anotherAccount"/>).
+    /// </summary>
+    internal static bool TryReadLinkToken(
+        string? link,
+        string email,
+        [NotNullWhen(true)] out string? token,
+        out bool anotherAccount)
+    {
+        token = null;
+        anotherAccount = false;
+        var text = link?.Trim() ?? "";
+        if (text.Length == 0)
+        {
+            return false;
+        }
+
+        var hash = text.IndexOf('#', StringComparison.Ordinal);
+        var fields = HttpUtility.ParseQueryString(hash >= 0 ? text[(hash + 1)..] : text);
+        var found = fields["magic-link"];
+        if (string.IsNullOrWhiteSpace(found))
+        {
+            return false;
+        }
+
+        var linkEmail = fields["email"];
+        if (!string.IsNullOrWhiteSpace(linkEmail)
+            && !string.Equals(linkEmail.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            anotherAccount = true;
+            return false;
+        }
+
+        token = found;
+        return true;
+    }
+
+    /// <summary>
+    /// Opens a custom-authentication session for the account, as Brego's
+    /// login page does before both asking for a link and redeeming one.
+    /// </summary>
+    private async Task<(string Session, string Username)> StartCustomAuthAsync(
+        BregoPool pool,
+        string email,
+        CancellationToken cancellationToken)
+    {
+        using var started = await ExchangeJsonAsync(
+            "link_start",
+            CognitoRequest(
+                pool.CognitoUri,
+                InitiateAuthTarget,
+                new
+                {
+                    AuthFlow = "CUSTOM_AUTH",
+                    pool.ClientId,
+                    AuthParameters = new { USERNAME = email },
+                }),
+            CallTimeout,
+            cancellationToken);
+        var session = BregoJson.String(started.RootElement, "Session") ?? "";
+        if (!string.Equals(BregoJson.String(started.RootElement, "ChallengeName"), CustomChallenge, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(session))
+        {
+            throw new BregoFailure("link_start", null, "challenge=absent");
+        }
+
+        var username = BregoJson.String(started.RootElement, "ChallengeParameters", "USERNAME");
+        return (session, string.IsNullOrWhiteSpace(username) ? email : username);
+    }
+
+    /// <summary>
+    /// The tokens of a Cognito <c>AuthenticationResult</c>: the refresh token
+    /// it names, or <paramref name="keptRefreshToken"/> when it names none.
+    /// </summary>
+    private static BregoTokens ReadTokens(
+        JsonElement root,
+        string stage,
+        string clientId,
+        string? keptRefreshToken)
+    {
+        var result = BregoJson.Get(root, "AuthenticationResult");
+        var accessToken = BregoJson.String(result, "AccessToken") ?? "";
+        var idToken = BregoJson.String(result, "IdToken") ?? "";
+        var refreshToken = BregoJson.String(result, "RefreshToken") is { } issued && !string.IsNullOrWhiteSpace(issued)
+            ? issued
+            : keptRefreshToken ?? "";
+        var expiresIn = BregoJson.Int32(result, "ExpiresIn") is { } ttl && ttl > 0 ? ttl : 86400;
+        if (string.IsNullOrWhiteSpace(accessToken)
+            || string.IsNullOrWhiteSpace(idToken)
+            || string.IsNullOrWhiteSpace(refreshToken))
+        {
+            throw new BregoFailure(stage, null, "tokens=absent");
+        }
+
+        return new BregoTokens(clientId, accessToken, idToken, refreshToken, expiresIn);
+    }
+
+    /// <summary>The tenant and Cognito username the ID token names, or a failure at <paramref name="stage"/>.</summary>
+    private static SessionClaims ReadSessionClaims(string idToken, string stage)
+    {
+        var (organizationId, slug, username) = ReadIdTokenClaims(idToken);
+        if (string.IsNullOrWhiteSpace(organizationId) || !IsSafeHostLabel(slug))
+        {
+            throw new BregoFailure(stage, null, "tenant=absent");
+        }
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new BregoFailure(stage, null, "username=absent");
+        }
+
+        return new SessionClaims(organizationId, slug, username);
+    }
+
+    private static DateTimeOffset ExpiresAt(TimeProvider timeProvider, int expiresIn) =>
+        timeProvider.GetUtcNow().AddSeconds(Math.Max(60, expiresIn - 300));
+
+    private static string CookieHeader(BregoTokens tokens, string username, string bregoSessionCookie) =>
+        $"CognitoIdentityServiceProvider.{tokens.ClientId}.LastAuthUser={username}; " +
+        $"CognitoIdentityServiceProvider.{tokens.ClientId}.{username}.accessToken={tokens.AccessToken}; " +
+        $"CognitoIdentityServiceProvider.{tokens.ClientId}.{username}.idToken={tokens.IdToken}; " +
+        $"CognitoIdentityServiceProvider.{tokens.ClientId}.{username}.refreshToken={tokens.RefreshToken}; " +
+        $"brego-session={bregoSessionCookie}";
+
+    private async Task<BregoSession> MintAsync(
+        string email,
+        BregoTokens tokens,
+        SessionClaims claims,
+        DateTimeOffset expiresAt,
+        CancellationToken cancellationToken)
+    {
         var (sessionDoc, bregoSessionCookie) = await ExchangeSessionAsync(
             BootstrapRequest(
                 SessionsUri,
-                accessToken,
+                tokens.AccessToken,
                 new
                 {
-                    accessToken,
-                    idToken,
-                    refreshToken,
-                    client = slug,
+                    accessToken = tokens.AccessToken,
+                    idToken = tokens.IdToken,
+                    refreshToken = tokens.RefreshToken,
+                    client = claims.Slug,
                     deviceId = DefaultDeviceId,
                 }),
             cancellationToken);
@@ -196,20 +540,14 @@ internal sealed class BregoClient(HttpClient http)
 
             var resolvedOrgId = BregoJson.String(sessionDoc.RootElement, "organizationId") is { Length: > 0 } orgId
                 ? orgId
-                : organizationId;
-            var cookieHeader =
-                $"CognitoIdentityServiceProvider.{clientId}.LastAuthUser={username}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.accessToken={accessToken}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.idToken={idToken}; " +
-                $"CognitoIdentityServiceProvider.{clientId}.{username}.refreshToken={refreshToken}; " +
-                $"brego-session={bregoSessionCookie}";
+                : claims.OrganizationId;
             return new BregoSession(
                 email,
-                refreshToken,
-                slug,
+                tokens.RefreshToken,
+                claims.Slug,
                 resolvedOrgId,
                 bregoSessionCookie,
-                cookieHeader,
+                CookieHeader(tokens, claims.Username, bregoSessionCookie),
                 expiresAt,
                 ReusedSessionCookie: false);
         }
@@ -455,6 +793,116 @@ internal sealed class BregoClient(HttpClient http)
         {
             return null;
         }
+    }
+
+    internal static string ComputePasswordClaimSignature(
+        string poolName,
+        string userIdForSrp,
+        string password,
+        BigInteger a,
+        BigInteger aPub,
+        BigInteger bPub,
+        BigInteger salt,
+        byte[] secretBlockBytes,
+        string timestamp)
+    {
+        var u = HashBigInteger(PadBytes(aPub), PadBytes(bPub));
+        if (u.IsZero)
+        {
+            throw new BregoFailure("password", null, "challenge=invalid");
+        }
+
+        var userPassHash = SHA256.HashData(Encoding.UTF8.GetBytes($"{poolName}{userIdForSrp}:{password}"));
+        var x = HashBigInteger(PadBytes(salt), userPassHash);
+        var gx = BigInteger.ModPow(G, x, N);
+        var baseVal = (bPub - (K * gx)) % N;
+        if (baseVal.Sign < 0)
+        {
+            baseVal += N;
+        }
+
+        var s = BigInteger.ModPow(baseVal, a + (u * x), N);
+        var prk = HMACSHA256.HashData(PadBytes(u), PadBytes(s));
+        var hkdfKey = HMACSHA256.HashData(prk, "Caldera Derived Key\x01"u8).AsSpan(0, 16);
+
+        var poolBytes = Encoding.UTF8.GetBytes(poolName);
+        var userBytes = Encoding.UTF8.GetBytes(userIdForSrp);
+        var timeBytes = Encoding.UTF8.GetBytes(timestamp);
+        var message = new byte[poolBytes.Length + userBytes.Length + secretBlockBytes.Length + timeBytes.Length];
+        var offset = 0;
+        Buffer.BlockCopy(poolBytes, 0, message, offset, poolBytes.Length);
+        offset += poolBytes.Length;
+        Buffer.BlockCopy(userBytes, 0, message, offset, userBytes.Length);
+        offset += userBytes.Length;
+        Buffer.BlockCopy(secretBlockBytes, 0, message, offset, secretBlockBytes.Length);
+        offset += secretBlockBytes.Length;
+        Buffer.BlockCopy(timeBytes, 0, message, offset, timeBytes.Length);
+
+        return Convert.ToBase64String(HMACSHA256.HashData(hkdfKey, message));
+    }
+
+    /// <summary>
+    /// Minimal big-endian signed two's-complement bytes for a non-negative
+    /// <see cref="BigInteger"/>, matching Cognito's <c>padHex</c> encoding.
+    /// </summary>
+    internal static byte[] PadBytes(BigInteger value) =>
+        value.ToByteArray(isUnsigned: false, isBigEndian: true);
+
+    internal static string ToUnsignedHexLower(BigInteger value)
+    {
+        var hex = Convert.ToHexStringLower(value.ToByteArray(isUnsigned: true, isBigEndian: true)).TrimStart('0');
+        return hex.Length == 0 ? "0" : hex;
+    }
+
+    internal static bool TryParseHexUnsigned(string hex, out BigInteger value)
+    {
+        value = default;
+        var trimmed = hex.Trim();
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        var padded = (trimmed.Length & 1) == 1 ? "0" + trimmed : trimmed;
+        try
+        {
+            var bytes = Convert.FromHexString(padded);
+            value = new BigInteger(bytes, isUnsigned: true, isBigEndian: true);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static (BigInteger PrivateA, BigInteger PublicA) GenerateEphemeralKeyPair()
+    {
+        Span<byte> random = stackalloc byte[128];
+        while (true)
+        {
+            RandomNumberGenerator.Fill(random);
+            var a = new BigInteger(random, isUnsigned: true, isBigEndian: true) % N;
+            if (a.IsZero)
+            {
+                continue;
+            }
+
+            var aPub = BigInteger.ModPow(G, a, N);
+            if (!(aPub % N).IsZero)
+            {
+                return (a, aPub);
+            }
+        }
+    }
+
+    private static BigInteger HashBigInteger(byte[] first, byte[] second)
+    {
+        var combined = new byte[first.Length + second.Length];
+        Buffer.BlockCopy(first, 0, combined, 0, first.Length);
+        Buffer.BlockCopy(second, 0, combined, first.Length, second.Length);
+        var digest = SHA256.HashData(combined);
+        return new BigInteger(digest, isUnsigned: true, isBigEndian: true);
     }
 
     private static bool TryDecodeBase64(string text, out byte[] bytes)
@@ -845,3 +1293,27 @@ internal readonly record struct BregoFigures(decimal Retail, decimal Trade);
 internal sealed record BregoOptionConfiguration(
     string OptionsHash,
     IReadOnlyList<string> SelectedOptionIds);
+
+/// <summary>
+/// The account's Cognito user pool, as Brego's <c>getAuthorizer</c> names it:
+/// the regional endpoint, the app client and the pool's name (the part of the
+/// pool id after the region, which the password proof is keyed by).
+/// </summary>
+internal sealed record BregoPool(Uri CognitoUri, string ClientId, string PoolName);
+
+/// <summary>
+/// The account's Cognito tokens from one sign-in, with the app client they
+/// were issued to. Its <c>ToString</c> prints none of them.
+/// </summary>
+internal sealed record BregoTokens(
+    string ClientId,
+    string AccessToken,
+    string IdToken,
+    string RefreshToken,
+    int ExpiresIn)
+{
+    public override string ToString() => nameof(BregoTokens);
+}
+
+/// <summary>What a session is keyed by, from the ID token.</summary>
+internal readonly record struct SessionClaims(string OrganizationId, string Slug, string Username);

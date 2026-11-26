@@ -396,6 +396,16 @@ November 2026; [R1289](../rulings.md)). It holds:
   value cannot be read says so and is saved again. A save made after another
   Administrator's is not accepted. A panel is absent where the host does not
   carry the integration.
+- The Brego valuation account (operator, 26 November 2026;
+  [R1290](../rulings.md), #2180) takes its e-mail and, optionally, its
+  password; saving it with a password signs the account in at once, and a
+  refusal is stated while the credential stays saved. Below the form, **Send
+  sign-in link** has Brego e-mail a sign-in link to the account, and the
+  pasted **Sign-in link** with **Link account** signs it in. When Brego asks
+  for a six-digit code, the panel shows where it was sent, a **Code** box and
+  **Confirm code**, only while a sign-in waits for one. The link, the code and
+  the password are never shown back. These controls are absent until the
+  account's e-mail is saved, and where the host does not carry the sign-in.
 
 ### Service health
 

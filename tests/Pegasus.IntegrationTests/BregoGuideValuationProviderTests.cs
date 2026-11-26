@@ -1,4 +1,6 @@
 using System.Net;
+using System.Numerics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +15,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// Brego as a guide valuation source through the Brego valuation account
 /// (ADR-0084): Cognito token renewal from the stored refresh token
-/// (<c>GetTokensFromRefreshToken</c>), device-approval challenge, BFF
+/// (<c>GetTokensFromRefreshToken</c>), sign-in with a saved password
+/// (<c>USER_SRP_AUTH</c>, R1290) when there is none or it is refused,
+/// device-approval challenge, BFF
 /// session cookie creation and reuse, VRM lookup, point-in-time valuation
 /// (<c>retail.high</c> and <c>trade.high</c>), empty-VIN fill, report handle,
 /// month-to-date mapping, whole-mile conversion, and stage-named failure codes.
@@ -27,6 +31,11 @@ public sealed class BregoGuideValuationProviderTests
     internal const string ClientId = "2fi40vh0cav05pikjkh04nd9e5";
     internal const string CognitoUsername = "e6e222b4-a071-7002-cd41-d8b4a27b9eef";
     internal const string RefreshTarget = "AWSCognitoIdentityProviderService.GetTokensFromRefreshToken";
+    internal const string InitiateAuthTarget = "AWSCognitoIdentityProviderService.InitiateAuth";
+    internal const string RespondTarget = "AWSCognitoIdentityProviderService.RespondToAuthChallenge";
+    internal const string Password = "synthetic-brego-password";
+    internal const string PoolName = "ukSKsqAOY";
+    internal const string PasswordRefreshToken = "synthetic-password-refresh-token";
     internal const string AccessToken = "synthetic-cognito-access-token";
     internal static readonly string IdToken = SyntheticIdToken(
         $$"""{"cognito:username":"{{CognitoUsername}}","organizationId":"{{OrganizationId}}","slug":"{{Slug}}","email":"{{Email}}"}""");
@@ -90,6 +99,52 @@ public sealed class BregoGuideValuationProviderTests
         {
           "sessionId": "b0d2c68e-7394-49bb-aed4-921fd7ae8435",
           "organizationId": "{{{OrganizationId}}}"
+        }
+        """;
+
+    private const string SaltHex = "3f7a9c12e4b081652390abcd1234ef01";
+    private static readonly string SecretBlockBase64 = Convert.ToBase64String("synthetic-secret-block-bytes"u8);
+
+    // A valid server public ephemeral key B = (k * g^x + g^b) mod N for the test password.
+    private static readonly BigInteger ServerPrivateB = new(1234567890123456789UL);
+    private static readonly BigInteger SaltInt = new(Convert.FromHexString(SaltHex), isUnsigned: true, isBigEndian: true);
+    private static readonly BigInteger ServerPublicB = ComputeServerPublicB();
+
+    private static BigInteger ComputeServerPublicB()
+    {
+        var userPassHash = SHA256.HashData(Encoding.UTF8.GetBytes($"{PoolName}{CognitoUsername}:{Password}"));
+        var saltBytes = BregoClient.PadBytes(SaltInt);
+        var xInput = new byte[saltBytes.Length + userPassHash.Length];
+        Buffer.BlockCopy(saltBytes, 0, xInput, 0, saltBytes.Length);
+        Buffer.BlockCopy(userPassHash, 0, xInput, saltBytes.Length, userPassHash.Length);
+        var x = new BigInteger(SHA256.HashData(xInput), isUnsigned: true, isBigEndian: true);
+        var verifier = BigInteger.ModPow(BregoClient.G, x, BregoClient.N);
+        var gb = BigInteger.ModPow(BregoClient.G, ServerPrivateB, BregoClient.N);
+        return ((BregoClient.K * verifier) + gb) % BregoClient.N;
+    }
+
+    // As Cognito answered USER_SRP_AUTH before R1231.
+    internal static readonly string SrpChallengeJson = $$$"""
+        {
+          "ChallengeName": "PASSWORD_VERIFIER",
+          "ChallengeParameters": {
+            "USER_ID_FOR_SRP": "{{{CognitoUsername}}}",
+            "USERNAME": "{{{CognitoUsername}}}",
+            "SALT": "{{{SaltHex}}}",
+            "SRP_B": "{{{BregoClient.ToUnsignedHexLower(ServerPublicB)}}}",
+            "SECRET_BLOCK": "{{{SecretBlockBase64}}}"
+          }
+        }
+        """;
+
+    internal static readonly string PasswordTokensJson = $$$"""
+        {
+          "AuthenticationResult": {
+            "AccessToken": "{{{AccessToken}}}",
+            "IdToken": "{{{IdToken}}}",
+            "RefreshToken": "{{{PasswordRefreshToken}}}",
+            "ExpiresIn": 86400
+          }
         }
         """;
 
@@ -443,6 +498,160 @@ public sealed class BregoGuideValuationProviderTests
         }
     }
 
+    [Fact]
+    public void CognitoSrpPasswordClaimSignatureMatchesDeterministicVector()
+    {
+        var a = new BigInteger(9876543210987654321UL);
+        var aPub = BigInteger.ModPow(BregoClient.G, a, BregoClient.N);
+        var secretBlock = "deterministic-secret-block"u8.ToArray();
+        const string timestamp = "Tue Apr 15 10:00:00 UTC 2031";
+
+        var first = BregoClient.ComputePasswordClaimSignature(
+            PoolName,
+            CognitoUsername,
+            Password,
+            a,
+            aPub,
+            ServerPublicB,
+            SaltInt,
+            secretBlock,
+            timestamp);
+        var second = BregoClient.ComputePasswordClaimSignature(
+            PoolName,
+            CognitoUsername,
+            Password,
+            a,
+            aPub,
+            ServerPublicB,
+            SaltInt,
+            secretBlock,
+            timestamp);
+
+        Assert.Equal(first, second);
+        Assert.Equal(44, first.Length);
+    }
+
+    /// <summary>
+    /// R1290: with a password saved and no stored sign-in, the provider signs
+    /// in with the password on the approved device, mints a session and
+    /// stores the sign-in for the next press.
+    /// </summary>
+    [Fact]
+    public async Task WithAPasswordAndNoStoredSignInThePasswordSignsInAndIsStored()
+    {
+        var login = new InMemoryBregoLogin(Email, null, null, Password);
+        var harness = Harness.Create(login: login);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        Assert.Equal(
+            [
+                "/login/api/getAuthorizer",
+                "/",
+                "/",
+                "/login/api/brego/users/me/device-approval/challenge",
+                "/login/api/brego/v1/sessions",
+                "/platform/api/brego/vehicles/vrm/ab12cde",
+                "/platform/api/brego/vehicles/vin/sb1zb3ae40e045642/valuations",
+            ],
+            harness.Requests.Select(request => request.Uri.AbsolutePath).ToArray());
+        Assert.Equal(InitiateAuthTarget, Assert.Single(harness.Requests[1].Headers["X-Amz-Target"]));
+        Assert.Equal(RespondTarget, Assert.Single(harness.Requests[2].Headers["X-Amz-Target"]));
+        using (var init = JsonDocument.Parse(harness.Requests[1].Body!))
+        {
+            Assert.Equal("USER_SRP_AUTH", init.RootElement.GetProperty("AuthFlow").GetString());
+            Assert.Equal(Email, init.RootElement.GetProperty("AuthParameters").GetProperty("USERNAME").GetString());
+        }
+
+        using (var verify = JsonDocument.Parse(harness.Requests[2].Body!))
+        {
+            var responses = verify.RootElement.GetProperty("ChallengeResponses");
+            Assert.Equal("PASSWORD_VERIFIER", verify.RootElement.GetProperty("ChallengeName").GetString());
+            Assert.Equal(CognitoUsername, responses.GetProperty("USERNAME").GetString());
+            Assert.Equal("Tue Apr 15 10:00:00 UTC 2031", responses.GetProperty("TIMESTAMP").GetString());
+            Assert.NotEmpty(responses.GetProperty("PASSWORD_CLAIM_SIGNATURE").GetString()!);
+        }
+
+        Assert.DoesNotContain(harness.Requests, request => request.Body?.Contains(Password, StringComparison.Ordinal) == true);
+        Assert.Equal(1, login.Saves);
+        Assert.Equal(PasswordRefreshToken, login.StoredRefreshToken);
+        Assert.Equal(BregoSessionCookie, login.Cookie);
+        Assert.Empty(harness.Logger.Messages);
+    }
+
+    [Fact]
+    public async Task ARefreshTokenCognitoRefusesFallsBackToTheSavedPassword()
+    {
+        var login = new InMemoryBregoLogin(Email, PersistedCookie, RefreshToken, Password);
+        var harness = Harness.Create(
+            request => IsTokenRenewal(request)
+                ? Json(HttpStatusCode.BadRequest, """{"__type":"NotAuthorizedException","message":"Refresh Token has been revoked"}""")
+                : null,
+            login: login);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        Assert.Equal(
+            [RefreshTarget, InitiateAuthTarget, RespondTarget],
+            harness.Requests
+                .Where(request => request.Uri.Host.StartsWith("cognito-idp.", StringComparison.Ordinal))
+                .Select(request => Assert.Single(request.Headers["X-Amz-Target"]))
+                .ToArray());
+        Assert.Contains(harness.Requests, request => request.Uri.AbsolutePath == "/login/api/brego/v1/sessions");
+        Assert.Equal(1, login.Saves);
+        Assert.Equal(PasswordRefreshToken, login.StoredRefreshToken);
+        Assert.Equal(BregoSessionCookie, login.Cookie);
+    }
+
+    [Fact]
+    public async Task WithoutAPasswordARefusedRefreshTokenIsUnavailableAndNoPasswordIsTried()
+    {
+        var harness = Harness.Create(request => IsTokenRenewal(request)
+            ? Json(HttpStatusCode.BadRequest, """{"__type":"NotAuthorizedException","message":"Invalid Refresh Token"}""")
+            : null);
+
+        await AssertUnavailableAsync(
+            harness,
+            "brego.valuation.forbidden stage=cognito_refresh status=400 error=NotAuthorizedException; Invalid Refresh Token");
+        Assert.DoesNotContain(harness.Requests, request => request.Headers.TryGetValue("X-Amz-Target", out var target)
+            && target.Contains(InitiateAuthTarget));
+    }
+
+    [Fact]
+    public async Task AWrongPasswordIsUnavailableAtStagePasswordAndStoresNothing()
+    {
+        var login = new InMemoryBregoLogin(Email, null, null, Password);
+        var harness = Harness.Create(
+            request => HasTarget(request, RespondTarget)
+                ? Json(HttpStatusCode.BadRequest, """{"__type":"NotAuthorizedException","message":"Incorrect username or password."}""")
+                : null,
+            login: login);
+
+        await AssertUnavailableAsync(
+            harness,
+            "brego.valuation.forbidden stage=password status=400 error=NotAuthorizedException; Incorrect username or password.");
+        Assert.Equal(0, login.Saves);
+        Assert.DoesNotContain(harness.Requests, request => request.Uri.AbsolutePath.Contains("device-approval", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task APasswordSignInOnADeviceBregoWantsACodeForIsUnavailableAndKeepsNothing()
+    {
+        var login = new InMemoryBregoLogin(Email, null, null, Password);
+        var harness = Harness.Create(
+            request => request.RequestUri!.AbsolutePath == "/login/api/brego/users/me/device-approval/challenge"
+                ? Json(HttpStatusCode.OK, """{"status":"challenge_required","destination":"di****@c***.co.uk"}""")
+                : null,
+            login: login);
+
+        await AssertUnavailableAsync(harness, "brego.valuation.device_approval stage=device_approval device=challenge_required");
+        Assert.Equal(0, login.Saves);
+        Assert.Null(login.StoredRefreshToken);
+        Assert.DoesNotContain(harness.Requests, request => request.Uri.AbsolutePath == "/login/api/brego/v1/sessions");
+    }
+
     [Theory]
     [InlineData("2031-02", "2031-02-28", "2031-02")]
     [InlineData("2028-02", "2028-02-29", "2028-02")]
@@ -707,6 +916,7 @@ public sealed class BregoGuideValuationProviderTests
         Assert.Equal(ValuationSource.Brego, source.Source);
         Assert.IsType<Pegasus.Infrastructure.Persistence.EfIntegrationLoginStore>(
             provider.GetRequiredService<IBregoSessionStore>());
+        Assert.IsType<BregoAccountLink>(provider.GetRequiredService<IBregoAccountLink>());
     }
 
     internal static string LookupJson(string vin = Vin) => $$$"""
@@ -757,9 +967,20 @@ public sealed class BregoGuideValuationProviderTests
 
         if (request.RequestUri.Host.StartsWith("cognito-idp.", StringComparison.Ordinal))
         {
-            // Only token renewal is answered: any other Cognito call is refused.
-            return IsTokenRenewal(request)
-                ? Json(HttpStatusCode.OK, RefreshTokensJson)
+            // Token renewal and the two password exchanges are answered: any
+            // other Cognito call is refused.
+            if (IsTokenRenewal(request))
+            {
+                return Json(HttpStatusCode.OK, RefreshTokensJson);
+            }
+
+            if (HasTarget(request, InitiateAuthTarget))
+            {
+                return Json(HttpStatusCode.OK, SrpChallengeJson);
+            }
+
+            return HasTarget(request, RespondTarget)
+                ? Json(HttpStatusCode.OK, PasswordTokensJson)
                 : Json(HttpStatusCode.BadRequest, """{"__type":"InvalidParameterException","message":"Unexpected call"}""");
         }
 
@@ -792,10 +1013,12 @@ public sealed class BregoGuideValuationProviderTests
     internal static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    private static bool IsTokenRenewal(HttpRequestMessage request) =>
+    private static bool IsTokenRenewal(HttpRequestMessage request) => HasTarget(request, RefreshTarget);
+
+    internal static bool HasTarget(HttpRequestMessage request, string target) =>
         request.RequestUri!.Host.StartsWith("cognito-idp.", StringComparison.Ordinal)
         && request.Headers.TryGetValues("X-Amz-Target", out var targets)
-        && targets.Contains(RefreshTarget);
+        && targets.Contains(target);
 
     private static async Task AssertUnavailableAsync(Harness harness, string logged)
     {
@@ -806,6 +1029,8 @@ public sealed class BregoGuideValuationProviderTests
         Assert.Contains(harness.Logger.Messages, message => message.Contains(logged, StringComparison.Ordinal));
         Assert.DoesNotContain(harness.Logger.Messages, message =>
             message.Contains(RefreshToken, StringComparison.Ordinal)
+            || message.Contains(PasswordRefreshToken, StringComparison.Ordinal)
+            || message.Contains(Password, StringComparison.Ordinal)
             || message.Contains(AccessToken, StringComparison.Ordinal)
             || message.Contains(IdToken, StringComparison.Ordinal)
             || message.Contains(BregoSessionCookie, StringComparison.Ordinal)
@@ -905,9 +1130,15 @@ public sealed class BregoGuideValuationProviderTests
     /// stored sign-in and its generation, read whole on each press and
     /// renewed in place only while the generation is unchanged.
     /// </summary>
-    internal sealed class InMemoryBregoLogin(string email, string? cookie, string? refreshToken) : IBregoSessionStore
+    internal sealed class InMemoryBregoLogin(
+        string email,
+        string? cookie,
+        string? refreshToken,
+        string? password = null) : IBregoSessionStore
     {
         public string Email { get; private set; } = email;
+
+        public string? Password { get; } = password;
 
         public string? Cookie { get; private set; } = cookie;
 
@@ -936,7 +1167,7 @@ public sealed class BregoGuideValuationProviderTests
 
         public Task<BregoValuationAccount> ReadAsync(CancellationToken cancellationToken) =>
             Task.FromResult(BregoValuationAccount.Create(
-                TestIntegrationLogins.Brego(Email, StoredRefreshToken, Cookie, Generation)));
+                TestIntegrationLogins.Brego(Email, StoredRefreshToken, Cookie, Generation, Password)));
 
         public Task<bool> TrySaveAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken)
         {

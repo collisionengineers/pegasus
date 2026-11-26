@@ -828,6 +828,48 @@ public static partial class OperatorLabels
             IntegrationLoginField.ClientSecret => ClientSecretRequired,
             _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
         };
+
+        // Signing the Brego account in (operator, 26 November 2026; R1290, #2180).
+        public const string SendBregoLink = "Send sign-in link";
+        public const string LinkBrego = "Link account";
+        public const string ConfirmBregoCode = "Confirm code";
+        public const string BregoSignInLink = "Sign-in link";
+        public const string BregoCode = "Code";
+        public const string BregoLinked = "Brego account linked.";
+        public const string BregoNoToken = "Paste the whole sign-in link.";
+        public const string BregoLinkRefused = "Brego rejected the link: it is used, expired or not the latest one sent.";
+        public const string BregoPasswordRefused = "Brego refused the password.";
+        public const string BregoCodeFormat = "A code is six digits.";
+        public const string BregoCodeRefused = "Brego refused the code.";
+        public const string BregoNoLinkWaiting = "No link is waiting for a code. Send a new sign-in link.";
+        public const string BregoUnreachable = "Brego could not be reached. Try again.";
+
+        /// <summary>The notice after Send sign-in link, naming the account's address.</summary>
+        public static string BregoLinkSent(string email) =>
+            $"Brego e-mailed a sign-in link to {email}. It expires 15 minutes later.";
+
+        /// <summary>The code step's prompt, naming the address the waiting sign-in's code went to.</summary>
+        public static string BregoCodeSent(string email) =>
+            $"Brego e-mailed a six-digit code to {email}.";
+
+        /// <summary>
+        /// The sentence for a refused Brego step. In the password sign-in Brego
+        /// offering no sign-in reads as the password refused.
+        /// </summary>
+        public static string BregoRefusal(BregoLinkRefusal refusal, string email, bool passwordSignIn) => refusal switch
+        {
+            BregoLinkRefusal.NotOffered when passwordSignIn => BregoPasswordRefused,
+            BregoLinkRefusal.NotOffered => $"Brego did not offer a sign-in link for {email}.",
+            BregoLinkRefusal.NoToken => BregoNoToken,
+            BregoLinkRefusal.AnotherAccount => $"The link is for another account than {email}.",
+            BregoLinkRefusal.LinkRefused => BregoLinkRefused,
+            BregoLinkRefusal.PasswordRefused => BregoPasswordRefused,
+            BregoLinkRefusal.CodeFormat => BregoCodeFormat,
+            BregoLinkRefusal.CodeRefused => BregoCodeRefused,
+            BregoLinkRefusal.NoLinkWaiting => BregoNoLinkWaiting,
+            BregoLinkRefusal.Unreachable => BregoUnreachable,
+            _ => NotAccepted
+        };
     }
 
     /// <summary>The retained post-report query's AI job words.</summary>
