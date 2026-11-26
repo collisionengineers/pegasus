@@ -467,7 +467,7 @@ internal sealed class EfRetainedMailboxMessageStore(
     /// </summary>
     private static async Task<IReadOnlyList<RetainedMailConversationMessage>> ConversationAsync(
         PegasusDbContext context,
-        IReadOnlyList<RetainedMailboxMessageEntity> members,
+        List<RetainedMailboxMessageEntity> members,
         CancellationToken cancellationToken)
     {
         // A polled message's receipt is on the mailbox channel; an uploaded
