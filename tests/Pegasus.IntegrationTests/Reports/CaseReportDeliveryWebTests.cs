@@ -1767,6 +1767,126 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// Generate report makes each companion the Principal requires (R1262),
+    /// so it is offered again for a confirmed report while one is not
+    /// generated: the report's own key replays the report, and the companion
+    /// keeps the key it was tried under before.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(CaseReportArtifactStatus.Failed)]
+    public async Task AConfirmedReportMissingARequiredCompanionOffersGenerateReportReplayingTheReport(
+        CaseReportArtifactStatus? repairSpecStatus)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string retainedOperationKey = "retained-repair-spec-operation";
+        using var factory = WithDispatchFacts(
+            baseFactory,
+            caseId,
+            new FakeCurrentGeneration(
+                caseId,
+                feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+                reportOperationKey: "confirmed-report-operation",
+                repairSpecStatus: repairSpecStatus,
+                repairSpecOperationKey: retainedOperationKey),
+            RequiringBreakdown(),
+            CaseReportSendHistory.None);
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        var reportForm = FormHtml(html, "GenerateReport");
+
+        Assert.Equal("confirmed-report-operation", InputValue(reportForm, "operationKey"));
+        var repairSpecKey = InputValue(reportForm, "repairSpecOperationKey");
+        if (repairSpecStatus is null)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(repairSpecKey));
+            Assert.NotEqual(retainedOperationKey, repairSpecKey);
+        }
+        else
+        {
+            Assert.Equal(retainedOperationKey, repairSpecKey);
+        }
+        Assert.False(string.IsNullOrWhiteSpace(InputValue(reportForm, "imagePackOperationKey")));
+    }
+
+    /// <summary>
+    /// One press of Generate report makes the report and then, in the same
+    /// custody batch, the companion the Principal requires and the generation
+    /// does not hold yet, under the form's key for it (R1262).
+    /// </summary>
+    [Fact]
+    public async Task GenerateReportGoesOnToMakeTheCompanionThePrincipalRequires()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        // The re-offered form replays the report's own key, which the page
+        // accepts only in the form it issues keys in.
+        var generation = new FakeCurrentGeneration(
+            caseId,
+            feeNoteStatus: CaseReportArtifactStatus.Confirmed,
+            reportOperationKey: Guid.NewGuid().ToString("N"));
+        var recorder = new CaseWebTestSupport.RecordingGenerateReport
+        {
+            Outcome = CaseReportGenerationOutcome.Generated,
+            Generation = generation.Record,
+        };
+        using var factory = WithDispatchFacts(baseFactory, caseId, generation, RequiringBreakdown(), CaseReportSendHistory.None)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGenerateCaseReport>();
+                services.AddSingleton<IGenerateCaseReport>(recorder);
+            }));
+        using var client = Client(factory);
+        var html = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(html, "GenerateReport");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("feeNoteOperationKey", InputValue(form, "feeNoteOperationKey")),
+                ("principalInvoiceOperationKey", InputValue(form, "principalInvoiceOperationKey")),
+                ("imagePackOperationKey", InputValue(form, "imagePackOperationKey")),
+                ("repairSpecOperationKey", InputValue(form, "repairSpecOperationKey")),
+                ("editLeaseToken", InputValue(form, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        // The fee note is confirmed already and the generation froze no image,
+        // so the report is followed by the figure breakdown alone.
+        Assert.Collection(
+            recorder.Requests,
+            report =>
+            {
+                Assert.Equal(CaseReportArtifactKind.AssessmentReport, report.Kind);
+                Assert.Equal(generation.Record.Snapshot.OperationKey, report.OperationKey);
+            },
+            breakdown =>
+            {
+                Assert.Equal(CaseReportArtifactKind.RepairSpecification, breakdown.Kind);
+                Assert.Equal(InputValue(form, "repairSpecOperationKey"), breakdown.OperationKey);
+                Assert.Equal(generation.Record.Id, breakdown.TargetGenerationId);
+            });
+        Assert.All(recorder.BatchDepthAtRequest, depth => Assert.Equal(1, depth));
+    }
+
+    /// <summary>A Principal that requires the figure breakdown, as Montreal Prestige does.</summary>
+    private static ReportDispatchFacts RequiringBreakdown() => new(
+        "QDOS26001", "PK12TMZ", "Principal Ltd",
+        PrincipalReportSendingRules.Default with
+        {
+            Attach = ReportSendingAttachments.Default with { FigureBreakdown = true }
+        },
+        null)
+    {
+        OriginalSender = "handler@principal.example"
+    };
+
+    /// <summary>
     /// One step (operator, 6 October 2026): the delivery form's fields reach
     /// the send under the server's actor, the held lease and the form's own
     /// operation key.

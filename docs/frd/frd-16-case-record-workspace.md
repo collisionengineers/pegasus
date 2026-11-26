@@ -1351,7 +1351,8 @@ The dialog also shows what the Principal's report sending rules decided
   (operator, 18 November 2026; [R1175](../rulings.md),
   [R1176](../rulings.md)). A
   required companion that is not generated says so and withholds Send report,
-  and its Generate is in the More menu. Any warning appears as a hint;
+  and its Generate is in the More menu; Generate report makes it first
+  ([R1262](../rulings.md)). Any warning appears as a hint;
 - a Done tick for each hold.
 
 There is no "After sending" list: a task the rules add becomes a Case task

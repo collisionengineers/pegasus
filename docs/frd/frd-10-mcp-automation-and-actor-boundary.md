@@ -310,7 +310,9 @@ which goes on to make its separate fee note and then, for a Principal whose
 setting asks for it, the ULA Invoice (operator, 17 November 2026;
 [R1147](../rulings.md);
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
-and the Repair Spec and images documents of a confirmed generation; records
+and then the images document and the Repair Spec when the Principal's rules
+require them at send ([R1262](../rulings.md)); generates either of those
+documents of a confirmed generation on its own; records
 report approval of one stored
 artifact; and links or unlinks report-Sent evidence, each through the staff
 command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
@@ -319,8 +321,9 @@ Report approval is by staff or the Automation actor (operator, 7 October
 records nothing. An approval, archive or evidence link the Actor records is
 attributed to it and reads back as the Automation actor. A generate_report
 result gives the fee note's outcome as `feeNoteOutcome` and the ULA Invoice's
-as `principalInvoiceOutcome`, each null when none was made; there is no act
-that makes the ULA Invoice on its own.
+as `principalInvoiceOutcome`, and the required companions' as
+`imagePackOutcome` and `repairSpecOutcome`, each null when none was made;
+there is no act that makes the ULA Invoice on its own.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
 it in the report or takes it out, marks the Audit's original report, changes
