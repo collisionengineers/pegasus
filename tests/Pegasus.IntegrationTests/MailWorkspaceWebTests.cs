@@ -3492,7 +3492,7 @@ public sealed class MailWorkspaceWebTests
             FileName = fileName,
             MediaType = mediaType,
             Kind = "attachment",
-            Disposition = "unidentified",
+            Disposition = "attachment",
             ContentLength = 2048,
             ContentHash = new string('A', 64),
             StorageKey = $"test:{assetId:N}"
