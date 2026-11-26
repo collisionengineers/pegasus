@@ -386,7 +386,7 @@ public sealed class EfIntegrationLoginStore(
     /// The login's row, or the gap its first write fills, is the first lock,
     /// so a concurrent first write waits instead of inserting it twice.
     /// </summary>
-    private static Task LockAsync(
+    private static Task<int> LockAsync(
         PegasusDbContext context,
         string id,
         CancellationToken cancellationToken) =>

@@ -52,6 +52,9 @@ public static partial class OperatorLabels
 
         /// <summary>The website link and Send a photo link's starting values, while photo capture is on (v50 F; R911).</summary>
         public const string PhotoLinks = "Photo links";
+
+        /// <summary>The automatic requests and the integrations' logins (operator, 26 November 2026; R1289).</summary>
+        public const string Integrations = "Integrations";
     }
 
     /// <summary>

@@ -62,6 +62,12 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-car")" /></svg>
             <span>@OperatorLabels.Admin.UnroadworthyReasons</span>
         </a>
+        @* The automatic requests and the integrations' logins (R1289), listed
+           in every deployment. *@
+        <a asp-page="/Administration/Integrations" aria-current="@Current("integrations")">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+            <span>@OperatorLabels.Admin.Integrations</span>
+        </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">
         <span class="admin-nav__label" id="admin-nav-oversight">Operations and oversight</span>

@@ -1,0 +1,136 @@
+@page
+@using Pegasus.Core.Identity
+@model Pegasus.Web.Pages.Administration.IntegrationsModel
+@{
+    ViewData["Title"] = OperatorLabels.Admin.Integrations;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "integrations";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+}
+
+@* The rail is the way back, so the header carries the area name and nothing
+   else. *@
+<partial name="Shared/_PageHeader" />
+
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        @if (Model.StatusMessage is { } statusMessage)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check-circle")" /></svg>
+                <span>@statusMessage</span>
+            </div>
+        }
+        @if (Model.ErrorMessage is { } errorMessage)
+        {
+            <div class="notice notice--danger" role="alert"><span>@errorMessage</span></div>
+        }
+        <partial name="Shared/_ErrorSummary" />
+
+        @* Every switch is shown in every deployment: a switch is read by Case
+           creation whether or not this host can answer the request. *@
+        <section class="panel" aria-labelledby="automatic-requests-panel-title">
+            <div class="panel-head">
+                <h2 id="automatic-requests-panel-title">@OperatorLabels.Integrations.AutomaticRequests</h2>
+            </div>
+            <div class="panel-body">
+                <form method="post" asp-page-handler="SaveAutomatic" class="stack" autocomplete="off">
+                    <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                    @* asp-for writes the unchecked fallback beside each box,
+                       so a cleared checkbox reaches the handler as false. *@
+                    <label class="choice">
+                        <input asp-for="GlassesValuationEnabled" type="checkbox" />
+                        <span>@OperatorLabels.Integrations.AutomaticGlassValuation</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="BregoValuationEnabled" type="checkbox" />
+                        <span>@OperatorLabels.Integrations.AutomaticBregoValuation</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="CazanaValuationEnabled" type="checkbox" />
+                        <span>@OperatorLabels.Integrations.AutomaticCazanaValuation</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="CapValuationEnabled" type="checkbox" />
+                        <span>@OperatorLabels.Integrations.AutomaticCapValuation</span>
+                    </label>
+                    <label class="choice">
+                        <input asp-for="VehicleHistoryCheckEnabled" type="checkbox" />
+                        <span>@OperatorLabels.Integrations.AutomaticExperianCheck</span>
+                    </label>
+                    <div class="cluster admin-actions-end">
+                        <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
+                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
+                            <span>@OperatorLabels.Integrations.SaveAutomatic</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        @* One panel per login whose integration this host composes (R1288). A
+           stored value is never written back into a box: only the account's
+           name and when it was replaced are shown. *@
+        @foreach (var status in Model.Logins)
+        {
+            var login = status.Login;
+            var titleId = $"login-{login}-title";
+            <section class="panel" aria-labelledby="@titleId">
+                <div class="panel-head">
+                    <h2 id="@titleId">@OperatorLabels.Integrations.Heading(login)</h2>
+                </div>
+                <div class="panel-body stack">
+                    @if (!status.Readable)
+                    {
+                        <div class="notice notice--danger" role="alert"><span>@OperatorLabels.Integrations.Unreadable</span></div>
+                    }
+                    <div class="fact-grid">
+                        <dl class="fact">
+                            <dt>@OperatorLabels.Integrations.Account</dt>
+                            <dd>@(status.AccountName ?? OperatorLabels.Integrations.NotSet)</dd>
+                        </dl>
+                        <dl class="fact">
+                            <dt>@OperatorLabels.Integrations.Updated</dt>
+                            <dd>@OperatorLabels.OfficeTime(status.UpdatedAtUtc, "—")</dd>
+                        </dl>
+                    </div>
+                    <form method="post" asp-page-handler="SaveLogin" class="stack" autocomplete="off">
+                        <input type="hidden" name="login" value="@login" />
+                        <input type="hidden" name="expectedVersion" value="@Model.ExpectedVersion(status)" />
+                        <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                        @foreach (var field in IntegrationLoginFields.Of(login))
+                        {
+                            var inputId = $"login-{login}-{field}";
+                            var fieldName = IntegrationsModel.FieldName(field);
+                            <div class="field field--narrow">
+                                <label class="req" for="@inputId">@OperatorLabels.Integrations.Field(field)</label>
+                                @if (IntegrationsModel.IsSecret(field))
+                                {
+                                    @* No tag helper and no value attribute: the
+                                       submitted secret is never written back. *@
+                                    <input id="@inputId" name="@fieldName" type="password" required
+                                           maxlength="4096" autocomplete="new-password" />
+                                }
+                                else
+                                {
+                                    <input id="@inputId" name="@fieldName" required maxlength="4096"
+                                           autocomplete="off" value="@Model.FieldValue(login, field)" />
+                                }
+                            </div>
+                        }
+                        <div class="cluster admin-actions-end">
+                            <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Saving">
+                                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-save")" /></svg>
+                                <span>@OperatorLabels.Integrations.Save</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        }
+    </div>
+</div>

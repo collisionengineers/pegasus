@@ -252,9 +252,11 @@ Each new Case has one automatic Glass's valuation request (R465, 28 October
 2026; R545 and R546, 29 October 2026). Case creation records it beside the
 automatic vehicle lookup
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)),
-while the Administrator's Automatic Glass's valuation switch on Automation &
-AI is on, which it is until turned off
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
+while the Administrator's Automatic Glass's valuation switch on
+Administration > Integrations, with the other three sources' switches, is on,
+which it is until turned off
+([FRD-17](frd-17-administration-workspace.md#integrations); operator, 26
+November 2026, [R1289](../rulings.md)).
 A Case created while the switch is off has no request, then or later, and
 turning it off settles the requests still waiting. The request is that Get
 valuation, run by the system for the current work and the current month: the

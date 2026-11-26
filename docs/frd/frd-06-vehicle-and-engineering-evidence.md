@@ -384,8 +384,10 @@ automatic Glass's valuation
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
 - Case creation records one request while the check's Administrator switch
-  is on, beside the automatic vehicle lookup. The switch is off until turned
-  on (R1287). A Case created while it is off has no
+  is on, beside the automatic vehicle lookup. The switch, Automatic Experian
+  check, is on Administration > Integrations
+  ([FRD-17](frd-17-administration-workspace.md#integrations); R1289). It is
+  off until turned on (R1287). A Case created while it is off has no
   request, then or later, and turning it off settles the requests still
   waiting.
 - It waits until the Case's registration is accepted, while anyone holds the
