@@ -12,8 +12,9 @@
   damage markers on the plan are the report's picture only; nothing is derived
   from them (3 November 2026, R642–R646).
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's, Brego and Cazana are connected: Get valuation fetches their figures,
-  files each provider's PDF report on the Case, and fills an empty Case VIN.
+  Glass's, Brego, Cazana and CAP are connected: Get valuation fetches their
+  figures; Glass's, Brego and Cazana also file their PDF report on the Case
+  and fill an empty Case VIN, and CAP files none (R1205).
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -251,9 +252,11 @@ Each new Case has one automatic Glass's valuation request (R465, 28 October
 2026; R545 and R546, 29 October 2026). Case creation records it beside the
 automatic vehicle lookup
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)),
-while the Administrator's Automatic Glass's valuation switch on Automation &
-AI is on, which it is until turned off
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
+while the Administrator's Automatic Glass's valuation switch on
+Administration > Integrations, with the other three sources' switches, is on,
+which it is until turned off
+([FRD-17](frd-17-administration-workspace.md#integrations); operator, 26
+November 2026, [R1289](../rulings.md)).
 A Case created while the switch is off has no request, then or later, and
 turning it off settles the requests still waiting. The request is that Get
 valuation, run by the system for the current work and the current month: the
@@ -269,6 +272,13 @@ the request: a vehicle Glass's cannot value or a provider that cannot answer
 records nothing and shows no notice. A Case that is closed, or whose current
 work already holds a Glass's card, is not asked. Any later valuation is Get
 valuation. It never chooses the card as the basis.
+Brego, Cazana and CAP each have the same automatic request behind a switch of
+their own (operator, 26 November 2026, [R1286](../rulings.md)): each new Case
+has one automatic valuation request per source whose switch is on, Glass's
+among them, recorded at its creation and run as the Glass's request is, for
+that source and as that source's own recorder. The Brego, Cazana and CAP
+switches are off until turned on ([R1287](../rulings.md)); a Case created
+while one is off has no request of that source, then or later.
 Cazana's Get valuation signs in with the Cazana Companion account, runs one
 metered Companion lookup for the Case's accepted registration at its accepted
 mileage, and fills the card with Cazana's retail and trade (`remarket`;
@@ -304,7 +314,11 @@ report's text names the Case registration, and fills the work's VIN when the
 work holds none. When Brego holds no data for the registration, its card shows
 an info notice instead,
 `Brego cannot value this vehicle: it holds no data for its registration.`;
-whatever else stops a Brego valuation, the card shows its notice.
+whatever else stops a Brego valuation, the card shows its notice. A Get
+valuation that finds Brego's sign-in gone, or Brego asking to approve the
+browser, signs in again by itself where the account's mailbox can be read,
+once per press, and then values; otherwise the card shows its notice as
+before (26 November 2026, [R1295](../rulings.md)).
 Each connected source is asked once per Case and guide month at the Case's
 accepted registration and mileage (operator, 10 November 2026,
 [R900](../rulings.md)), whoever presses Get valuation, so a repeated press
@@ -312,9 +326,10 @@ costs nothing. A later month counts as the current month it is valued in, and
 so does every ask of CAP ([R1203](../rulings.md)).
 Only an answer with figures uses the ask: a source that cannot answer or
 cannot value the vehicle may be asked again. A corrected accepted
-registration or mileage allows each source and month one more ask. The
-automatic Glass's request is that month's Glass's ask, and it is settled
-unasked when Glass's has already answered. Get valuation stays on the card;
+registration or mileage allows each source and month one more ask. Each
+source's automatic request is that month's ask of that source, and it is
+settled unasked when the source has already answered
+([R1286](../rulings.md)). Get valuation stays on the card;
 a press for a month already answered asks nothing and the card says
 `{Source} has already been asked for this Case.`
 CAP's Get valuation asks Experian, on the API of the vehicle history check
@@ -586,7 +601,9 @@ HTML and PDF, the date each month is valued on, the mileage in whole miles,
 credentials and JWT kept out of URLs and logs, every failure answering the
 notice and a registration with no data answering its own sentence. Integration
 tests cover Brego's Get valuation and Valuation Report against a scripted Brego
-platform and Cognito API — Cognito `USER_SRP_AUTH` sign-in, session reuse and
+platform and Cognito API — sign-in from the stored refresh token and, with a
+saved password, by Cognito `USER_SRP_AUTH` when none is held or it is refused
+(R1290), the account linked by its e-mailed link and its device code, session reuse and
 refresh on 401, VRM lookup, `retail.high` and `trade.high` figures, VIN fill,
 Valuation Report PDF generation and 14×16 broken-image stock replacement, the
 date each month is valued on, the mileage in whole miles, credentials and

@@ -64,6 +64,7 @@ pegasus_web_runtime_role,D,DELETE,IntakeReceipts
 pegasus_web_runtime_role,D,DELETE,IntakeSourceCandidates
 pegasus_web_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_web_runtime_role,D,DELETE,IntakeWorkItems
+pegasus_web_runtime_role,D,DELETE,IntegrationLogins
 pegasus_web_runtime_role,D,DELETE,LabourRateCards
 pegasus_web_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_web_runtime_role,D,DELETE,OpenIddictAuthorizations
@@ -189,6 +190,7 @@ pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroupHistory
 pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroupMembers
 pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,INSERT,IntakeWorkItems
+pegasus_web_runtime_role,G,INSERT,IntegrationLogins
 pegasus_web_runtime_role,G,INSERT,LabourRateCards
 pegasus_web_runtime_role,G,INSERT,OpenIddictApplications
 pegasus_web_runtime_role,G,INSERT,OpenIddictAuthorizations
@@ -304,6 +306,7 @@ pegasus_web_runtime_role,G,SELECT,IntakeStagedReceipts
 pegasus_web_runtime_role,G,SELECT,IntakeSubmissionGroupMembers
 pegasus_web_runtime_role,G,SELECT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,SELECT,IntakeWorkItems
+pegasus_web_runtime_role,G,SELECT,IntegrationLogins
 pegasus_web_runtime_role,G,SELECT,LabourRateCards
 pegasus_web_runtime_role,G,SELECT,OpenIddictApplications
 pegasus_web_runtime_role,G,SELECT,OpenIddictAuthorizations
@@ -389,6 +392,7 @@ pegasus_web_runtime_role,G,UPDATE,IntakeManualAssociations
 pegasus_web_runtime_role,G,UPDATE,IntakeReceipts
 pegasus_web_runtime_role,G,UPDATE,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,UPDATE,IntakeWorkItems
+pegasus_web_runtime_role,G,UPDATE,IntegrationLogins
 pegasus_web_runtime_role,G,UPDATE,LabourRateCards
 pegasus_web_runtime_role,G,UPDATE,OpenIddictApplications
 pegasus_web_runtime_role,G,UPDATE,OpenIddictAuthorizations
@@ -486,6 +490,7 @@ pegasus_worker_runtime_role,D,DELETE,IntakeReceipts
 pegasus_worker_runtime_role,D,DELETE,IntakeSourceCandidates
 pegasus_worker_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_worker_runtime_role,D,DELETE,IntakeWorkItems
+pegasus_worker_runtime_role,D,DELETE,IntegrationLogins
 pegasus_worker_runtime_role,D,DELETE,LabourRateCards
 pegasus_worker_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_worker_runtime_role,D,DELETE,OpenIddictAuthorizations

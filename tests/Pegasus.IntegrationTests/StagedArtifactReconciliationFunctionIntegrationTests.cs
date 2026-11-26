@@ -648,6 +648,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public void Defer(Guid versionId) =>
             throw new InvalidOperationException("Nothing is deferred without a candidate.");
+
+        public Task RecordReadingAsync(
+            EstimateRecognitionCandidate candidate,
+            FiledEstimateReading reading,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Nothing is read without a candidate.");
     }
 
     private sealed class UnreachableDocumentReads : IReadLogicalDocumentVersion

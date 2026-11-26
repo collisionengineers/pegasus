@@ -120,11 +120,24 @@ $closeCorrespondenceTidiesStatement = "IF COL_LENGTH('dbo.StaffMailSendOperation
 # production's key ring, which stays in production; the copied rows are cleared
 # as Clear does, and the logins are re-entered on the instance.
 $clearExternalCredentialsStatement = "UPDATE dbo.UserExternalCredentials SET Enabled = 0, ProtectedCredential = '', CredentialGeneration = CredentialGeneration + 1, Version = Version + 1, ConcurrencyToken = NEWID(), UpdatedBy = 'production_copy', UpdatedAtUtc = SYSUTCDATETIME() WHERE ProtectedCredential <> '';"
+# R1288: the integrations' logins are protected under the key ring of the host
+# that stored them, so production's copied rows are unreadable here (R708's
+# reason). The instance keeps its own: they are set aside in the container's
+# tempdb before the publish replaces the run database, and put back in place of
+# production's after it; with none kept, production's rows are still removed,
+# so the logins read as not set. Each statement passes over a schema without
+# the table.
+$keptIntegrationLoginsTable = 'tempdb.dbo.PegasusKeptIntegrationLogins'
+$integrationLoginColumns = 'Id, ProtectedLogin, ProtectedPendingLink, PendingLinkExpiresAtUtc, Generation, UpdatedBy, UpdatedAtUtc, Version, ConcurrencyToken'
+$keepIntegrationLoginsStatement = "IF OBJECT_ID('$keptIntegrationLoginsTable') IS NOT NULL DROP TABLE $keptIntegrationLoginsTable; DECLARE @kept int = 0; IF OBJECT_ID('dbo.IntegrationLogins') IS NOT NULL EXEC sp_executesql N'SELECT $integrationLoginColumns INTO $keptIntegrationLoginsTable FROM dbo.IntegrationLogins; SET @count = @@ROWCOUNT;', N'@count int OUTPUT', @count = @kept OUTPUT; SELECT @kept;"
+$restoreIntegrationLoginsStatement = "DECLARE @restored int = 0; IF OBJECT_ID('dbo.IntegrationLogins') IS NOT NULL BEGIN DELETE FROM dbo.IntegrationLogins; IF OBJECT_ID('$keptIntegrationLoginsTable') IS NOT NULL EXEC sp_executesql N'INSERT INTO dbo.IntegrationLogins ($integrationLoginColumns) SELECT $integrationLoginColumns FROM $keptIntegrationLoginsTable; SET @count = @@ROWCOUNT;', N'@count int OUTPUT', @count = @restored OUTPUT; END; IF OBJECT_ID('$keptIntegrationLoginsTable') IS NOT NULL DROP TABLE $keptIntegrationLoginsTable; SELECT @restored;"
 
 Write-Host "Source:   $sqlServer / $sqlDatabase (read-only extract under your az sign-in)"
 Write-Host "Dacpac:   $dacpacPath (removed once published; the run database is the only copy)"
 Write-Host "Target:   container $containerName, database $databaseName (replaced)"
-Write-Host "Then:     $deactivateStatement"
+Write-Host "First:    $keepIntegrationLoginsStatement"
+Write-Host "Then:     $restoreIntegrationLoginsStatement"
+Write-Host "          $deactivateStatement"
 Write-Host "          $clearSubscriptionsStatement"
 Write-Host "          $pauseCredentialsStatement"
 Write-Host "          $closeTidiesStatement"
@@ -208,7 +221,7 @@ function Remove-Extract {
 # and Start refuses it until the copy is re-run (R696).
 $published = $false
 $statementsCompleted = $false
-$deactivated = $subscriptionsCleared = $credentialsPaused = $tidiesClosed = $correspondenceTidiesClosed = $externalCredentialsCleared = $migrationHead = $caseCount = $null
+$deactivated = $subscriptionsCleared = $credentialsPaused = $tidiesClosed = $correspondenceTidiesClosed = $externalCredentialsCleared = $integrationLoginsKept = $migrationHead = $caseCount = $null
 function Write-CopyRecord {
     $record = [ordered]@{
         kind = 'Pegasus.LocalDevelopment.ProductionCopy'
@@ -226,6 +239,7 @@ function Write-CopyRecord {
         instructionTidiesClosed = $(if ($null -ne $tidiesClosed) { [int]$tidiesClosed } else { $null })
         correspondenceTidiesClosed = $(if ($null -ne $correspondenceTidiesClosed) { [int]$correspondenceTidiesClosed } else { $null })
         externalCredentialsCleared = $(if ($null -ne $externalCredentialsCleared) { [int]$externalCredentialsCleared } else { $null })
+        integrationLoginsKept = $(if ($null -ne $integrationLoginsKept) { [int]$integrationLoginsKept } else { $null })
     }
     [System.IO.File]::WriteAllText($recordPath, (($record | ConvertTo-Json -Depth 5) + "`n"), [System.Text.UTF8Encoding]::new($false))
     if (-not $statementsCompleted) {
@@ -265,6 +279,10 @@ Write-Host "Extracted $dacpacBytes bytes, SHA-256 $dacpacSha256."
 Start-PegasusDatabaseInstance -InstanceName $databaseName -Command $docker -ContainerName $containerName -RunId $RunId
 try {
     Wait-RunDatabase
+    # R1288: the instance's own integration logins, set aside before the
+    # publish replaces the database that holds them.
+    $integrationLoginsSetAside = Invoke-RunSql -Query $keepIntegrationLoginsStatement
+    Write-Host "Set aside $integrationLoginsSetAside integration login row(s) of the instance."
     $password = Read-PegasusDatabaseSecretFile -Path $secretPath
     $targetConnection = Get-PegasusDatabaseConnectionString `
         -InstanceName $databaseName -DatabaseName $databaseName -Port $databasePort -Password $password
@@ -289,7 +307,10 @@ try {
     #    subscriptions (R678), pause the copied Principal API keys (R679) and
     #    close the copied pending instruction and correspondence tidies (R680,
     #    R902) and clear the copied
-    #    external credentials production's key ring protects (R708).
+    #    external credentials production's key ring protects (R708). The
+    #    instance's own integration logins go back first (R1288), so a later
+    #    statement that fails cannot leave them in the container's tempdb.
+    $integrationLoginsKept = Invoke-RunSql -Query $restoreIntegrationLoginsStatement
     $deactivated = Invoke-RunSql -Query ($deactivateStatement + ' SELECT @@ROWCOUNT;')
     $subscriptionsCleared = Invoke-RunSql -Query ($clearSubscriptionsStatement + ' SELECT @@ROWCOUNT;')
     $credentialsPaused = Invoke-RunSql -Query ($pauseCredentialsStatement + ' SELECT @@ROWCOUNT;')
@@ -309,6 +330,6 @@ finally {
     if ($published) { Write-CopyRecord }
 }
 
-Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed; $correspondenceTidiesClosed pending correspondence tidy(ies) closed; $externalCredentialsCleared external credential(s) cleared."
+Write-Host "Copied. Migration head $migrationHead; $caseCount Cases; $deactivated mailbox row(s) deactivated; $subscriptionsCleared subscription row(s) cleared; $credentialsPaused Principal API key(s) paused; $tidiesClosed pending instruction tidy(ies) closed; $correspondenceTidiesClosed pending correspondence tidy(ies) closed; $externalCredentialsCleared external credential(s) cleared; $integrationLoginsKept integration login(s) of the instance kept."
 Write-Host "Record: $recordPath"
 Write-Host "Next: pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -RunId $RunId  (migrates the copy forward), then enable a mailbox in Administration > Mailboxes for intake and send, and re-enter Glass's logins in Administration > Accounts."

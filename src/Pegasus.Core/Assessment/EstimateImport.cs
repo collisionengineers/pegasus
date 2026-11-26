@@ -147,7 +147,14 @@ public sealed record EstimateSourceTotals(
 /// its format names one; it fills the Case's empty VIN
 /// (<see cref="GlassVinFillPolicy"/>). <see cref="Discounts"/> carries the
 /// deduction from RRP an Audatex document applies to its parts, which lands
-/// as the estimate's parts discount (R615).
+/// as the estimate's parts discount (R615). <see cref="Header"/> is the text
+/// an Audatex report prints above its assessment number on page one, the
+/// company that produced it, which types a filed estimate
+/// (<see cref="FiledEstimateTypePolicy"/>); null when it prints none.
+/// <see cref="Mileage"/> and <see cref="MileageUnit"/> are the odometer
+/// reading the document states, the unit as <see cref="CaseOdometer"/>
+/// writes it (miles when none is printed, R1080); null when it states none
+/// (R1141).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
@@ -156,7 +163,10 @@ public sealed record ParsedEstimate(
     RepairSpecificationSourceRoute Route,
     EstimateSourceTotals? SourceTotals = null,
     string? Vin = null,
-    EstimateDiscounts? Discounts = null);
+    EstimateDiscounts? Discounts = null,
+    string? Header = null,
+    long? Mileage = null,
+    string? MileageUnit = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong

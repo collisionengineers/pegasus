@@ -378,6 +378,31 @@ answer is the Vehicle history text, which the report prints verbatim.
 - Staff and the Automation Actor may run it (ADR-0064). A host without
   Experian composed offers no check.
 
+**Automatic Experian check** (operator, 26 November 2026; R1286, R1291).
+The system runs Run Experian check once for each new Case, as it runs the
+automatic Glass's valuation
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+
+- Case creation records one request while the check's Administrator switch
+  is on, beside the automatic vehicle lookup. The switch, Automatic Experian
+  check, is on Administration > Integrations
+  ([FRD-17](frd-17-administration-workspace.md#integrations); R1289). It is
+  off until turned on (R1287). A Case created while it is off has no
+  request, then or later, and turning it off settles the requests still
+  waiting.
+- It waits until the Case's registration is accepted, while anyone holds the
+  Case's edit lease, and while the Vehicle history text is not editable, as
+  Run Experian check is offered only then (R746).
+- It is not asked when the Vehicle history text already holds words, so it
+  never replaces any (R1291), nor for a closed Case.
+- It records as Run Experian check does, under the Case's edit lease claimed
+  for that one check and given back after it. The text it records carries the
+  source tag Automatic (R1291).
+- A vehicle Experian holds no data for, or a check that cannot answer, writes
+  nothing and shows no notice.
+- Experian is asked once. Whatever it answers settles the request, and any
+  later check is Run Experian check.
+
 **Glass's VIN.** DVLA and DVSA supply no VIN; Glass's names one. It appears
 on the vehicle a Get valuation saves to the Glass's stock list, which Glass's
 looks up from the registration, and in every Glass's estimate export and

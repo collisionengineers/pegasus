@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
@@ -7,6 +9,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Experian;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -218,13 +221,11 @@ public sealed class ExperianCapValuationProviderTests
     }
 
     [Fact]
-    public async Task AnUnresolvedSecretIsUnavailableBeforeAnyCall()
+    public async Task ALoginNotSetIsUnavailableBeforeAnyCall()
     {
         var harness = Harness.Create(
             vehicle: _ => Json(HttpStatusCode.OK, Valued),
-            account: () => ExperianAccount.Create(key => key == "Experian:CapAccount:Password"
-                ? "@Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/secrets/experian-password/1)"
-                : Setting(key), ExperianAccount.CapAccountSection));
+            account: _ => Task.FromResult(ExperianAccount.Create(null, Setting)));
 
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             harness.Provider.GetAsync(Request(CurrentMonth), default));
@@ -232,27 +233,43 @@ public sealed class ExperianCapValuationProviderTests
         Assert.Empty(harness.Requests);
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("experian.cap.configuration", StringComparison.Ordinal)
-            && message.Contains("Experian:CapAccount:Password", StringComparison.Ordinal));
+            && message.Contains("The Experian login is not set.", StringComparison.Ordinal));
     }
 
     /// <summary>
     /// Experian issues its permissions per account (R1207, R1215), so each act
-    /// has a client of its own: the valuation signs in with
-    /// Experian:CapAccount and the vehicle history check with
-    /// Experian:HistoryAccount, each keeps its token, and neither act reads
-    /// the other's account.
+    /// has a client of its own: the valuation signs in with the CAP login and
+    /// the vehicle history check with the history login, both read from the
+    /// database (R1288), each keeps its token, and neither act reads the
+    /// other's login.
     /// </summary>
     [Fact]
-    public async Task EachActSignsInWithItsOwnAccountAndKeepsItsOwnToken()
+    [Trait("Category", "SqlServer")]
+    public async Task EachActSignsInWithItsOwnLoginAndKeepsItsOwnToken()
     {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        IDbContextFactory<PegasusDbContext> contextFactory;
+        await using (var scope = database.CreateAsyncScope())
+        {
+            contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        }
+
+        var protection = new EphemeralDataProtectionProvider();
+        var logins = new EfIntegrationLoginStore(contextFactory, protection, TimeProvider.System);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        await logins.ReplaceAsync(
+            administrator, IntegrationLogin.ExperianHistory, 0, LoginValues("condition-user"), "seed-history", default);
+        await logins.ReplaceAsync(
+            administrator, IntegrationLogin.ExperianCap, 0, LoginValues("cap-user"), "seed-cap", default);
+
         var signIns = new List<string>();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<TimeProvider>(new CazanaGuideValuationProviderTests.FixedClock(Now));
-        services.AddExperianVehicleHistoryCheck(_ => ExperianAccount.Create(
-            BothAccounts, ExperianAccount.HistoryAccountSection));
-        services.AddExperianCapValuation(_ => ExperianAccount.Create(
-            BothAccounts, ExperianAccount.CapAccountSection));
+        services.AddSingleton(contextFactory);
+        services.AddSingleton<IDataProtectionProvider>(protection);
+        services.AddExperianVehicleHistoryCheck(Setting);
+        services.AddExperianCapValuation(Setting);
         services.AddSingleton<IHttpClientFactory>(new ScriptedClientFactory(
             new CazanaGuideValuationProviderTests.Answering(async request =>
             {
@@ -285,27 +302,20 @@ public sealed class ExperianCapValuationProviderTests
 
     /// <summary>
     /// A host that composes both acts has one CAP provider and one history
-    /// check, each over its own client, and building them reads no account:
-    /// the account is read on each call, so an unresolved Key Vault reference
-    /// never stops a Case page.
+    /// check, each over its own client, and building them reads no login: the
+    /// login is read from the database on each call (R1288), so a login not
+    /// set never stops a Case page. The composition-only database does not
+    /// exist, so a read at resolution would fail this test.
     /// </summary>
     [Fact]
-    public void BothActsComposeTheirOwnClientAndReadTheAccountOnlyWhenCalling()
+    public void BothActsComposeTheirOwnClientAndReadTheLoginOnlyWhenCalling()
     {
-        var reads = 0;
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
-        services.AddExperianVehicleHistoryCheck(_ =>
-        {
-            reads++;
-            return ExperianAccount.Create(static _ => null, ExperianAccount.HistoryAccountSection);
-        });
-        services.AddExperianCapValuation(_ =>
-        {
-            reads++;
-            return ExperianAccount.Create(static _ => null, ExperianAccount.CapAccountSection);
-        });
+        TestIntegrationLogins.AddCompositionOnlyStore(services);
+        services.AddExperianVehicleHistoryCheck(Setting);
+        services.AddExperianCapValuation(Setting);
         using var provider = services.BuildServiceProvider();
 
         var source = Assert.Single(provider.GetServices<IGuideValuationProvider>());
@@ -316,7 +326,6 @@ public sealed class ExperianCapValuationProviderTests
         Assert.NotSame(
             provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianCapValuationProvider)),
             provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianVehicleHistoryProvider)));
-        Assert.Equal(0, reads);
     }
 
     private static GuideValuationRequest Request(DateOnly month, long mileage = 41_000, string? unit = null) => new(
@@ -331,25 +340,16 @@ public sealed class ExperianCapValuationProviderTests
     {
         "Experian:BaseUri" => BaseUri,
         "Experian:TokenUri" => TokenUri,
-        "Experian:CapAccount:ClientId" => "synthetic-client-id",
-        "Experian:CapAccount:ClientSecret" => ClientSecret,
-        "Experian:CapAccount:Username" => "synthetic-user",
-        "Experian:CapAccount:Password" => Password,
         _ => null,
     };
 
-    /// <summary>
-    /// A host holding both accounts: the history account's user name differs
-    /// from CAP's, and its other values are CAP's under its own section.
-    /// </summary>
-    private static string? BothAccounts(string key) => key switch
+    /// <summary>One Experian login's values: the user name differs between the two logins.</summary>
+    private static Dictionary<IntegrationLoginField, string> LoginValues(string username) => new()
     {
-        "Experian:HistoryAccount:Username" => "condition-user",
-        "Experian:CapAccount:Username" => "cap-user",
-        _ => Setting(key.Replace(
-            ExperianAccount.HistoryAccountSection,
-            ExperianAccount.CapAccountSection,
-            StringComparison.Ordinal)),
+        [IntegrationLoginField.ClientId] = "synthetic-client-id",
+        [IntegrationLoginField.ClientSecret] = ClientSecret,
+        [IntegrationLoginField.Username] = username,
+        [IntegrationLoginField.Password] = Password
     };
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
@@ -372,7 +372,7 @@ public sealed class ExperianCapValuationProviderTests
 
         public static Harness Create(
             Func<HttpRequestMessage, HttpResponseMessage> vehicle,
-            Func<ExperianAccount>? account = null)
+            Func<CancellationToken, Task<ExperianAccount>>? account = null)
         {
             var requests = new List<RecordedRequest>();
             var logger = new CapturingLogger<ExperianCapValuationProvider>();
@@ -390,7 +390,10 @@ public sealed class ExperianCapValuationProviderTests
                         ? Json(HttpStatusCode.OK, Token)
                         : vehicle(request);
                 })),
-                account ?? (() => ExperianAccount.Create(Setting, ExperianAccount.CapAccountSection)),
+                account ?? (_ => Task.FromResult(ExperianAccount.Create(
+                    TestIntegrationLogins.Experian(
+                        IntegrationLogin.ExperianCap, "synthetic-client-id", ClientSecret, "synthetic-user", Password),
+                    Setting))),
                 clock);
             return new(new ExperianCapValuationProvider(client, clock, logger), logger, requests);
         }

@@ -17,6 +17,12 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.Provider).HasMaxLength(50); e.Property(x => x.NormalizedAccountKey).HasMaxLength(320);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
+        builder.Entity<IntegrationLoginEntity>(e =>
+        {
+            e.ToTable("IntegrationLogins"); e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasMaxLength(40);
+            e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
+        });
         builder.Entity<StaffMailSendOperationEntity>(e =>
         {
             var states = string.Join(", ", Enum.GetNames<Pegasus.Core.Operations.StaffMailState>().Select(x => $"'{x}'"));

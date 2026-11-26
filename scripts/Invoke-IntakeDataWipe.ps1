@@ -17,7 +17,7 @@ $workerApp = 'pegasus-prod-worker-252ow37gij'
 $preserve = @(
     '__EFMigrationsHistory',
     'AspNetRoleClaims', 'AspNetRoles', 'AspNetUserClaims', 'AspNetUserLogins',
-    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials',
+    'AspNetUserRoles', 'AspNetUsers', 'AspNetUserTokens', 'UserExternalCredentials', 'IntegrationLogins',
     'OpenIddictApplications', 'OpenIddictAuthorizations', 'OpenIddictScopes', 'OpenIddictTokens',
     'ApprovedInboxPollStates', 'ApprovedMailboxes', 'ApprovedMailboxSubscriptions',
     'ApprovedOutlookCategories', 'ApprovedSentPollStates',
@@ -68,11 +68,13 @@ $wipeTables = @(
 # arrived on 27 September; ContactRoles, OrganizationRoles and the three
 # PrincipalDomain reference tables went on 13 October; ApprovedOutlookCategories
 # went on 14 October; InspectionLocations and InspectionLocationPrincipalLinks
-# arrived on 17 October.
+# arrived on 17 October; IntegrationLogins, the integrations' logins an
+# Administrator replaces (R1288), arrived on 26 November.
 $optionalPreserve = @(
     'TriageSequences', 'EmailTemplates', 'ContactRoles', 'OrganizationRoles',
     'PrincipalDomainEvidence', 'PrincipalDomainPackages', 'PrincipalReferences',
-    'ApprovedOutlookCategories', 'InspectionLocations', 'InspectionLocationPrincipalLinks'
+    'ApprovedOutlookCategories', 'InspectionLocations', 'InspectionLocationPrincipalLinks',
+    'IntegrationLogins'
 )
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="

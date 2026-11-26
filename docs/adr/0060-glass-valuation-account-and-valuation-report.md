@@ -48,6 +48,11 @@ Web App only as versioned Key Vault references, each read through its own
 secret-scoped grant. Both are Production required settings. The account is
 read on each valuation, never when the host or a Case page is built. The
 repair estimate keeps each Engineer's own account; ADR-0043 is unchanged.
+Amended 26 November 2026 (R1288): the account is no longer deployment
+configuration. It is held in the database, protected with the Web host's key
+ring, and replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings are
+read once by that release's import and removed in the next.
 
 **The valuation follows the portal.** One Get valuation signs in, values the
 Case's accepted registration and its accepted mileage in whole miles for the
@@ -100,7 +105,11 @@ unsaved edit and its Save are untouched.
   the repository forbids a vault-wide grant, and no CI check proves a grant.
   The pre-provision check refuses an empty or malformed secret URI.
 - The other four guide sources stay unconnected until each has its own
-  adapter.
+  adapter. Corrected 26 November 2026: Cazana
+  ([ADR-0079](0079-cazana-companion-account-and-companion-report.md)), Brego
+  ([ADR-0084](0084-brego-valuation-account-and-valuation-report.md)) and CAP
+  ([ADR-0089](0089-experian-vehicle-history-check.md)) have since been
+  connected, each by its own adapter; Super CAP is not.
 - The Automation Actor presses Get valuation through `pegasus_valuation_get`
   with the same account (operator, 8 October 2026); it is not a Glass's
   session ([ADR-0064](0064-automation-actor-staff-casework-parity.md)).

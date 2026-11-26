@@ -29,6 +29,13 @@ public sealed partial class MimeKitMailAsSentRenderer : IRenderMailAsSent
     /// <summary>The largest decoded picture inlined from the message.</summary>
     private const long MaximumInlineImageBytes = 8 * 1024 * 1024;
 
+    /// <summary>
+    /// The most decoded picture bytes one document inlines, counted once per
+    /// img written, since each reference carries the picture again. Pictures
+    /// past it are dropped, as an oversized one is.
+    /// </summary>
+    private const long MaximumInlinedBytesPerDocument = 2 * MaximumInlineImageBytes;
+
     /// <summary>How many blocks after a quoted header's start are searched for its Subject line.</summary>
     private const int HeaderSearchBlocks = 10;
 
@@ -767,9 +774,12 @@ public sealed partial class MimeKitMailAsSentRenderer : IRenderMailAsSent
         }
 
         /// <summary>
-        /// Whether the block is one of the quoted-header shapes the plain-text
-        /// splitter reads: a separator line, an "On … wrote:" line, or a From
-        /// line with a Sent or Date line in the same or one of the next two blocks.
+        /// Whether the block starts one of the quoted-header shapes the
+        /// plain-text splitter reads (FRD-20): a separator line, an "On …
+        /// wrote:" line, or Outlook's From, Sent and To lines, any Cc or Bcc,
+        /// then Subject (<see cref="StaffForwardBodyCleaner.ForwardedHeaderPattern"/>),
+        /// one field to a block. A letter heading such as "From:" over
+        /// "Date:" is not one, and stays in the text.
         /// </summary>
         private bool IsQuotedHeaderText(int index)
         {
@@ -784,18 +794,14 @@ public sealed partial class MimeKitMailAsSentRenderer : IRenderMailAsSent
                 return false;
             }
 
-            if (text.IndexOf("Sent:", 5, StringComparison.OrdinalIgnoreCase) >= 0
-                || text.IndexOf("Date:", 5, StringComparison.OrdinalIgnoreCase) >= 0)
+            var fields = new StringBuilder();
+            for (var next = index; next < blocks.Count && next < index + HeaderSearchBlocks; next++)
             {
-                return true;
-            }
-
-            for (var next = index + 1; next < blocks.Count && next <= index + 2; next++)
-            {
-                if (blocks[next].Text.StartsWith("Sent:", StringComparison.OrdinalIgnoreCase)
-                    || blocks[next].Text.StartsWith("Date:", StringComparison.OrdinalIgnoreCase))
+                fields.Append(blocks[next].Text).Append('\n');
+                if (blocks[next].Text.StartsWith("Subject:", StringComparison.OrdinalIgnoreCase))
                 {
-                    return true;
+                    var header = StaffForwardBodyCleaner.ForwardedHeaderPattern.Match(fields.ToString());
+                    return header.Success && header.Index == 0;
                 }
             }
 
@@ -833,11 +839,14 @@ public sealed partial class MimeKitMailAsSentRenderer : IRenderMailAsSent
 
     /// <summary>
     /// The pictures the message carries, inlined as data URIs when a cid
-    /// reference names one; each reference is resolved once.
+    /// reference names one; each reference is resolved once, and the bytes
+    /// written across the document are held to <see cref="MaximumInlinedBytesPerDocument"/>.
     /// </summary>
     private sealed class InlineImages(MimeMessage message)
     {
-        private readonly Dictionary<string, string?> resolved = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (string? Source, long Bytes)> resolved = new(StringComparer.Ordinal);
+
+        private long inlinedBytes;
 
         /// <summary>The source to write for an img, or null when the img is dropped.</summary>
         public string? Source(string? value)
@@ -864,30 +873,38 @@ public sealed partial class MimeKitMailAsSentRenderer : IRenderMailAsSent
                 resolved[url] = inlined;
             }
 
-            return inlined;
+            if (inlined.Source is null || inlinedBytes + inlined.Bytes > MaximumInlinedBytesPerDocument)
+            {
+                return null;
+            }
+
+            inlinedBytes += inlined.Bytes;
+            return inlined.Source;
         }
 
-        private string? Inline(string url)
+        private (string? Source, long Bytes) Inline(string url)
         {
             var contentId = Uri.UnescapeDataString(url[4..]).Trim().Trim('<', '>');
             var part = FindPart(message.Body, contentId, url);
             if (part?.Content is null || !InlineImageTypes.Contains(part.ContentType.MimeType))
             {
-                return null;
+                return (null, 0);
             }
 
             using var decoded = new MemoryStream();
             part.Content.DecodeTo(decoded);
             if (decoded.Length > MaximumInlineImageBytes)
             {
-                return null;
+                return (null, 0);
             }
 
-            return string.Concat(
-                "data:",
-                part.ContentType.MimeType.ToLowerInvariant(),
-                ";base64,",
-                Convert.ToBase64String(decoded.GetBuffer(), 0, (int)decoded.Length));
+            return (
+                string.Concat(
+                    "data:",
+                    part.ContentType.MimeType.ToLowerInvariant(),
+                    ";base64,",
+                    Convert.ToBase64String(decoded.GetBuffer(), 0, (int)decoded.Length)),
+                decoded.Length);
         }
 
         /// <summary>The part of the message's own body with the Content-ID, or the Content-Location, named.</summary>

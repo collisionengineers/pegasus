@@ -94,4 +94,13 @@ internal sealed class EfEstimateRecognitionCandidates(
     }
 
     public void Defer(Guid versionId) => deferred.Defer(versionId);
+
+    public Task RecordReadingAsync(
+        EstimateRecognitionCandidate candidate,
+        FiledEstimateReading reading,
+        CancellationToken cancellationToken) =>
+        StoreConcurrencyRetry.ExecuteAsync(
+            token => EfDocumentCustodyStore.RecordEstimateReadingOnceAsync(
+                dbContextFactory, timeProvider, candidate, reading, token),
+            cancellationToken);
 }

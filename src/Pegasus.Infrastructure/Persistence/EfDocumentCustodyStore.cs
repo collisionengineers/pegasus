@@ -9,6 +9,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -39,6 +40,9 @@ internal sealed class EfDocumentCustodyStore(
     internal const string OriginalReportRecordedEventKind = "original_report_recorded";
     /// <summary>The history word for a document's type changed to anything but Audit report.</summary>
     internal const string DocumentTypeSetEventKind = "case_document_type_set";
+
+    /// <summary>What a recognised Audatex estimate recorded on its Case (R1140, R1141, R1282).</summary>
+    internal const string EstimateReadEventKind = "estimate_read";
     private const string DocumentTypePolicyVersion = "document-type-v1";
     /// <summary>The two history words an image tag writes on the case.</summary>
     internal const string ImageTaggedEventKind = "case_image_tagged";
@@ -1066,6 +1070,148 @@ internal sealed class EfDocumentCustodyStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Records what a newly recognised Audatex estimate states on the Case it
+    /// is filed on (<see cref="IEstimateRecognitionCandidates.RecordReadingAsync"/>),
+    /// as system work that leaves whoever is editing their lease: the type
+    /// its header gives each of its files there that nobody typed
+    /// (<see cref="FiledEstimateTypePolicy"/>), and the Case's empty mileage,
+    /// on one history line (R1282), and its empty VIN, on the line every
+    /// filled VIN records (R1283). A Garage authorisation and invoice Audit
+    /// the new type ends the wait of is moved by the Worker's garage sweep,
+    /// as for every route but staff's own acts (R1196). The operation is the
+    /// version's, so it records once.
+    /// </summary>
+    internal static async Task RecordEstimateReadingOnceAsync(
+        IDbContextFactory<PegasusDbContext> dbContextFactory,
+        TimeProvider timeProvider,
+        EstimateRecognitionCandidate candidate,
+        FiledEstimateReading reading,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(reading);
+        var actor = ActionActor.SystemWorker(RecogniseFiledEstimates.ActorId);
+        var operationKey = $"estimate-read:{candidate.VersionId:N}";
+        var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            candidate.CaseId,
+            candidate.VersionId,
+            operationKey
+        }));
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await EfCaseWorkflowStore.AcquireWorkflowMutationLockAsync(context, candidate.CaseId, cancellationToken);
+        if (await CaseOperationReplay.FindAsync(
+                context, candidate.CaseId, operationKey, requestHash, cancellationToken))
+        {
+            return;
+        }
+
+        // A closed or archived Case, and a Triage Case, are not changed.
+        var authority = await CaseMutationGuard.LoadAsync(context, candidate.CaseId, cancellationToken);
+        if (authority?.Workflow is not { } workflow
+            || workflow.ArchivedAtUtc is not null
+            || CaseLifecycleRules.IsTerminal(LifecycleStateOf(workflow)))
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        if (authority.SystemWorkYields(now))
+        {
+            throw new IntakeDependencyUnavailableException(
+                "Estimate recognition is waiting for the Case editor.");
+        }
+
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleOrDefaultAsync(item => item.Id == candidate.VersionId, cancellationToken);
+        if (version is not { IsCurrent: true, IsLogicallyRemoved: false, CustodyStatus: DocumentCustodyStatus.Confirmed })
+        {
+            return;
+        }
+
+        var beforeVersion = workflow.Version;
+        var retyped = new List<(Guid Id, DocumentSemanticRole Before)>();
+        if (reading.HeaderType is { } headerType)
+        {
+            var caseKey = candidate.CaseId.ToString("D");
+            var occurrences = await context.Set<DocumentOccurrenceEntity>()
+                .Where(item => item.CaseId == candidate.CaseId && item.VersionId == version.Id)
+                .OrderBy(item => item.Ordinal)
+                .ToListAsync(cancellationToken);
+            foreach (var occurrence in occurrences.Where(item => item.SemanticRole != headerType))
+            {
+                // A Change type by staff or the Automation Actor names the
+                // occurrence in its history row (R204).
+                var occurrenceKey = occurrence.Id.ToString("D");
+                var typeChanged = await context.ActionHistory.AnyAsync(
+                    item => item.AggregateType == "case"
+                        && item.AggregateId == caseKey
+                        && item.EventKind == DocumentTypeSetEventKind
+                        && item.AfterJson != null
+                        && item.AfterJson.Contains(occurrenceKey),
+                    cancellationToken);
+                if (FiledEstimateTypePolicy.MayType(
+                        occurrence.Source, occurrence.SemanticRole, occurrence.SourceOccurrenceIdentity, typeChanged))
+                {
+                    retyped.Add((occurrence.Id, occurrence.SemanticRole));
+                    occurrence.SemanticRole = headerType;
+                }
+            }
+        }
+
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+        var filled = await FillMileageAsync(
+            context, workflow, workId, reading.Mileage,
+            snapshot => OriginalReportPrefillWriter.FillMileage(
+                snapshot, reading.Mileage, reading.MileageUnit, version.Id.ToString("D"), version.FileName,
+                FiledEstimateReading.MileagePolicyKey, FiledEstimateReading.MileagePolicyVersion),
+            now, cancellationToken);
+        if (retyped.Count > 0 || filled.Count > 0)
+        {
+            CaseMutationGuard.Advance(workflow);
+            CaseMutationHistory.Add(
+                context,
+                workflow,
+                actor,
+                operationKey,
+                FiledEstimateReading.HistoryLine(version.FileName),
+                EstimateReadEventKind,
+                requestHash,
+                beforeVersion,
+                workflow.Version,
+                JsonSerializer.Serialize(new
+                {
+                    Documents = retyped.Select(item => new { item.Id, SemanticRole = item.Before.ToString() }),
+                    Fields = filled.ToDictionary(item => item.Key, _ => (string?)null)
+                }),
+                JsonSerializer.Serialize(new
+                {
+                    Documents = retyped.Select(item => new { item.Id, SemanticRole = reading.HeaderType.ToString() }),
+                    Fields = filled
+                }),
+                "filed-estimate-reading-v1",
+                now);
+            // A Save prepared before the fill keeps the mileage it filled
+            // (EfVehicleLookupWorkStore.FilledCaseDataSinceAsync).
+            context.CaseWorkflowEvents.Local.Single(item =>
+                item.CaseId == workflow.CaseId
+                && item.OperationKey == operationKey).ResultJson = JsonSerializer.Serialize(new
+                {
+                    Facts = filled.Keys.ToArray()
+                });
+        }
+
+        await GlassVinFillWriter.ApplyAsync(
+            context, workflow, workId, reading.Vin, $"{operationKey}:vin", GlassVinFillWriter.EstimateReason,
+            now, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     /// <summary>The two types whose filing can end a Garage authorisation and invoice Audit's wait (R1141, R1144).</summary>
     private static bool EndsGarageWait(DocumentSemanticRole role) =>
         role is DocumentSemanticRole.ExternalEstimate or DocumentSemanticRole.RepairInvoice;
@@ -1174,16 +1320,35 @@ internal sealed class EfDocumentCustodyStore(
     /// itself when nothing else is missing. Only a Not ready Case is
     /// re-checked, so a Case past it is never sent back (R631).
     /// </summary>
-    private static async Task<Dictionary<string, string>> FillReportMileageAsync(
+    private static Task<Dictionary<string, string>> FillReportMileageAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         Guid workId,
         DocumentVersionEntity version,
         OriginalReportReading? reading,
         DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        FillMileageAsync(
+            context, workflow, workId, reading?.Mileage,
+            snapshot => OriginalReportPrefillWriter.FillMileage(
+                snapshot, reading, version.Id.ToString("D"), version.FileName),
+            now, cancellationToken);
+
+    /// <summary>
+    /// The fill <paramref name="fill"/> makes on the work's snapshot when the
+    /// document states a <paramref name="reading"/>, with the Not ready
+    /// re-check <see cref="FillReportMileageAsync"/> describes.
+    /// </summary>
+    private static async Task<Dictionary<string, string>> FillMileageAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        Guid workId,
+        long? reading,
+        Func<CaseDataSnapshotEntity, Dictionary<string, string>> fill,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        if (reading is not { Mileage: not null })
+        if (reading is null)
         {
             return new Dictionary<string, string>();
         }
@@ -1196,8 +1361,7 @@ internal sealed class EfDocumentCustodyStore(
             return new Dictionary<string, string>();
         }
 
-        var filled = OriginalReportPrefillWriter.FillMileage(
-            snapshot, reading, version.Id.ToString("D"), version.FileName);
+        var filled = fill(snapshot);
         if (filled.Count > 0
             && workId == workflow.CaseId
             && workflow.State == nameof(CaseLifecycleState.NotReady))
@@ -1742,9 +1906,9 @@ internal sealed class EfDocumentCustodyStore(
 
     /// <summary>
     /// The type an add filed <paramref name="occurrence"/> with. A later change
-    /// of type, or a Mark, keeps the type it replaced in its history, so the
-    /// first of those for the occurrence holds it; with none, the type is the
-    /// one filed. Read on every replayed add, so a replay naming the type a
+    /// of type, a Mark, or a filed estimate's reading keeps the type it
+    /// replaced in its history, so the first of those for the occurrence
+    /// holds it; with none, the type is the one filed. Read on every replayed add, so a replay naming the type a
     /// later change gave the occurrence still conflicts.
     /// </summary>
     private static async Task<DocumentSemanticRole> FiledRoleAsync(
@@ -1758,7 +1922,8 @@ internal sealed class EfDocumentCustodyStore(
             .Where(item => item.AggregateType == "case"
                 && item.AggregateId == caseId
                 && (item.EventKind == DocumentTypeSetEventKind
-                    || item.EventKind == OriginalReportRecordedEventKind)
+                    || item.EventKind == OriginalReportRecordedEventKind
+                    || item.EventKind == EstimateReadEventKind)
                 && item.BeforeJson != null
                 && item.BeforeJson.Contains(occurrenceId))
             .OrderBy(item => item.OccurredAtUtc)
@@ -1766,11 +1931,18 @@ internal sealed class EfDocumentCustodyStore(
             .ToListAsync(cancellationToken);
         foreach (var before in changes)
         {
-            if (JsonSerializer.Deserialize<RoleHistoryValue>(before) is { } value
-                && value.Id == occurrence.Id
-                && Enum.TryParse<DocumentSemanticRole>(value.SemanticRole, out var filed))
+            if (JsonSerializer.Deserialize<RoleHistoryValue>(before) is not { } change)
             {
-                return filed;
+                continue;
+            }
+
+            foreach (var value in change.Documents ?? [change])
+            {
+                if (value.Id == occurrence.Id
+                    && Enum.TryParse<DocumentSemanticRole>(value.SemanticRole, out var filed))
+                {
+                    return filed;
+                }
             }
         }
 
@@ -2057,6 +2229,13 @@ internal sealed class EfDocumentCustodyStore(
         string Name,
         string Colour);
 
-    /// <summary>The occurrence and type a change of type or a Mark writes as its before value.</summary>
-    private sealed record RoleHistoryValue(Guid Id, string? SemanticRole);
+    /// <summary>
+    /// The occurrence and type a change of type or a Mark writes as its before
+    /// value; a filed estimate's reading writes each it retyped in
+    /// <see cref="Documents"/>.
+    /// </summary>
+    private sealed record RoleHistoryValue(
+        Guid Id,
+        string? SemanticRole,
+        IReadOnlyList<RoleHistoryValue>? Documents = null);
 }

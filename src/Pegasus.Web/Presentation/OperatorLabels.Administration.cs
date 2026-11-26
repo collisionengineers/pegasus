@@ -727,9 +727,6 @@ public static partial class OperatorLabels
             "In-flight work remains visible and no result is discarded.";
 
         public const string SendToAi = "Send to AI";
-
-        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
-        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
@@ -754,6 +751,131 @@ public static partial class OperatorLabels
             "automation.jobs" => "AI jobs",
             "automation.send" => "Sending",
             _ => key
+        };
+    }
+
+    /// <summary>
+    /// The Integrations administration area's words (operator, 26 November
+    /// 2026; R1289): the automatic requests panel and one panel per
+    /// integration login. <see cref="Admin.Integrations"/> is the area's name;
+    /// the wording the staff Glass's credential dialog already gives is reused
+    /// from its owner.
+    /// </summary>
+    public static class Integrations
+    {
+        public const string AutomaticRequests = "Automatic requests";
+
+        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
+        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
+        public const string AutomaticBregoValuation = "Automatic Brego valuation";
+        public const string AutomaticCazanaValuation = "Automatic Cazana valuation";
+        public const string AutomaticCapValuation = "Automatic CAP valuation";
+        public const string AutomaticExperianCheck = "Automatic Experian check";
+        public const string SaveAutomatic = "Save automatic requests";
+        public const string AutomaticSaved = "Automatic requests saved.";
+
+        public const string Account = CaseWorkspaceLabels.GlassCredential.Account;
+        public const string Updated = CaseWorkspaceLabels.GlassCredential.Updated;
+        public const string NotSet = CaseWorkspaceLabels.GlassCredential.NotSet;
+        public const string Username = CaseWorkspaceLabels.GlassCredential.Username;
+        public const string Password = CaseWorkspaceLabels.GlassCredential.Password;
+        public const string Email = "E-mail";
+        public const string ClientIdentifier = AutomationAdmin.ClientIdentifier;
+        public const string ClientSecret = "Client secret";
+        public const string Save = CaseWorkspaceLabels.GlassCredential.Save;
+        public const string Saved = CaseWorkspaceLabels.GlassCredential.Saved;
+        public const string NotAccepted = CaseWorkspaceLabels.GlassCredential.NotAccepted;
+        public const string Expired = AutomationAdmin.Expired;
+
+        public const string UsernameRequired = CaseWorkspaceLabels.GlassCredential.UsernameRequired;
+        public const string PasswordRequired = CaseWorkspaceLabels.GlassCredential.PasswordRequired;
+        public const string EmailRequired = "Enter an e-mail address.";
+        public const string ClientIdentifierRequired = "Enter a client identifier.";
+        public const string ClientSecretRequired = "Enter a client secret.";
+
+        /// <summary>A stored login the key ring can no longer read.</summary>
+        public const string Unreadable = "The stored login cannot be read. Save it again.";
+
+        /// <summary>The heading of one login's panel.</summary>
+        public static string Heading(IntegrationLogin login) => login switch
+        {
+            IntegrationLogin.GlassValuation => "Glass's valuation account",
+            IntegrationLogin.Brego => "Brego valuation account",
+            IntegrationLogin.Cazana => "Cazana Companion account",
+            IntegrationLogin.ExperianHistory => "Experian vehicle history account",
+            IntegrationLogin.ExperianCap => "Experian CAP account",
+            _ => throw new ArgumentOutOfRangeException(nameof(login), login, "The integration login is unknown.")
+        };
+
+        /// <summary>The label of one value a login is made of.</summary>
+        public static string Field(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => Username,
+            IntegrationLoginField.Email => Email,
+            IntegrationLoginField.Password => Password,
+            IntegrationLoginField.ClientId => ClientIdentifier,
+            IntegrationLoginField.ClientSecret => ClientSecret,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
+        };
+
+        /// <summary>The refusal of one value left blank.</summary>
+        public static string Required(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => UsernameRequired,
+            IntegrationLoginField.Email => EmailRequired,
+            IntegrationLoginField.Password => PasswordRequired,
+            IntegrationLoginField.ClientId => ClientIdentifierRequired,
+            IntegrationLoginField.ClientSecret => ClientSecretRequired,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
+        };
+
+        // Signing the Brego account in (operator, 26 November 2026; R1290, #2180).
+        public const string SendBregoLink = "Send sign-in link";
+        public const string LinkBrego = "Link account";
+        public const string ConfirmBregoCode = "Confirm code";
+        public const string BregoSignInLink = "Sign-in link";
+        public const string BregoCode = "Code";
+        public const string BregoLinked = "Brego account linked.";
+        public const string BregoNoToken = "Paste the whole sign-in link.";
+        public const string BregoLinkRefused = "Brego rejected the link: it is used, expired or not the latest one sent.";
+        public const string BregoPasswordRefused = "Brego refused the password.";
+        public const string BregoCodeFormat = "A code is six digits.";
+        public const string BregoCodeRefused = "Brego refused the code.";
+        public const string BregoNoLinkWaiting = "No link is waiting for a code. Send a new sign-in link.";
+        public const string BregoUnreachable = "Brego could not be reached. Try again.";
+
+        // Signing in from Brego's own e-mail (operator, 26 November 2026; R1294, R1295).
+        public const string RefreshBregoLogin = "Refresh login";
+        public const string BregoMailNotArrived = "Brego's e-mail did not arrive. Try again.";
+        public const string BregoMailUnreadable = "Brego's e-mail could not be read. Try again.";
+
+        /// <summary>The notice after Send sign-in link, naming the account's address.</summary>
+        public static string BregoLinkSent(string email) =>
+            $"Brego e-mailed a sign-in link to {email}. It expires 15 minutes later.";
+
+        /// <summary>The code step's prompt, naming the address the waiting sign-in's code went to.</summary>
+        public static string BregoCodeSent(string email) =>
+            $"Brego e-mailed a six-digit code to {email}.";
+
+        /// <summary>
+        /// The sentence for a refused Brego step. In the password sign-in Brego
+        /// offering no sign-in reads as the password refused.
+        /// </summary>
+        public static string BregoRefusal(BregoLinkRefusal refusal, string email, bool passwordSignIn) => refusal switch
+        {
+            BregoLinkRefusal.NotOffered when passwordSignIn => BregoPasswordRefused,
+            BregoLinkRefusal.NotOffered => $"Brego did not offer a sign-in link for {email}.",
+            BregoLinkRefusal.NoToken => BregoNoToken,
+            BregoLinkRefusal.AnotherAccount => $"The link is for another account than {email}.",
+            BregoLinkRefusal.LinkRefused => BregoLinkRefused,
+            BregoLinkRefusal.PasswordRefused => BregoPasswordRefused,
+            BregoLinkRefusal.CodeFormat => BregoCodeFormat,
+            BregoLinkRefusal.CodeRefused => BregoCodeRefused,
+            BregoLinkRefusal.NoLinkWaiting => BregoNoLinkWaiting,
+            BregoLinkRefusal.Unreachable => BregoUnreachable,
+            BregoLinkRefusal.MailNotArrived => BregoMailNotArrived,
+            BregoLinkRefusal.MailUnreadable => BregoMailUnreadable,
+            _ => NotAccepted
         };
     }
 

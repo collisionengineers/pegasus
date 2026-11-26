@@ -1328,7 +1328,8 @@ public static partial class OperatorLabels
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
     /// and a VIN filled from a capture document Extracted, the agreed fee a new Case took from its Principal Principal,
-    /// the findings a linked Triage filled Triage, any other Automation
+    /// the findings a linked Triage filled Triage, the Vehicle history text the
+    /// automatic Experian check recorded Automatic (R1291), any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value and the Good pre-incident condition every Case starts with
     /// (R598) carry none.
@@ -1341,6 +1342,7 @@ public static partial class OperatorLabels
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
+        ActorKind.Automation when field.RecordedBy == AutomaticRequestPolicy.VehicleHistoryCheckActorId => SourceTagWord.Automatic,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null

@@ -152,7 +152,10 @@ Brego's session lives in the run's Azurite account, at
 storage (R933). Seed it once per run with production's cookie, so the instance
 never signs in through Brego's device-approval challenge. That challenge
 e-mails a verify-browser code, and a second session could sign production out.
-Never verify such a code for the instance. Once the run is started:
+Never verify such a code for the instance. From 26 November 2026 (R1288) the
+instance keeps the Brego account and its sign-in in its own database with the
+other integration logins; the blob below is read once, by the start-up import,
+while the Brego login is not yet set there. Once the run is started:
 
 ```bash
 manifest=artifacts/local-development/<run>/run-manifest.json
@@ -357,12 +360,14 @@ mailbox deactivated (R627), the copied subscription rows cleared (R678), the
 copied Principal API keys paused (R679), the copied pending
 answered-instruction and Delete case correspondence tidies closed (R680,
 R902) and the copied Glass's logins
-cleared (R708), so the instance subscribes under its own webhook,
+cleared (R708), and production's integration logins replaced by the
+instance's own, set aside before the publish (R1288), so the instance subscribes under its own webhook,
 authenticates no production key, moves only what its own sends answered and
 never tries to decrypt what production's key ring protects. The extract is removed once published, whether or not the publish succeeded,
 so the run database is the only copy of production on the machine (R696);
 the record `state/production-copy-<utc>.json` holds the extract's size and
-SHA-256, the migration head, the Case count and the five counts; `statementsCompleted:
+SHA-256, the migration head, the Case count, the five counts and
+`integrationLoginsKept`; `statementsCompleted:
 false` in it means the publish replaced the database but those statements did
 not run, and Start refuses the run until the copy is re-run. The copy carries
 production's mailbox rows and not the instance's, so `pegasustest@` is added

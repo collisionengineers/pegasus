@@ -435,15 +435,19 @@ public sealed class ImageViewingWebTests
 
     /// <summary>
     /// An SVG is a download, even when the viewer asks for it inline: it is an
-    /// image that executes script when navigated to.
+    /// image that executes script when navigated to. So is any image type
+    /// other than JPEG, PNG and WebP, because an intake file's type is the
+    /// one its sender declared: an XML type would render as a document.
     /// </summary>
     [Theory]
-    [InlineData("")]
-    [InlineData("?inline=true")]
-    public async Task AssetEndpointForcesSvgToDownload(string query)
+    [InlineData("diagram.svg", "image/svg+xml", "")]
+    [InlineData("diagram.svg", "image/svg+xml", "?inline=true")]
+    [InlineData("claim.pdf", "image/x+xml", "?inline=true")]
+    [InlineData("animation.gif", "image/gif", "?inline=true")]
+    public async Task AssetEndpointForcesSvgAndOtherImageTypesToDownload(string fileName, string mediaType, string query)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = WithAsset(baseFactory, new FixedAssetDownload("diagram.svg", "image/svg+xml", SvgContent));
+        using var factory = WithAsset(baseFactory, new FixedAssetDownload(fileName, mediaType, SvgContent));
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var response = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}{query}");

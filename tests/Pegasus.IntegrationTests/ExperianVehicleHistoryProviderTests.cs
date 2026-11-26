@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure.Experian;
 
@@ -98,6 +99,27 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.Equal(1, harness.TokenRequests);
 
         clock.UtcNow = Now.AddSeconds(61);
+        await harness.Provider.CheckAsync(Registration, default);
+        Assert.Equal(2, harness.TokenRequests);
+    }
+
+    /// <summary>
+    /// A replaced login is used on the next check: the token kept for the
+    /// login's old generation is not reused, however long it has left (R1288).
+    /// </summary>
+    [Fact]
+    public async Task ATokenKeptForAnOlderGenerationOfTheLoginIsNotReused()
+    {
+        long generation = 1;
+        var harness = Harness.Create(
+            vehicle: _ => Json(HttpStatusCode.OK, CleanVehicle),
+            account: _ => Task.FromResult(Account(generation)));
+
+        await harness.Provider.CheckAsync(Registration, default);
+        await harness.Provider.CheckAsync(Registration, default);
+        Assert.Equal(1, harness.TokenRequests);
+
+        generation = 2;
         await harness.Provider.CheckAsync(Registration, default);
         Assert.Equal(2, harness.TokenRequests);
     }
@@ -334,13 +356,11 @@ public sealed class ExperianVehicleHistoryProviderTests
     }
 
     [Fact]
-    public async Task AnUnresolvedSecretIsUnavailableBeforeAnyCall()
+    public async Task ALoginNotSetIsUnavailableBeforeAnyCall()
     {
         var harness = Harness.Create(
             vehicle: _ => Json(HttpStatusCode.OK, CleanVehicle),
-            account: () => ExperianAccount.Create(key => key == "Experian:HistoryAccount:Password"
-                ? "@Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/secrets/experian-password/1)"
-                : Setting(key), ExperianAccount.HistoryAccountSection));
+            account: _ => Task.FromResult(ExperianAccount.Create(null, Setting)));
 
         await Assert.ThrowsAsync<VehicleHistoryCheckUnavailableException>(() =>
             harness.Provider.CheckAsync(Registration, default));
@@ -348,7 +368,7 @@ public sealed class ExperianVehicleHistoryProviderTests
         Assert.Empty(harness.Requests);
         Assert.Contains(harness.Logger.Messages, message =>
             message.Contains("experian.history.configuration", StringComparison.Ordinal)
-            && message.Contains("Experian:HistoryAccount:Password", StringComparison.Ordinal));
+            && message.Contains("The Experian login is not set.", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -359,23 +379,46 @@ public sealed class ExperianVehicleHistoryProviderTests
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
             ExperianAccount.Create(
-                key => key == "Experian:BaseUri" ? baseUri : Setting(key),
-                ExperianAccount.HistoryAccountSection));
+                Login(),
+                key => key == "Experian:BaseUri" ? baseUri : Setting(key)));
 
         Assert.Equal("Experian:BaseUri must be an HTTPS Experian address.", exception.Message);
-        Assert.Equal(nameof(ExperianAccount), ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection).ToString());
+        Assert.Equal(nameof(ExperianAccount), Account(1).ToString());
+    }
+
+    [Fact]
+    public void TheAccountRefusesABlankOrControlValueAndAnotherIntegrationsLogin()
+    {
+        Assert.Throws<InvalidOperationException>(() => ExperianAccount.Create(
+            TestIntegrationLogins.Experian(IntegrationLogin.ExperianHistory, ClientId, " ", Username, Password),
+            Setting));
+        Assert.Throws<InvalidOperationException>(() => ExperianAccount.Create(
+            TestIntegrationLogins.Experian(IntegrationLogin.ExperianHistory, ClientId, ClientSecret, Username, "pass\nword"),
+            Setting));
+        Assert.Throws<InvalidOperationException>(() => ExperianAccount.Create(
+            TestIntegrationLogins.Glass(Username, Password),
+            Setting));
+
+        var account = ExperianAccount.Create(
+            TestIntegrationLogins.Experian(IntegrationLogin.ExperianHistory, $" {ClientId} ", ClientSecret, $" {Username} ", $" {Password} ", generation: 4),
+            Setting);
+        Assert.Equal(ClientId, account.ClientId);
+        Assert.Equal(Username, account.Username);
+        Assert.Equal($" {Password} ", account.Password);
+        Assert.Equal(4, account.Generation);
     }
 
     private static string? Setting(string key) => key switch
     {
         "Experian:BaseUri" => BaseUri,
         "Experian:TokenUri" => TokenUri,
-        "Experian:HistoryAccount:ClientId" => ClientId,
-        "Experian:HistoryAccount:ClientSecret" => ClientSecret,
-        "Experian:HistoryAccount:Username" => Username,
-        "Experian:HistoryAccount:Password" => Password,
         _ => null,
     };
+
+    private static Pegasus.Infrastructure.IntegrationLoginMaterial Login(long generation = 1) =>
+        TestIntegrationLogins.Experian(IntegrationLogin.ExperianHistory, ClientId, ClientSecret, Username, Password, generation);
+
+    private static ExperianAccount Account(long generation) => ExperianAccount.Create(Login(generation), Setting);
 
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         CazanaGuideValuationProviderTests.Json(status, body);
@@ -403,7 +446,7 @@ public sealed class ExperianVehicleHistoryProviderTests
         public static Harness Create(
             Func<HttpRequestMessage, HttpResponseMessage> vehicle,
             Func<HttpResponseMessage>? token = null,
-            Func<ExperianAccount>? account = null,
+            Func<CancellationToken, Task<ExperianAccount>>? account = null,
             TimeProvider? clock = null)
         {
             var requests = new List<RecordedRequest>();
@@ -424,7 +467,7 @@ public sealed class ExperianVehicleHistoryProviderTests
                                 ? token?.Invoke() ?? Json(HttpStatusCode.OK, Token)
                                 : vehicle(request);
                         })),
-                        account ?? (() => ExperianAccount.Create(Setting, ExperianAccount.HistoryAccountSection)),
+                        account ?? (_ => Task.FromResult(Account(1))),
                         clock ?? new MovingClock(Now)),
                     logger),
                 logger,

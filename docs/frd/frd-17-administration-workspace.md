@@ -4,12 +4,12 @@
 
 ## Short version
 
-- `/Administration` has fourteen areas: Accounts, Contacts, Workflow
+- `/Administration` has fifteen areas: Accounts, Contacts, Workflow
   configuration, Photo links (while photo capture is on), Mail settings,
-  E-mail templates, Valuation presets, Unroadworthy reasons, Service health,
-  Logs, Management Reports, Release notes, Problem reports and Automation &
-  AI, which holds the AI jobs list. Its Automation panels appear only when
-  composed.
+  E-mail templates, Valuation presets, Unroadworthy reasons, Integrations,
+  Service health, Logs, Management Reports, Release notes, Problem reports
+  and Automation & AI, which holds the AI jobs list. Its Automation panels
+  appear only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -42,13 +42,13 @@ estimates by
 configuration**, **Photo links** (while photo capture is on; operator, 10
 November 2026; [R911](../rulings.md)), **Mail settings**, **E-mail templates**,
 **Valuation presets**, **Unroadworthy reasons** (operator, 11 November 2026;
-[R952](../rulings.md)), **Service
+[R952](../rulings.md)), **Integrations** (operator, 26 November 2026;
+[R1289](../rulings.md)), **Service
 health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
 **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
 to AI switch
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch))
-and the Automatic Glass's valuation switch (R546),
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)),
 appear only when the Automation capability is composed; the AI jobs list
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
 is on it in every deployment, so the page is always listed. The former
@@ -372,6 +372,47 @@ Administrator to reload. **Remove** deletes the wording. Neither reaches a
 reason already recorded on a Case. Add, Save and Remove write no Action log
 entry.
 
+### Integrations
+
+**Integrations** (`/Administration/Integrations`), in the Configuration group
+after Unroadworthy reasons, is listed in every deployment (operator, 26
+November 2026; [R1289](../rulings.md)). It holds:
+
+- **Automatic requests**: five checkboxes, Automatic Glass's valuation,
+  Automatic Brego valuation, Automatic Cazana valuation, Automatic CAP
+  valuation and Automatic Experian check
+  ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources);
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md)), and one Save. A Save
+  writes a switch only when its checkbox differs from the stored state, so one
+  that changes nothing writes no history; each change is attributed and kept
+  in permanent history. The switches moved here from Automation & AI,
+  superseding R546's placement of the Glass's switch.
+- One panel per integration login, in this order: Glass's valuation, Brego,
+  Cazana, the Experian vehicle history check and Experian CAP
+  ([FRD-04](frd-04-parties-accounts-and-access.md); R1288). Each shows the
+  account and when it was last updated, and offers the login's fields, which
+  are only replaced: no stored value is shown back in them, and a password or
+  client secret typed into a refused form is not either. A login whose stored
+  value cannot be read says so and is saved again. A save made after another
+  Administrator's is not accepted. A panel is absent where the host does not
+  carry the integration.
+- The Brego valuation account (operator, 26 November 2026;
+  [R1290](../rulings.md), #2180) takes its e-mail and, optionally, its
+  password; saving it with a password signs the account in at once, and a
+  refusal is stated while the credential stays saved. Below the form, **Send
+  sign-in link** has Brego e-mail a sign-in link to the account, and the
+  pasted **Sign-in link** with **Link account** signs it in. When Brego asks
+  for a six-digit code, the panel shows where it was sent, a **Code** box and
+  **Confirm code**, only while a sign-in waits for one. The link, the code and
+  the password are never shown back. These controls are absent until the
+  account's e-mail is saved, and where the host does not carry the sign-in.
+  Where the host can read the account's mailbox, **Refresh login**, above
+  them, signs the account in from Brego's e-mail in one press, and saving the
+  e-mail without a password does the same; Send sign-in link, the pasted link
+  and the typed code remain as the fallback (operator, 26 November 2026;
+  [R1294](../rulings.md)). Refresh login is absent where this host's
+  composition cannot read the mailbox.
+
 ### Service health
 
 **Service health** (`/Administration/Health`) is Administration only and
@@ -610,13 +651,15 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the fourteen areas and their routes, the on-click actions
+Acceptance covers the fifteen areas and their routes, the on-click actions
 without confirmation (Delete access confirms), the Action logs actor
 resolution and filter, the Intake log columns and actions, the six workflow
 settings and their ranges, and the Management Reports with each report's CSV
 and the workbook, the period choices and the invalid period, the Case list's
 downloads and refusals, preset create, save and remove, and unroadworthy
-reason wording add, reword, remove and the stale refusal. Authenticated Web
+reason wording add, reword, remove and the stale refusal, and the
+Integrations switches' one Save and each login's replacement and refusals,
+with no typed value shown back. Authenticated Web
 tests cover server-owned behaviour. Deployment and live acceptance are
 separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

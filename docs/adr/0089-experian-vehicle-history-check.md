@@ -104,6 +104,13 @@ names each account's users.
   unavailable rather than stopping the host.
 - Neither the credentials, the token nor the registration reaches a URL or
   log. The registration travels in the body.
+- Amended 26 November 2026 (R1288): the two accounts are no longer deployment
+  configuration. Each is held in the database, protected with the Web host's
+  key ring, and replaced by an Administrator
+  ([ADR-0091](0091-integration-logins-in-the-database.md)); a kept token is
+  used only while the account is the one it was issued to. The eight account
+  settings are read once by that release's import and removed in the next;
+  the two addresses stay settings.
 
 **One answer for every failure.** A refusal, a gateway 404, a malformed
 answer, the network or a missing setting all answer the approved

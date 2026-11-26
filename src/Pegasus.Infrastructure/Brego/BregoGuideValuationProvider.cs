@@ -9,9 +9,9 @@ namespace Pegasus.Infrastructure.Brego;
 /// <summary>
 /// Brego as a connected guide source (ADR-0084): Get valuation signs in with
 /// Collision Engineers' Brego valuation account by renewing its Cognito
-/// tokens from the refresh token stored when the account was linked by
-/// <c>scripts/Connect-BregoAccount.ps1</c> (reusing the active BFF session
-/// across calls so Brego's single-web-session limit is respected),
+/// tokens from the refresh token stored with the account when it was linked
+/// (reusing the active BFF session across calls so Brego's single-web-session
+/// limit is respected, until the account is replaced or linked again),
 /// looks up the Case's registration and queries a point-in-time valuation at
 /// its accepted mileage, and answers Brego's <c>retail.high</c> as the card's
 /// retail and <c>trade.high</c> as the card's trade. The quote carries the
@@ -35,12 +35,31 @@ namespace Pegasus.Infrastructure.Brego;
 /// says that instead. The account is read on each valuation, never when the
 /// provider is built, and neither the refresh token nor the session tokens or
 /// cookies ever reach a URL or log. An account with no stored refresh token
-/// is unavailable at stage <c>sign_in</c> without calling Brego.
+/// signs in with its saved password, as does one whose refresh token Cognito
+/// refuses (R1290); without a password the first is unavailable at stage
+/// <c>sign_in</c> without calling Brego and the second at
+/// <c>cognito_refresh</c>. A refused password is unavailable at stage
+/// <c>password</c>, and a login not set is unavailable as configuration.
+/// </para>
+///
+/// <para>
+/// <b>Also by itself</b> (R1295). Where this host can read the account's own
+/// mailbox (<see cref="MailSignIn"/>, R1294), a press that finds the sign-in
+/// gone (no refresh token and no password, or a refresh token Cognito refuses
+/// and no password) asks Brego for a sign-in link and redeems it from the
+/// mailbox, and one that meets Brego asking to approve the device enters the
+/// code Brego e-mails; then the valuation goes on. It is tried at most once a
+/// press, under the same lock as every sign-in, so concurrent presses wait
+/// for one repair rather than each asking Brego. A failed repair is
+/// unavailable at <c>mail_link</c> or <c>mail_code</c> and keeps nothing; a
+/// repaired sign-in is stored as an Administrator's link is, by the system
+/// recorder. Where the mailbox cannot be read nothing is asked of Brego and
+/// the stages are as before.
 /// </para>
 /// </summary>
 public sealed partial class BregoGuideValuationProvider(
     IHttpClientFactory httpClientFactory,
-    Func<BregoValuationAccount> account,
+    Func<CancellationToken, Task<BregoValuationAccount>> account,
     TimeProvider timeProvider,
     ILogger<BregoGuideValuationProvider> logger,
     IBregoSessionStore? sessionStore = null) : IGuideValuationProvider, IDisposable
@@ -51,6 +70,12 @@ public sealed partial class BregoGuideValuationProvider(
     private BregoSession? _session;
 
     public ValuationSource Source => ValuationSource.Brego;
+
+    /// <summary>
+    /// Brego's sign-in mail where this host can read the account's mailbox
+    /// (R1294, R1295); none where Graph is not composed.
+    /// </summary>
+    internal BregoMailSignIn? MailSignIn { get; init; }
 
     public void Dispose() => _sessionLock.Dispose();
 
@@ -70,10 +95,12 @@ public sealed partial class BregoGuideValuationProvider(
                 throw new BregoFailure("mileage", null, "unit=unreadable");
             }
 
-            var signIn = account();
+            var signIn = await account(cancellationToken);
             var client = new BregoClient(httpClientFactory.CreateClient(HttpClientName));
             var vrm = Vrm(request.Registration);
-            var (session, canRetry) = await GetSessionAsync(client, signIn, forceRefresh: false, cancellationToken);
+            var repair = new BregoRepairAttempt();
+            var (session, canRetry) = await GetSessionAsync(
+                client, signIn, forceRefresh: false, cancellationToken, repair: repair);
             BregoVehicle vehicle;
             BregoFigures figures;
             try
@@ -83,7 +110,8 @@ public sealed partial class BregoGuideValuationProvider(
             }
             catch (BregoFailure failure) when (canRetry && failure.Status == HttpStatusCode.Unauthorized)
             {
-                (session, _) = await GetSessionAsync(client, signIn, forceRefresh: true, cancellationToken, staleSession: session);
+                (session, _) = await GetSessionAsync(
+                    client, signIn, forceRefresh: true, cancellationToken, staleSession: session, repair: repair);
                 vehicle = await client.LookupAsync(session, vrm, cancellationToken);
                 figures = await client.ValueAsync(session, vehicle, valuationDate, miles, cancellationToken);
             }
@@ -125,7 +153,8 @@ public sealed partial class BregoGuideValuationProvider(
         BregoValuationAccount signIn,
         bool forceRefresh,
         CancellationToken cancellationToken,
-        BregoSession? staleSession = null)
+        BregoSession? staleSession = null,
+        BregoRepairAttempt? repair = null)
     {
         var current = Volatile.Read(ref _session);
         if (!forceRefresh && IsReusable(current, signIn))
@@ -143,22 +172,22 @@ public sealed partial class BregoGuideValuationProvider(
                 return (current!, true);
             }
 
-            // The refresh token and cookie come from the store first: the
-            // account may have been linked again since this host signed in,
-            // and the new link must be used without a restart. Only when the
-            // store holds nothing for the account, or cannot be read, does
-            // the session this host already holds supply them. A 401 from the
-            // platform mints a new session: the cookie is left behind, the
-            // refresh token is not.
+            // The refresh token and cookie come from the account first: it is
+            // read with its stored sign-in on each valuation, so a link made
+            // since this host signed in is used without a restart. Only when
+            // the account holds none does the session this host already holds
+            // for the same generation supply them. A 401 from the platform
+            // mints a new session: the cookie is left behind, the refresh
+            // token is not.
             string? refreshToken = null;
             string? existingSessionCookie = null;
-            if (sessionStore is not null
-                && await sessionStore.TryLoadAsync(signIn.Email, cancellationToken) is { } stored)
+            if (!string.IsNullOrWhiteSpace(signIn.RefreshToken))
             {
-                refreshToken = stored.RefreshToken;
-                existingSessionCookie = stored.BregoSessionCookie;
+                refreshToken = signIn.RefreshToken;
+                existingSessionCookie = signIn.SessionCookie;
             }
             else if (current is not null
+                && current.Generation == signIn.Generation
                 && string.Equals(current.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(current.RefreshToken))
             {
@@ -166,23 +195,79 @@ public sealed partial class BregoGuideValuationProvider(
                 existingSessionCookie = current.BregoSessionCookie;
             }
 
+            // With no usable sign-in, an account with a saved password signs
+            // in with it (R1290); one without signs in again from Brego's
+            // e-mail where the mailbox can be read (R1295), and is otherwise
+            // linked on the Integrations page, its valuations unavailable
+            // until it is.
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
+                if (signIn.Password is not null)
+                {
+                    return (await PasswordSessionAsync(client, signIn, repair, cancellationToken), false);
+                }
+
+                if (await RepairWithAsync(signIn, repair, cancellationToken) is { } mail)
+                {
+                    return (await LinkSessionAsync(client, mail, signIn, cancellationToken), false);
+                }
+
                 throw new BregoFailure("sign_in", null, "refresh_token=absent");
             }
 
-            var created = await client.SignInAsync(
-                signIn.Email,
-                refreshToken,
-                timeProvider,
-                cancellationToken,
-                forceRefresh ? null : existingSessionCookie);
-            if (sessionStore is not null
+            var codeByMail = false;
+            BregoSession signedIn;
+            try
+            {
+                signedIn = await client.SignInAsync(
+                    signIn.Email,
+                    refreshToken,
+                    timeProvider,
+                    cancellationToken,
+                    forceRefresh ? null : existingSessionCookie,
+                    async (tokens, token) =>
+                    {
+                        var since = timeProvider.GetUtcNow() - DeviceCodeSlack;
+                        if (await RepairWithAsync(signIn, repair, token) is not { } mail)
+                        {
+                            return false;
+                        }
+
+                        if (!await mail.ApproveByMailAsync(client, signIn.Email, tokens, since, token))
+                        {
+                            throw new BregoFailure(BregoMailSignIn.CodeStage, null, BregoMailSignIn.CodeNotConfirmed);
+                        }
+
+                        codeByMail = true;
+                        return true;
+                    });
+            }
+            catch (BregoFailure failure) when (failure.Stage == "cognito_refresh" && failure.Forbidden)
+            {
+                if (signIn.Password is not null)
+                {
+                    return (await PasswordSessionAsync(client, signIn, repair, cancellationToken), false);
+                }
+
+                if (await RepairWithAsync(signIn, repair, cancellationToken) is { } mail)
+                {
+                    return (await LinkSessionAsync(client, mail, signIn, cancellationToken), false);
+                }
+
+                throw;
+            }
+
+            var created = signedIn with { Generation = signIn.Generation };
+            if (codeByMail)
+            {
+                await StoreRestoredAsync(signIn, created, cancellationToken);
+            }
+            else if (sessionStore is not null
                 && (!created.ReusedSessionCookie
                     || !string.Equals(created.RefreshToken, refreshToken, StringComparison.Ordinal)))
             {
                 await sessionStore.TrySaveAsync(
-                    signIn.Email,
+                    signIn.Generation,
                     new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
                     cancellationToken);
             }
@@ -196,8 +281,130 @@ public sealed partial class BregoGuideValuationProvider(
         }
     }
 
+    /// <summary>
+    /// Signs in with the account's saved password (R1290) on a device Brego
+    /// has approved, mints a new <c>brego-session</c> and stores the sign-in
+    /// for the next press. A device Brego wants a code for is unavailable at
+    /// <c>device_approval</c>: the code is entered on the Integrations page,
+    /// never here, and nothing of this sign-in is kept.
+    /// </summary>
+    private async Task<BregoSession> PasswordSessionAsync(
+        BregoClient client,
+        BregoValuationAccount signIn,
+        BregoRepairAttempt? repair,
+        CancellationToken cancellationToken)
+    {
+        var tokens = await client.PasswordSignInAsync(signIn.Email, signIn.Password!, timeProvider, cancellationToken);
+        var since = timeProvider.GetUtcNow() - DeviceCodeSlack;
+        var codeByMail = false;
+        if (!await client.IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken))
+        {
+            // Brego has e-mailed a code: read it where the mailbox can be
+            // read (R1295); otherwise it is entered on the Integrations page.
+            if (await RepairWithAsync(signIn, repair, cancellationToken) is not { } mail)
+            {
+                throw new BregoFailure("device_approval", null, "device=challenge_required");
+            }
+
+            if (!await mail.ApproveByMailAsync(client, signIn.Email, tokens, since, cancellationToken))
+            {
+                throw new BregoFailure(BregoMailSignIn.CodeStage, null, BregoMailSignIn.CodeNotConfirmed);
+            }
+
+            codeByMail = true;
+        }
+
+        var minted = await client.MintSessionAsync(signIn.Email, tokens, timeProvider, cancellationToken);
+        var created = minted with { Generation = signIn.Generation };
+        if (codeByMail)
+        {
+            await StoreRestoredAsync(signIn, created, cancellationToken);
+        }
+        else if (sessionStore is not null)
+        {
+            await sessionStore.TrySaveAsync(
+                signIn.Generation,
+                new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
+                cancellationToken);
+        }
+
+        Volatile.Write(ref _session, created);
+        return created;
+    }
+
+    /// <summary>
+    /// The lost sign-in signed in again from Brego's e-mail (R1295): Brego is
+    /// asked for a link, the link is read from the mailbox and redeemed, and a
+    /// device Brego wants a code for is approved with the code it e-mails.
+    /// A link or code that does not arrive fails at <c>mail_link</c> or
+    /// <c>mail_code</c>, and nothing is kept.
+    /// </summary>
+    private async Task<BregoSession> LinkSessionAsync(
+        BregoClient client,
+        BregoMailSignIn mail,
+        BregoValuationAccount signIn,
+        CancellationToken cancellationToken)
+    {
+        var tokens = await mail.SignInAsync(client, signIn.Email, null, cancellationToken);
+        var since = timeProvider.GetUtcNow() - DeviceCodeSlack;
+        if (!await client.IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken)
+            && !await mail.ApproveByMailAsync(client, signIn.Email, tokens, since, cancellationToken))
+        {
+            throw new BregoFailure(BregoMailSignIn.CodeStage, null, BregoMailSignIn.CodeNotConfirmed);
+        }
+
+        var minted = await client.MintSessionAsync(signIn.Email, tokens, timeProvider, cancellationToken);
+        var created = minted with { Generation = signIn.Generation };
+        await StoreRestoredAsync(signIn, created, cancellationToken);
+        Volatile.Write(ref _session, created);
+        return created;
+    }
+
+    /// <summary>
+    /// The mail sign-in this press may repair with: once a press, and only
+    /// where a reader is composed and the account's mailbox can be read, so a
+    /// host that cannot read it asks nothing of Brego.
+    /// </summary>
+    private async Task<BregoMailSignIn?> RepairWithAsync(
+        BregoValuationAccount signIn,
+        BregoRepairAttempt? repair,
+        CancellationToken cancellationToken)
+    {
+        if (MailSignIn is not { } mail || repair is null || repair.Used)
+        {
+            return null;
+        }
+
+        repair.Used = true;
+        return await mail.CanReadAsync(signIn.Email, cancellationToken) ? mail : null;
+    }
+
+    private async Task StoreRestoredAsync(
+        BregoValuationAccount signIn,
+        BregoSession created,
+        CancellationToken cancellationToken)
+    {
+        LogRestored(logger);
+        if (sessionStore is not null)
+        {
+            await sessionStore.TryStoreRestoredSignInAsync(
+                signIn.Generation,
+                new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
+                cancellationToken);
+        }
+    }
+
+    // As BregoMailSignIn.Since: Brego's code is e-mailed when the approval is read.
+    private static readonly TimeSpan DeviceCodeSlack = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// A session this host holds serves the next press only while it is for
+    /// the account's current generation: a replaced or newly linked account is
+    /// used on the next press, not when the old session expires (R1288).
+    /// </summary>
     private bool IsReusable(BregoSession? session, BregoValuationAccount signIn) =>
         session is not null
+        && session.Generation == signIn.Generation
         && string.Equals(session.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
         && timeProvider.GetUtcNow() < session.ExpiresAtUtc;
 
@@ -260,6 +467,11 @@ public sealed partial class BregoGuideValuationProvider(
     };
 
     [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Brego's sign-in was restored from Brego's e-mail by the system recorder")]
+    private static partial void LogRestored(ILogger logger);
+
+    [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "Brego valuation for case {CaseId} in {GuideMonth} was unavailable at {FailureCode} {Detail}")]
     private static partial void LogUnavailable(
@@ -278,4 +490,10 @@ public sealed partial class BregoGuideValuationProvider(
         public const string Configuration = "brego.valuation.configuration";
         public const string MileageUnit = "brego.valuation.mileage_unit";
     }
+}
+
+/// <summary>One Get valuation press's single attempt at repairing Brego's sign-in from its e-mail (R1295).</summary>
+internal sealed class BregoRepairAttempt
+{
+    public bool Used { get; set; }
 }

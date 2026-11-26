@@ -469,7 +469,8 @@ subscription rows (R678), pauses the copied Principal API credentials (R679)
 closes the copied pending answered-instruction and Delete case
 correspondence tidies (R680, R902) and clears the
 copied per-user external credentials, which production's key ring protects
-(R708); without
+(R708), and puts back the instance's own integration logins in place of
+production's, which it could not read (R1288); without
 `-Approve` it prints the source, target and statements and stops, and with it
 the extract is a live production read under the operator's own `az` sign-in,
 into the instance's run on its host alone, and the extract is removed once
@@ -1089,58 +1090,87 @@ cannot then be the first to find the gap.
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
-The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, `Brego:ValuationAccount:Email` and the ten `Experian:*` keys among its Production
+The Web host lists the four `Glass:*` keys and the two `Experian:*`
+addresses (`Experian:BaseUri`, `Experian:TokenUri`) among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
-The Glass's valuation account is the one Glass's login held
-in deployment configuration: the release operator creates its two secrets in
-the deployment vault and grants the Web identity secret-read access at each
-secret's scope, and Bicep hands the Web App Key Vault references to them. The
-Cazana Companion account, the Brego valuation account's e-mail and the two Experian accounts are held the same way:
-`cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
-and `experian-history-client-id`, `-client-secret`,
-`-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. Each
-staff member's own Glass's account name and password, used for the repair
-estimate, are entered by an Administrator on that staff account's Glass's page
-and are held protected per staff account, never in deployment configuration.
+The Glass's valuation, Cazana Companion, Brego and two Experian accounts are
+integration logins held in the database, which an Administrator replaces on
+Administration > Integrations (26 November 2026, R1288,
+[ADR-0091](adr/0091-integration-logins-in-the-database.md)); none is a
+required setting. Their Key Vault secrets (`glass-valuation-username`,
+`-password`, `cazana-companion-email`, `-password`, `brego-valuation-email`,
+and `experian-history-client-id`, `-client-secret`, `-username` and
+`-password` with the same four under `experian-cap-`) and the Web App's
+references to them stay deployed for one release, whose start-up imports each
+login not yet set from them; the next release removes them (#2177, #2163).
+Each staff member's own Glass's account name and password, used for the
+repair estimate, are entered by an Administrator on that staff account's
+Glass's page and are held protected per staff account, never in deployment
+configuration.
 
 ## Linking the Brego valuation account
 
-Brego signs the valuation account in by an e-mailed link, not a password
-([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md), R1231).
-A host keeps itself signed in from the refresh token in
-`authentication-ring/brego-session.json`; a person links the account once,
-and again whenever Brego ends that sign-in. The sign of that is every Get
-valuation for Brego answering unavailable, with a `brego.valuation.` line at
-`stage=cognito_refresh` or `stage=sign_in` in the Web log.
+Brego signs the valuation account in by an e-mailed link
+([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md), R1231),
+and also by password when the account has one (R1290). A host keeps itself
+signed in from the refresh token stored with the account in the database; an
+Administrator links the account once, and again whenever Brego ends that
+sign-in. The sign of that is every Get valuation for Brego answering
+unavailable, with a `brego.valuation.` line in the Web log at
+`stage=sign_in` (nothing stored) or `stage=cognito_refresh` (Brego refused the
+stored sign-in).
 
-`scripts/Connect-BregoAccount.ps1` does it, from a workstation, with someone at
-the account's mailbox. Nothing is sent or written without `-Approve`.
+It is done on Administration > Integrations, at the Brego valuation account.
+No Azure sign-in or storage role is needed.
 
-1. `-Step RequestLink -Email <account>`: Brego e-mails a link that expires 15
-   minutes later.
-2. `-Step Redeem -Email <account> -Target Production -Link '<the whole link>'`:
-   redeems the link, has the host's device approved, mints the one-year Brego
-   session and writes the file. If Brego e-mails a six-digit code, the script
-   asks for it. Run without a terminal, it stops with exit 3 instead: request
-   a new link and redeem that one with `-Code <code>`.
-3. Press Get valuation for Brego on a Case. No restart is needed.
+Refresh login first (R1294). Pegasus signs in with the saved password, or asks
+Brego for a sign-in link and reads it from the account's own mailbox, and
+enters the six-digit code Brego e-mails when it asks to approve Pegasus's
+device; it waits up to 30 seconds for each e-mail. "Brego's e-mail did not
+arrive" means the link was sent but not seen in time: try again, or paste the
+link from the mailbox (step 2 below). If the code does not arrive, the page
+asks for it (step 3).
 
-Production needs the signed-in Azure CLI account to hold Storage Blob Data
-Contributor on the `authentication-ring` container of the custody account for
-the run; the container also holds the data-protection keys, so the assignment
-is scoped to it and removed afterwards.
+"Brego's e-mail could not be read" means the host's Graph identity has no
+Exchange access to the account's mailbox, and nothing was asked of Brego. That
+access is an Exchange change the operator approves, not a Pegasus setting; the
+test instance's Graph registration has it, production's Web identity does not
+until that change is made. Until then use the fallback, with someone at the
+account's mailbox:
 
-Brego keeps one web session for an account, so the test instance shares
-production's sign-in when it uses the same account: name both in one Redeem
-(`-Target Production, TestInstance -RunManifestPath <run>/run-manifest.json`).
-Linking the two in separate runs makes each end the other's session.
+1. Send sign-in link: Brego e-mails a link that expires 15 minutes later.
+2. Link account: paste the whole link from the e-mail. A link for another
+   e-mail address than the account's is refused without being used.
+3. If Brego e-mails a six-digit code to approve Pegasus's device, the page asks
+   for it: Confirm code. The sign-in waits for the code until the sign-in's
+   access token expires; after that, send a new link.
 
-A browser sign-in to Brego with the same account can end a host's session. The
-host then mints a new one itself while its device stays approved; when Brego
-asks for a code instead, link the account again.
+The next Get valuation uses the new sign-in; no restart is needed. Where the
+mailbox can be read, a Get valuation that finds the sign-in gone, or Brego
+asking for a code, signs in again from Brego's e-mail by itself, once per
+press (R1295); a failed attempt shows as `stage=mail_link` (the link did not
+arrive) or `stage=mail_code` (the code did not arrive or was refused) in the
+Web log, and a repaired one as an `integration_login_linked` history row by
+`brego-sign-in`.
+
+With a Brego password saved, Pegasus signs in with it by itself whenever it
+holds no usable sign-in: saving the account with a password signs in at once,
+and a host whose stored sign-in is refused signs in with the password at the
+next Get valuation. The link stays for an account without a password. A
+refused password shows as `stage=password` in the Web log; a device Brego
+wants a code for as `stage=device_approval` where the mailbox cannot be read,
+and the code is then entered on the page (Refresh login, save the password
+again, or link the account, to have Brego send one).
+
+Brego keeps one web session for an account, so production and the test
+instance, each linked on its own page with the same account, may end each
+other's session; what happens with two separately linked hosts is being
+checked (R1292). A browser sign-in to Brego with the same account can end a
+host's session too. The host then mints a new one itself while its device
+stays approved; when Brego asks for a code instead, the host reads it from the
+mailbox where it can, and otherwise Refresh login or link the account again.
 
 ## Monitoring and diagnosis
 

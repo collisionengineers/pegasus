@@ -76,11 +76,28 @@ internal static class OriginalReportPrefillWriter
         CaseDataSnapshotEntity snapshot,
         OriginalReportReading? reading,
         string sourceIdentity,
-        string sourceLabel)
+        string sourceLabel) =>
+        FillMileage(
+            snapshot, reading?.Mileage, reading?.MileageUnit, sourceIdentity, sourceLabel,
+            OriginalReportPrefillPolicy.MileagePolicyKey, OriginalReportPrefillPolicy.MileagePolicyVersion);
+
+    /// <summary>
+    /// The same fill from any document that states a reading: a filed
+    /// estimate's (R1141) records its own <paramref name="policyKey"/>.
+    /// </summary>
+    public static Dictionary<string, string> FillMileage(
+        CaseDataSnapshotEntity snapshot,
+        long? reading,
+        string? readingUnit,
+        string sourceIdentity,
+        string sourceLabel,
+        string policyKey,
+        int policyVersion)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         var filled = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (reading is not { Mileage: { } mileage, MileageUnit: { } unit }
+        if (reading is not { } mileage
+            || readingUnit is not { } unit
             || !Fills(snapshot, CaseDataFieldNames.VehicleMileage))
         {
             return filled;
@@ -107,8 +124,8 @@ internal static class OriginalReportPrefillWriter
                 SourceKind = CaseDataCodes.IntakeEvidence,
                 SourceIdentity = sourceIdentity,
                 SourceLabel = sourceLabel,
-                PolicyKey = OriginalReportPrefillPolicy.MileagePolicyKey,
-                PolicyVersion = OriginalReportPrefillPolicy.MileagePolicyVersion
+                PolicyKey = policyKey,
+                PolicyVersion = policyVersion
             });
             filled[fieldName] = value;
         }

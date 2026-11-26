@@ -26,7 +26,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// and Garage figures becomes a last rule "If Outcome is Repairable, then Add
 /// a Case task" (R1270). A text already in the new shape is left as it is, so
 /// the statement may run twice, and an old rule naming a condition kind this
-/// does not know stops it. Non-additive and forward only: the old shape is not
+/// does not know, or adding and removing the same Cc address (which the built
+/// rules refuse, so the Principal could not be read), stops it. Non-additive and forward only: the old shape is not
 /// kept and no reader for it remains.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
@@ -64,6 +65,16 @@ public partial class SendingRulesAreBuilt : Migration
                             N'ClaimSource', N'Repairer', N'Mentions', N'SenderNot',
                             N'Outcome', N'CaseType', N'RefPrefix', N'PreviousJob'))))
             THROW 50000, N'A Principal''s report sending rules name a match or condition kind the restatement does not know; restate that rule on the Principal contact before migrating.', 1;
+
+        IF EXISTS (
+            SELECT 1
+            FROM [dbo].[Principals] AS [p]
+            CROSS APPLY OPENJSON([p].[ReportSendingRulesJson], N'$.rules') AS [r]
+            CROSS APPLY OPENJSON([r].[value], N'$.then.ccAdd') AS [added]
+            CROSS APPLY OPENJSON([r].[value], N'$.then.ccRemove') AS [removed]
+            WHERE JSON_QUERY([p].[ReportSendingRulesJson], N'$.everyCase') IS NULL
+                AND LOWER(LTRIM(RTRIM([added].[value]))) = LOWER(LTRIM(RTRIM([removed].[value]))))
+            THROW 50000, N'A Principal''s report sending rule both adds and removes the same Cc address, which a built rule refuses; take it out of one of the two on the Principal contact before migrating.', 1;
 
         IF COL_LENGTH(N'dbo.Principals', N'SendFromMailbox') IS NULL
             ALTER TABLE [dbo].[Principals] ADD [SendFromMailbox] nvarchar(320) NULL;
