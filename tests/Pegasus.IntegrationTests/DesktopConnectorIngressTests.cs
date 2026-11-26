@@ -50,7 +50,7 @@ public sealed class DesktopConnectorIngressTests
             Assert.Equal(nameof(StaffRole.Engineer), who.GetProperty("role").GetString());
             Assert.Equal(
                 AutomationMcp.Scopes,
-                who.GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString()).ToArray());
+                who.GetProperty("scopes").EnumerateArray().Select(scope => scope.GetString()!).ToArray());
         }
 
         using (var list = await PostMcpAsync(desktop, token, ToolsListPayload(2)))
