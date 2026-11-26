@@ -25,9 +25,13 @@ public sealed partial class IndexModel(
     GetAdministrationAiJobs getJobs,
     CancelAiJob cancelJob,
     ISendToAiControl sendToAi,
-    Pegasus.Core.Assessment.IAutomaticGuideValuationControl automaticValuation,
+    Pegasus.Core.Assessment.IAutomaticRequestControl automaticValuation,
     ILogger<IndexModel> logger) : AdministrationPageModel
 {
+    // The one automatic request switch this panel carries (R546).
+    private const Pegasus.Core.Assessment.AutomaticRequestKind GlassesValuation =
+        Pegasus.Core.Assessment.AutomaticRequestKind.GlassesValuation;
+
     /// <summary>
     /// The one registered Automation client (ADR-0011), and the page's test
     /// for whether the automation ingress is composed at all: null means the
@@ -168,9 +172,11 @@ public sealed partial class IndexModel(
                     cancellationToken);
             }
 
-            if (await automaticValuation.IsEnabledAsync(cancellationToken) != AutomaticGlassValuationEnabled)
+            if (await automaticValuation.IsEnabledAsync(GlassesValuation, cancellationToken)
+                != AutomaticGlassValuationEnabled)
             {
                 await automaticValuation.SetEnabledAsync(
+                    GlassesValuation,
                     AutomaticGlassValuationEnabled,
                     actor,
                     reason: null,
@@ -242,7 +248,7 @@ public sealed partial class IndexModel(
         // from the stored state; ModelState still wins for a redisplayed AI
         // settings form.
         SendToAiEnabled = Jobs.SendToAiSwitchEnabled;
-        AutomaticGlassValuationEnabled = await automaticValuation.IsEnabledAsync(cancellationToken);
+        AutomaticGlassValuationEnabled = await automaticValuation.IsEnabledAsync(GlassesValuation, cancellationToken);
     }
 
     private AutomationClientRegistry? Registry() =>

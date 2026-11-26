@@ -53,6 +53,10 @@ public sealed class SourceTagLabelTests
         Assert.Equal(
             new OperatorLabels.SourceTagWord("Principal", ""),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, PrincipalDefaultFeePolicy.RecorderId)));
+        // The Vehicle history text the automatic Experian check recorded (R1291).
+        Assert.Equal(
+            new OperatorLabels.SourceTagWord("Automatic", ""),
+            OperatorLabels.SourceTag(Recorded(ActorKind.Automation, AutomaticRequestPolicy.VehicleHistoryCheckActorId)));
         Assert.Equal(
             new OperatorLabels.SourceTagWord("AI", "ai"),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, "pegasus-automation")));
