@@ -188,6 +188,7 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(PhotoLinksModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(IntegrationsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
     }
 
     [Theory]
