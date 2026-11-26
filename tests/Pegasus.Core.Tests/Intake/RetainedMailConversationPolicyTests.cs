@@ -12,6 +12,7 @@ public sealed class RetainedMailConversationPolicyTests
     private const string Jane = "jane@example.com";
     private const string Desk = "desk@collisionengineers.co.uk";
     private const string Staff = "alex@collisionengineers.co.uk";
+    private const string OriginalHash = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
 
     private static readonly DateTimeOffset Start = new(2026, 11, 2, 9, 0, 0, TimeSpan.Zero);
 
@@ -191,6 +192,68 @@ public sealed class RetainedMailConversationPolicyTests
     [Fact]
     public void NoKeptMessagesIsAnEmptyConversation() =>
         Assert.Empty(RetainedMailConversationPolicy.Build([]));
+
+    /// <summary>
+    /// A received message offers its view as sent when its original is kept
+    /// with its receipt, unless it is known to have no HTML part; a sent one
+    /// only when it is known to have one (R1277, R1279).
+    /// </summary>
+    [Theory]
+    [InlineData(RetainedMailDirection.Received, true, null, true)]
+    [InlineData(RetainedMailDirection.Received, true, true, true)]
+    [InlineData(RetainedMailDirection.Received, true, false, false)]
+    [InlineData(RetainedMailDirection.Received, false, true, false)]
+    [InlineData(RetainedMailDirection.Sent, false, true, true)]
+    [InlineData(RetainedMailDirection.Sent, true, null, false)]
+    [InlineData(RetainedMailDirection.Sent, false, false, false)]
+    public void AKeptMessageOffersItsViewAsSentByItsDirectionReceiptAndFormatting(
+        RetainedMailDirection direction,
+        bool hasReceipt,
+        bool? hasHtmlBody,
+        bool offers)
+    {
+        var message = Kept(0, Jane, "The message.", direction) with
+        {
+            IntakeReceiptId = hasReceipt ? Guid.NewGuid() : null,
+            HasHtmlBody = hasHtmlBody,
+            SourceSha256 = OriginalHash
+        };
+
+        var row = Assert.Single(RetainedMailConversationPolicy.Build([message]));
+
+        Assert.Equal(offers, row.OffersAsSent);
+        Assert.Equal(offers ? OriginalHash : null, row.AsSentVersion);
+    }
+
+    [Fact]
+    public void AQuotedMessageNeverOffersAViewAsSent()
+    {
+        var answer = Kept(
+            60,
+            Jane,
+            "Thursday is fine.\n\n" + Block("Desk", Desk, "02 November 2026 16:00", "Which day suits you?")) with
+        {
+            IntakeReceiptId = Guid.NewGuid(),
+            HasHtmlBody = true,
+            SourceSha256 = OriginalHash
+        };
+
+        var stack = RetainedMailConversationPolicy.Build([answer]);
+
+        Assert.Collection(
+            stack,
+            quoted =>
+            {
+                Assert.Equal(RetainedMailDirection.Quoted, quoted.Direction);
+                Assert.False(quoted.OffersAsSent);
+                Assert.Null(quoted.AsSentVersion);
+            },
+            kept =>
+            {
+                Assert.True(kept.OffersAsSent);
+                Assert.Equal(OriginalHash, kept.AsSentVersion);
+            });
+    }
 
     private static KeptConversationMessage Kept(
         int minutes,

@@ -6997,6 +6997,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<bool?>("HasHtmlBody")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ImmutableMessageId")
                         .IsRequired()
                         .HasMaxLength(500)

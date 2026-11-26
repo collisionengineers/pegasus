@@ -2169,6 +2169,14 @@
         field.value = following ? following.getAttribute('data-mail-row') : '';
     }, true);
 
+    // The opened message's view as sent takes its height once it has loaded,
+    // so the opened message is brought to the top of the body again then.
+    mount.addEventListener('pegasus:mail-sent-shown', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        var dialog = dialogShown();
+        if (dialog && !dialog.hidden && target && target.closest('[data-mail-opened]')) { reveal(dialog); }
+    });
+
     if (workspace) {
         // The ticked count is the bare number; Correct classification opens its
         // dialog only while something is ticked (a post with nothing ticked writes nothing).
@@ -2219,6 +2227,159 @@
         }
         load(url.toString());
     }
+})();
+
+// --- An e-mail as sent (v54 D5 to D8; R1277, R1280) ---------------------------
+// A message whose original has formatting opens as it was sent: the record
+// draws its plain text and an empty holder naming the view's address, and
+// this frames the view there once the message is unfolded, in the dialog and
+// on the /Inbox/{id} page alike. The frame runs no script; its document is
+// read from here (same origin, sandboxed) to size the frame to it and to tell
+// a view from the empty answer of a message with no formatting. Until the
+// view has shown, the switch stays hidden; where it cannot show (no
+// formatting, the original unreadable, an error, or nothing in 15 seconds)
+// the plain text stays and there is no switch. Without script the plain text
+// is all there is.
+(function () {
+    'use strict';
+    var WAIT_MS = 15000;
+
+    function documentOf(frame) {
+        try { return frame.contentDocument; } catch (error) { return null; }
+    }
+    function isBlank(doc) { return !!doc && doc.URL === 'about:blank'; }
+    // A view is the rendered document, whose links open a new tab; the empty
+    // answer, a status page or a sign-in page is not.
+    function isView(doc) {
+        return !!doc && !isBlank(doc) && !!doc.documentElement
+            && doc.documentElement.getAttribute('data-mail-as-sent') !== 'none'
+            && !!doc.querySelector('base[target="_blank"]');
+    }
+
+    // The frame is as tall as its document, so only the dialog's body scrolls.
+    // A document that overflows its frame is measured by its scroll height,
+    // one that fits by its own box; a wide one's scroll bar is added.
+    function fit(frame) {
+        var doc = documentOf(frame);
+        var root = doc ? doc.documentElement : null;
+        var view = frame.contentWindow;
+        if (!root || !view || frame.getClientRects().length === 0) { return; }
+        var height = root.scrollHeight > root.clientHeight
+            ? root.scrollHeight
+            : Math.ceil(root.getBoundingClientRect().height);
+        var next = Math.max(1, height + Math.max(0, view.innerHeight - root.clientHeight)) + 'px';
+        if (frame.style.height !== next) { frame.style.height = next; }
+    }
+
+    // Pictures still arriving, and a change of width, size the frame again.
+    function watch(frame, doc) {
+        var refit = function () { fit(frame); };
+        Array.prototype.forEach.call(doc.images, function (image) {
+            if (!image.complete) {
+                image.addEventListener('load', refit);
+                image.addEventListener('error', refit);
+            }
+        });
+        if (typeof window.ResizeObserver === 'function') {
+            var width = -1;
+            new window.ResizeObserver(function () {
+                if (frame.clientWidth === width) { return; }
+                width = frame.clientWidth;
+                refit();
+            }).observe(frame);
+        }
+        window.requestAnimationFrame(refit);
+    }
+
+    function start(holder) {
+        var message = holder.closest('[data-mail-msg]');
+        var text = message ? message.querySelector('[data-mail-text]') : null;
+        var button = message ? message.querySelector('[data-mail-format]') : null;
+        var src = holder.getAttribute('data-mail-sent-src');
+        if (!text || !src) { return; }
+
+        var frame = document.createElement('iframe');
+        frame.className = 'mail-sent-frame';
+        frame.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.title = holder.getAttribute('data-mail-sent-title') || '';
+        var state = 'waiting';
+        var timer = 0;
+
+        function none() {
+            if (state !== 'waiting') { return; }
+            state = 'none';
+            window.clearTimeout(timer);
+            frame.remove();
+            holder.removeAttribute('aria-busy');
+            holder.hidden = true;
+            text.hidden = false;
+        }
+
+        function shown(doc) {
+            state = 'shown';
+            window.clearTimeout(timer);
+            holder.removeAttribute('aria-busy');
+            fit(frame);
+            watch(frame, doc);
+            if (button) {
+                button.hidden = false;
+                button.addEventListener('click', function () {
+                    // Pressed while plain text shows; the title names the view a press shows.
+                    var plain = button.getAttribute('aria-pressed') !== 'true';
+                    holder.hidden = plain;
+                    text.hidden = !plain;
+                    button.setAttribute('aria-pressed', String(plain));
+                    button.title = (plain
+                        ? button.getAttribute('data-mail-format-as-sent')
+                        : button.getAttribute('data-mail-format-plain')) || '';
+                    if (!plain) { fit(frame); }
+                });
+            }
+            holder.dispatchEvent(new CustomEvent('pegasus:mail-sent-shown', { bubbles: true }));
+        }
+
+        frame.addEventListener('load', function () {
+            var doc = documentOf(frame);
+            if (state === 'shown') { fit(frame); return; }
+            if (state !== 'waiting' || isBlank(doc)) { return; }
+            if (isView(doc)) { shown(doc); } else { none(); }
+        });
+        frame.addEventListener('error', none);
+        // A view whose document has arrived shows while its pictures still
+        // load; anything else by then is the plain text.
+        timer = window.setTimeout(function () {
+            var doc = documentOf(frame);
+            if (state === 'waiting' && isView(doc) && doc.readyState !== 'loading') { shown(doc); } else { none(); }
+        }, WAIT_MS);
+
+        // The view waits with the viewer's spinner in place of the plain text.
+        holder.setAttribute('aria-busy', 'true');
+        frame.src = src;
+        holder.appendChild(frame);
+        holder.hidden = false;
+        text.hidden = true;
+    }
+
+    function bindAsSent(root) {
+        root.querySelectorAll('[data-mail-sent]').forEach(function (holder) {
+            if (holder.dataset.mailSentBound === 'true') { return; }
+            holder.dataset.mailSentBound = 'true';
+            var details = holder.closest('details');
+            if (!details || details.open) {
+                start(holder);
+                return;
+            }
+            // A folded message frames its view the first time it is unfolded.
+            details.addEventListener('toggle', function opened() {
+                if (!details.open) { return; }
+                details.removeEventListener('toggle', opened);
+                start(holder);
+            });
+        });
+    }
+    bindAsSent(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindAsSent);
 })();
 
 // ===========================================================================

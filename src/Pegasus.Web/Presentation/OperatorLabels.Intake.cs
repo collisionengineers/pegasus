@@ -448,6 +448,14 @@ public static partial class OperatorLabels
         /// </summary>
         public const string PreviewUnavailable = "Preview unavailable";
 
+        /// <summary>
+        /// A message's two views (R1277, R1280): as it was sent, with its
+        /// formatting, and its plain text. The small switch on the message
+        /// names the view it switches to.
+        /// </summary>
+        public const string AsSent = "As sent";
+        public const string PlainText = "Plain text";
+
         /// <summary>A file's Type by how it is shown; null for a kind that has no Type word.</summary>
         public static string? FileType(Pegasus.Core.Documents.CaseDocumentPreviewKind kind) => kind switch
         {

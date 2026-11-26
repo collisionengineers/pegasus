@@ -201,6 +201,24 @@
 .mail-text { max-width: 72ch; color: var(--ink); font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
 .mail-text p { margin: 0 0 12px; }
 .mail-text p:last-child { margin-bottom: 0; }
+/* v54 D5 to D8 (R1277, R1280): a message shown as sent is one white sheet
+   with a hairline border, the width of the message, no mat around it. Its
+   recipients line shares a line with the small switch to plain text, which
+   is pressed while plain text shows. The sheet waits with the viewer's spinner. */
+.mail-msg-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mail-msg-meta:not(:has(> :not([hidden]))) { display: none; }
+.mail-msg-meta .mail-to { min-width: 0; margin-bottom: 0; padding-top: 7px; }
+.mail-format { flex: 0 0 auto; width: 32px; height: 32px; margin-left: auto; }
+.mail-format .icon { width: 15px; height: 15px; }
+.mail-msg-meta .mail-format[aria-pressed="true"] { background: var(--navy-bg); color: var(--navy); }
+.mail-sent { position: relative; }
+.mail-sent[aria-busy="true"] { min-height: 64px; }
+.mail-sent[aria-busy="true"]::after {
+  content: ""; position: absolute; top: 16px; left: 50%; width: 2rem; height: 2rem; margin-left: -1rem;
+  border: 3px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: pegasus-spin .9s linear infinite;
+}
+.mail-sent-frame { display: block; box-sizing: content-box; width: calc(100% - 2px); border: 1px solid var(--line); background: var(--surface); }
+.mail-sent[aria-busy="true"] > .mail-sent-frame { height: 0; visibility: hidden; }
 /* A message's files as rows under it: glyph, name, Type and size, then View and Download (v54 D10). */
 .mail-files { max-width: 72ch; margin-top: 18px; border-top: 1px solid var(--line, #d2d8db); }
 .mail-file {
@@ -228,6 +246,7 @@
 }
 @media (forced-colors: active) {
   .mail-msg--opened { border-left: 3px solid CanvasText; }
+  .mail-msg-meta .mail-format[aria-pressed="true"] { outline: 2px solid CanvasText; }
 }
 @media (max-width: 760px) {
   .inbox-layout.pane-layout--2 { grid-template-columns: minmax(0, 1fr); }

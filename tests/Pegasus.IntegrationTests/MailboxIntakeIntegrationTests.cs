@@ -1843,6 +1843,9 @@ public sealed class MailboxIntakeIntegrationTests
                 cancellationToken);
         }
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            inner.ReadByHashAsync(contentHash, cancellationToken);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>

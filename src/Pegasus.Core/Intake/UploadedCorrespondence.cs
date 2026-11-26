@@ -55,7 +55,8 @@ public static class UploadedCorrespondence
                 email.Subject,
                 email.BodyPlainText,
                 email.Attachments,
-                IsRead: false),
+                IsRead: false,
+                HasHtmlBody: email.HasHtmlBody),
             retainedAtUtc,
             MailFolderScope.Upload);
     }

@@ -400,6 +400,42 @@ public sealed class AzureBlobIntakeArtifactStoreTests
     }
 
     [Fact]
+    public async Task ReadByHashReadsTheContentAddressedBlobAndAnAbsentOneIsNull()
+    {
+        var content = "kept original"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(content));
+        var kept = new StubBlobClient(
+            $"sha256/{hash[..2]}/{hash}",
+            hash,
+            content.Length,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            new ETag("\"etag-1\""))
+        {
+            Body = content,
+            ServesContent = true
+        };
+        var missingHash = new string('B', 64);
+        var missing = new StubBlobClient(
+            $"sha256/BB/{missingHash}",
+            missingHash,
+            0,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            new ETag("\"etag-2\""))
+        {
+            DownloadFailure = new RequestFailedException(404, "Blob not found.")
+        };
+        var store = CreateStore(new StubBlobContainerClient(kept, missing));
+
+        var read = await store.ReadByHashAsync(hash.ToLowerInvariant(), CancellationToken.None);
+
+        Assert.True(read.HasValue);
+        Assert.Equal(content, read.Value.ToArray());
+        Assert.Null(await store.ReadByHashAsync(missingHash, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task QuarantineStoreOfANewBlobUploadsOnceAndDoesNotReadItBack()
     {
         var content = "quarantined bytes"u8.ToArray();
@@ -734,6 +770,9 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal int UploadCount { get; private set; }
         internal RequestFailedException? UploadFailure { get; set; }
         internal byte[] Body { get; init; } = [];
+
+        /// <summary>A whole-content download returns <see cref="Body"/>; otherwise it is refused.</summary>
+        internal bool ServesContent { get; init; }
         internal int DeleteCount { get; private set; }
         internal int ReadCount { get; private set; }
 
@@ -915,6 +954,14 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             if (DownloadFailure is not null)
             {
                 throw DownloadFailure;
+            }
+            if (ServesContent)
+            {
+                return Task.FromResult(Response.FromValue(
+                    BlobsModelFactory.BlobDownloadResult(
+                        BinaryData.FromBytes(Body),
+                        BlobsModelFactory.BlobDownloadDetails(contentLength: Body.Length)),
+                    new StubResponse()));
             }
             throw new InvalidOperationException(
                 "Inventory and disposition operations must not download blob bodies.");

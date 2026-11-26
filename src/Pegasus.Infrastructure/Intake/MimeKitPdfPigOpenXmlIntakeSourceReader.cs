@@ -1677,7 +1677,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             display.Attachments ?? [],
             display.ThreadIdentity,
             message.Date == DateTimeOffset.MinValue ? null : message.Date,
-            ReplyIdentities(message, display.InReplyToIdentities));
+            ReplyIdentities(message, display.InReplyToIdentities),
+            display.HasHtmlBody);
     }
 
     /// <summary>

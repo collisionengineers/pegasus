@@ -115,6 +115,186 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// A message as sent (v54 D5 to D8; R1277, R1280) is its own document under
+    /// its own policy: no script, no form, pictures and inline styles only,
+    /// framed by Pegasus alone and sandboxed. A message whose original cannot be
+    /// read (a seeded message keeps none) is the empty answer, never kept by the
+    /// browser; an unknown message is 404 and an actor with no role is refused.
+    /// </summary>
+    [Fact]
+    public async Task AMessageAsSentIsItsOwnSandboxedDocumentAndTheEmptyAnswerWithoutAnOriginal()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Inbox/{messageId:D}/AsSent");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("utf-8", response.Content.Headers.ContentType?.CharSet);
+        Assert.Equal(
+            "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; "
+            + "form-action 'none'; base-uri 'none'; frame-ancestors 'self'; "
+            + "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox",
+            Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        Assert.Equal("noindex", Assert.Single(response.Headers.GetValues("X-Robots-Tag")));
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.True(response.Headers.CacheControl.Private);
+        Assert.Null(response.Headers.ETag);
+        var document = await response.Content.ReadAsStringAsync();
+        Assert.Equal(
+            "<!DOCTYPE html><html data-mail-as-sent=\"none\"><head><meta charset=\"utf-8\"></head><body></body></html>",
+            document);
+
+        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}/AsSent");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        using var rolelessRequest = new HttpRequestMessage(HttpMethod.Get, $"/Inbox/{messageId:D}/AsSent");
+        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
+        using var roleless = await client.SendAsync(rolelessRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    /// <summary>
+    /// A kept original with formatting answers its rendered document: whole,
+    /// with no script, named by its version, kept by the browser for a week
+    /// when its address carries <c>v</c> and checked again when it does not,
+    /// and not sent again to a browser that holds it.
+    /// </summary>
+    [Fact]
+    public async Task AMessageWithFormattingAnswersItsRenderedDocumentNamedByItsVersion()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        _ = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 0);
+        var original = Encoding.UTF8.GetBytes("""
+            From: A Sender <sender@example.invalid>
+            To: intake@collisionengineers.co.uk
+            Subject: Formatted instruction
+            Message-ID: <formatted-0@example.invalid>
+            MIME-Version: 1.0
+            Content-Type: multipart/alternative; boundary="part"
+
+            --part
+            Content-Type: text/plain; charset=utf-8
+
+            Please inspect the vehicle at the address supplied.
+            --part
+            Content-Type: text/html; charset=utf-8
+
+            <html><body><p>Please <b>inspect</b> the vehicle at the address supplied.</p><script>alert(1)</script><a href="https://example.invalid/claim">Claim</a></body></html>
+            --part--
+
+            """.ReplaceLineEndings("\r\n"));
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            _ = await scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>()
+                .StoreAsync(hash, original, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "formatted-0",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}formatted-0",
+                    NowUtc.AddMinutes(-5),
+                    original.Length,
+                    hash,
+                    new(
+                        "inbox",
+                        $"conversation-{FirstMailboxId}-formatted",
+                        "<formatted-0@example.invalid>",
+                        [],
+                        "sender@example.invalid",
+                        "A Sender",
+                        ["intake@collisionengineers.co.uk"],
+                        [],
+                        ["sender@example.invalid"],
+                        "Formatted instruction",
+                        "Please inspect the vehicle at the address supplied.",
+                        [],
+                        IsRead: false,
+                        HasHtmlBody: true),
+                    NowUtc),
+                CancellationToken.None);
+        }
+        var messageId = await MessageIdAsync(factory, FirstMailboxId, "formatted-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var kept = await client.GetAsync($"/Inbox/{messageId:D}/AsSent?v={hash}");
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        Assert.Equal("text/html", kept.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(
+            "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; "
+            + "form-action 'none'; base-uri 'none'; frame-ancestors 'self'; "
+            + "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox",
+            Assert.Single(kept.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("nosniff", Assert.Single(kept.Headers.GetValues("X-Content-Type-Options")));
+        var document = await kept.Content.ReadAsStringAsync();
+        Assert.StartsWith("<!DOCTYPE html>", document, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script", document, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-mail-as-sent=\"none\"", document, StringComparison.Ordinal);
+        Assert.Contains("inspect", document, StringComparison.Ordinal);
+        var etag = kept.Headers.ETag;
+        Assert.NotNull(etag);
+        Assert.True(kept.Headers.CacheControl!.Private);
+        Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl.MaxAge);
+
+        using var unversioned = await client.GetAsync($"/Inbox/{messageId:D}/AsSent");
+        Assert.Equal(HttpStatusCode.OK, unversioned.StatusCode);
+        Assert.True(unversioned.Headers.CacheControl!.NoCache);
+        Assert.Null(unversioned.Headers.CacheControl.MaxAge);
+        Assert.Equal(etag, unversioned.Headers.ETag);
+
+        using var revalidation = new HttpRequestMessage(HttpMethod.Get, $"/Inbox/{messageId:D}/AsSent?v={hash}");
+        revalidation.Headers.IfNoneMatch.Add(etag);
+        using var held = await client.SendAsync(revalidation);
+        Assert.Equal(HttpStatusCode.NotModified, held.StatusCode);
+    }
+
+    /// <summary>
+    /// A received message kept with its receipt offers its view as sent (v54
+    /// D5, D6): the record keeps its plain text and adds the holder naming the
+    /// view's address and the small switch, both hidden until the script shows
+    /// the view. A message no receipt holds offers neither.
+    /// </summary>
+    [Fact]
+    public async Task AMessageKeptWithItsOriginalOffersItsViewAsSentBesideItsPlainText()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        // ids[0] is the newer message, kept as identity -1; only it has a receipt.
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        foreach (var path in new[] { $"/Inbox/{ids[0]:D}?handler=Dialog", $"/Inbox/{ids[0]:D}" })
+        {
+            var html = await GetHtmlAsync(client, path);
+            var offered = Between(html, $"data-mail-msg=\"{ids[0]:D}\"", "</details>");
+            Assert.Contains($"data-mail-sent-src=\"/Inbox/{ids[0]:D}/AsSent", offered, StringComparison.Ordinal);
+            Assert.Matches("<div class=\"mail-sent\" data-mail-sent[^>]*\\shidden", offered);
+            Assert.Contains($"data-mail-sent-title=\"{OperatorLabels.Inbox.AsSent}\"", offered, StringComparison.Ordinal);
+            var button = Regex.Match(offered, "<button[^>]*data-mail-format[^>]*>").Value;
+            Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.PlainText}\"", button, StringComparison.Ordinal);
+            Assert.Contains("aria-pressed=\"false\"", button, StringComparison.Ordinal);
+            Assert.Contains($"title=\"{OperatorLabels.Inbox.PlainText}\"", button, StringComparison.Ordinal);
+            Assert.Contains($"data-mail-format-as-sent=\"{OperatorLabels.Inbox.AsSent}\"", button, StringComparison.Ordinal);
+            Assert.Matches("\\shidden>$", button);
+            Assert.Contains("icon-text", offered, StringComparison.Ordinal);
+            // The plain text is still in the response, shown.
+            Assert.Contains("<div class=\"mail-text\" data-mail-text>", offered, StringComparison.Ordinal);
+            Assert.Contains("Please inspect the vehicle at the address supplied.", offered, StringComparison.Ordinal);
+
+            var plain = Between(html, $"data-mail-msg=\"{ids[1]:D}\"", "</details>");
+            Assert.DoesNotContain("data-mail-sent", plain, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-mail-format", plain, StringComparison.Ordinal);
+            Assert.Contains("Please inspect the vehicle at the address supplied.", plain, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// C08: the workspace contract says mailbox/folder/search/queue/unread/
     /// sort/page are URL and retained-query state only — opening, filtering or
     /// changing the unread scope never reaches Outlook or writes
