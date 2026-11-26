@@ -123,7 +123,7 @@ public sealed partial class ConnectorActorTableTests
             .Where(path => !IsBuildOutputOrGenerated(source, path))
             .Select(path => (
                 File: Path.GetRelativePath(source, path).Replace(Path.DirectorySeparatorChar, '/'),
-                Count: ActorKindAutomationName().Matches(File.ReadAllText(path)).Count))
+                Count: ActorKindAutomationName().Count(File.ReadAllText(path))))
             .Where(found => found.Count > pinned.GetValueOrDefault(found.File))
             .Select(found => $"{found.File}: {found.Count} (listed {pinned.GetValueOrDefault(found.File)})")
             .Order(StringComparer.Ordinal)
