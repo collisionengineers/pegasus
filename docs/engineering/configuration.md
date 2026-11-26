@@ -168,7 +168,11 @@ Cognito refresh token and the `brego-session` cookie) kept and renewed beside
 it. The account is linked on Administration > Integrations, by its e-mailed
 sign-in link or its saved password and the six-digit code Brego e-mails when
 it asks to approve the device; no setting, script or storage role is involved
-([runbook](../runbook.md#linking-the-brego-valuation-account)).
+([runbook](../runbook.md#linking-the-brego-valuation-account)). Where the Web
+composes its Graph mail reads, Refresh login and a Get valuation that finds
+the sign-in gone read Brego's sign-in e-mail from the account's own mailbox
+(R1294, R1295), which needs the host's Graph identity to have Exchange access
+to that mailbox; it adds no setting.
 `DevelopmentOffline` composes no Brego valuation unless
 `Features:LiveGuideValuation` is set, so its Brego card says the source is
 unavailable.

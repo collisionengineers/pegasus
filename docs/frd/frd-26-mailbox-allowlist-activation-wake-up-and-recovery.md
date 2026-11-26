@@ -62,6 +62,13 @@ mailbox: one held in instructions@ is answered from the mailbox that
 forwarded it (operator, 3 November 2026; R651, R652; [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)). Mail settings (`/Administration/Mailboxes`) shows the
 two as checkboxes under **Used for**.
 
+The Brego valuation account's own mailbox is read for Brego's sign-in mail
+only: messages from Brego's sender received after Pegasus asked Brego for a
+sign-in. It is not on the allowlist and is never Incoming or Outgoing;
+nothing in it is taken into intake, and nothing in it is changed (operator,
+26 November 2026; R1294;
+[ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
+
 The accepted intake target is four business mailboxes:
 `instructions@collisionengineers.co.uk` (the first caller, INT-02),
 `desk@collisionengineers.co.uk` (INT-05),

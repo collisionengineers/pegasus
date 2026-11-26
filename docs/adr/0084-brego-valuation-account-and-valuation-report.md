@@ -158,6 +158,40 @@ password on a device Brego wants a code for is unavailable at
 page. No token, password, link or code reaches a URL, a log line, a history
 row or an exception message.
 
+Amended 26 November 2026 ([R1294](../rulings.md), [R1295](../rulings.md)):
+Pegasus reads Brego's sign-in e-mail itself. Brego mails the account's own
+address, so the Web reads that mailbox's Inbox over its existing Graph reads
+(`GraphBregoSignInMailReader` behind `IBregoSignInMailReader`, composed only
+where the Web composes Graph): it lists the newest ten messages, reads those
+received since Pegasus asked Brego for a sign-in, and accepts only a message
+whose one From address is `noreply@brego.io`, whose Subject is exactly
+`Brego - Your sign-in link` or `Brego - Verify this browser`, and whose
+topmost Authentication-Results header says `dmarc=pass`. The link is taken
+from the HTML, decoded, never from Brego's click-tracking link, and only for
+the account's own e-mail address; the code is the one six-digit number in the
+visible text. The mailbox is not an approved mailbox
+([FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe)):
+nothing in it is marked read, moved, deleted or taken into intake. Refresh
+login on the Integrations page signs in with the saved password, or asks for
+a link and reads it, polling every 2 seconds for at most 30, and reads the
+code the same way when Brego asks to approve the device; the paste and code
+boxes stay as the fallback, and every page sign-in reads the code from the
+mailbox before it waits for one. Before anything is asked of Brego the
+mailbox is checked: a host that cannot read it asks nothing, so Brego sends
+no e-mail nobody reads. A Get valuation that finds the sign-in gone (no
+refresh token, or one Cognito refuses, and no password) or meets
+`challenge_required` repairs it the same way by itself, at most once a press
+and under the provider's one sign-in lock, so concurrent presses wait for one
+repair; a repaired sign-in is stored as a link is, under the next
+generation, with an `integration_login_linked` history row by the system
+recorder `brego-sign-in`. A failed repair keeps nothing, no sign-in waiting
+for a code included, and is unavailable at `mail_link` (the link did not
+arrive or the mailbox stopped being readable) or `mail_code` (the code did not
+arrive or was refused). Production's Web identity has no Exchange access to
+the account's mailbox until the operator approves that Exchange change, so
+there this works only once it is made; the test instance's Graph
+registration can read it already.
+
 **The month is a date.** Brego values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and
 answered as the current month, matching Cazana ([ADR-0079](0079-cazana-companion-account-and-companion-report.md)).
@@ -189,7 +223,8 @@ answers the card's "unavailable" sentence and logs `brego.valuation.rejected`,
 (list completed 26 November 2026, R1290: `sign_in` and `cognito_refresh` came
 with the stored refresh token on 23 November, when `cognito_init` and
 `cognito_verify` went with the password flow; `password` is the password
-sign-in's two Cognito exchanges, and a refused password is `forbidden` there).
+sign-in's two Cognito exchanges, and a refused password is `forbidden` there). From
+26 November 2026 (R1295) a press may also stop at `mail_link` or `mail_code`.
 The `configuration` failure (a missing or unresolved account setting) names the
 setting's key instead.
 

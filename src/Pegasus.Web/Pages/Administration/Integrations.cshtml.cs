@@ -80,6 +80,13 @@ public sealed partial class IntegrationsModel(
     /// <summary>The Brego sign-in that waits for its six-digit code, while one does.</summary>
     public BregoPendingCode? BregoPending { get; private set; }
 
+    /// <summary>
+    /// Whether the Brego panel offers Refresh login: the steps are offered
+    /// and this host reads Brego's sign-in e-mail from the account's mailbox
+    /// (R1294).
+    /// </summary>
+    public bool BregoRefreshOffered { get; private set; }
+
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
 
@@ -241,20 +248,65 @@ public sealed partial class IntegrationsModel(
             return RedirectToPage();
         }
 
-        // A Brego account saved with its password signs in with it at once,
-        // at the version the save left (R1290). The credential stays saved
-        // whatever Brego answers.
-        if (target == IntegrationLogin.Brego
-            && values.ContainsKey(IntegrationLoginField.Password)
-            && BregoLink() is { } link)
+        // A Brego account saved with its password signs in with it at once
+        // (R1290); one saved without signs in from Brego's e-mail where this
+        // host reads the account's mailbox (R1294). Either runs at the version
+        // the save left, and the credential stays saved whatever Brego answers.
+        if (target == IntegrationLogin.Brego && BregoLink() is { } link)
         {
-            StatusMessage = null;
-            await RunBregoStepAsync(
-                replaced.AccountName ?? string.Empty,
-                passwordSignIn: true,
-                async () => await link.SignInWithPasswordAsync(actor, replaced.Version, OperationKey, cancellationToken));
+            if (values.ContainsKey(IntegrationLoginField.Password))
+            {
+                StatusMessage = null;
+                await RunBregoStepAsync(
+                    replaced.AccountName ?? string.Empty,
+                    passwordSignIn: true,
+                    async () => await link.SignInWithPasswordAsync(actor, replaced.Version, OperationKey, cancellationToken));
+            }
+            else if (link.ReadsSignInMail)
+            {
+                StatusMessage = null;
+                await RunBregoStepAsync(
+                    replaced.AccountName ?? string.Empty,
+                    passwordSignIn: false,
+                    async () => await link.RefreshAsync(actor, replaced.Version, OperationKey, cancellationToken));
+            }
         }
 
+        return RedirectToPage();
+    }
+
+    /// <summary>
+    /// Refresh login: signs the saved account in from the sign-in e-mail Brego
+    /// sends to its mailbox, in one press (R1294).
+    /// </summary>
+    public async Task<IActionResult> OnPostRefreshBregoLoginAsync(
+        string? expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (BregoLinkStepRefused(expectedVersion, out var version) is { } refused)
+        {
+            ErrorMessage = refused;
+            return RedirectToPage();
+        }
+
+        var accountLink = BregoLink()!;
+        if (!accountLink.ReadsSignInMail)
+        {
+            ErrorMessage = OperatorLabels.Integrations.NotAccepted;
+            return RedirectToPage();
+        }
+
+        var email = await BregoAccountNameAsync(actor, cancellationToken);
+        await RunBregoStepAsync(
+            email,
+            passwordSignIn: false,
+            async () => await accountLink.RefreshAsync(actor, version, OperationKey, cancellationToken));
         return RedirectToPage();
     }
 
@@ -424,6 +476,7 @@ public sealed partial class IntegrationsModel(
         var link = BregoLink();
         var brego = Logins.FirstOrDefault(status => status.Login == IntegrationLogin.Brego);
         BregoLinkOffered = link is not null && !string.IsNullOrWhiteSpace(brego?.AccountName);
+        BregoRefreshOffered = BregoLinkOffered && link!.ReadsSignInMail;
         BregoPending = BregoLinkOffered
             ? await link!.ReadPendingAsync(actor, cancellationToken)
             : null;

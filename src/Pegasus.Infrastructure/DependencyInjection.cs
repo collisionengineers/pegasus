@@ -1226,7 +1226,10 @@ public static class DependencyInjection
             ReadLogin<BregoValuationAccount>(provider, IntegrationLogin.Brego, BregoValuationAccount.Create),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>(),
-            provider.GetRequiredService<IBregoSessionStore>()));
+            provider.GetRequiredService<IBregoSessionStore>())
+        {
+            MailSignIn = ComposeBregoMailSignIn(provider)
+        });
 
         // The Integrations page signs the account in over the same client
         // and the same login row (R1290).
@@ -1234,7 +1237,8 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>(),
             provider.GetRequiredService<EfIntegrationLoginStore>(),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<ILogger<BregoAccountLink>>()));
+            provider.GetRequiredService<ILogger<BregoAccountLink>>(),
+            ComposeBregoMailSignIn(provider)));
         return services;
     }
 
@@ -1259,6 +1263,16 @@ public static class DependencyInjection
             provider.GetRequiredService<ILogger<GlassGuideValuationProvider>>()));
         return services;
     }
+
+    /// <summary>
+    /// Brego's sign-in mail where the host composes the Web's Graph reads
+    /// (R1294): Production and the live-Graph test instance. None elsewhere,
+    /// so nothing there reads a mailbox or asks Brego to send one.
+    /// </summary>
+    private static BregoMailSignIn? ComposeBregoMailSignIn(IServiceProvider provider) =>
+        provider.GetService<IBregoSignInMailReader>() is { } reader
+            ? new BregoMailSignIn(reader, provider.GetRequiredService<TimeProvider>())
+            : null;
 
     /// <summary>
     /// A provider's account, read from the database on each call (R1288): a
@@ -1453,6 +1467,11 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
         // The approved-mailbox search behind pegasus_mail_mailbox_search (R561).
         services.Replace(ServiceDescriptor.Scoped<IApprovedMailboxSearchSource, GraphApprovedMailboxSearchSource>());
+        // Brego's sign-in mail, read from the Brego account's own mailbox
+        // (R1294): read only, and never an approved mailbox.
+        services.AddSingleton<IBregoSignInMailReader>(provider => new GraphBregoSignInMailReader(
+            provider.GetRequiredService<GraphApprovedMailboxResolver>(),
+            provider.GetRequiredService<GraphMailClient>()));
         return services;
     }
 

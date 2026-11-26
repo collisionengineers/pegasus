@@ -16,15 +16,20 @@ namespace Pegasus.Infrastructure.Brego;
 /// the code is entered or the access token it holds expires. A finished
 /// sign-in mints the one-year <c>brego-session</c> and is stored with the
 /// account under its next generation, which the valuation provider then
-/// renews from. No token, password, link or code reaches an exception
-/// message, a log line or a history row.
+/// renews from. Where this host can read the account's own mailbox
+/// (R1294), Refresh login does all of it from Brego's e-mail
+/// (<see cref="BregoMailSignIn"/>), and every sign-in reads the code from the
+/// mailbox before it falls back to waiting for it. No token, password, link or
+/// code reaches an exception message, a log line or a history row.
 /// </summary>
 internal sealed partial class BregoAccountLink(
     IHttpClientFactory httpClientFactory,
     EfIntegrationLoginStore store,
     TimeProvider timeProvider,
-    ILogger<BregoAccountLink> logger) : IBregoAccountLink
+    ILogger<BregoAccountLink> logger,
+    BregoMailSignIn? mail = null) : IBregoAccountLink
 {
+
     private const string PendingClientId = "clientId";
     private const string PendingAccessToken = "accessToken";
     private const string PendingIdToken = "idToken";
@@ -139,6 +144,34 @@ internal sealed partial class BregoAccountLink(
             "password", actor, account, tokens, expectedVersion, operationKey, BregoLinkRefusal.NotOffered, cancellationToken);
     }
 
+    public bool ReadsSignInMail => mail is not null;
+
+    public async Task<BregoLinkStep> RefreshAsync(
+        ActionActor actor,
+        long expectedVersion,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        Require(actor, operationKey);
+        var account = await ReadAccountAsync(cancellationToken);
+        RequireVersion(account, expectedVersion);
+
+        // A host that cannot read the mailbox asks nothing of Brego, so Brego
+        // sends no e-mail that nobody will read.
+        if (mail is not { } mailSignIn || !await mailSignIn.CanReadAsync(account.Email, cancellationToken))
+        {
+            throw new BregoLinkRefusedException(BregoLinkRefusal.MailUnreadable);
+        }
+
+        var otherwise = account.Password is null ? BregoLinkRefusal.LinkRefused : BregoLinkRefusal.NotOffered;
+        var tokens = await CallAsync(
+            "refresh",
+            client => mailSignIn.SignInAsync(client, account.Email, account.Password, cancellationToken),
+            otherwise);
+        return await ApproveOrWaitAsync(
+            "refresh", actor, account, tokens, expectedVersion, operationKey, otherwise, cancellationToken);
+    }
+
     public async Task<BregoPendingCode?> ReadPendingAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
@@ -152,9 +185,10 @@ internal sealed partial class BregoAccountLink(
     }
 
     /// <summary>
-    /// Finishes the sign-in on an approved device; on one Brego wants a code
-    /// for, keeps the sign-in waiting for the code until its access token
-    /// expires.
+    /// Finishes the sign-in on an approved device. On one Brego wants a code
+    /// for, the code is read from the account's mailbox where this host can
+    /// read it (R1294); otherwise, or when it does not arrive or is refused,
+    /// the sign-in waits for the code until its access token expires.
     /// </summary>
     private async Task<BregoLinkStep> ApproveOrWaitAsync(
         string act,
@@ -166,10 +200,19 @@ internal sealed partial class BregoAccountLink(
         BregoLinkRefusal otherwise,
         CancellationToken cancellationToken)
     {
+        var since = mail?.Since() ?? timeProvider.GetUtcNow();
         var approved = await CallAsync(
             act,
             client => client.IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken),
             otherwise);
+        if (!approved && mail is { } mailSignIn && await mailSignIn.CanReadAsync(account.Email, cancellationToken))
+        {
+            approved = await CallAsync(
+                act,
+                client => mailSignIn.ApproveByMailAsync(client, account.Email, tokens, since, cancellationToken),
+                otherwise);
+        }
+
         if (!approved)
         {
             await store.WriteBregoPendingAsync(
@@ -273,6 +316,9 @@ internal sealed partial class BregoAccountLink(
             "link_redeem" => BregoLinkRefusal.LinkRefused,
             "password" => failure.Forbidden ? BregoLinkRefusal.PasswordRefused : BregoLinkRefusal.NotOffered,
             "device_verify" => BregoLinkRefusal.CodeRefused,
+            BregoMailSignIn.LinkStage => failure.Detail == BregoMailSignIn.Unreadable
+                ? BregoLinkRefusal.MailUnreadable
+                : BregoLinkRefusal.MailNotArrived,
             _ => otherwise,
         };
     }

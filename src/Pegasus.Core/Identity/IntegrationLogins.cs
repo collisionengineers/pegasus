@@ -145,7 +145,13 @@ public enum BregoLinkRefusal
     NoLinkWaiting,
 
     /// <summary>Brego could not be reached, or answered with a failure of its own.</summary>
-    Unreachable
+    Unreachable,
+
+    /// <summary>Brego's sign-in e-mail did not arrive in the account's mailbox in time (R1294).</summary>
+    MailNotArrived,
+
+    /// <summary>The account's mailbox could not be read on this host, so Brego was not asked (R1294).</summary>
+    MailUnreadable
 }
 
 /// <summary>A Brego sign-in step Brego or the account refused. The message names the refusal, never a value.</summary>
@@ -223,5 +229,29 @@ public interface IBregoAccountLink
     /// <summary>The sign-in that waits for a code, or <see langword="null"/> when none waits.</summary>
     Task<BregoPendingCode?> ReadPendingAsync(
         ActionActor actor,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether this host can read Brego's sign-in e-mail in the account's own
+    /// mailbox (R1294): true when a mail reader is composed here. The mailbox
+    /// may still refuse to be read; <see cref="RefreshAsync"/> then answers
+    /// <see cref="BregoLinkRefusal.MailUnreadable"/>.
+    /// </summary>
+    bool ReadsSignInMail { get; }
+
+    /// <summary>
+    /// Refresh login (R1294): signs the saved account in with its password, or
+    /// asks Brego for a sign-in link and reads it from the account's mailbox,
+    /// and enters the code Brego e-mails when it asks to approve the device.
+    /// Nothing is asked of Brego when the mailbox cannot be read
+    /// (<see cref="BregoLinkRefusal.MailUnreadable"/>). A link that does not
+    /// arrive is <see cref="BregoLinkRefusal.MailNotArrived"/> (it was sent, so
+    /// it may still be pasted); a code that does not arrive leaves the sign-in
+    /// waiting for it (<see cref="BregoLinkStep.CodeSent"/>).
+    /// </summary>
+    Task<BregoLinkStep> RefreshAsync(
+        ActionActor actor,
+        long expectedVersion,
+        string operationKey,
         CancellationToken cancellationToken);
 }

@@ -579,7 +579,7 @@ public sealed partial class IntegrationsAdministrationWebTests
     public async Task ARefusedBregoStepSaysWhy(string row)
     {
         var refusal = BregoRefusals[row];
-        var link = new FakeBregoAccountLink { Refusal = refusal.Refusal };
+        var link = new FakeBregoAccountLink { Refusal = refusal.Refusal, ReadsSignInMail = true };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithEveryIntegration(baseFactory, link);
         await SeedBregoLoginAsync(factory);
@@ -592,6 +592,7 @@ public sealed partial class IntegrationsAdministrationWebTests
             {
                 "LinkBrego" => LinkForm(html, PastedLink),
                 "ConfirmBregoCode" => CodeForm(html, EnteredCode),
+                "RefreshBregoLogin" => RefreshForm(html),
                 _ => Form(AntiforgeryValue(html), ("OperationKey", InputValue(Panel(html, IntegrationLogin.Brego), "OperationKey"))),
             }))
         {
@@ -675,6 +676,152 @@ public sealed partial class IntegrationsAdministrationWebTests
     }
 
     /// <summary>In the password sign-in, Brego offering no sign-in reads as the password refused.</summary>
+    /// <summary>
+    /// Refresh login is offered only where the account's e-mail is saved and
+    /// the host reads Brego's sign-in e-mail (R1294), above the fallback steps.
+    /// </summary>
+    [Fact]
+    public async Task RefreshLoginIsOfferedOnlyWithTheAccountAndTheMailbox()
+    {
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+
+        Assert.DoesNotContain(
+            "handler=RefreshBregoLogin",
+            Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego),
+            StringComparison.Ordinal);
+
+        await SeedBregoLoginAsync(factory);
+        var panel = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+        var refresh = panel.IndexOf("handler=RefreshBregoLogin", StringComparison.Ordinal);
+        var send = panel.IndexOf("handler=SendBregoLink", StringComparison.Ordinal);
+        Assert.True(refresh >= 0 && send > refresh, "Refresh login must sit above the fallback steps.");
+        Assert.Contains($">{OperatorLabels.Integrations.RefreshBregoLogin}</button>", panel, StringComparison.Ordinal);
+
+        link.ReadsSignInMail = false;
+        var withoutMail = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+        Assert.DoesNotContain("handler=RefreshBregoLogin", withoutMail, StringComparison.Ordinal);
+        Assert.Contains("handler=SendBregoLink", withoutMail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshLoginThatSignsInSaysLinked()
+    {
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true, Step = BregoLinkStep.Linked };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync($"{Route}?handler=RefreshBregoLogin", RefreshForm(html)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Equal(1L, Assert.Single(link.RefreshVersions));
+        Assert.Contains(OperatorLabels.Integrations.BregoLinked, await GetHtmlAsync(client, Route), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshLoginThatAsksForACodeShowsTheCodeStep()
+    {
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true, Step = BregoLinkStep.CodeSent };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync($"{Route}?handler=RefreshBregoLogin", RefreshForm(html)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var panel = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode($"Brego e-mailed a six-digit code to {BregoEmail}."),
+            panel,
+            StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Integrations.ConfirmBregoCode}</button>", panel, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Saving Brego's e-mail without a password signs in from Brego's e-mail
+    /// where the host reads the mailbox (R1294), and not where it does not; a
+    /// save with a password signs in with the password instead.
+    /// </summary>
+    [Theory]
+    [InlineData("mail-no-password", true, false)]
+    [InlineData("no-mail-no-password", false, false)]
+    [InlineData("mail-with-password", true, true)]
+    public async Task SavingBregoSignsInByMailOnlyWithoutAPassword(string row, bool readsMail, bool withPassword)
+    {
+        Assert.NotEmpty(row);
+        var link = new FakeBregoAccountLink { ReadsSignInMail = readsMail, Step = BregoLinkStep.Linked };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email
+                ? BregoEmail
+                : withPassword ? TypedSecret : " ")))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var after = await GetHtmlAsync(client, Route);
+        if (withPassword)
+        {
+            Assert.Equal(1L, Assert.Single(link.PasswordVersions));
+            Assert.Empty(link.RefreshVersions);
+        }
+        else if (readsMail)
+        {
+            Assert.Equal(1L, Assert.Single(link.RefreshVersions));
+            Assert.Empty(link.PasswordVersions);
+            Assert.Contains(OperatorLabels.Integrations.BregoLinked, after, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Empty(link.RefreshVersions);
+            Assert.Empty(link.PasswordVersions);
+            Assert.Contains(OperatorLabels.Integrations.Saved, after, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain(TypedSecret, after, StringComparison.Ordinal);
+    }
+
+    /// <summary>A refused sign-in by mail after a save is stated, and the credential stays saved.</summary>
+    [Fact]
+    public async Task ASaveWhoseMailDidNotArriveKeepsTheCredential()
+    {
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true, Refusal = BregoLinkRefusal.MailNotArrived };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email ? BregoEmail : " ")))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var after = await GetHtmlAsync(client, Route);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode(OperatorLabels.Integrations.BregoMailNotArrived),
+            after,
+            StringComparison.Ordinal);
+        Assert.Equal(BregoEmail, FactValue(Panel(after, IntegrationLogin.Brego), OperatorLabels.Integrations.Account));
+    }
+
     [Fact]
     public async Task APasswordSignInBregoDoesNotOfferReadsAsThePasswordRefused()
     {
@@ -723,6 +870,9 @@ public sealed partial class IntegrationsAdministrationWebTests
         ["code-refused"] = new("ConfirmBregoCode", BregoLinkRefusal.CodeRefused, "Brego refused the code."),
         ["code-none"] = new("ConfirmBregoCode", BregoLinkRefusal.NoLinkWaiting, "No link is waiting for a code. Send a new sign-in link."),
         ["code-password"] = new("ConfirmBregoCode", BregoLinkRefusal.PasswordRefused, "Brego refused the password."),
+        ["refresh-not-arrived"] = new("RefreshBregoLogin", BregoLinkRefusal.MailNotArrived, "Brego's e-mail did not arrive. Try again."),
+        ["refresh-unreadable"] = new("RefreshBregoLogin", BregoLinkRefusal.MailUnreadable, "Brego's e-mail could not be read. Try again."),
+        ["refresh-unreachable"] = new("RefreshBregoLogin", BregoLinkRefusal.Unreachable, "Brego could not be reached. Try again."),
     };
 
     private sealed record BregoRefusalCase(string Handler, BregoLinkRefusal Refusal, string Sentence);
@@ -739,6 +889,15 @@ public sealed partial class IntegrationsAdministrationWebTests
                 new Dictionary<IntegrationLoginField, string> { [IntegrationLoginField.Email] = BregoEmail },
                 "integrations-page-brego-seed",
                 CancellationToken.None);
+    }
+
+    private static FormUrlEncodedContent RefreshForm(string html)
+    {
+        var form = StepForm(html, "RefreshBregoLogin");
+        return Form(
+            AntiforgeryValue(html),
+            ("expectedVersion", InputValue(form, "expectedVersion")),
+            ("OperationKey", InputValue(form, "OperationKey")));
     }
 
     private static FormUrlEncodedContent LinkForm(string html, string pasted)
@@ -936,6 +1095,20 @@ public sealed partial class IntegrationsAdministrationWebTests
         public System.Collections.Concurrent.ConcurrentQueue<string> Codes { get; } = new();
 
         public System.Collections.Concurrent.ConcurrentQueue<long> PasswordVersions { get; } = new();
+
+        public System.Collections.Concurrent.ConcurrentQueue<long> RefreshVersions { get; } = new();
+
+        public bool ReadsSignInMail { get; set; }
+
+        public Task<BregoLinkStep> RefreshAsync(
+            ActionActor actor,
+            long expectedVersion,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            RefreshVersions.Enqueue(expectedVersion);
+            return AnswerAsync();
+        }
 
         public Task SendLinkAsync(ActionActor actor, string operationKey, CancellationToken cancellationToken)
         {

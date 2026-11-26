@@ -136,6 +136,17 @@
                        saved. The link and the code are never written back. *@
                     @if (login == IntegrationLogin.Brego && Model.BregoLinkOffered)
                     {
+                        @* Refresh login signs in from Brego's own e-mail in one
+                           press, where this host reads the account's mailbox
+                           (R1294); the steps below are the fallback. *@
+                        @if (Model.BregoRefreshOffered)
+                        {
+                            <form method="post" asp-page-handler="RefreshBregoLogin" class="cluster admin-actions-end">
+                                <input type="hidden" name="expectedVersion" value="@status.Version" />
+                                <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.RefreshBregoLogin</button>
+                            </form>
+                        }
                         <form method="post" asp-page-handler="SendBregoLink" class="cluster admin-actions-end">
                             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                             <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Integrations.SendBregoLink</button>
