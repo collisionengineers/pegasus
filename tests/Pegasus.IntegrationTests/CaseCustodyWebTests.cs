@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -642,17 +643,22 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"href=\"/Inbox/{senderlessId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
-        // Open message stays on one line and opens its row's dialog over the
-        // Case, which fetches the record's content on open.
+        // The actions cell stays on one line. Each row is one the Inbox's own
+        // e-mail dialog walks, and its subject opens it over the Case, in the
+        // page's one mount (R1278); the Case draws no dialog of its own.
         Assert.Contains("<td class=\"row-actions nowrap\">", queries, StringComparison.Ordinal);
+        Assert.Contains("data-mail-list=\"files\" data-correspondence>", html, StringComparison.Ordinal);
         foreach (var (id, subject) in new[] { (forwardedId, "Repair query"), (senderlessId, "Sender unavailable") })
         {
-            var dialogId = $"case-message-{id:N}";
-            Assert.Contains($"data-dialog-open=\"{dialogId}\"", queries, StringComparison.Ordinal);
-            Assert.Contains($"data-dialog=\"{dialogId}\" data-case-message-dialog", html, StringComparison.Ordinal);
-            Assert.Contains($"data-case-message-url=\"/Inbox/{id:D}?correspondenceCaseReference=QDOS3100042&amp;handler=Content\"", html, StringComparison.Ordinal);
-            Assert.Contains($"id=\"{dialogId}-title\" class=\"wrap\" tabindex=\"-1\">{subject}</h2>", html, StringComparison.Ordinal);
+            Assert.Contains($"data-mail-row=\"{id:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+            var link = Regex.Match(queries, $"<a[^>]*href=\"/Inbox/{id:D}\"[^>]*>(?<subject>[^<]*)</a>", RegexOptions.IgnoreCase);
+            Assert.True(link.Success, $"The row of {subject} does not link to its record.");
+            Assert.Contains("data-mail-open", link.Value, StringComparison.Ordinal);
+            Assert.Equal(subject, link.Groups["subject"].Value);
         }
+        Assert.Equal(1, Regex.Count(html, "data-mail-dialog-root"));
+        Assert.Contains($"data-mail-return-case=\"{store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-case-message-dialog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<form", queries, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<button", queries, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disabled", queries, StringComparison.OrdinalIgnoreCase);
@@ -691,7 +697,7 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 0<", html, StringComparison.Ordinal);
         Assert.Contains("data-correspondence-empty", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-correspondence-row", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-message-dialog", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-row", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Raise a query", html, StringComparison.OrdinalIgnoreCase);
     }
 

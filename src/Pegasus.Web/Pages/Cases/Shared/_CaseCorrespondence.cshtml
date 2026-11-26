@@ -9,12 +9,13 @@
 
 @* The Files section's Correspondence tab: every retained email
    associated with the Case - polled mail, uploaded .eml files and the Sent
-   items of mail Pegasus sent for it. The Subject opens the message in a
-   dialog over the Case; without script the link opens that record. Open
-   query, once the report is sent, opens a query on a received e-mail that
-   holds none. The Case record and the Triage Case both draw the tab; only
-   the Case record offers Open query. *@
-<div class="correspondence" data-correspondence>
+   items of mail Pegasus sent for it. The Subject opens the Inbox's own
+   e-mail dialog over the Case, whose Previous and Next walk these rows
+   (R1278); without script the link opens that record. Open query, once the
+   report is sent, opens a query on a received e-mail that holds none. The
+   Case record and the Triage Case both draw the tab; only the Case record
+   offers Open query. *@
+<div class="correspondence" data-mail-list="files" data-correspondence>
     @if (emails.Count == 0)
     {
         <p class="muted" data-correspondence-empty>@FilesLabels.NoCorrespondence</p>
@@ -38,11 +39,11 @@
                         var offersOpen = Model.OpenQueryCaseId is not null
                             && !row.IsSent
                             && row.Query is null;
-                        <tr data-correspondence-row="@row.RetainedMessageId">
+                        <tr data-correspondence-row="@row.RetainedMessageId" data-mail-row="@row.RetainedMessageId">
                             <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
                             <td class="wrap">
-                                <a class="correspondence-subject-link" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@(string.IsNullOrWhiteSpace(row.Subject) ? OperatorLabels.CaseWorkspace.AbsentValue : row.Subject)</a>
+                                <a class="correspondence-subject-link" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-mail-open>@(string.IsNullOrWhiteSpace(row.Subject) ? OperatorLabels.CaseWorkspace.AbsentValue : row.Subject)</a>
                             </td>
                             @* A Sent item carries no received classification; the
                                scope's own word names its direction instead. *@
@@ -75,9 +76,5 @@
                 </tbody>
             </table>
         </div>
-        @foreach (var row in emails)
-        {
-            <partial name="Cases/Shared/_CaseMessageDialog" model="@(new Pegasus.Web.Pages.Cases.CaseMessageDialogView(row, Model.CaseReference))" />
-        }
     }
 </div>

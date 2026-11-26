@@ -1044,21 +1044,19 @@ classification: the email the Case was created from, received mail
 associated with it later, uploaded `.eml` files and the Sent items of mail
 Pegasus sent for the Case once the Sent-evidence poll has observed them,
 newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
-The header reads **Type**. The subject opens that message in a dialog over
-the Case: sender, received time, recipients, its text and attachment names.
-The dialog changes nothing. The type column reads the classification, or
+The header reads **Type**. The subject opens that message in the Inbox's
+message dialog over the Case, with its conversation and everything that
+dialog offers (operator, 26 November 2026, R1278). The type column reads the classification, or
 **Sent** on a Sent item, and an inline **Query** or **Done** chip when the
 message holds a non-withdrawn query. A received row that holds no such
 query, once the report is sent,
 offers **Open query** (operator, 27 October 2026): one click opens a query
 on that message and returns here
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
-Where the record offers **Reply**, **Reply all** and **Forward**, the
-dialog does too; each opens the composer in the Inbox's message dialog with
-this Case chosen. Its **Open full message** opens the Inbox with that
-message's dialog open, which keeps classification and the Case link
-(operator, 30 October 2026, R560); without script the row
-opens the `/Inbox/{id}` record.
+**Reply**, **Reply all** and **Forward** open the composer in that dialog,
+over the Case, with this Case chosen, and whatever is done in the dialog
+leaves the operator here. There is no **Open full message**: the dialog is
+the full message. Without script the row opens the `/Inbox/{id}` record.
 There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
@@ -1144,8 +1142,8 @@ October 2026). It lists every query raised on the Case: the open ones
 first, then the Done ones. When none is open it reads the one sentence "No
 active queries on this case", above any Done rows. A row carries State
 (**Query** while open, **Done** in green once closed), Raised, Raised by,
-Channel, Message (the subject opens the message; a logged query shows its
-details), Assigned to and Done. Assigned to on an open query is **Unassigned**
+Channel, Message (the subject opens the message in the Inbox's message
+dialog over the Case, R1278; a logged query shows its details), Assigned to and Done. Assigned to on an open query is **Unassigned**
 or the assignee's name, opening the assign dialog, with **Take** beside it
 when the viewer does not already hold it. The row's actions are **Reply**
 and **Mark done** on an open mail query while staff mail is available,

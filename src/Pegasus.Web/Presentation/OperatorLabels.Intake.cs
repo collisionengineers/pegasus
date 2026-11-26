@@ -410,7 +410,6 @@ public static partial class OperatorLabels
         public const string ChangeLinkedCase = "Change linked Case";
         public const string Unlink = "Unlink";
         public const string OpenFile = "Open file";
-        public const string OpenFullMessage = "Open full message";
 
         // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
