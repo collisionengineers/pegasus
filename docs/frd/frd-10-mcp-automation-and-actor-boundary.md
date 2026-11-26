@@ -5,7 +5,10 @@
 ## Short version
 
 - MCP is a controlled entry point for one named Automation Actor. Ordinary
-  staff never use it; they use the Web UI.
+  staff use the Web UI.
+- A member of staff signed in from Pegasus Desktop reaches the same tools as
+  themselves: what they do is recorded under their name with staff labels,
+  and their own role decides what is allowed (R1300).
 - Every tool calls the same Core command a staff member would. The Actor has
   its own identity and history and no management powers.
 - The tools are served by one MCP server, `pegasus-automation`, at `/mcp`. A
@@ -41,15 +44,9 @@ items by exact U-reference through the same Core command as staff
 ### MCP automation and actor boundary
 
 **One Actor.** MCP is a management and development controlled entry point for
-one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access.
-A member of staff may sign in from Pegasus Desktop
-([FRD-04](frd-04-parties-accounts-and-access.md#staff-role-access-matrix);
-operator, 24 and 26 November 2026; R1237, R1297;
-[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). The token that
-sign-in issues names the member of staff and is never read as the Actor, and
-no tool acts for a member of staff yet: every tool and both content routes
-refuse it and record `desktop_access_denied`, which does not count as
-Automation activity.
+one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access
+of their own: the one way a member of staff reaches these tools is by signing
+in from Pegasus Desktop, as the next paragraph describes.
 The Actor calls only its approved list of ordinary Core actions, with its own
 authentication, identity and permanent history for casework, lease claims and
 releases, takeovers and refusals; routine lease renewal, job polling and
@@ -58,6 +55,64 @@ progress heartbeats are telemetry only
 Administrator, configuration, credential, cloud, release, deletion or other
 management authority. The MCP is on in every deployed estate and is stopped by
 the Automation client's Stop switch (R1046).
+
+**Staff through Pegasus Desktop.** <a id="staff-through-pegasus-desktop"></a>
+A member of staff may sign in from Pegasus Desktop
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-role-access-matrix);
+operator, 24 and 26 November 2026; R1237, R1297;
+[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). The token that
+sign-in issues names the member of staff and is never read as the Actor. A
+call that presents it is made as that person (operator, 26 November 2026;
+R1300): signed in from Pegasus Desktop, a member of staff may do through the
+connector everything they could do in Pegasus itself, sending e-mail and
+reports included, and every action is recorded under their name, not the
+AI's and not the Automation Actor's. The token holds all seven scopes, so
+`tools/list` holds every tool, and the person's own role decides what a call
+may do: every role does casework, and no tool reaches a right only an
+Administrator holds. Each call first reads the account, as the staff cookie
+does on every request: enabled, not waiting on a password change, holding one
+staff role, and with the security stamp it had at the sign-in. A disabled
+account, a reset password, a changed role or a forced logout is therefore
+refused at the next call, on the tools and on both content routes, recorded
+as `desktop_access_denied` under the person, which does not count as
+Automation activity. `pegasus_session_get` answers who a connection acts as:
+the actor kind, and for a member of staff their id, username and role, with
+the scopes the token holds.
+
+Wherever this document says what the Actor does or how its work is recorded,
+a member of staff signed in from Pegasus Desktop does the same through the
+same Core command, as themselves, with these differences:
+
+- Each call is recorded in the Action logs under their name, in the area
+  **Pegasus Desktop**, not the Actor's **Automation**. Case history, a note,
+  a send, a report approval and a settled inspection address name the member
+  of staff.
+- A document they add is a **Staff upload**, not Automation-sourced, and its
+  source identity carries the prefix `staff:`. A staged upload belongs to the
+  person who staged it.
+- An estimate they type in takes the manual route and is the Current repair
+  spec at once, as a staff estimate on the Case is; an import is Current at
+  once too. An assessment value they record is a staff value, with no AI
+  source tag.
+- The AI job list is for automated agents: a member of staff is refused
+  Take, Progress, Complete, Fail and Release, and
+  `pegasus_ai_job_complete_market_research`, as in Pegasus itself. They may
+  create a job, cancel one and confirm one.
+- The Automation client's Stop switch does not stop them. Disabling the
+  account or forcing its logout does.
+- Edit leases follow the staff rules of
+  [FRD-14](frd-14-record-edit-leases.md#pegasus-desktop), not the Actor's.
+- A source they submit with `pegasus_intake_submit` is staged under their
+  name and still arrives on the automation channel, which is the route.
+
+The first of these is the operator's ruling (R1300). The rest are built to
+the answers recommended to the operator, whose rulings on them are owed under
+issue #2166. Pegasus Desktop puts each change on a card that names the member
+of staff, which they confirm before it is made; that is the application's
+rule, not Pegasus's. So that the application can tell a change from a read,
+every tool that only reads is marked read-only and no other tool is. Case
+details reached this way may be sent by the application to its AI providers,
+which the operator accepted on 26 November 2026 (R1301).
 
 **Casework parity.** Within casework the Actor may do anything a staff member
 with `PerformCasework` can, with two exceptions: it never puts an estimate in
@@ -712,14 +767,16 @@ assessment values. Every scope has a consent description on the
 Administrator consent page, which prints it without the scope's identifier
 (operator, 15 and 19 October 2026).
 
-The Actor's whole inventory, 83 tools, by scope. "One-command lease" means
+The whole inventory, 84 tools, by scope, for the Actor and for a member of
+staff signed in from Pegasus Desktop alike. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
 
 | Scope | Tool | Action | Lease |
 | --- | --- | --- | --- |
-| `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state; cursor page | none |
+| `automation.cases` | `pegasus_session_get` | Who the connection acts as: the actor kind, a member of staff's id, username and role, and the scopes the token holds | none |
+| `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state, newest received first; cursor page | none |
 | `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
@@ -789,6 +846,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   failure.
 - An incomplete, mismatched, foreign or expired staged upload is refused by
   the call that uses it, and nothing is written.
+- A Pegasus Desktop token whose account is disabled, waiting on a password
+  change, without a staff role or changed since the sign-in is refused before
+  any tool runs, and so is one presented where no deployment setting offers
+  the sign-in; each writes `desktop_access_denied` and nothing else.
 - A stopped automation client is refused by the kill switch before any tool
   runs ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
   Its refused call writes one security event on every address:
@@ -859,4 +920,5 @@ separate evidence tiers
   [ADR-0080](../adr/superseded/0080-automation-mcp-one-server-per-scope.md)
   (superseded by ADR-0087),
   [ADR-0087](../adr/0087-one-automation-mcp-server-with-per-scope-consent.md),
-  [ADR-0083](../adr/0083-stage-large-automation-documents-in-parts.md).
+  [ADR-0083](../adr/0083-stage-large-automation-documents-in-parts.md),
+  [ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md).

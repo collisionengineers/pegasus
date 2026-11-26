@@ -127,9 +127,10 @@ where a deployment configures it: production does not, and there is no row
 for Pegasus Desktop on the Integrations page. A sign-in lasts 8 hours and is
 not extended by use. It ends sooner when the account is disabled, its
 password is reset, its role changes or an Administrator forces a logout, and
-when the application signs out. What the application may do once signed in is
-owned by
-[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary).
+when the application signs out. Signed in, the member of staff may do through
+the application what they could do in Pegasus itself, recorded under their
+name (R1300); that is owned by
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop).
 
 All three stored staff roles have the same ordinary casework authority.
 Administrator additionally holds application-management authority; an
