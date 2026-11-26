@@ -320,6 +320,9 @@ public sealed class CustodyOutboxIntegrationTests
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             inner.ReadAsync(storageKey, cancellationToken);
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            inner.ReadByHashAsync(contentHash, cancellationToken);
+
         public Task<StagedArtifactInventoryItem?> GetStagedAsync(
             string storageKey, CancellationToken cancellationToken) =>
             inner.GetStagedAsync(storageKey, cancellationToken);
