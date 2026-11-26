@@ -9,19 +9,19 @@ namespace Pegasus.Infrastructure.Brego;
 /// (ADR-0084): the Cognito refresh token Pegasus renews its 24-hour tokens
 /// from, and the 1-year <c>brego-session</c> cookie, so Brego's browser
 /// device-approval challenge is not re-triggered on container recycles or
-/// subsequent days. The account is linked once by
-/// <c>scripts/Connect-BregoAccount.ps1</c>, which writes the first record.
+/// subsequent days. The stored sign-in is read with the account itself, in
+/// the database beside its e-mail address (R1288, ADR-0091); this port only
+/// writes back what a renewal changed.
 /// </summary>
 public interface IBregoSessionStore
 {
     /// <summary>
-    /// The stored sign-in for <paramref name="email"/>, or <see langword="null"/>
-    /// when none is stored for it, it holds no refresh token, or it cannot be read.
+    /// Stores <paramref name="signIn"/> for the account at
+    /// <paramref name="generation"/>, without counting as a change to the
+    /// login. Best effort: <see langword="false"/> when the account was
+    /// replaced since (its generation moved) or the store could not be written.
     /// </summary>
-    Task<BregoStoredSignIn?> TryLoadAsync(string email, CancellationToken cancellationToken);
-
-    /// <summary>Stores <paramref name="signIn"/> for <paramref name="email"/>; best effort.</summary>
-    Task TrySaveAsync(string email, BregoStoredSignIn signIn, CancellationToken cancellationToken);
+    Task<bool> TrySaveAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -35,13 +35,14 @@ public sealed record BregoStoredSignIn(string? BregoSessionCookie, string Refres
 }
 
 /// <summary>
-/// Stores the Brego sign-in in the Web host's <c>authentication-ring</c> blob
-/// container (<c>authentication-ring/brego-session.json</c>) as
-/// <c>{ "email", "bregoSession", "refreshToken" }</c>. Any storage or parse
-/// failure degrades to <see langword="null"/> or a no-op so a transient blob
-/// error never aborts a valuation.
+/// Reads the Brego sign-in the Web host kept, until R1288, in its
+/// <c>authentication-ring</c> blob container
+/// (<c>authentication-ring/brego-session.json</c>) as
+/// <c>{ "email", "bregoSession", "refreshToken" }</c>. Only the one-time
+/// settings import reads it now, and it goes with the import in the next
+/// release. Any storage or parse failure degrades to <see langword="null"/>.
 /// </summary>
-public sealed class AzureBlobBregoSessionStore(BlobClient blobClient) : IBregoSessionStore
+public sealed class AzureBlobBregoSessionStore(BlobClient blobClient)
 {
     private static readonly TimeSpan IoTimeout = TimeSpan.FromSeconds(10);
 
@@ -83,38 +84,6 @@ public sealed class AzureBlobBregoSessionStore(BlobClient blobClient) : IBregoSe
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return null;
-        }
-    }
-
-    public async Task TrySaveAsync(
-        string email,
-        BregoStoredSignIn signIn,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(email)
-            || signIn is null
-            || string.IsNullOrWhiteSpace(signIn.RefreshToken))
-        {
-            return;
-        }
-
-        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        bounded.CancelAfter(IoTimeout);
-        try
-        {
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                email = email.Trim(),
-                bregoSession = string.IsNullOrWhiteSpace(signIn.BregoSessionCookie)
-                    ? null
-                    : signIn.BregoSessionCookie.Trim(),
-                refreshToken = signIn.RefreshToken.Trim(),
-            });
-            await blobClient.UploadAsync(BinaryData.FromBytes(payload), overwrite: true, bounded.Token);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Best-effort persistence: in-memory reuse still serves the running host.
         }
     }
 }

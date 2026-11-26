@@ -469,7 +469,8 @@ subscription rows (R678), pauses the copied Principal API credentials (R679)
 closes the copied pending answered-instruction and Delete case
 correspondence tidies (R680, R902) and clears the
 copied per-user external credentials, which production's key ring protects
-(R708); without
+(R708), and puts back the instance's own integration logins in place of
+production's, which it could not read (R1288); without
 `-Approve` it prints the source, target and statements and stops, and with it
 the extract is a live production read under the operator's own `az` sign-in,
 into the instance's run on its host alone, and the extract is removed once
@@ -1089,22 +1090,25 @@ cannot then be the first to find the gap.
 Bicep supplies the configured vault origin and indexed certificate URI settings
 to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
 hostname. These are references, never PFX bytes or passwords in the repository.
-The Web host lists the four `Glass:*` keys, the two
-`Glass:ValuationAccount:*` keys, the two `Cazana:CompanionAccount:*` keys, `Brego:ValuationAccount:Email` and the ten `Experian:*` keys among its Production
+The Web host lists the four `Glass:*` keys and the two `Experian:*`
+addresses (`Experian:BaseUri`, `Experian:TokenUri`) among its Production
 required settings, so a
 Web App deployed without them stops at startup naming the key; the migration
 host is built the same way and must be handed the same values.
-The Glass's valuation account is the one Glass's login held
-in deployment configuration: the release operator creates its two secrets in
-the deployment vault and grants the Web identity secret-read access at each
-secret's scope, and Bicep hands the Web App Key Vault references to them. The
-Cazana Companion account, the Brego valuation account's e-mail and the two Experian accounts are held the same way:
-`cazana-companion-email`, `cazana-companion-password`, `brego-valuation-email`,
-and `experian-history-client-id`, `-client-secret`,
-`-username` and `-password` with the same four under `experian-cap-`, with the Web identity granted secret-read access at each secret's scope. Each
-staff member's own Glass's account name and password, used for the repair
-estimate, are entered by an Administrator on that staff account's Glass's page
-and are held protected per staff account, never in deployment configuration.
+The Glass's valuation, Cazana Companion, Brego and two Experian accounts are
+integration logins held in the database, which an Administrator replaces on
+Administration > Integrations (26 November 2026, R1288,
+[ADR-0091](adr/0091-integration-logins-in-the-database.md)); none is a
+required setting. Their Key Vault secrets (`glass-valuation-username`,
+`-password`, `cazana-companion-email`, `-password`, `brego-valuation-email`,
+and `experian-history-client-id`, `-client-secret`, `-username` and
+`-password` with the same four under `experian-cap-`) and the Web App's
+references to them stay deployed for one release, whose start-up imports each
+login not yet set from them; the next release removes them (#2177, #2163).
+Each staff member's own Glass's account name and password, used for the
+repair estimate, are entered by an Administrator on that staff account's
+Glass's page and are held protected per staff account, never in deployment
+configuration.
 
 ## Linking the Brego valuation account
 

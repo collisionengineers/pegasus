@@ -313,66 +313,56 @@ public sealed class CazanaGuideValuationProviderTests
     }
 
     /// <summary>
-    /// An unresolved Key Vault reference fails only the valuation: the card
-    /// is unavailable, the log names the key, and Cazana is never asked.
+    /// A login not set fails only the valuation: the card is unavailable, the
+    /// log names the login and no value, and Cazana is never asked (R1288).
     /// </summary>
-    [Theory]
-    [InlineData("Cazana:CompanionAccount:Email")]
-    [InlineData("Cazana:CompanionAccount:Password")]
-    public async Task AnUnresolvedAccountSettingIsUnavailableAndNamesTheKeyNotItsValue(string unresolvedKey)
+    [Fact]
+    public async Task ALoginNotSetIsUnavailableAndNamesTheLoginNotAValue()
     {
-        var reference = "@Microsoft.KeyVault(SecretUri=https://vault.test/secrets/cazana-companion/1)";
-        var harness = Harness.Create(
-            account: () => CazanaCompanionAccount.Create(key => key == unresolvedKey ? reference : "configured"));
+        var harness = Harness.Create(account: _ => Task.FromResult(CazanaCompanionAccount.Create(null)));
 
         await AssertUnavailableAsync(
             harness,
-            $"cazana.valuation.configuration {unresolvedKey} is an unresolved Key Vault reference");
+            "cazana.valuation.configuration The Cazana Companion login is not set.");
         Assert.Empty(harness.Requests);
     }
 
     [Fact]
-    public void TheCompanionAccountRefusesBlankControlAndUnresolvedValuesAndNeverPrintsItsPassword()
+    public void TheCompanionAccountRefusesAMissingBlankOrControlLoginAndNeverPrintsItsPassword()
     {
-        static Func<string, string?> Read(string? email, string? password) =>
-            key => key == "Cazana:CompanionAccount:Email" ? email : password;
-
-        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(" ", "secret")));
-        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(Email, null)));
-        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(Read(Email, "sec\nret")));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(null));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(TestIntegrationLogins.Cazana(" ", "secret")));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(TestIntegrationLogins.Cazana(Email, " ")));
+        Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(TestIntegrationLogins.Cazana(Email, "sec\nret")));
         Assert.Throws<InvalidOperationException>(() => CazanaCompanionAccount.Create(
-            Read("@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/cazana-companion-email)", "secret")));
+            TestIntegrationLogins.Glass(Email, "secret")));
 
-        var account = CazanaCompanionAccount.Create(Read($" {Email} ", " spaced secret "));
+        var account = CazanaCompanionAccount.Create(TestIntegrationLogins.Cazana($" {Email} ", " spaced secret "));
         Assert.Equal(Email, account.Email);
         Assert.Equal(" spaced secret ", account.Password);
         Assert.DoesNotContain("secret", account.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Composing and resolving the provider reads no account: it is read on
-    /// each valuation, so an unresolved Key Vault reference never stops a
-    /// Case page.
+    /// Composing and resolving the provider reads no login: it is read from
+    /// the database on each valuation (R1288), so a login not set never stops
+    /// a Case page. The composition-only database does not exist, so a read
+    /// at resolution would fail this test.
     /// </summary>
     [Fact]
-    public void AddCazanaGuideValuationComposesOneProviderAndReadsTheAccountOnlyWhenValuing()
+    public void AddCazanaGuideValuationComposesOneProviderAndReadsTheLoginOnlyWhenValuing()
     {
-        var reads = 0;
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
-        services.AddCazanaGuideValuation(_ =>
-        {
-            reads++;
-            return CazanaCompanionAccount.Create(static _ => null);
-        });
+        TestIntegrationLogins.AddCompositionOnlyStore(services);
+        services.AddCazanaGuideValuation();
         using var provider = services.BuildServiceProvider();
 
         var source = Assert.Single(provider.GetServices<IGuideValuationProvider>());
 
         Assert.IsType<CazanaGuideValuationProvider>(source);
         Assert.Equal(ValuationSource.Cazana, source.Source);
-        Assert.Equal(0, reads);
     }
 
     internal static string LookupJson(string vin = Vin) => $$$"""
@@ -530,7 +520,7 @@ public sealed class CazanaGuideValuationProviderTests
 
         public static Harness Create(
             Func<string, HttpResponseMessage?>? overridePath = null,
-            Func<CazanaCompanionAccount>? account = null)
+            Func<CancellationToken, Task<CazanaCompanionAccount>>? account = null)
         {
             var requests = new List<RecordedRequest>();
             var logger = new CapturingLogger();
@@ -560,8 +550,8 @@ public sealed class CazanaGuideValuationProviderTests
                             _ => Json(HttpStatusCode.NotFound, "{}"),
                         };
                     })),
-                    account ?? (() => CazanaCompanionAccount.Create(
-                        key => key == "Cazana:CompanionAccount:Email" ? Email : Password)),
+                    account ?? (_ => Task.FromResult(CazanaCompanionAccount.Create(
+                        TestIntegrationLogins.Cazana(Email, Password)))),
                     new FixedClock(Now),
                     logger),
                 logger,

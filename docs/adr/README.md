@@ -113,6 +113,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0088](0088-one-hosted-test-instance.md) | One hosted test instance | accepted | — | OPS-10, OPS-11, OPS-28 |
 | [ADR-0089](0089-experian-vehicle-history-check.md) | Experian vehicle history check | accepted | — | EXT-20, EXT-07, EXT-13 |
 | [ADR-0090](0090-public-photo-capture-surface.md) | Public photo capture surface | accepted | — | EXT-21, INT-34 |
+| [ADR-0091](0091-integration-logins-in-the-database.md) | Integration logins in the database | accepted | — | EXT-07, EXT-13, EXT-20 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

@@ -30,15 +30,15 @@ namespace Pegasus.Infrastructure.Glass;
 /// failure code. The two exceptions are Glass's answering that it does not
 /// value a vehicle of this age (operator, 2 October 2026) and Glass's holding
 /// no data for the registration (operator, 10 October 2026), which nothing
-/// can fix: the card says that instead. Configuration is read on each valuation, never when the
-/// provider is built: every Case page builds it, including on a host whose
-/// Glass's settings are not yet resolved.
+/// can fix: the card says that instead. Configuration and the login are read
+/// on each valuation, never when the provider is built: every Case page builds
+/// it, including on a host whose login is not yet set (R1288).
 /// </para>
 /// </summary>
 public sealed partial class GlassGuideValuationProvider(
     IHttpClientFactory httpClientFactory,
     Func<GlassRepairEstimateOptions> options,
-    Func<GlassValuationAccount> account,
+    Func<CancellationToken, Task<GlassValuationAccount>> account,
     TimeProvider timeProvider,
     ILogger<GlassGuideValuationProvider> logger) : IGuideValuationProvider
 {
@@ -59,7 +59,7 @@ public sealed partial class GlassGuideValuationProvider(
                 throw new GlassMvaStageException(GlassFailure.IdentityMileage, detail: "unit=unreadable");
             }
 
-            var signIn = account();
+            var signIn = await account(cancellationToken);
             client = new GlassMvaClient(
                 httpClientFactory.CreateClient(GlassRepairEstimateOptions.HttpClientName),
                 options(),
@@ -120,8 +120,8 @@ public sealed partial class GlassGuideValuationProvider(
         exception switch
         {
             GlassMvaStageException or HttpRequestException or TimeoutException => true,
-            // An unresolved or missing setting: the reason is logged by key,
-            // never shown on the card.
+            // A login not set or a missing setting: the reason is logged by
+            // name, never shown on the card.
             InvalidOperationException => true,
             OperationCanceledException => !cancellationToken.IsCancellationRequested,
             _ => false,

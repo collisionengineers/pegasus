@@ -47,8 +47,15 @@ general relocation of application secrets to SQL. Stored passwords remain
 non-retrievable from Administration; the separate generated staff-password
 reset workflow is governed by FRD-04.
 
+Amended 26 November 2026 (R1288): the integrations' own logins (Glass's
+valuation, Cazana, Brego and the two Experian accounts) are held the same way,
+under a purpose of their own, and replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)). Other application
+secrets keep their owners.
+
 ## Links
 
 - [Existing secret rule](0002-dotnet-modular-monolith-on-azure.md)
+- [Integration logins](0091-integration-logins-in-the-database.md)
 - [Functional credential contract](../frd/frd-04-parties-accounts-and-access.md)
 - [Glass’s session behavior](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-interrupted-sessions)

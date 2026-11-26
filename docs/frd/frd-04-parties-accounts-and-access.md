@@ -121,7 +121,7 @@ state prerequisite for the action.
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Principal API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Principal API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation; the integrations' logins (Glass's valuation, Cazana, Brego and the two Experian accounts), replaced and never shown back (operator, 26 November 2026; R1288) | Pegasus's own cloud or release administration, or any credential secret other than the integrations' logins, through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
 | `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 | `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 
@@ -459,6 +459,14 @@ Administration shows whether one is configured and enabled, its username and
 when it was updated, and offers replace and clear. It never shows the stored
 password. Replacing or deleting a credential invalidates old sessions.
 Disabled or deleted staff cannot start or resume a Glass's session.
+
+The integrations' logins (Glass's valuation, Cazana, Brego and the two
+Experian accounts) belong to Collision Engineers, not to a member of staff.
+An Administrator replaces each on Administration > Integrations; Pegasus
+keeps them encrypted, never shows a stored value back, and records each change
+in permanent history, attributed to the Administrator, naming the login and
+never a value (operator, 26 November 2026; R1288,
+[ADR-0091](../adr/0091-integration-logins-in-the-database.md)).
 
 **Sign-off Engineer** is an Administrator-managed account setting available
 for any staff role: a flag, the account's qualifications and a signature

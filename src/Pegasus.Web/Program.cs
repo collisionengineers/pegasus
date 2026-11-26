@@ -116,6 +116,9 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
+// Where Brego's sign-in was kept before R1288: read once by the settings
+// import, which goes with it in the next release.
+BlobClient? bregoSessionBlob = null;
 TokenCredential? automationMcpCredential = null;
 // The Web's managed identity in Production, for the photo link text send.
 TokenCredential? textMessageCredential = null;
@@ -161,30 +164,12 @@ foreach (var (featureKey, enabled) in new[]
             $"{featureKey} requires the DevelopmentOffline runtime profile.");
     }
 }
-// The hosted test instance's guide valuations use production's Glass's,
-// Cazana and Brego accounts (R709). Glass's valuation reads the Glass's
-// gateway's options, so it needs Features:LiveGlass; each account is checked
-// at start, naming the key, rather than at an Engineer's Get valuation.
-if (liveGuideValuation)
+// The hosted test instance's guide valuations reach Glass's, Cazana and Brego
+// (R709) with the logins its own database holds (R1288). Glass's valuation
+// reads the Glass's gateway's options, so it needs Features:LiveGlass.
+if (liveGuideValuation && !liveGlass)
 {
-    if (!liveGlass)
-    {
-        throw new InvalidOperationException("Features:LiveGuideValuation requires Features:LiveGlass.");
-    }
-    foreach (var key in new[]
-    {
-        "Glass:ValuationAccount:Username",
-        "Glass:ValuationAccount:Password",
-        "Cazana:CompanionAccount:Email",
-        "Cazana:CompanionAccount:Password",
-        "Brego:ValuationAccount:Email"
-    })
-    {
-        if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
-        {
-            throw new InvalidOperationException($"{key} is required for Features:LiveGuideValuation.");
-        }
-    }
+    throw new InvalidOperationException("Features:LiveGuideValuation requires Features:LiveGlass.");
 }
 if (!developmentOfflineProfile && !productionProfile)
 {
@@ -220,26 +205,10 @@ if (productionProfile)
         "Glass:EstimatorBaseUri",
         "Glass:CallbackBaseUri",
         "Glass:RepairProfileId",
-        // Glass's valuation account (ADR-0060), read on each Get valuation.
-        "Glass:ValuationAccount:Username",
-        "Glass:ValuationAccount:Password",
-        // Cazana's Companion account (ADR-0079), read on each Get valuation.
-        "Cazana:CompanionAccount:Email",
-        "Cazana:CompanionAccount:Password",
-        // Brego valuation account (ADR-0084), read on each Get valuation;
-        // it signs in from the refresh token stored when it was linked.
-        "Brego:ValuationAccount:Email",
-        // Experian's endpoints and its two accounts (ADR-0089, R1215), read on each call.
+        // Experian's endpoints (ADR-0089), read on each call. The Glass's,
+        // Cazana, Brego and Experian logins are the database's (R1288).
         "Experian:BaseUri",
         "Experian:TokenUri",
-        "Experian:HistoryAccount:ClientId",
-        "Experian:HistoryAccount:ClientSecret",
-        "Experian:HistoryAccount:Username",
-        "Experian:HistoryAccount:Password",
-        "Experian:CapAccount:ClientId",
-        "Experian:CapAccount:ClientSecret",
-        "Experian:CapAccount:Username",
-        "Experian:CapAccount:Password",
         "GitHub:ProblemReports:Token",
         "GitHub:ProblemReports:Repository"
     })
@@ -278,11 +247,9 @@ if (productionProfile)
         .PersistKeysToAzureBlobStorage(
             new Uri(custodyServiceUri, "authentication-ring/keys.xml"),
             credential);
-    builder.Services.AddSingleton<Pegasus.Infrastructure.Brego.IBregoSessionStore>(
-        new Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore(
-            new BlobClient(
-                new Uri(custodyServiceUri, "authentication-ring/brego-session.json"),
-                credential)));
+    bregoSessionBlob = new BlobClient(
+        new Uri(custodyServiceUri, "authentication-ring/brego-session.json"),
+        credential);
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
@@ -351,17 +318,13 @@ else
     }
     if (liveGuideValuation)
     {
-        // The test instance keeps its Brego session where Production does, in
-        // the run's Azurite account, seeded with production's cookie (R933).
-        // Without it every Web start signed in afresh into Brego's
-        // device-approval challenge (#2062).
-        builder.Services.AddSingleton<Pegasus.Infrastructure.Brego.IBregoSessionStore>(
-            new Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore(
-                new BlobClient(
-                    queueConnectionString,
-                    "authentication-ring",
-                    "brego-session.json",
-                    new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05))));
+        // Where the test instance kept its Brego session before R1288, in the
+        // run's Azurite account (R933): read once by the settings import.
+        bregoSessionBlob = new BlobClient(
+            queueConnectionString,
+            "authentication-ring",
+            "brego-session.json",
+            new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05));
     }
 }
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
@@ -835,38 +798,27 @@ documentStorage: composesLocalArtifactRoot
 builder.Services.AddPegasusStaffIdentity();
 // Glass's (ADR-0060), Cazana (ADR-0079) and Brego (ADR-0084) valuation:
 // Production, and the hosted test instance under Features:LiveGuideValuation
-// (R709); any other offline host reaches no vendor. Each credential is read on
-// each valuation for the same unresolved-Key-Vault-reference reason as Box's.
-// Both keep Brego's refresh token and session cookie in a blob store (R933).
+// (R709); any other offline host reaches no vendor. Each login, and Brego's
+// stored sign-in, is read from the database on each valuation (R1288).
 if (productionProfile || liveGuideValuation)
 {
-    builder.Services.AddGlassGuideValuation(
-        _ => Pegasus.Infrastructure.Glass.GlassValuationAccount.Create(key => builder.Configuration[key]));
-    builder.Services.AddCazanaGuideValuation(
-        _ => Pegasus.Infrastructure.Cazana.CazanaCompanionAccount.Create(key => builder.Configuration[key]));
-    builder.Services.AddBregoGuideValuation(
-        _ => Pegasus.Infrastructure.Brego.BregoValuationAccount.Create(key => builder.Configuration[key]),
-        provider => provider.GetService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
+    builder.Services.AddGlassGuideValuation();
+    builder.Services.AddCazanaGuideValuation();
+    builder.Services.AddBregoGuideValuation();
 }
 
 // Experian's vehicle history check and CAP valuation (ADR-0089, R1201):
 // Production, and an offline host (the hosted test instance) under
 // Features:LiveExperian; any other offline host says Experian is not
-// connected and its CAP card is unavailable. Each act is handed its account,
-// read on each call for the same unresolved-Key-Vault-reference reason as
-// Box's. Experian issues an account per permission: the history check signs
-// in with Experian:HistoryAccount:* (condition records) and CAP with
-// Experian:CapAccount:* (CAP valuations); neither reads the other's (R1215).
+// connected and its CAP card is unavailable. Experian issues an account per
+// permission: the history check signs in with the history login (condition
+// records) and CAP with the CAP login (CAP valuations); neither reads the
+// other's (R1215). Both logins are read from the database on each call
+// (R1288); the two addresses are settings.
 if (productionProfile || liveExperian)
 {
-    builder.Services.AddExperianVehicleHistoryCheck(
-        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(
-            key => builder.Configuration[key],
-            Pegasus.Infrastructure.Experian.ExperianAccount.HistoryAccountSection));
-    builder.Services.AddExperianCapValuation(
-        _ => Pegasus.Infrastructure.Experian.ExperianAccount.Create(
-            key => builder.Configuration[key],
-            Pegasus.Infrastructure.Experian.ExperianAccount.CapAccountSection));
+    builder.Services.AddExperianVehicleHistoryCheck(key => builder.Configuration[key]);
+    builder.Services.AddExperianCapValuation(key => builder.Configuration[key]);
 }
 
 builder.Services.AddPegasusReportRendering();
@@ -1128,6 +1080,15 @@ if (initializeDevelopment)
     await DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider);
     Console.WriteLine("DevelopmentOffline database, local test identity, and roles initialized.");
     return;
+}
+// The one-time import of the integrations' logins from the settings that held
+// them before R1288; it goes, with those settings, in the next release. An EF
+// migration bundle or design-time host never reaches this line: the EF tools
+// stop the entry point when the host is built.
+if (productionProfile || liveGuideValuation || liveExperian)
+{
+    await IntegrationLoginSettingsImport.RunAsync(app.Services, app.Configuration, bregoSessionBlob);
+    startupTimeline.Mark("integration login settings import");
 }
 
 

@@ -363,21 +363,10 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
-            ["Glass:ValuationAccount:Username"] = "valuation-test",
-            ["Glass:ValuationAccount:Password"] = "synthetic-password",
-            ["Cazana:CompanionAccount:Email"] = "companion@example.test",
-            ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
-            ["Brego:ValuationAccount:Email"] = "brego@example.test",
+            // Experian's endpoints are settings; the integrations' logins are
+            // the database's (R1288), so a test host imports none.
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
-            ["Experian:HistoryAccount:ClientId"] = "experian-client",
-            ["Experian:HistoryAccount:ClientSecret"] = "synthetic-experian-secret",
-            ["Experian:HistoryAccount:Username"] = "experian-user",
-            ["Experian:HistoryAccount:Password"] = "synthetic-experian-password",
-            ["Experian:CapAccount:ClientId"] = "experian-client",
-            ["Experian:CapAccount:ClientSecret"] = "synthetic-experian-secret",
-            ["Experian:CapAccount:Username"] = "experian-user",
-            ["Experian:CapAccount:Password"] = "synthetic-experian-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports",
             // The startup warm-up reads in the background; a test host skips

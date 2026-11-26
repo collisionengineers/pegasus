@@ -1,8 +1,10 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
 /// The Glass's account Get valuation signs in with: one account Collision
-/// Engineers holds for valuations, delivered from Key Vault (ADR-0060). The
+/// Engineers holds for valuations, held in the database (ADR-0060, ADR-0091). The
 /// repair estimate never uses it; each Engineer's own account stays theirs
 /// (ADR-0043).
 ///
@@ -13,6 +15,8 @@ namespace Pegasus.Infrastructure.Glass;
 /// </summary>
 public sealed class GlassValuationAccount
 {
+    private const string LoginName = "Glass's valuation";
+
     private GlassValuationAccount(string username, string password)
     {
         Username = username;
@@ -24,35 +28,22 @@ public sealed class GlassValuationAccount
     public string Password { get; }
 
     /// <summary>
-    /// A host hands over its own configuration lookup, so which keys the
-    /// account needs is decided here. A value the platform left as an
-    /// unresolved Key Vault reference is named as that, not as a bad password.
+    /// The login as the database holds it (R1288, ADR-0091), read on each
+    /// valuation. A login not set, or one the key ring can no longer read, is
+    /// named as that, never as a bad password.
     /// </summary>
-    public static GlassValuationAccount Create(Func<string, string?> read)
+    internal static GlassValuationAccount Create(IntegrationLoginMaterial? login)
     {
-        ArgumentNullException.ThrowIfNull(read);
+        if (login is null || login.Login != IntegrationLogin.GlassValuation)
+        {
+            throw new InvalidOperationException("The Glass's valuation login is not set.");
+        }
+
         return new(
-            Require(read, "Glass:ValuationAccount:Username").Trim(),
+            login.Require(IntegrationLoginField.Username, LoginName).Trim(),
             // A password is used exactly as it was stored.
-            Require(read, "Glass:ValuationAccount:Password"));
+            login.Require(IntegrationLoginField.Password, LoginName));
     }
 
     public override string ToString() => nameof(GlassValuationAccount);
-
-    private static string Require(Func<string, string?> read, string key)
-    {
-        var value = read(key);
-        if (string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl))
-        {
-            throw new InvalidOperationException($"{key} is required for Glass's valuation.");
-        }
-
-        if (KeyVaultReference.IsUnresolved(value))
-        {
-            throw new InvalidOperationException(
-                $"{key} is an unresolved Key Vault reference; the platform has not resolved the secret.");
-        }
-
-        return value;
-    }
 }

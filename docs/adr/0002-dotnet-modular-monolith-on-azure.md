@@ -338,6 +338,11 @@ defines the current contract and supersedes the earlier combined credential mode
 - Box credentials and any third-party secrets are held in Key Vault. Provider
   client secrets are non-recoverable hashes in SQL because they are application
   credentials, not reusable vendor secrets.
+- Amended 26 November 2026 (R1288): the logins of the Glass's valuation,
+  Cazana, Brego and two Experian accounts are held in the database, protected
+  with the Web host's key ring, and replaced by an Administrator
+  ([ADR-0091](0091-integration-logins-in-the-database.md)). Box's credentials
+  stay in Key Vault.
 
 ## Azure environments and resources
 
