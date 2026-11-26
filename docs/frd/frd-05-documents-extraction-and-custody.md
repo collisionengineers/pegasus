@@ -355,8 +355,11 @@ it has gone 30 days unused. A document is taken as Word by its media type,
 or by its `.doc` or `.docx` name where it arrived without one. The rendering
 is a preview like any other: never an audited download, and never the
 document, so Save as and the viewer's Download give the stored Word file. It
-is offered on the Case page and on a Triage Case, and not for an attachment
-on mail that has no Case (R950). It is made at the first Preview, behind the
+is offered on the Case page and on a Triage Case, and, in the message dialog,
+for a mail attachment wherever Box holds the file, with a Case or without one
+(operator, 25 November 2026, R1275, which replaces R950 there; R1280). A mail
+attachment's rendering is asked of Box at each View and is not kept. A Case
+document's is made at the first Preview, behind the
 busy state, and kept; background preparation is built only if a measured
 first Preview is over its budget
 ([engineering](../engineering.md#simplicity); R951). A rendering still being

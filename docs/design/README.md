@@ -1017,7 +1017,7 @@ deleted in wave 5.
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
 | `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar with the one outcome chip, and the cog settings menu (Case, Type, Query, Change case, Decided) |
-| `mail-stack`, `mail-msg`, `mail-files` | The message dialog's one column: the conversation as folded rows, the opened message unfolded with its recipients, its text at body size in a 72ch column, and its files as rows beneath it |
+| `mail-stack`, `mail-msg`, `mail-files` | The message dialog's one column: the conversation as folded rows, the opened message unfolded with its recipients, its text at body size in a 72ch column, and its files as rows beneath it, each with View and Download; View opens the page's viewer over the dialog (R1275) |
 | `mail-settings-section`, `mail-settings-case`, `mail-settings-actions`, `mail-settings-foot` | The cog menu's sections: one `mail-decision-label` each, a divider between them, actions as `btn--small` in a row, and the muted Decided foot line (R632 to R637) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |

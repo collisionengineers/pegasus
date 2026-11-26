@@ -1046,6 +1046,13 @@ public sealed class CaseDocumentDownloadWebTests
             return Task.FromResult(Rendering);
         }
 
+        // The Case route never renders an intake file.
+        Task<byte[]?> IRenderDocumentAsPdf.RenderIntakeAssetAsync(
+            Pegasus.Core.Identity.ActionActor actor,
+            IntakeAssetPreview asset,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The Case route rendered an intake file.");
+
         Task<DocumentDownload?> IDownloadCaseDocument.ExecuteAsync(
             DownloadCaseDocumentQuery query,
             CancellationToken cancellationToken)

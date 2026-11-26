@@ -441,9 +441,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         {
             var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
             receipt.SourceChannel = "mailbox";
+            // Custody has confirmed the first file in Box; the second is not held yet.
+            var held = AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A");
+            held.ConfirmCustody("box-file-1", "box-version-1", "box-folder-1");
             receipt.Assets.AddRange(
             [
-                AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A"),
+                held,
                 AttachmentAsset(secondAssetId, receipt.Id, "message, attachment 2", "evidence.pdf", 22, "B")
             ]);
             receipt.SearchDocuments.AddRange(
@@ -467,12 +470,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 Assert.Equal("evidence.pdf", first.FileName);
                 Assert.False(first.IsSearchable);
                 Assert.Equal(firstAssetId, first.IntakeAssetId);
+                Assert.True(first.IsHeldInBox);
             },
             second =>
             {
                 Assert.Equal("evidence.pdf", second.FileName);
                 Assert.True(second.IsSearchable);
                 Assert.Equal(secondAssetId, second.IntakeAssetId);
+                Assert.False(second.IsHeldInBox);
             });
     }
 

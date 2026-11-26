@@ -141,6 +141,18 @@ sender's own paragraphs, and its attachments beneath it as rows of name, type
 (PDF, Image or Word) and size. A staff forward's row names its original
 sender, and the member of staff who forwarded it sits with the recipients.
 
+Each attachment row offers **View** and **Download** (operator, 25 November
+2026, R1275, which replaces R950 for mail attachments). View draws a PDF or an
+image in the viewer over the dialog, before the message has a Case as after:
+the shared evidence viewer on the Inbox and on a Triage Case, the Case's own
+viewer on a Case. A Word document has View wherever Box holds the file, as a
+PDF rendering of it (R949, R1280), and reads **Preview unavailable**
+otherwise; so does any other file the viewer cannot draw. Download gives the
+retained file. Previous and Next in the viewer move among that message's
+attachments and pass over one that cannot be shown. Escape closes an open
+file first, then the dialog. No attachment carries an outcome or a note of
+its own.
+
 A message quoted inside an e-mail's text is not left in that text. One
 Pegasus also retains is not repeated. One it does not retain is a row of its
 own, marked Quoted, which opens as text. It is taken as retained when its

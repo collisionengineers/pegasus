@@ -1398,6 +1398,71 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// A message's files are one viewer set (v54 D10, D11; R1275, R1280): a
+    /// retained PDF is viewed inline, a Word file Box holds as its PDF
+    /// rendering, and one it does not hold reads Preview unavailable; each has
+    /// its Download, and no row offers Open file. The Inbox draws the viewer
+    /// the rows open, with no pre-Case image tools.
+    /// </summary>
+    [Fact]
+    public async Task AMessagesFilesAreOneViewerSetWithViewAndDownload()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            attachments:
+            [
+                new("estimate.pdf", "application/pdf", 2048),
+                new("report.docx", IntakeUploadFilePolicy.DocxMediaType, 4096),
+                new("letter.docx", IntakeUploadFilePolicy.DocxMediaType, 4096)
+            ]));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var pdfAssetId = Guid.NewGuid();
+        var unheldWordAssetId = Guid.NewGuid();
+        var heldWordAssetId = Guid.NewGuid();
+        await SeedAttachmentAssetAsync(factory, receiptId, 0, pdfAssetId, "estimate.pdf", "application/pdf", heldInBox: true);
+        await SeedAttachmentAssetAsync(factory, receiptId, 1, unheldWordAssetId, "report.docx", IntakeUploadFilePolicy.DocxMediaType, heldInBox: false);
+        await SeedAttachmentAssetAsync(factory, receiptId, 2, heldWordAssetId, "letter.docx", IntakeUploadFilePolicy.DocxMediaType, heldInBox: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var dialog = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
+        var files = WebUtility.HtmlDecode(Between(dialog, "data-mail-files", "</details>"));
+        Assert.StartsWith("data-mail-files data-evidence-set", files, StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(files, "data-mail-file>"));
+        Assert.DoesNotContain("Open file", files, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"status", files, StringComparison.Ordinal);
+
+        // The PDF: View opens the viewer inline, and saves the file itself.
+        var pdfAsset = $"/Received/{receiptId:D}/Asset/{pdfAssetId:D}";
+        Assert.Equal(1, CountOccurrences(files, "data-evidence-item"));
+        Assert.Contains($"href=\"{pdfAsset}?inline=true\"", files, StringComparison.Ordinal);
+        Assert.Contains("data-media-type=\"application/pdf\"", files, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"estimate.pdf\"", files, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{pdfAsset}\"", files, StringComparison.Ordinal);
+
+        // The Word file Box holds is viewed as its PDF rendering.
+        var heldWord = $"/Received/{receiptId:D}/Asset/{heldWordAssetId:D}";
+        Assert.Equal(1, CountOccurrences(files, "data-document-preview"));
+        Assert.Contains($"href=\"{heldWord}?handler=Pdf&renderer={Pegasus.Core.Documents.CaseDocumentPreviews.RenditionIdentity}\"", files, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{heldWord}\"", files, StringComparison.Ordinal);
+
+        // The Word file Box does not hold: Preview unavailable, and its Download.
+        Assert.Equal(1, CountOccurrences(files, "data-mail-unavailable"));
+        Assert.Contains($"data-mail-unavailable>{OperatorLabels.Inbox.PreviewUnavailable}</span>", files, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Received/{receiptId:D}/Asset/{unheldWordAssetId:D}\" download", files, StringComparison.Ordinal);
+        Assert.Contains($"aria-label=\"{CaseWorkspaceLabels.Viewer.Download} report.docx\"", files, StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(files, "icon-download"));
+
+        var inbox = await GetHtmlAsync(client, "/Inbox");
+        Assert.Contains("data-evidence-viewer", inbox, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-precase-tools", inbox, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The Type cell (v42 H, I): a category is its status chip with the work
     /// type beneath a New instruction as a plain neutral chip; Correspondence is
     /// a neutral chip (R559).
@@ -3399,6 +3464,54 @@ public sealed class MailWorkspaceWebTests
             .Where(item => item.SourceChannel == "mailbox" && item.ExternalReceiptToken == externalToken)
             .Select(item => item.Id)
             .SingleAsync();
+    }
+
+    /// <summary>
+    /// Retains one of a receipt's attachments as an asset, labelled as the
+    /// attachment search document that maps it to the message's file, with
+    /// confirmed Box custody when <paramref name="heldInBox"/>.
+    /// </summary>
+    private static async Task SeedAttachmentAssetAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        int attachmentOrdinal,
+        Guid assetId,
+        string fileName,
+        string mediaType,
+        bool heldInBox)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var sourceLabel = $"message, attachment {attachmentOrdinal + 1}";
+        var asset = new IntakeAssetEntity
+        {
+            Id = assetId,
+            IntakeReceiptId = receiptId,
+            SourceLabel = sourceLabel,
+            FileName = fileName,
+            MediaType = mediaType,
+            Kind = "attachment",
+            Disposition = "unidentified",
+            ContentLength = 2048,
+            ContentHash = new string('A', 64),
+            StorageKey = $"test:{assetId:N}"
+        };
+        if (heldInBox)
+        {
+            asset.ConfirmCustody($"box-file-{assetId:N}", $"box-version-{assetId:N}", "box-folder");
+        }
+        context.Set<IntakeAssetEntity>().Add(asset);
+        context.Set<IntakeSearchDocumentEntity>().Add(new IntakeSearchDocumentEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receiptId,
+            Ordinal = 100 + attachmentOrdinal,
+            AttachmentOrdinal = attachmentOrdinal,
+            SourceLabel = sourceLabel,
+            AttachmentFileName = fileName
+        });
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> MessageIdAsync(

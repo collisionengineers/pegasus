@@ -338,4 +338,28 @@ public interface IRenderDocumentAsPdf
         ActionActor actor,
         CaseDocumentPreview preview,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The PDF rendering of one retained intake file the browser cannot draw
+    /// itself (a Word document attached to an e-mail, viewed before a Case as
+    /// after; R1275), made from its confirmed Box copy. Answers as
+    /// <see cref="RenderAsync"/> does. It is not kept: the derived renderings
+    /// are keyed by a Case document version, which an intake file is not.
+    /// </summary>
+    Task<byte[]?> RenderIntakeAssetAsync(
+        ActionActor actor,
+        IntakeAssetPreview asset,
+        CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// One retained intake file a rendering is asked for: the receipt it belongs
+/// to, the asset, and the hash and length the read verifies against.
+/// </summary>
+public sealed record IntakeAssetPreview(
+    Guid ReceiptId,
+    Guid AssetId,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string Sha256);

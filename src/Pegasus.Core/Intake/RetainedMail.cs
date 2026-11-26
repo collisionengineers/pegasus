@@ -150,12 +150,17 @@ public sealed record RetainedMailCursorPage(
     bool HasMore,
     bool HasUnretainedHistory);
 
+/// <param name="IsHeldInBox">
+/// Its intake asset's custody is confirmed in Box, so a Word file has a PDF
+/// rendering to view (R1275); false where it has no asset or none yet.
+/// </param>
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
     long ContentLength,
     bool IsSearchable = false,
-    Guid? IntakeAssetId = null);
+    Guid? IntakeAssetId = null,
+    bool IsHeldInBox = false);
 
 /// <summary>
 /// One kept message of the conversation, in the same mailbox and from any of
