@@ -89,7 +89,7 @@ public sealed partial class AssetModel(
             // Keep the intake route at the same safe raster boundary used by
             // report rendering. SVG is an image media type but can execute
             // active content when navigated from this origin.
-            if (!CaseDocumentPreviews.IsInlineIntakeImage(mediaType.MediaType))
+            if (!CaseDocumentPreviews.IsInlineIntakeImage(mediaType.MediaType.Value))
             {
                 // The viewer's own request (R1275): a PDF, an octet-stream
                 // one known by its name included, is shown as
