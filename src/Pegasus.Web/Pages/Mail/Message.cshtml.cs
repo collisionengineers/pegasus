@@ -822,10 +822,12 @@ public sealed class MessageModel(
         {
             return new(attachment, typeLabel, glyph);
         }
-        // The viewer draws an image or a PDF itself, before a Case as after
-        // (R1275); a Word file only as the rendering Box makes of its copy.
-        var drawn = kind is Pegasus.Core.Documents.CaseDocumentPreviewKind.Image
-            or Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf;
+        // The viewer draws a PDF or an admitted image itself, before a Case
+        // as after (R1275); a Word file only as the rendering Box makes of
+        // its copy. Another image type is the download the route answers.
+        var drawn = kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf
+            || (kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.Image
+                && Pegasus.Core.Documents.CaseDocumentPreviews.IsInlineIntakeImage(attachment.MediaType));
         return new(
             attachment,
             typeLabel,

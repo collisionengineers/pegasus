@@ -288,6 +288,18 @@ public static class CaseDocumentPreviews
             : mediaType;
 
     /// <summary>
+    /// Whether a retained intake file is an image served inline as itself:
+    /// JPEG, PNG or WebP only, the raster boundary report rendering keeps. An
+    /// intake file's media type is the one its sender declared, so any other
+    /// <c>image/*</c> type (an XML one included) stays a download.
+    /// </summary>
+    public static bool IsInlineIntakeImage(string? mediaType) =>
+        BareMediaType(mediaType) is { } type
+        && (type.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("image/png", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("image/webp", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Whether the stored bytes themselves may be dispositioned for display
     /// from this origin: an image, a PDF or an admitted video, and nothing else.
     /// </summary>

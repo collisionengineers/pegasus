@@ -129,6 +129,35 @@ public sealed class MailAsSentRendererTests
         Assert.DoesNotContain("cid:", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Each img that names a carried picture writes it again, so a message
+    /// that names one picture many times is held to the document's budget of
+    /// inlined bytes (16 MB) rather than growing without end.
+    /// </summary>
+    [Fact]
+    public void RepeatedReferencesToACarriedPictureStopAtTheDocumentBudget()
+    {
+        var pictureBytes = new byte[1024 * 1024];
+        PngBytes.CopyTo(pictureBytes, 0);
+        var picture = new MimePart("image", "png")
+        {
+            ContentId = "big@example.invalid",
+            Content = new MimeContent(new MemoryStream(pictureBytes)),
+            ContentTransferEncoding = ContentEncoding.Base64
+        };
+        var body = new StringBuilder("<p>Repeated</p>");
+        for (var index = 0; index < 40; index++)
+        {
+            body.Append("<img src=\"cid:big@example.invalid\">");
+        }
+
+        var html = RenderMessage(HtmlMessage(body.ToString(), picture));
+
+        Assert.Contains("Repeated", html, StringComparison.Ordinal);
+        var written = html.Split("data:image/png;base64,").Length - 1;
+        Assert.Equal(16, written);
+    }
+
     [Fact]
     public void CarriedNonPictureIsDropped()
     {
@@ -217,16 +246,34 @@ public sealed class MailAsSentRendererTests
     }
 
     [Fact]
-    public void CutsAtUnmarkedFromAndSentHeader()
+    public void CutsAtUnmarkedOutlookHeader()
     {
         var html = Render(
             "<p>Own text words</p>"
-            + "<p><b>From:</b> Earlier Sender<br><b>Sent:</b> 1 November 2026<br><b>Subject:</b> Claim</p>"
+            + "<p><b>From:</b> Earlier Sender<br><b>Sent:</b> 1 November 2026<br><b>To:</b> Desk<br>"
+            + "<b>Cc:</b> Copy<br><b>Subject:</b> Claim</p>"
             + "<p>Quoted plain text</p>");
 
         Assert.Contains("<body><p>Own text words</p></body>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Earlier Sender", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Quoted plain text", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A letter heading that opens with From and Date is the sender's own
+    /// text, not a quoted message: only the four shapes the plain-text
+    /// splitter reads cut the view (FRD-20).
+    /// </summary>
+    [Fact]
+    public void LetterHeadingWithFromAndDateIsNotCut()
+    {
+        var html = Render(
+            "<p><b>From:</b> ABC Claims<br><b>Date:</b> 25 November 2026<br>Our ref: AB123</p>"
+            + "<p>Please inspect the vehicle.</p>");
+
+        Assert.Contains("ABC Claims", html, StringComparison.Ordinal);
+        Assert.Contains("Our ref: AB123", html, StringComparison.Ordinal);
+        Assert.Contains("Please inspect the vehicle.", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -50,9 +50,10 @@ public static class RetainedMailConversationPolicy
             .Select(Carrier)
             .ToArray();
         var stack = new List<RetainedMailConversationMessage>(carriers.Select(carrier => carrier.Row));
+        var openings = new Openings();
         foreach (var (row, chain) in carriers)
         {
-            Place(stack, row, chain);
+            Place(stack, row, chain, openings);
         }
 
         return stack;
@@ -65,14 +66,15 @@ public static class RetainedMailConversationPolicy
     private static void Place(
         List<RetainedMailConversationMessage> stack,
         RetainedMailConversationMessage carrier,
-        IReadOnlyList<QuotedMailMessage> chain)
+        IReadOnlyList<QuotedMailMessage> chain,
+        Openings openings)
     {
         var held = new List<RetainedMailConversationMessage>();
         int? lastPlaced = null;
         for (var index = chain.Count - 1; index >= 0; index--)
         {
             var quoted = Quoted(chain[index]);
-            var anchor = stack.FindIndex(row => SameMessage(row, quoted));
+            var anchor = stack.FindIndex(row => SameMessage(row, quoted, openings));
             if (anchor >= 0)
             {
                 if (held.Count > 0)
@@ -84,7 +86,7 @@ public static class RetainedMailConversationPolicy
 
                 lastPlaced = anchor;
             }
-            else if (held.Exists(row => SameMessage(row, quoted)))
+            else if (held.Exists(row => SameMessage(row, quoted, openings)))
             {
                 continue;
             }
@@ -185,7 +187,10 @@ public static class RetainedMailConversationPolicy
     /// Whether two rows are the same message: the same sender (address, when
     /// both have one, else display name) and the same opening text.
     /// </summary>
-    private static bool SameMessage(RetainedMailConversationMessage left, RetainedMailConversationMessage right)
+    private static bool SameMessage(
+        RetainedMailConversationMessage left,
+        RetainedMailConversationMessage right,
+        Openings openings)
     {
         var sameSender = !string.IsNullOrWhiteSpace(left.SenderAddress) && !string.IsNullOrWhiteSpace(right.SenderAddress)
             ? string.Equals(left.SenderAddress.Trim(), right.SenderAddress.Trim(), StringComparison.OrdinalIgnoreCase)
@@ -197,8 +202,8 @@ public static class RetainedMailConversationPolicy
             return false;
         }
 
-        var leftOpening = Opening(left.Text);
-        var rightOpening = Opening(right.Text);
+        var leftOpening = openings.Of(left);
+        var rightOpening = openings.Of(right);
         if (string.Equals(leftOpening, rightOpening, StringComparison.OrdinalIgnoreCase))
         {
             return true;
@@ -209,6 +214,27 @@ public static class RetainedMailConversationPolicy
             : (rightOpening, leftOpening);
         return shorter.Length >= MinimumPrefixLength
             && longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Each row's <see cref="Opening"/>, made once: every quoted message is
+    /// compared with every row of the stack, so a long conversation would
+    /// otherwise rebuild the same openings for each comparison.
+    /// </summary>
+    private sealed class Openings
+    {
+        private readonly Dictionary<RetainedMailConversationMessage, string> made = new(ReferenceEqualityComparer.Instance);
+
+        public string Of(RetainedMailConversationMessage row)
+        {
+            if (!made.TryGetValue(row, out var opening))
+            {
+                opening = Opening(row.Text);
+                made[row] = opening;
+            }
+
+            return opening;
+        }
     }
 
     /// <summary>The text with every whitespace run collapsed to one space, trimmed, cut at <see cref="OpeningLength"/>.</summary>
