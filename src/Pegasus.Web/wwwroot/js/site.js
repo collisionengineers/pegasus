@@ -2007,6 +2007,18 @@
         if (!dialog || typeof dialog.pegasusOpen !== 'function') { return; }
         dialog.pegasusOpen(opener);
         walk(dialog);
+        reveal(dialog);
+    }
+
+    // The conversation stacks oldest first (v54 D1): the opened message is
+    // brought to the top of the scrolling body, at once. A notice or a send's
+    // status above the stack is the answer to what staff just did, so the body
+    // then stays at its top.
+    function reveal(dialog) {
+        var opened = dialog.querySelector('[data-mail-opened]');
+        var body = opened ? opened.closest('.dialog-body') : null;
+        if (!body || body.querySelector('.notice, .panel, .validation-summary-errors')) { return; }
+        body.scrollTop += opened.getBoundingClientRect().top - body.getBoundingClientRect().top;
     }
 
     function load(href) {

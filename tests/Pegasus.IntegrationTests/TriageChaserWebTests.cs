@@ -1641,8 +1641,8 @@ public sealed partial class QdosTriageIntegrationTests
             inner.CountManyAsync(scopes, cancellationToken);
 
         public Task<RetainedMailDetail?> GetAsync(
-            Guid id, CancellationToken cancellationToken, string? searchTerm = null) =>
-            inner.GetAsync(id, cancellationToken, searchTerm);
+            Guid id, CancellationToken cancellationToken, string? searchTerm = null, bool withConversation = false) =>
+            inner.GetAsync(id, cancellationToken, searchTerm, withConversation);
 
         public Task<RetainedMailPreview?> GetPreviewAsync(
             Guid id, RetainedMailSummary? summary, CancellationToken cancellationToken) =>

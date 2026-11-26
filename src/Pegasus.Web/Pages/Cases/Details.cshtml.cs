@@ -70,7 +70,6 @@ public sealed partial class DetailsModel(
     IEnumerable<IEstimateDocumentParser> estimateParsers,
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
-    IPrincipalSalvageMatrixQueries principalSalvageMatrices,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     CaseEditLeases leases,
     CaseEditRequestWatch editRequestWatch,
@@ -798,9 +797,6 @@ public sealed partial class DetailsModel(
         });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var bankWordings = reads.Start(unroadworthyReasonBank.ListAsync);
-        var salvageMatrix = CanEditEngineering
-            ? reads.Start(token => principalSalvageMatrices.GetForCaseAsync(id, token))
-            : null;
         var reportInputs = reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token));
         var currentGeneration = reads.Start(token =>
             reportGenerations.GetCurrentAsync(actor, id, work, token));
@@ -819,7 +815,6 @@ public sealed partial class DetailsModel(
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         UnroadworthyReasonWordings = [.. (await bankWordings).Select(item => item.Text)];
-        PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
         snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
         if (inputs is not null && canOpen)

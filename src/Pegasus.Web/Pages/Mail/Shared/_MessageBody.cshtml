@@ -1,7 +1,7 @@
 @model Pegasus.Core.Intake.RetainedMailDetail
 
-@* A message's text: the record's Message tab and the Case's Correspondence
-   dialog both read it here. *@
+@* A message's text for the Case's Correspondence dialog: the sender's
+   paragraphs, a single line break kept as a line break. *@
 @if (string.IsNullOrWhiteSpace(Model.BodyPlainText))
 {
     <p class="muted">This message has no readable text body.</p>
@@ -21,7 +21,14 @@ else
     <div class="mail-body">
         @foreach (var paragraph in presented.Paragraphs)
         {
-            <p>@paragraph</p>
+            <p>@for (var index = 0; index < paragraph.Count; index++)
+            {
+                if (index > 0)
+                {
+                    <br />
+                }
+                @paragraph[index]
+            }</p>
         }
     </div>
 }

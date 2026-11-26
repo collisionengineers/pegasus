@@ -374,10 +374,11 @@ as **Create case** does, and opens the Triage as **Open the Triage** does
 (operator, 22 October 2026; R223), through `pegasus_intake_action`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
-A retained message's attachments each state their own outcome in operator
-words: Case created, Linked to Case, Vehicle images, Triage, Unidentified,
-Could not be read (with its reason and its Unidentified item where one
-exists), or Processing failed. The message's outcome is not repeated on every attachment.
+A retained message states its outcome once, in operator words: Case
+created, Linked to Case, Vehicle images, Triage, Unidentified, Could not be
+read (with its reason and its Unidentified item where one exists), or
+Processing failed. Its attachments carry no outcome of their own (operator,
+25 November 2026, R1275).
 
 Box custody follows Case/PO allocation and never precedes it; the custody
 rules, including what happens when Box filing fails, are owned by

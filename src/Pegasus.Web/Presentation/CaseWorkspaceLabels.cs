@@ -1291,7 +1291,6 @@ public static class CaseWorkspaceLabels
         public const string OverrideReason = "Override reason";
         public const string RequiredForPrincipal = "(required for this Principal)";
         public const string FiledEstimate = "Filed estimate";
-        public const string AfterSending = "After sending";
         public const string HoldDone = "Done";
 
         public static string CcHint(IEnumerable<string> setBy, IEnumerable<string> removed)

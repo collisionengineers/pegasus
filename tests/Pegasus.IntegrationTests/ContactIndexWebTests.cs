@@ -577,11 +577,13 @@ public sealed partial class ContactIndexWebTests
                 Administrator, Guid.NewGuid(), 0, "Inactive Link Fixture Principal", null, null, null, null, true,
                 ContactRole.Principal, "ILFP1", CaseInspectionMode.PhysicalAddress, [], "contact-edit:inactive-principal");
             var created = await administration.SaveAsync(principal, default);
+            // An existing Principal's save carries its default fee (R1266).
             await administration.SaveAsync(principal with
             {
                 ExpectedVersion = created.Version,
                 Active = false,
-                OperationKey = "contact-edit:inactive-principal:disable"
+                OperationKey = "contact-edit:inactive-principal:disable",
+                DefaultFee = created.DefaultFee
             }, default);
             inactivePrincipalId = created.OwnPrincipalIds!.Single();
             await administration.SaveAsync(new(
@@ -616,8 +618,8 @@ public sealed partial class ContactIndexWebTests
     }
 
     /// <summary>
-    /// R118: the page posts the mode of the Principal its save writes, the one
-    /// without a successor, even when the replaced predecessor is the one shown.
+    /// R118: the page shows and posts the mode of the Principal its save writes,
+    /// the one without a successor, even when the replaced predecessor is the one shown.
     /// </summary>
     [Fact]
     public async Task APageSavePostsTheModeOfThePrincipalWithoutASuccessor()
@@ -641,18 +643,21 @@ public sealed partial class ContactIndexWebTests
                     "contact-edit:replaced-mode:replace", null, created.Version), default)).Id;
             var replaced = await services.GetRequiredService<IContactDirectoryQueries>()
                 .GetAsync(Administrator, contactId, default);
+            // An existing Principal's save carries its default fee (R1266).
             var imageBased = await administration.SaveAsync(request with
             {
                 ExpectedVersion = replaced!.Version,
                 PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
-                OperationKey = "contact-edit:replaced-mode:image-based"
+                OperationKey = "contact-edit:replaced-mode:image-based",
+                DefaultFee = replaced.DefaultFee
             }, default);
             await administration.SaveAsync(request with
             {
                 ExpectedVersion = imageBased.Version,
                 Active = false,
                 PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
-                OperationKey = "contact-edit:replaced-mode:disable"
+                OperationKey = "contact-edit:replaced-mode:disable",
+                DefaultFee = imageBased.DefaultFee
             }, default);
         }
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -660,7 +665,11 @@ public sealed partial class ContactIndexWebTests
         var editor = await IntakeWebDriver.GetHtmlAsync(client, path);
         // Both Principals are inactive, so the page shows the predecessor's code.
         Assert.Equal("RMFA1", InputValue(editor, "PrincipalCode"));
-        var inspectionMode = InputValue(editor, "PrincipalInspectionMode");
+        // The mode is a choice since 25 November 2026 (v55 item D); the page shows the current one.
+        var inspectionMode = Regex.Match(
+            editor,
+            "<select id=\"principal-inspection-mode\" name=\"PrincipalInspectionMode\"[^>]*>.*?<option value=\"(?<mode>[^\"]+)\" selected=\"selected\">",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant).Groups["mode"].Value;
         Assert.Equal(nameof(CaseInspectionMode.ImageBasedAssessment), inspectionMode);
 
         using var saved = await client.PostAsync(

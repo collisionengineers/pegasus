@@ -1976,11 +1976,31 @@ try {
                 break
             }
 
+            # On the hosted test instance's host the classifier timer runs this
+            # checkout's dist/; Status says whether that build is the
+            # checkout's (#2206). Read only: Initialize rebuilds it.
+            $classifierBuild = $null
+            if (Test-PegasusOnTestInstanceHost) {
+                try {
+                    $classifierBuild = Format-PegasusClassifierBuildState -BuildState (
+                        Get-PegasusClassifierBuildState `
+                            -ClassifierRoot (Get-PegasusClassifierRoot -RepositoryRoot $repositoryRoot) `
+                            -SourceTree (Get-PegasusClassifierSourceTree -Git (Get-RequiredApplication -Name 'git') -RepositoryRoot $repositoryRoot))
+                }
+                catch {
+                    $classifierBuild = "unreadable: $($_.Exception.Message)"
+                }
+            }
+
             $invalid = $false
             foreach ($manifestPath in $manifestPaths) {
                 try {
                     $manifest = Read-OwnedManifest -ManifestPath $manifestPath
-                    Test-RunStatus -Manifest $manifest
+                    $status = Test-RunStatus -Manifest $manifest
+                    if ($null -ne $classifierBuild) {
+                        $status | Add-Member -NotePropertyName ClassifierBuild -NotePropertyValue $classifierBuild
+                    }
+                    $status
                 }
                 catch {
                     $invalid = $true

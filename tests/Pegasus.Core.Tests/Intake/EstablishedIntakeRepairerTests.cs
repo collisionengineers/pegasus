@@ -5,8 +5,8 @@ namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
 /// R1027: a new Case takes the Repairer its instruction names when that name
-/// is exactly one active Repairer's, ignoring capitals; otherwise none.
-/// Synthetic names only.
+/// is exactly one active Repairer's, ignoring capitals; otherwise (R1264) the
+/// one linked Repairer its text names; otherwise none. Synthetic names only.
 /// </summary>
 public sealed class EstablishedIntakeRepairerTests
 {
@@ -14,6 +14,9 @@ public sealed class EstablishedIntakeRepairerTests
 
     private static readonly ContactChoice Named = Repairer("Harbour Body Repairs");
     private static readonly ContactChoice Other = Repairer("Harbour Body Repairs North");
+    private static readonly ContactChoice ProPaint = Repairer("Pro Paint Bodyshop", "AX");
+    private static readonly ContactChoice Quayside = Repairer("Quayside Motors", "AX");
+    private static readonly ContactChoice Elsewhere = Repairer("Moorland Coachworks", "QDOS");
 
     [Theory]
     [InlineData("Harbour Body Repairs")]
@@ -81,6 +84,59 @@ public sealed class EstablishedIntakeRepairerTests
         Assert.Null(EstablishedIntakeRepairer.For([Field(RepairerNameField, "Harbour Body Repairs")], [Named, twin]));
     }
 
+    /// <summary>
+    /// R1264: otherwise the one active Repairer linked to the Case's Principal
+    /// that the instruction's text names, capitals and spaces ignored.
+    /// </summary>
+    [Theory]
+    [InlineData("exact", "The vehicle is at Pro Paint Bodyshop, Leeds.")]
+    [InlineData("unspaced", "The vehicle is at ProPaint Bodyshop, Leeds.")]
+    [InlineData("capitals", "THE VEHICLE IS AT PRO PAINT BODYSHOP")]
+    public void TheOneLinkedRepairerTheTextNamesIsTaken(string row, string text)
+    {
+        Assert.NotEmpty(row);
+
+        var established = EstablishedIntakeRepairer.For([], [Named, ProPaint, Quayside, Elsewhere], "AX", text);
+
+        Assert.NotNull(established);
+        Assert.Same(ProPaint, established.Repairer);
+        Assert.Null(established.Field);
+    }
+
+    [Fact]
+    public void TwoLinkedRepairersTheTextNamesGiveNone()
+    {
+        Assert.Null(EstablishedIntakeRepairer.For(
+            [], [ProPaint, Quayside], "AX", "Towed from Quayside Motors to Pro Paint Bodyshop."));
+    }
+
+    [Fact]
+    public void ARepairerTheTextNamesThatIsNotLinkedToThePrincipalGivesNone()
+    {
+        Assert.Null(EstablishedIntakeRepairer.For([], [ProPaint, Elsewhere], "AX", "At Moorland Coachworks."));
+        Assert.Null(EstablishedIntakeRepairer.For([], [Named, ProPaint], "AX", "At Harbour Body Repairs."));
+    }
+
+    [Fact]
+    public void TheInstructionsNamedRepairerComesBeforeTheText()
+    {
+        var field = Field(RepairerNameField, "Harbour Body Repairs");
+
+        var established = EstablishedIntakeRepairer.For(
+            [field], [Named, ProPaint], "AX", "The vehicle is at Pro Paint Bodyshop.");
+
+        Assert.Same(Named, established?.Repairer);
+        Assert.Same(field, established?.Field);
+    }
+
+    [Fact]
+    public void NoTextGivesNoRepairer()
+    {
+        Assert.Null(EstablishedIntakeRepairer.For([], [ProPaint], "AX", null));
+        Assert.Null(EstablishedIntakeRepairer.For([], [ProPaint], "AX", "  "));
+        Assert.Null(EstablishedIntakeRepairer.For([], [ProPaint], null, "At Pro Paint Bodyshop."));
+    }
+
     private static InstructionReviewField Field(string name, string value) =>
         new(
             name,
@@ -89,7 +145,7 @@ public sealed class EstablishedIntakeRepairerTests
             IsDefaulted: false,
             HasConflict: false);
 
-    private static ContactChoice Repairer(string name) =>
+    private static ContactChoice Repairer(string name, params string[] linkedPrincipalCodes) =>
         new(
             Guid.NewGuid(),
             name,
@@ -100,5 +156,5 @@ public sealed class EstablishedIntakeRepairerTests
             Address: null,
             Postcode: null,
             NotesOnEveryCase: null,
-            LinkedPrincipalCodes: []);
+            LinkedPrincipalCodes: linkedPrincipalCodes);
 }

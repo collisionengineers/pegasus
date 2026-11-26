@@ -1466,6 +1466,87 @@ function Assert-PegasusTestInstanceHost {
     }
 }
 
+function Test-PegasusOnTestInstanceHost {
+    <#
+        .SYNOPSIS
+        Whether this machine is the hosted test instance's host: Linux, with the
+        Tailscale node that owns the instance's origin. Never throws.
+    #>
+    return (Get-PegasusPlatform).IsLinux -and
+        (Test-PegasusTestInstanceHost -NodeName ([string](Get-PegasusTailscaleNodeName)))
+}
+
+# The test instance's classifier timer runs the ignored dist/ in the primary
+# checkout (classifier-local-run.md), so a move of the checkout leaves it on
+# whatever was last built (#2206). A build is identified by the Git tree of the
+# classifier's folder, written beside the output once the build succeeds.
+$script:PegasusClassifierRelativePath = 'src/pegasus-classifier-agent'
+
+function Get-PegasusClassifierRoot {
+    param([Parameter(Mandatory)][string]$RepositoryRoot)
+    return Join-Path $RepositoryRoot $script:PegasusClassifierRelativePath
+}
+
+function Get-PegasusClassifierBuildStampPath {
+    param([Parameter(Mandatory)][string]$ClassifierRoot)
+    return Join-Path $ClassifierRoot 'dist/.source-tree'
+}
+
+function Get-PegasusClassifierSourceTree {
+    <#
+        .SYNOPSIS
+        The Git tree hash of the classifier's folder at HEAD: it changes exactly
+        when the classifier's source, tests, package files or tsconfigs change.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Git,
+        [Parameter(Mandatory)][string]$RepositoryRoot
+    )
+
+    $output = @(& $Git -C $RepositoryRoot rev-parse --verify "HEAD:$($script:PegasusClassifierRelativePath)" 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $output.Count -ne 1 -or ([string]$output[0]).Trim() -notmatch '^[0-9a-f]{40}$') {
+        throw "The classifier folder's tree could not be read at HEAD ($($script:PegasusClassifierRelativePath))."
+    }
+    return ([string]$output[0]).Trim()
+}
+
+function Get-PegasusClassifierBuildState {
+    <#
+        .SYNOPSIS
+        Whether the classifier's dist/ was built from a given source tree:
+        'current', 'stale' (built from another tree) or 'not built'. Pure apart
+        from reading the stamp, so the test exercises it.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$ClassifierRoot,
+        [Parameter(Mandatory)][string]$SourceTree
+    )
+
+    $stampPath = Get-PegasusClassifierBuildStampPath -ClassifierRoot $ClassifierRoot
+    $built = $null
+    if ([System.IO.File]::Exists($stampPath) -and
+        [System.IO.File]::Exists((Join-Path $ClassifierRoot 'dist/cli.js'))) {
+        $built = ([System.IO.File]::ReadAllText($stampPath)).Trim()
+        if ($built.Length -eq 0) { $built = $null }
+    }
+    $state = if ($null -eq $built) { 'not built' }
+        elseif ($built.Equals($SourceTree, [StringComparison]::OrdinalIgnoreCase)) { 'current' }
+        else { 'stale' }
+    return [pscustomobject][ordered]@{
+        SourceTree = $SourceTree
+        BuiltTree = $built
+        State = $state
+    }
+}
+
+function Format-PegasusClassifierBuildState {
+    param([Parameter(Mandatory)][object]$BuildState)
+    switch ([string]$BuildState.State) {
+        'stale' { return "stale (built $(([string]$BuildState.BuiltTree).Substring(0, [Math]::Min(9, ([string]$BuildState.BuiltTree).Length))) / checkout $(([string]$BuildState.SourceTree).Substring(0, 9)))" }
+        default { return [string]$BuildState.State }
+    }
+}
+
 function Get-PegasusLocalSettingsPath {
     <#
         .SYNOPSIS

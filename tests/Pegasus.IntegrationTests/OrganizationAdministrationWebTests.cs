@@ -121,7 +121,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReportSettingsOperationKey"] = InputValue(reportSettingsHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(reportSettingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(reportSettingsHtml, "ExpectedVersion"),
-            ["DefaultFee"] = "205.00",
             ["FeeNoteVatNumber"] = "GB 123 4567 89",
             ["AuditWorkflow"] = nameof(AuditWorkflowKind.GarageAuthorisationAndInvoice),
             ["PrincipalInvoice"] = nameof(PrincipalInvoiceKind.UlaInvoice),
@@ -169,10 +168,11 @@ public sealed partial class OrganizationAdministrationWebTests
             $"Expected a redirect but got {reportSettingsPost.StatusCode}. " +
                 $"Validation errors: {await DescribeValidationErrorsAsync(reportSettingsPost)}");
         Assert.Equal($"{reportSettingsPath}?tab=report-generation", reportSettingsPost.Headers.Location?.OriginalString);
+        // The vehicle images tick was left clear, so the reports carry none (v55 item F).
         Assert.Equal(
             1,
             await (await factory.DatabaseAsync).ScalarAsync<int>(
-                $"SELECT CASE WHEN DefaultFee = 205.00 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
+                $"SELECT CASE WHEN ReportImages = 0 THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
         Assert.Equal(
             "{REG}_{CASE REF}_AUDIT",
             await (await factory.DatabaseAsync).ScalarAsync<string>(
@@ -212,29 +212,12 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["ReportSettingsOperationKey"] = InputValue(refusedHtml, "ReportSettingsOperationKey"),
                 ["PrincipalExpectedVersion"] = InputValue(refusedHtml, "PrincipalExpectedVersion"),
                 ["ExpectedVersion"] = InputValue(refusedHtml, "ExpectedVersion"),
-                ["DefaultFee"] = "205.00",
                 ["InspectionReportNameFirst"] = "{VRM} Initial"
             }));
         Assert.Equal(HttpStatusCode.OK, refusedPost.StatusCode);
         var refusedBody = WebUtility.HtmlDecode(await refusedPost.Content.ReadAsStringAsync());
         Assert.Contains("Inspection report name: use only {REG}, {CASE REF} and {OUTCOME}.", refusedBody, StringComparison.Ordinal);
         Assert.Contains("value=\"{VRM} Initial\"", refusedBody, StringComparison.Ordinal);
-
-        var locationHtml = await EditContactAsync(client, reportSettingsPath, "default-inspection-location");
-        using var locationPost = await client.PostAsync(
-            $"{reportSettingsPath}?handler=UpdateLocation",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(locationHtml, "__RequestVerificationToken"),
-                ["LocationOperationKey"] = InputValue(locationHtml, "LocationOperationKey"),
-                ["PrincipalExpectedVersion"] = InputValue(locationHtml, "PrincipalExpectedVersion"),
-                ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
-                ["LocationIsImageBasedAssessment"] = bool.TrueString
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
-        Assert.Equal($"{reportSettingsPath}?tab=default-inspection-location", locationPost.Headers.Location?.OriginalString);
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT CASE WHEN DefaultInspectionAddress IS NULL THEN 1 ELSE 0 END FROM Principals WHERE Id = '{principalId:D}';"));
 
         await AssertCredentialControlsAsync(factory, client, principalId, reportSettingsPath);
 
@@ -276,288 +259,368 @@ public sealed partial class OrganizationAdministrationWebTests
     }
 
     /// <summary>
-    /// The Principal's salvage matrix (29 September 2026): one table per
-    /// category, each with a spare row; a refused save names the category and
-    /// the rule and keeps what was typed; blank rows clear the matrix.
+    /// An active Principal's tabs (operator, 25 November 2026; v55 item A):
+    /// Contact, Report generation, Sending rules and Principal API, then Photo
+    /// links while capture is on. There is no Default inspection location tab;
+    /// Sending rules keeps the Report sending tab's address.
     /// </summary>
     [Fact]
-    public async Task ASalvageMatrixSavesFromTheContactAndARefusalKeepsTheTypedRows()
+    public async Task AnActivePrincipalHasTheFiveTabsInOrder()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
-        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
-        var path = $"/Administration/Contacts/Edit/{contactId:D}";
-        var noMatrix = $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND SalvageMatrixJson IS NULL;";
+        var (_, path, _) = await SendingRulesPrincipalAsync(factory, "SRTABS");
 
-        var html = await EditContactAsync(client, path, "salvage-matrix");
-        Assert.Contains("Salvage matrix", html, StringComparison.Ordinal);
-        foreach (var category in new[] { "A", "B", "S", "N" })
-        {
-            Assert.Contains($"data-salvage-bands=\"{category}\"", html, StringComparison.Ordinal);
-        }
-        Assert.Equal(4, Regex.Count(html, "name=\"SalvageBandFrom\""));
-
-        using var refused = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(html, [("S", "1000.01", "2500", "2"), ("S", "2000", "5000", "4")]));
-        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
-        var refusedHtml = await refused.Content.ReadAsStringAsync();
-        Assert.Contains(
-            "Cat S: bands overlap (1,000.01 to 2,500.00 and 2,000.00 to 5,000.00).",
-            WebUtility.HtmlDecode(refusedHtml),
-            StringComparison.Ordinal);
-        Assert.Contains("value=\"2000\"", refusedHtml, StringComparison.Ordinal);
-        // The refusal shows at the top of the panel that refused.
-        AssertInsidePanel(refusedHtml, "principal-salvage-title", "Cat S: bands overlap");
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
-
-        html = await EditContactAsync(client, path, "salvage-matrix");
-        using var saved = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(html, [("S", "0.01", "1000", "0"), ("S", "1000.01", "9999999.99", "2"), ("N", "", "", "")]));
-        Assert.True(
-            saved.StatusCode == HttpStatusCode.Redirect,
-            $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
-        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
-        // The save comes back to its panel, with the notice inside it.
-        Assert.Equal($"{path}?tab=salvage-matrix", saved.Headers.Location?.OriginalString);
-        var reloaded = await EditContactAsync(client, path, "salvage-matrix");
-        Assert.Contains(
-            "The principal's salvage matrix was updated.",
-            WebUtility.HtmlDecode(reloaded),
-            StringComparison.Ordinal);
-        AssertInsidePanel(reloaded, "principal-salvage-title", "salvage matrix was updated.");
-        Assert.Contains("value=\"1000.01\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"9999999.99\"", reloaded, StringComparison.Ordinal);
-
-        using var cleared = await client.PostAsync(
-            $"{path}?handler=UpdateSalvageMatrix",
-            SalvageForm(reloaded, [("S", "", "", "")]));
-        Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(noMatrix));
+        var html = await EditContactAsync(client, path);
+        var labels = Regex.Matches(html, "<a class=\"tab\"[^>]*>(?<label>[^<]+)</a>")
+            .Select(match => WebUtility.HtmlDecode(match.Groups["label"].Value))
+            .ToArray();
+        Assert.True(labels.Length >= 4, string.Join(", ", labels));
+        Assert.Equal(["Contact", "Report generation", "Sending rules", "Principal API"], labels[..4]);
+        Assert.True(labels.Length == 4 || labels[4..] is ["Photo links"], string.Join(", ", labels));
+        Assert.Matches(
+            $"<a class=\"tab\"(?=[^>]*href=\"{Regex.Escape(path + "?tab=report-sending")}\")[^>]*>Sending rules</a>",
+            html);
+        Assert.DoesNotContain("default-inspection-location", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Report sending<", html, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The Principal's report sending rules (Report Sending SOP v8): the tab
-    /// follows Report generation, a refused save names the rule and keeps what
-    /// was typed, and a good save is kept and shown again.
+    /// The Sending rules tab (v55 items G, H): On every Case as one list, one
+    /// row per action kind, and the numbered rules each read as an If line and
+    /// a Then line, a contact by its name, "is not" for a negated condition and
+    /// the dashed bracket round a group of several among several groups. Move
+    /// up is hidden on the first rule and Move down on the last. The tab has
+    /// one primary, Add rule, and no Save.
     /// </summary>
     [Fact]
-    public async Task ReportSendingRulesSaveFromTheContactAndARefusalKeepsWhatWasTyped()
+    public async Task TheSendingRulesTabReadsEveryCaseAndEachRuleAsASentence()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var principalId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            "SELECT Id FROM Principals WHERE Code = 'KERR';");
-        var contactId = await (await factory.DatabaseAsync).ScalarAsync<Guid>(
-            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
-        var path = $"/Administration/Contacts/Edit/{contactId:D}";
-        var principalVersion = $"SELECT Version FROM Principals WHERE Id = '{principalId:D}';";
-        var holdText = $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.hold') FROM Principals WHERE Id = '{principalId:D}';";
-        var ruleCount = $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules');";
+        var (principalId, path, claimSourceId) = await SendingRulesPrincipalAsync(factory, "SRREAD");
+        await StoreRulesAsync(factory, principalId, new(
+            [
+                new(ReportSendingActionKind.ReplyAll),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.FeeNoteSeparate),
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate),
+                new(ReportSendingActionKind.Hold, Text: "Check the report first.")
+            ],
+            [
+                new([[new(ReportSendingFact.Outcome, ["repairable"])]],
+                    [new(ReportSendingActionKind.Task, Text: ReportDispatchPolicy.GarageFiguresTask)]),
+                new(
+                    [
+                        [new(ReportSendingFact.ClaimSource, [claimSourceId.ToString("D")], Not: true), new(ReportSendingFact.CaseType, ["Audit"])],
+                        [new(ReportSendingFact.PreviousJob, [])]
+                    ],
+                    [new(ReportSendingActionKind.NeverCc, Addresses: ["never@example.com"])])
+            ]));
 
         var html = await EditContactAsync(client, path, "report-sending");
-        Assert.True(
-            html.IndexOf(">Report generation</a>", StringComparison.Ordinal) is var settings
-                && settings >= 0
-                && settings < html.IndexOf(">Report sending</a>", StringComparison.Ordinal),
-            "The Report sending tab follows Report generation.");
-        Assert.True(
-            html.IndexOf(">Report sending</a>", StringComparison.Ordinal) < html.IndexOf(">Salvage matrix</a>", StringComparison.Ordinal),
-            "The Report sending tab comes before the Salvage matrix.");
-        Assert.Contains("data-report-sending-editor", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"RsSendFrom\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-rs-items=\"RsSendTo\"", html, StringComparison.Ordinal);
-        Assert.Contains("Empty: the original instruction sender.", html, StringComparison.Ordinal);
-        foreach (var label in new[]
-        {
-            "Fee note is a separate PDF", "Estimate", "Audatex", "Report carries vehicle images",
-            "Vehicle images document required", "Figure breakdown required"
-        })
-        {
-            Assert.Contains(label, html, StringComparison.Ordinal);
-        }
-        // One spare blank rule; the claim source list offers a seeded source.
-        Assert.Equal(1, Regex.Count(html, "name=\"RuleIndex\""));
-        Assert.Contains(">Car 2 Go</option>", html, StringComparison.Ordinal);
-        // Every condition reads a fact the Case holds: the two kinds that were only ever asked of
-        // staff are gone (operator, 12 November 2026; R1023).
-        Assert.DoesNotContain("BodyshopMentions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("ImagesFrom", html, StringComparison.Ordinal);
-        // Case type follows Outcome, a choice of the types that send a report (13 October 2026);
-        // Reference prefix and Previous job follow it (Report Sending SOP v8).
+
+        Assert.Contains(">Sending rules</h2>", html, StringComparison.Ordinal);
         Assert.Matches(
-            $@"<option value=""Outcome"">Outcome</option>\s*<option value=""CaseType"">Case type</option>\s*<option value=""RefPrefix"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.RefPrefix)}</option>\s*<option value=""PreviousJob"">{OperatorLabels.PrincipalAdministration.ConditionKind(ReportSendingConditionKind.PreviousJob)}</option>\s*</select>",
+            $"<a class=\"btn btn--small btn--primary\" href=\"{Regex.Escape(path)}\\?tab=report-sending&amp;rule=new\">",
             html);
-        Assert.Matches(@"<option value=""Inspection"">Inspection</option>\s*<option value=""Audit"">Audit</option>\s*<option value=""InspectionAndAudit"">Inspection and audit</option>", html);
-        Assert.Contains("Send is refused; staff may override with a reason.", html, StringComparison.Ordinal);
-        // The texts have no length limit.
-        var sendingStart = html.IndexOf("data-report-sending-editor", StringComparison.Ordinal);
-        var sendingPanel = html[sendingStart..html.IndexOf("</form>", sendingStart, StringComparison.Ordinal)];
-        Assert.DoesNotContain("maxlength", sendingPanel, StringComparison.Ordinal);
+        Assert.Contains(">On every Case</h3>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"{path}?tab=report-sending&amp;every=1\">Edit</a>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Save report sending", html, StringComparison.Ordinal);
+        Assert.Equal(
+            ["Reply all", "Attach Separate fee note Estimate", "Hold “Check the report first.”"],
+            Pieces(html, "data-every-case>", "<li>", "</ul>").Select(Words).ToArray());
+
+        var cards = Pieces(html, "data-sending-rules>", "<li class=\"rule-card\"", "</ol>");
+        Assert.Equal(2, cards.Length);
+        Assert.StartsWith(
+            $"1 If Outcome is Repairable Then Add a Case task “{ReportDispatchPolicy.GarageFiguresTask}”",
+            Words("<x" + cards[0]),
+            StringComparison.Ordinal);
+        Assert.StartsWith(
+            "2 If Claim Source is not Linked Source SRREAD and Case type is Audit or Previous job Then Never cc never@example.com",
+            Words("<x" + cards[1]),
+            StringComparison.Ordinal);
+        Assert.Contains("<span class=\"rule-bracket\">", cards[1], StringComparison.Ordinal);
+        Assert.Matches("<button(?=[^>]*aria-label=\"Move rule 1 up\")(?=[^>]*\\bhidden=\"hidden\")[^>]*>", cards[0]);
+        Assert.DoesNotMatch("<button(?=[^>]*aria-label=\"Move rule 1 down\")(?=[^>]*\\bhidden=\"hidden\")[^>]*>", cards[0]);
+        Assert.Matches("<button(?=[^>]*aria-label=\"Move rule 2 down\")(?=[^>]*\\bhidden=\"hidden\")[^>]*>", cards[1]);
+        Assert.Contains($"href=\"{path}?tab=report-sending&amp;rule=2\">Edit</a>", cards[1], StringComparison.Ordinal);
+        // No dialog is open on the tab itself.
+        Assert.DoesNotContain("data-dialog=\"sending-rule-dialog\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>A new Principal starts with reply all and the separate fee note, and no rule.</summary>
+    [Fact]
+    public async Task ANewPrincipalHasNoRules()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (_, path, _) = await SendingRulesPrincipalAsync(factory, "SRNONE");
+
+        var html = await EditContactAsync(client, path, "report-sending");
+
+        Assert.Contains($">{OperatorLabels.PrincipalAdministration.NoRules}</p>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"rule-card\"", html, StringComparison.Ordinal);
+        Assert.Equal(
+            ["Reply all", "Attach Separate fee note"],
+            Pieces(html, "data-every-case>", "<li>", "</ul>").Select(Words).ToArray());
+    }
+
+    /// <summary>
+    /// Each Sending rules dialog opens by address on the tab, drawn by the
+    /// server so it works without script, and closes back to the tab: New
+    /// rule, Rule n with Remove rule, On every Case with its actions only, and
+    /// Remove rule n with the rule it removes.
+    /// </summary>
+    [Fact]
+    public async Task EachSendingRulesDialogOpensByAddress()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, path, claimSourceId) = await SendingRulesPrincipalAsync(factory, "SRDLG");
+        await StoreRulesAsync(factory, principalId, PrincipalReportSendingRules.Default with
+        {
+            Rules =
+            [
+                new([[new(ReportSendingFact.ClaimSource, [claimSourceId.ToString("D")])]],
+                    [new(ReportSendingActionKind.Stop, Text: "Check with the handler.")])
+            ]
+        });
+
+        var added = await EditContactAsync(client, path, "report-sending&rule=new");
+        Assert.Contains(
+            "<div class=\"dialog-backdrop\" data-dialog=\"sending-rule-dialog\" data-dialog-open-on-load=\"true\" data-dialog-cancel-form=\"sending-dialog-close\">",
+            added,
+            StringComparison.Ordinal);
+        Assert.Contains(">New rule</h2>", added, StringComparison.Ordinal);
+        Assert.Contains("<legend>If</legend>", added, StringComparison.Ordinal);
+        Assert.Contains("<legend>Then</legend>", added, StringComparison.Ordinal);
+        // A new rule starts with one Claim Source condition and one Cc action.
+        Assert.Equal("ClaimSource", SelectedValue(added, "Cond.0.0.Fact"));
+        Assert.Equal("Cc", SelectedValue(added, "Action.0.Kind"));
+        Assert.DoesNotContain(">Remove rule</a>", added, StringComparison.Ordinal);
+        Assert.Contains(">Save rule</button>", added, StringComparison.Ordinal);
+        // Close and Cancel ask for the tab again.
+        Assert.Matches(
+            $"<form(?=[^>]*id=\"sending-dialog-close\")(?=[^>]*method=\"get\")(?=[^>]*action=\"{Regex.Escape(path)}\")[^>]*><input type=\"hidden\" name=\"tab\" value=\"report-sending\" /></form>",
+            added);
+        // The contacts linked to this Principal are listed first (v55 item U).
+        Assert.Matches(
+            $"<optgroup label=\"Linked to Sending Rules SRDLG\">\\s*<option value=\"{claimSourceId:D}\">Linked Source SRDLG</option>",
+            added);
+        Assert.Contains("<datalist id=\"sending-task-texts\">", added, StringComparison.Ordinal);
+
+        var existing = await EditContactAsync(client, path, "report-sending&rule=1");
+        Assert.Contains(">Rule 1</h2>", existing, StringComparison.Ordinal);
+        Assert.Equal("ClaimSource", SelectedValue(existing, "Cond.0.0.Fact"));
+        Assert.Equal(claimSourceId.ToString("D"), SelectedValue(existing, "Cond.0.0.ClaimSource"));
+        Assert.Equal("Stop", SelectedValue(existing, "Action.0.Kind"));
+        Assert.Equal("Check with the handler.", InputValue(existing, "Action.0.Text"));
+        Assert.Contains($"href=\"{path}?tab=report-sending&amp;remove=1\">Remove rule</a>", existing, StringComparison.Ordinal);
+
+        var every = await EditContactAsync(client, path, "report-sending&every=1");
+        Assert.Contains(">On every Case</h2>", every, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-rule-if", every, StringComparison.Ordinal);
+        Assert.Equal("ReplyAll", SelectedValue(every, "Action.0.Kind"));
+        Assert.Equal("Attach", SelectedValue(every, "Action.1.Kind"));
+        Assert.Equal("FeeNoteSeparate", SelectedValue(every, "Action.1.File"));
+        Assert.Contains(">Save</button>", every, StringComparison.Ordinal);
+
+        var remove = await EditContactAsync(client, path, "report-sending&remove=1");
+        Assert.Contains(">Remove rule 1</h2>", remove, StringComparison.Ordinal);
+        var removeDialog = remove[remove.IndexOf("data-dialog=\"sending-remove-dialog\"", StringComparison.Ordinal)..];
+        Assert.Contains("If Claim Source is Linked Source SRDLG Then Stop “Check with the handler.”", Words(removeDialog), StringComparison.Ordinal);
+        Assert.Contains("class=\"btn btn--danger\" data-busy-label=", removeDialog, StringComparison.Ordinal);
+
+        // A number with no rule opens nothing.
+        Assert.DoesNotContain("data-dialog=\"sending-rule-dialog\"", await EditContactAsync(client, path, "report-sending&rule=9"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Save rule saves the whole rules value with the new rule added at the
+    /// end and comes back to the tab with the notice; a refusal draws the
+    /// dialog again with what was typed and the sentence at its top, and
+    /// saves nothing.
+    /// </summary>
+    [Fact]
+    public async Task ANewRuleIsSavedAndARefusalKeepsTheTypedDraft()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, path, _) = await SendingRulesPrincipalAsync(factory, "SRSAVE");
+        var principalVersion = $"SELECT Version FROM Principals WHERE Id = '{principalId:D}';";
+        var dialog = await EditContactAsync(client, path, "report-sending&rule=new");
         var versionBefore = await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion);
 
         using var refused = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(html, [new("RsSendTo", "not an address"), new("RsHold", "Typed hold")]));
+            $"{path}?handler=SaveRule&tab=report-sending&rule=new",
+            SendingForm(dialog,
+            [
+                new("Cond.0.0.Fact", "Outcome"), new("Cond.0.0.Not", "false"),
+                new("Action.0.Kind", "Cc"), new("Action.0.Addresses", "keep@example.com")
+            ]));
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         var refusedHtml = await refused.Content.ReadAsStringAsync();
-        Assert.Contains("Send to: enter valid e-mail addresses.", WebUtility.HtmlDecode(refusedHtml), StringComparison.Ordinal);
-        Assert.Contains("value=\"not an address\"", refusedHtml, StringComparison.Ordinal);
-        Assert.Contains("value=\"Typed hold\"", refusedHtml, StringComparison.Ordinal);
-        AssertInsidePanel(refusedHtml, "principal-sending-title", "Send to: enter valid e-mail addresses.");
+        var title = refusedHtml.IndexOf(">New rule</h2>", StringComparison.Ordinal);
+        var notice = refusedHtml.IndexOf("<div class=\"notice notice--danger\" role=\"alert\"><span>Rule 1: a condition needs a value.</span></div>", StringComparison.Ordinal);
+        Assert.True(title > 0 && notice > title, "The refusal shows at the top of the dialog.");
+        Assert.True(notice < refusedHtml.IndexOf("name=\"Cond.0.0.Fact\"", StringComparison.Ordinal), "The refusal shows above the rule.");
+        Assert.Equal("Outcome", SelectedValue(refusedHtml, "Cond.0.0.Fact"));
+        Assert.Equal("keep@example.com", InputValue(refusedHtml, "Action.0.Addresses"));
         Assert.Equal(versionBefore, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
 
-        using var noValue = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(html, [new("RuleIndex", "0"), new("Rule0Match", "All"), new("Rule0Cond0Kind", "Outcome"), new("Rule0CcAdd", "a@example.com")]));
-        Assert.Equal(HttpStatusCode.OK, noValue.StatusCode);
-        Assert.Contains(
-            "Rule 1: a condition needs a value.",
-            WebUtility.HtmlDecode(await noValue.Content.ReadAsStringAsync()),
-            StringComparison.Ordinal);
-
-        html = await EditContactAsync(client, path, "report-sending");
+        dialog = await EditContactAsync(client, path, "report-sending&rule=new");
         using var saved = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(html,
+            $"{path}?handler=SaveRule&tab=report-sending&rule=new",
+            SendingForm(dialog,
             [
-                new("RsSendTo", "to@example.com"), new("RsCc", "cc@example.com"), new("RsNeverCc", "never@example.com"),
-                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
-                new("RsHold", "Check first."), new("RsReminders", "Authorise the garage."),
-                new("RuleIndex", "0"), new("Rule0Match", "Any"),
-                new("Rule0Cond0Kind", "Outcome"), new("Rule0Cond0Outcome", "repairable"),
-                new("Rule0Cond1Kind", "Mentions"), new("Rule0Cond1Text", "Luton, Dunstable"),
-                new("Rule0Cond2Kind", "RefPrefix"), new("Rule0Cond2Text", "a, b"),
-                new("Rule0CcAdd", "x@example.com, y@example.com"), new("Rule0Stop", "Check with Andy."),
-                new("RuleIndex", "1"), new("Rule1Match", "All"), new("Rule1Cond0Kind", "")
+                new("Cond.0.0.Fact", "Outcome"), new("Cond.0.0.Not", "false"), new("Cond.0.0.Outcome", "repairable"),
+                new("Cond.0.1.Fact", "RefPrefix"), new("Cond.0.1.Not", "true"), new("Cond.0.1.Text", "a, b"),
+                new("Cond.1.0.Fact", "PreviousJob"), new("Cond.1.0.Not", "false"),
+                new("Action.0.Kind", "Cc"), new("Action.0.Addresses", "x@example.com, y@example.com"),
+                new("Action.1.Kind", "Task"), new("Action.1.Text", ReportDispatchPolicy.RateCardTask)
             ]));
         Assert.True(
             saved.StatusCode == HttpStatusCode.Redirect,
             $"Expected a redirect but got {saved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(saved)}");
-        Assert.Equal(versionBefore + 1, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
-        Assert.Equal("Check first.", await (await factory.DatabaseAsync).ScalarAsync<string>(holdText));
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(ruleCount));
         Assert.Equal($"{path}?tab=report-sending", saved.Headers.Location?.OriginalString);
-
-        var reloaded = await EditContactAsync(client, path, "report-sending");
-        Assert.Contains(
-            "The principal's report sending rules were updated.",
-            WebUtility.HtmlDecode(reloaded),
-            StringComparison.Ordinal);
-        AssertInsidePanel(reloaded, "principal-sending-title", "report sending rules were updated.");
-        Assert.Contains("value=\"to@example.com\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"Check first.\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"Luton, Dunstable\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"a, b\"", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"x@example.com, y@example.com\"", reloaded, StringComparison.Ordinal);
-        // What a report is called is no sending rule (R740).
-        Assert.DoesNotContain("RsName", reloaded, StringComparison.Ordinal);
-        // The saved rule and one spare blank rule.
-        Assert.Equal(2, Regex.Count(reloaded, "name=\"RuleIndex\""));
-
-        // Report Sending SOP v8: a non-letter reference prefix is refused and kept as typed.
-        using var badPrefix = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(reloaded,
-            [
-                new("RuleIndex", "0"), new("Rule0Match", "All"),
-                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a1"), new("Rule0CcRemove", "x@example.com")
-            ]));
-        Assert.Equal(HttpStatusCode.OK, badPrefix.StatusCode);
-        var badPrefixHtml = await badPrefix.Content.ReadAsStringAsync();
-        AssertInsidePanel(badPrefixHtml, "principal-sending-title", $"Rule 1: {OperatorLabels.PrincipalAdministration.RefPrefixLettersOnly}");
-        Assert.Contains("value=\"a1\"", badPrefixHtml, StringComparison.Ordinal);
         Assert.Equal(versionBefore + 1, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
+        var rules = await StoredRulesAsync(factory, principalId);
+        Assert.Equal(PrincipalReportSendingRules.Default.EveryCase, rules.EveryCase);
+        var rule = Assert.Single(rules.Rules);
+        Assert.Equal(2, rule.If.Count);
+        Assert.Equal(ReportSendingFact.Outcome, rule.If[0][0].Fact);
+        Assert.False(rule.If[0][0].Not);
+        Assert.Equal(["repairable"], rule.If[0][0].Values);
+        Assert.Equal(ReportSendingFact.RefPrefix, rule.If[0][1].Fact);
+        Assert.True(rule.If[0][1].Not);
+        Assert.Equal(["a", "b"], rule.If[0][1].Values);
+        Assert.Equal(ReportSendingFact.PreviousJob, Assert.Single(rule.If[1]).Fact);
+        Assert.Equal(["x@example.com", "y@example.com"], rule.Then[0].Addresses!);
+        Assert.Equal(ReportDispatchPolicy.RateCardTask, rule.Then[1].Text);
 
-        // A reference prefix, a previous job with no value, a Rate card and two
-        // named attach choices are kept; an unnamed one stays As the Principal.
-        using var v8 = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(reloaded,
+        // The notice shows at the top of the panel.
+        var reloaded = WebUtility.HtmlDecode(await EditContactAsync(client, path, "report-sending"));
+        var updated = reloaded.IndexOf(OperatorLabels.PrincipalAdministration.ReportSendingUpdated, StringComparison.Ordinal);
+        Assert.True(
+            updated > reloaded.IndexOf("id=\"principal-sending-title\"", StringComparison.Ordinal)
+                && updated < reloaded.IndexOf(">On every Case</h3>", StringComparison.Ordinal),
+            "The notice must show at the top of the Sending rules panel.");
+    }
+
+    /// <summary>
+    /// Without script, And, Or, Add action and a remove post the draft and
+    /// the dialog is drawn again with a row more or fewer; nothing is saved.
+    /// </summary>
+    [Fact]
+    public async Task TheDialogsRowButtonsRedrawTheDraftWithoutSaving()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, path, _) = await SendingRulesPrincipalAsync(factory, "SRDRAFT");
+        var principalVersion = $"SELECT Version FROM Principals WHERE Id = '{principalId:D}';";
+        var dialog = await EditContactAsync(client, path, "report-sending&rule=new");
+        var versionBefore = await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion);
+        KeyValuePair<string, string>[] draft =
+        [
+            new("Cond.0.0.Fact", "Sender"), new("Cond.0.0.Not", "true"), new("Cond.0.0.Text", "typed@example.com"),
+            new("Action.0.Kind", "Hold"), new("Action.0.Text", "Typed hold.")
+        ];
+
+        async Task<string> ChangeAsync(string change)
+        {
+            using var response = await client.PostAsync(
+                $"{path}?handler=RuleDraft&tab=report-sending&rule=new",
+                SendingForm(dialog, [.. draft, new("DraftChange", change)]));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        var joined = await ChangeAsync("and:0");
+        Assert.Equal("Sender", SelectedValue(joined, "Cond.0.0.Fact"));
+        Assert.Equal("true", SelectedValue(joined, "Cond.0.0.Not"));
+        Assert.Equal("typed@example.com", InputValue(joined, "Cond.0.0.Text"));
+        Assert.Equal("ClaimSource", SelectedValue(joined, "Cond.0.1.Fact"));
+        Assert.DoesNotContain("name=\"Cond.1.0.Fact\"", joined, StringComparison.Ordinal);
+        Assert.Contains(">New rule</h2>", joined, StringComparison.Ordinal);
+
+        var grouped = await ChangeAsync("or");
+        Assert.Equal("ClaimSource", SelectedValue(grouped, "Cond.1.0.Fact"));
+        Assert.Contains("<div class=\"rule-or-divider\" data-rule-or>or</div>", grouped, StringComparison.Ordinal);
+
+        var withAction = await ChangeAsync("action");
+        Assert.Equal("Typed hold.", InputValue(withAction, "Action.0.Text"));
+        Assert.Equal("Task", SelectedValue(withAction, "Action.1.Kind"));
+
+        var removed = await ChangeAsync("remove-condition:0:0");
+        Assert.DoesNotContain("name=\"Cond.0.0.Fact\"", removed, StringComparison.Ordinal);
+        Assert.Contains("data-rule-if", removed, StringComparison.Ordinal);
+
+        Assert.Equal(versionBefore, await (await factory.DatabaseAsync).ScalarAsync<long>(principalVersion));
+        Assert.Empty((await StoredRulesAsync(factory, principalId)).Rules);
+    }
+
+    /// <summary>
+    /// Move up and Move down save at once (v55 item R); Remove rule asks
+    /// first and then removes the rule (item Q); the On every Case dialog
+    /// saves its list. Each comes back to the tab.
+    /// </summary>
+    [Fact]
+    public async Task RulesMoveAndAreRemovedAndTheEveryCaseListIsSaved()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var (principalId, path, _) = await SendingRulesPrincipalAsync(factory, "SRMOVE");
+        ReportSendingRule first = new([[new(ReportSendingFact.Outcome, ["repairable"])]], [new(ReportSendingActionKind.Task, Text: "First.")]);
+        ReportSendingRule second = new([[new(ReportSendingFact.PreviousJob, [])]], [new(ReportSendingActionKind.Task, Text: "Second.")]);
+        await StoreRulesAsync(factory, principalId, PrincipalReportSendingRules.Default with { Rules = [first, second] });
+
+        var tab = await EditContactAsync(client, path, "report-sending");
+        using var moved = await client.PostAsync(
+            $"{path}?handler=MoveRule&tab=report-sending",
+            SendingForm(tab, [new("RuleNumber", "1"), new("MoveBy", "1")]));
+        Assert.True(
+            moved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {moved.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(moved)}");
+        Assert.Equal($"{path}?tab=report-sending", moved.Headers.Location?.OriginalString);
+        Assert.Equal(["Second.", "First."], (await StoredRulesAsync(factory, principalId)).Rules.Select(rule => rule.Then[0].Text!).ToArray());
+
+        var remove = await EditContactAsync(client, path, "report-sending&remove=1");
+        using var removed = await client.PostAsync(
+            $"{path}?handler=RemoveRule&tab=report-sending&remove=1",
+            SendingForm(remove, []));
+        Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode);
+        Assert.Equal(["First."], (await StoredRulesAsync(factory, principalId)).Rules.Select(rule => rule.Then[0].Text!).ToArray());
+
+        var every = await EditContactAsync(client, path, "report-sending&every=1");
+        using var savedEvery = await client.PostAsync(
+            $"{path}?handler=SaveEveryCase&tab=report-sending&every=1",
+            SendingForm(every,
             [
-                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
-                new("RuleIndex", "0"), new("Rule0Match", "Any"),
-                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a"),
-                new("Rule0Cond1Kind", "PreviousJob"), new("Rule0Cond1Text", "ignored"),
-                new("Rule0CcRemove", "x@example.com"), new("Rule0RateCard", "true"),
-                new("Rule0AttachEstimate", "true"), new("Rule0AttachFigureBreakdown", "false"), new("Rule0AttachAudatex", "")
+                new("Action.0.Kind", "ReplyAll"),
+                new("Action.1.Kind", "Hold"), new("Action.1.Text", "Check first."),
+                new("Action.2.Kind", "Attach"), new("Action.2.File", "Estimate")
             ]));
         Assert.True(
-            v8.StatusCode == HttpStatusCode.Redirect,
-            $"Expected a redirect but got {v8.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(v8)}");
-        string RuleValue(string jsonPath) =>
-            $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.rules[0].{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
-        Assert.Equal("a", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("if[0].values[0]")));
-        Assert.Equal("PreviousJob", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("if[1].kind")));
-        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].if[1].values');"));
-        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.rateCard")));
-        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.attach.estimate")));
-        Assert.Equal("false", await (await factory.DatabaseAsync).ScalarAsync<string>(RuleValue("then.attach.figureBreakdown")));
-        Assert.Equal(2, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
-
-        var shown = await EditContactAsync(client, path, "report-sending");
-        Assert.Contains("value=\"a\"", shown, StringComparison.Ordinal);
-        Assert.Contains("name=\"Rule0RateCard\" value=\"true\" checked=\"checked\"", shown, StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"Rule0AttachEstimate\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\" selected=\"selected\">{OperatorLabels.PrincipalAdministration.AttachOverrideOn}</option>",
-            shown,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"<option value=\"false\" selected=\"selected\">{OperatorLabels.PrincipalAdministration.AttachOverrideOff}</option>",
-            shown,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"Rule0AttachAudatex\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
-            shown,
-            StringComparison.Ordinal);
-        // The Offer ticks start off, beside the attach ticks (R1151).
-        Assert.Contains("name=\"RsOfferExternalEstimates\"", shown, StringComparison.Ordinal);
-        Assert.DoesNotMatch("name=\"RsOfferExternalEstimates\"[^>]*checked", shown);
-        Assert.DoesNotMatch("name=\"RsOfferRepairInvoices\"[^>]*checked", shown);
-
-        // R1151: the two Offer ticks and a rule's override of one are saved and shown.
-        using var offers = await client.PostAsync(
-            $"{path}?handler=UpdateReportSending",
-            SendingForm(shown,
+            savedEvery.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {savedEvery.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(savedEvery)}");
+        var stored = await StoredRulesAsync(factory, principalId);
+        Assert.Equal(
             [
-                new("RsReplyAll", "true"), new("RsFeeNoteSeparate", "true"), new("RsReportImages", "true"),
-                new("RsOfferExternalEstimates", "true"), new("RsOfferRepairInvoices", "true"),
-                new("RuleIndex", "0"), new("Rule0Match", "All"),
-                new("Rule0Cond0Kind", "RefPrefix"), new("Rule0Cond0Text", "a"),
-                new("Rule0AttachOfferRepairInvoices", "false"), new("Rule0AttachOfferExternalEstimates", "")
-            ]));
-        Assert.True(
-            offers.StatusCode == HttpStatusCode.Redirect,
-            $"Expected a redirect but got {offers.StatusCode}. Validation errors: {await DescribeValidationErrorsAsync(offers)}");
-        string AttachValue(string jsonPath) =>
-            $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.{jsonPath}') FROM Principals WHERE Id = '{principalId:D}';";
-        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerExternalEstimates")));
-        Assert.Equal("true", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("attach.offerRepairInvoices")));
-        Assert.Equal("false", await (await factory.DatabaseAsync).ScalarAsync<string>(AttachValue("rules[0].then.attach.offerRepairInvoices")));
-        Assert.Equal(1, await (await factory.DatabaseAsync).ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM OPENJSON((SELECT ReportSendingRulesJson FROM Principals WHERE Id = '{principalId:D}'), '$.rules[0].then.attach');"));
+                new ReportSendingAction(ReportSendingActionKind.ReplyAll),
+                new ReportSendingAction(ReportSendingActionKind.Hold, Text: "Check first."),
+                new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate)
+            ],
+            stored.EveryCase);
+        Assert.Single(stored.Rules);
 
-        var offered = await EditContactAsync(client, path, "report-sending");
-        Assert.Contains("name=\"RsOfferExternalEstimates\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
-        Assert.Contains("name=\"RsOfferRepairInvoices\" value=\"true\" checked=\"checked\"", offered, StringComparison.Ordinal);
-        Assert.Contains(
-            WebUtility.HtmlEncode(OperatorLabels.PrincipalAdministration.OfferExternalEstimates),
-            offered,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"Rule0AttachOfferRepairInvoices\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">{OperatorLabels.PrincipalAdministration.AttachOverrideOn}</option><option value=\"false\" selected=\"selected\">",
-            offered,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            $"name=\"Rule0AttachOfferExternalEstimates\"><option value=\"\">{OperatorLabels.PrincipalAdministration.AttachAsThePrincipal}</option><option value=\"true\">",
-            offered,
-            StringComparison.Ordinal);
+        // An every-Case refusal is named "On every Case".
+        var refusedEvery = await EditContactAsync(client, path, "report-sending&every=1");
+        using var refused = await client.PostAsync(
+            $"{path}?handler=SaveEveryCase&tab=report-sending&every=1",
+            SendingForm(refusedEvery, [new("Action.0.Kind", "Cc"), new("Action.0.Addresses", "not an address")]));
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("On every Case: enter valid e-mail addresses.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -749,7 +812,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(1, counter.CountMentioning("PrincipalApiCredentials"));
         Assert.Equal("1", InputValue(apiTab, "CredentialVersion"));
 
-        foreach (var tab in new string?[] { null, "report-generation", "report-sending", "salvage-matrix", "default-inspection-location" })
+        foreach (var tab in new string?[] { null, "report-generation", "report-sending" })
         {
             counter.Reset();
             _ = await EditContactAsync(client, path, tab);
@@ -761,11 +824,11 @@ public sealed partial class OrganizationAdministrationWebTests
 
     /// <summary>
     /// Each Contacts edit tab reads only the choices it draws (#1542): the
-    /// Claim Source and Repairer lists (and the mailboxes, read beside them)
-    /// only for an active Principal's Report sending tab, and the Principal
-    /// choices only for a contact that is not a Principal. The lists are
-    /// recognised by their query parameters, <c>roleCode</c> and
-    /// <c>contactId</c>.
+    /// Claim Source and Repairer lists only for an active Principal's Sending
+    /// rules tab, the mailboxes Send from offers for a Principal's Contact tab
+    /// (v55 item E), and the Principal choices only for a contact that is not
+    /// a Principal. The lists are recognised by their query parameters,
+    /// <c>roleCode</c> and <c>contactId</c>, and the mailboxes by their table.
     /// </summary>
     [Fact]
     public async Task EachContactTabReadsOnlyTheChoicesItDraws()
@@ -795,10 +858,22 @@ public sealed partial class OrganizationAdministrationWebTests
         var path = $"/Administration/Contacts/Edit/{principalContact:D}";
         counter.Reset();
         _ = await EditContactAsync(client, path, "report-sending");
-        Assert.True(counter.CountMentioning("roleCode") > 0, "The Report sending tab read no contact list." + Environment.NewLine + counter.Describe());
+        Assert.True(counter.CountMentioning("roleCode") > 0, "The Sending rules tab read no contact list." + Environment.NewLine + counter.Describe());
         Assert.True(counter.CountMentioning("contactId") == 0, "A Principal read the Principal choices." + Environment.NewLine + counter.Describe());
 
-        foreach (var tab in new string?[] { null, "report-generation", "salvage-matrix", "default-inspection-location", "principal-api" })
+        // The Contact tab draws Send from, so it reads the mailboxes: no more
+        // than once beyond what a tab that draws none reads.
+        counter.Reset();
+        _ = await EditContactAsync(client, path, "report-generation");
+        var withoutSendFrom = counter.CountMentioning("ApprovedMailboxes");
+        counter.Reset();
+        var contactTab = await EditContactAsync(client, path);
+        Assert.Contains("name=\"SendFromMailbox\"", contactTab, StringComparison.Ordinal);
+        Assert.True(
+            counter.CountMentioning("ApprovedMailboxes") <= withoutSendFrom + 1,
+            "The Contact tab read the mailboxes more than once." + Environment.NewLine + counter.Describe());
+
+        foreach (var tab in new string?[] { null, "report-generation", "principal-api" })
         {
             counter.Reset();
             _ = await EditContactAsync(client, path, tab);
@@ -811,7 +886,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var repairerPage = await EditContactAsync(client, $"/Administration/Contacts/Edit/{repairer:D}");
         Assert.Contains("name=\"LinkedPrincipalIds\"", repairerPage, StringComparison.Ordinal);
         Assert.True(counter.CountMentioning("contactId") > 0, "The Repairer read no Principal choices." + Environment.NewLine + counter.Describe());
-        Assert.True(counter.CountMentioning("roleCode") == 0, "The Repairer read a Report sending list." + Environment.NewLine + counter.Describe());
+        Assert.True(counter.CountMentioning("roleCode") == 0, "The Repairer read a Sending rules list." + Environment.NewLine + counter.Describe());
     }
 
     private static Dictionary<string, string> CredentialForm(string html) => new()
@@ -821,27 +896,6 @@ public sealed partial class OrganizationAdministrationWebTests
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
-
-    private static FormUrlEncodedContent SalvageForm(
-        string html,
-        IEnumerable<(string Category, string From, string To, string Percentage)> rows)
-    {
-        var fields = new List<KeyValuePair<string, string>>
-        {
-            new("__RequestVerificationToken", InputValue(html, "__RequestVerificationToken")),
-            new("SalvageMatrixOperationKey", InputValue(html, "SalvageMatrixOperationKey")),
-            new("PrincipalExpectedVersion", InputValue(html, "PrincipalExpectedVersion")),
-            new("ExpectedVersion", InputValue(html, "ExpectedVersion"))
-        };
-        foreach (var row in rows)
-        {
-            fields.Add(new("SalvageBandCategory", row.Category));
-            fields.Add(new("SalvageBandFrom", row.From));
-            fields.Add(new("SalvageBandTo", row.To));
-            fields.Add(new("SalvageBandPercentage", row.Percentage));
-        }
-        return new FormUrlEncodedContent(fields);
-    }
 
     private static FormUrlEncodedContent SendingForm(
         string html,
@@ -854,22 +908,66 @@ public sealed partial class OrganizationAdministrationWebTests
             new("ExpectedVersion", InputValue(html, "ExpectedVersion"))
         }.Concat(fields));
 
-    private static Task<string> EditContactAsync(HttpClient client, string path, string? tab = null) =>
-        IntakeWebDriver.GetHtmlAsync(client, tab is null ? path : $"{path}?tab={tab}");
+    private static readonly ActionActor Administrator = ActionActor.Staff(
+        DevelopmentOfflineIdentity.AdministratorId,
+        [StaffRole.Administrator]);
 
-    // The text sits in the panel headed by the title id, before that panel's first field.
-    private static void AssertInsidePanel(string html, string titleId, string text)
+    /// <summary>
+    /// A new active Principal with the standard rules, and a Claim Source
+    /// linked to it, so a rule can name a contact the picker lists first.
+    /// </summary>
+    private static async Task<(Guid PrincipalId, string Path, Guid ClaimSourceId)> SendingRulesPrincipalAsync(
+        IntakeWebApplicationFactory factory, string code)
     {
-        var decoded = WebUtility.HtmlDecode(html);
-        var title = decoded.IndexOf($"id=\"{titleId}\"", StringComparison.Ordinal);
-        var at = decoded.IndexOf(text, StringComparison.Ordinal);
-        Assert.True(title >= 0 && at > title, $"'{text}' must show inside the panel '{titleId}'.");
-        var firstField = FirstFieldRegex().Match(decoded, title);
-        Assert.True(firstField.Success && firstField.Index > at, $"'{text}' must show at the top of the panel '{titleId}'.");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var administration = scope.ServiceProvider.GetRequiredService<IContactDirectoryAdministration>();
+        var principal = await administration.SaveAsync(new(
+            Administrator, Guid.NewGuid(), 0, $"Sending Rules {code}", null, null, null, null, true,
+            ContactRole.Principal, code, CaseInspectionMode.PhysicalAddress, [], $"sending-rules:{code}"), default);
+        var principalId = principal.OwnPrincipalIds!.Single();
+        var claimSource = await administration.SaveAsync(new(
+            Administrator, Guid.NewGuid(), 0, $"Linked Source {code}", null, null, null, null, true,
+            ContactRole.ClaimSource, null, CaseInspectionMode.PhysicalAddress, [principalId], $"sending-rules:{code}:source"), default);
+        return (principalId, $"/Administration/Contacts/Edit/{principal.OrganizationId:D}", claimSource.OrganizationId);
     }
 
-    [GeneratedRegex("<(?:input\\b(?![^>]*\\btype=\"hidden\")|select\\b|textarea\\b)", RegexOptions.CultureInvariant)]
-    private static partial Regex FirstFieldRegex();
+    /// <summary>Stores <paramref name="rules"/> as the Principal's, as a migration or an earlier save left them.</summary>
+    private static async Task StoreRulesAsync(IntakeWebApplicationFactory factory, Guid principalId, PrincipalReportSendingRules rules) =>
+        await (await factory.DatabaseAsync).ExecuteAsync(
+            $"UPDATE Principals SET ReportSendingRulesJson = N'{EfOrganizationAdministration.ToReportSendingJson(rules).Replace("'", "''", StringComparison.Ordinal)}' WHERE Id = '{principalId:D}';");
+
+    private static async Task<PrincipalReportSendingRules> StoredRulesAsync(IntakeWebApplicationFactory factory, Guid principalId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var principal = await scope.ServiceProvider.GetRequiredService<IGetPrincipal>()
+            .ExecuteAsync(Administrator, principalId, default);
+        return principal!.Principal.ReportSending;
+    }
+
+    // The chosen option of a select the page draws.
+    private static string SelectedValue(string html, string name)
+    {
+        var select = Regex.Match(html, $"<select\\b[^>]*\\bname=\"{Regex.Escape(name)}\"[^>]*>(?<options>.*?)</select>", RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(select.Success, $"The form must render select '{name}'.");
+        var chosen = Regex.Match(select.Groups["options"].Value, "<option value=\"(?<value>[^\"]*)\" selected=\"selected\">", RegexOptions.CultureInvariant);
+        return chosen.Success ? WebUtility.HtmlDecode(chosen.Groups["value"].Value) : string.Empty;
+    }
+
+    // What a piece of the page reads, its tags dropped and its spaces folded.
+    private static string Words(string html) =>
+        Regex.Replace(WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]+>", " ")), "\\s+", " ").Trim();
+
+    // The pieces between the anchor and the end that open with the marker.
+    private static string[] Pieces(string html, string anchor, string marker, string end)
+    {
+        var from = html.IndexOf(anchor, StringComparison.Ordinal);
+        Assert.True(from >= 0, $"The page must draw '{anchor}'.");
+        var to = html.IndexOf(end, from, StringComparison.Ordinal);
+        return html[from..(to < 0 ? html.Length : to)].Split(marker)[1..];
+    }
+
+    private static Task<string> EditContactAsync(HttpClient client, string path, string? tab = null) =>
+        IntakeWebDriver.GetHtmlAsync(client, tab is null ? path : $"{path}?tab={tab}");
 
     private static string InputValue(string html, string name)
     {

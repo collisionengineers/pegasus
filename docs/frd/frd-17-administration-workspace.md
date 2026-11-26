@@ -114,16 +114,37 @@ the type read-only and only that type's sections. The list is one panel per
 type, with no lede, no Sort control and no Type column; its order, columns and
 filters are in
 [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration). The
-contact form shows Type, and for a Principal its Principal code, Inspection
-mode and Accepted e-mail identities, as greyed read-only boxes; Replace code
+contact form shows Type, and for a Principal its Principal code and
+Accepted e-mail identities, as greyed read-only boxes; Replace code
 stays the only route to a new code. Notes on every Case grows to fit its
 text. Linked principals is one list in three columns. The label is Phone in
 the New dialog, on the contact and in the list. Save contact returns to the
 Contacts list. An active Principal's page is tabs: Contact, Report
-generation, Report sending, Salvage matrix, Default inspection location and
-Principal API, each its own address (`?tab=`) so the tabs work without
-script, with Replace code in the head of the Contact tab
-([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+generation, Sending rules and Principal API,
+each its own address (`?tab=`) so the tabs work without script, with Replace
+code in the head of the Contact tab
+([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+there is no Salvage matrix tab (operator, 25 November 2026; R1263) and no
+Default inspection location tab (operator, 25 November 2026;
+[R1266](../rulings.md), [R1272](../rulings.md) item A).
+
+The Contact tab is one form in headed sections, saved by Save contact
+(operator, 25 November 2026, approving the
+[v55 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v55-contacts-and-sending-rules/v55_planning)
+as drawn; [R1272](../rulings.md) items B to E and T;
+[v55 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v55-contacts-and-sending-rules/v55_planning/current/v55-notes.md)).
+**Organisation** holds the name, Type, Principal code, Phone, Email, Address
+and Postcode. **Cases** holds, for a Principal, Default fee (£), required;
+Inspection mode, a choice of Physical address or Image Based Assessment;
+for Physical address only, the optional Default inspection location
+(Location label, Address, Postcode); and Notes on every Case. A change of
+Inspection mode applies to Cases made afterwards; there is no "Default to
+Image Based Assessment" tick ([R1266](../rulings.md), amending R118).
+**E-mail**, for a Principal, holds Accepted e-mail identities, read-only, and
+Send from, a list of the Outgoing mailboxes that can send, with Not set
+(R655). A Claim Source's and a Repairer's page takes the Organisation and
+Cases headings, Cases holding Linked principals and, for a Claim Source,
+Notes on every Case, and changes nothing else.
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
 Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
@@ -134,8 +155,8 @@ while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
-settings are part of that Contact record. Report generation carries the Default fee (£) box,
-then the Fee note VAT number box, whose hint is "Empty: the standard number." and
+settings are part of that Contact record. Report generation carries the Fee
+note VAT number box, whose hint is "Empty: the standard number." and
 which shows the standard number, 262 0937 10, greyed when empty (operator,
 12 November 2026; R1008),
 then Audit workflow (Original engineer report or Garage authorisation &
@@ -146,33 +167,57 @@ Invoice; [R1162](../rulings.md)), Invoice VAT number and Invoice payment terms
 which Generate report reads to make the ULA Invoice
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
 then Inspection report name and Audit report name, each a First send and a
-Re-send text box, above Save report settings; it has no Report recipients
-settings (operator, 6 October 2026). An empty name box shows its standard name
+Re-send text box, then the Report carries vehicle images tick
+([R1272](../rulings.md) item F), above Save report settings; it has no
+Default fee, which is on the Contact tab ([R1266](../rulings.md)), and no
+Report recipients settings (operator, 6 October 2026). An empty name box
+shows its standard name
 greyed (`{CASE REF} {REG} {OUTCOME} report`, and `…report.` for Re-send), and
 each report name has `{REG}`, `{CASE REF}` and `{OUTCOME}` buttons that put the
-token at the cursor of the box last used (operator, 6 November 2026; R740). The Report sending panel follows Report generation and is
-shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing
-mailboxes that can send, with Not set. Send to, Cc, Never cc and Reminders are repeated
-inputs with an Add button; Send to only, Reply all, Garage figures and the
-eight Attach choices are ticks, the last two "Offer external estimates
-(unticked)" and "Offer repair invoices (unticked)" (operator, 17 November
-2026; [R1151](../rulings.md)); Hold is text, with no length limit. Rules are repeated rows, each with
-Match (All or Any condition), three condition lines (a kind, then a Contact
-list, the four outcomes, the Case types, or text for
-Instruction mentions, Sender is not and Reference prefix;
-Previous job takes no value; the kinds, in order, are Claim Source,
-Repairer, Instruction mentions, Sender is not, Outcome,
-Case type, Reference prefix and Previous job; Images from and Bodyshop
-mentions are retired, 12 November 2026, R1023), and the
-actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the seven
-Attach choices other than report images, each As the Principal, Attach or
-Do not attach (Report Sending SOP v8; operator, 16 October 2026). A
-non-letter reference prefix is refused: "A reference prefix is letters
-only." A Remove rule button per row, one spare blank row, an Add rule button,
-and one Save report sending. The Salvage matrix panel follows it: one
-table per salvage category, with From (£), To (£) and Percentage paid (%)
-columns, a Remove button per row, one spare blank row, an Add band button,
-and one Save salvage matrix. The list filters live as the operator types, 300
+token at the cursor of the box last used (operator, 6 November 2026; R740).
+
+The **Sending rules** panel follows Report generation and is shown for a
+Principal only (operator, 25 November 2026; [R1267](../rulings.md),
+[R1271](../rulings.md), [R1272](../rulings.md) items A, G to S and U;
+[v55 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v55-contacts-and-sending-rules/v55_planning/current/v55-notes.md)).
+Its head holds Add rule, the panel's one primary. **On every Case** is one
+list of the actions every send takes, with Edit, which opens the On every
+Case dialog. **Rules** lists the numbered rules, each a card with its number,
+an If line and a Then line written as sentences, then Move up and Move down
+(hidden at the ends) and Edit. Moving a rule saves at once. The panel has no
+Save and no Cancel: each dialog saves its own rule, and a refused save keeps
+the dialog open with its refusal and what was typed.
+
+Each dialog is an address of the tab, so it opens and works without script;
+each Add in it is a form post that redraws it. The rule dialog, headed New
+rule or Rule N, has If and Then. If is one or more groups joined by or: a
+group is one or more conditions joined by and, its And button adds a
+condition to it, and Or starts a new group. A condition is a fact, "is" or
+"is not", and its values. The facts, in order, are Claim Source, Repairer,
+Outcome, Case type, Sender, Reference prefix and Previous job. Claim Source
+and Repairer take one or more contacts from a list of those linked to the
+Principal, under "Linked to {Principal}", then "Other contacts"; Outcome and
+Case type take one or more of their values; Sender and Reference prefix take
+text, several separated by commas ("Separate several with commas."); Previous
+job takes no value and reads "Previous job" or "No previous job". Then is one
+or more actions, with Add action: Send to, Send to only, Reply all, Cc, Never
+cc, Attach, Do not attach, Hold, Stop and Add a Case task. Send to, Cc and
+Never cc take addresses separated by commas; Attach and Do not attach name a
+file: Separate fee note, Estimate, Audatex, Vehicle images document, Figure
+breakdown, External estimates (offered, unticked) or Repair invoices
+(offered, unticked); Hold and Stop take text with no length limit, hinted
+"Send stays off until staff tick this as done." and "Send is refused; staff
+may override with a reason."; Add a Case task takes text, suggesting "Send
+the figures to the garage." and "Check the report's estimate against the
+Connexus Repair Rate Card." and taking any other. A non-letter reference
+prefix is refused: "A reference prefix is letters only." The foot holds
+Remove rule on an existing rule, Cancel and Save rule. Remove rule asks
+first, in a dialog headed Remove rule N that shows the rule, with Cancel and
+Remove rule. The On every Case dialog is the Then part alone, with Cancel and
+Save. What each condition reads and each action does at send is owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules).
+
+The Contacts list filters live as the operator types, 300
 milliseconds after the last keystroke, alongside the Apply control for
 no-script use. Server-side filtering is unchanged. A telephone value accepts
 digits, spaces and an optional leading `+` only (UK numbers keep a leading

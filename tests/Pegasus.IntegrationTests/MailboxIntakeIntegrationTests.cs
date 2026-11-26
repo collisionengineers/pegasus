@@ -771,17 +771,17 @@ public sealed class MailboxIntakeIntegrationTests
                         .Select(asset => asset.FileName)
                         .OrderBy(fileName => fileName, StringComparer.Ordinal));
                 Assert.DoesNotContain(receipt.AssetRecords, asset => asset.FileName == "logo.png");
-                var outcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
-                    .ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), parentReceiptId);
-                Assert.Equal(3, outcomes.Count);
-                Assert.All(outcomes, outcome => Assert.Equal(AttachmentOutcomeKind.VehicleImages, outcome.Kind));
-                Assert.Single(outcomes.Select(outcome => outcome.Record!.Id).Distinct());
-                var heldReceiptOutcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
+                var outcome = Assert.IsType<RetainedMailOutcome>(await scope.ServiceProvider
+                    .GetRequiredService<IGetRetainedMailOutcome>()
+                    .ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), parentReceiptId));
+                Assert.Equal(AttachmentOutcomeKind.VehicleImages, outcome.Kind);
+                Assert.Equal(AttachmentOutcomeRecordKind.ImageIntake, Assert.IsType<AttachmentOutcomeRecord>(outcome.Record).Kind);
+                var heldReceiptOutcome = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailOutcome>()
                     .ExecuteAsync(
                         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                         parentReceiptId,
                         receipt: receipt);
-                Assert.Equal(outcomes, heldReceiptOutcomes);
+                Assert.Equal(outcome, heldReceiptOutcome);
             }
 
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
