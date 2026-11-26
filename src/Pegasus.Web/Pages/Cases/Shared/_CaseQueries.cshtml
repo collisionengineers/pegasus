@@ -55,7 +55,8 @@
                         @foreach (var query in open.Concat(done))
                         {
                             var currentAssignee = query.AssigneeStaffId?.ToString("D") ?? "unassigned";
-                            <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")" data-mail-row="@(query.Message?.RetainedMessageId)">
+                            @* A logged query has no message, so its row is not one the dialog walks. Razor keeps a data- attribute whose value is null, so the attribute is written whole or not at all. *@
+                            <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")" @(query.Message?.RetainedMessageId is { } mailRowId ? Html.Raw($"data-mail-row=\"{mailRowId:D}\"") : null)>
                                 <td><partial name="Shared/_StatusChip" model="@(query.IsOpen ? QueryLabels.Open : QueryLabels.Done)" /></td>
                                 <td><time datetime="@query.RaisedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(query.RaisedAtUtc)</time></td>
                                 <td>@query.RaisedByDisplayName</td>
