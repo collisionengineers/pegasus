@@ -727,9 +727,6 @@ public static partial class OperatorLabels
             "In-flight work remains visible and no result is discarded.";
 
         public const string SendToAi = "Send to AI";
-
-        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
-        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
@@ -754,6 +751,82 @@ public static partial class OperatorLabels
             "automation.jobs" => "AI jobs",
             "automation.send" => "Sending",
             _ => key
+        };
+    }
+
+    /// <summary>
+    /// The Integrations administration area's words (operator, 26 November
+    /// 2026; R1289): the automatic requests panel and one panel per
+    /// integration login. <see cref="Admin.Integrations"/> is the area's name;
+    /// the wording the staff Glass's credential dialog already gives is reused
+    /// from its owner.
+    /// </summary>
+    public static class Integrations
+    {
+        public const string AutomaticRequests = "Automatic requests";
+
+        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
+        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
+        public const string AutomaticBregoValuation = "Automatic Brego valuation";
+        public const string AutomaticCazanaValuation = "Automatic Cazana valuation";
+        public const string AutomaticCapValuation = "Automatic CAP valuation";
+        public const string AutomaticExperianCheck = "Automatic Experian check";
+        public const string SaveAutomatic = "Save automatic requests";
+        public const string AutomaticSaved = "Automatic requests saved.";
+
+        public const string Account = CaseWorkspaceLabels.GlassCredential.Account;
+        public const string Updated = CaseWorkspaceLabels.GlassCredential.Updated;
+        public const string NotSet = CaseWorkspaceLabels.GlassCredential.NotSet;
+        public const string Username = CaseWorkspaceLabels.GlassCredential.Username;
+        public const string Password = CaseWorkspaceLabels.GlassCredential.Password;
+        public const string Email = "E-mail";
+        public const string ClientIdentifier = AutomationAdmin.ClientIdentifier;
+        public const string ClientSecret = "Client secret";
+        public const string Save = CaseWorkspaceLabels.GlassCredential.Save;
+        public const string Saved = CaseWorkspaceLabels.GlassCredential.Saved;
+        public const string NotAccepted = CaseWorkspaceLabels.GlassCredential.NotAccepted;
+        public const string Expired = AutomationAdmin.Expired;
+
+        public const string UsernameRequired = CaseWorkspaceLabels.GlassCredential.UsernameRequired;
+        public const string PasswordRequired = CaseWorkspaceLabels.GlassCredential.PasswordRequired;
+        public const string EmailRequired = "Enter an e-mail address.";
+        public const string ClientIdentifierRequired = "Enter a client identifier.";
+        public const string ClientSecretRequired = "Enter a client secret.";
+
+        /// <summary>A stored login the key ring can no longer read.</summary>
+        public const string Unreadable = "The stored login cannot be read. Save it again.";
+
+        /// <summary>The heading of one login's panel.</summary>
+        public static string Heading(IntegrationLogin login) => login switch
+        {
+            IntegrationLogin.GlassValuation => "Glass's valuation account",
+            IntegrationLogin.Brego => "Brego valuation account",
+            IntegrationLogin.Cazana => "Cazana Companion account",
+            IntegrationLogin.ExperianHistory => "Experian vehicle history account",
+            IntegrationLogin.ExperianCap => "Experian CAP account",
+            _ => throw new ArgumentOutOfRangeException(nameof(login), login, "The integration login is unknown.")
+        };
+
+        /// <summary>The label of one value a login is made of.</summary>
+        public static string Field(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => Username,
+            IntegrationLoginField.Email => Email,
+            IntegrationLoginField.Password => Password,
+            IntegrationLoginField.ClientId => ClientIdentifier,
+            IntegrationLoginField.ClientSecret => ClientSecret,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
+        };
+
+        /// <summary>The refusal of one value left blank.</summary>
+        public static string Required(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => UsernameRequired,
+            IntegrationLoginField.Email => EmailRequired,
+            IntegrationLoginField.Password => PasswordRequired,
+            IntegrationLoginField.ClientId => ClientIdentifierRequired,
+            IntegrationLoginField.ClientSecret => ClientSecretRequired,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
         };
     }
 

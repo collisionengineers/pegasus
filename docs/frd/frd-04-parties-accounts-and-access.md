@@ -462,8 +462,10 @@ Disabled or deleted staff cannot start or resume a Glass's session.
 
 The integrations' logins (Glass's valuation, Cazana, Brego and the two
 Experian accounts) belong to Collision Engineers, not to a member of staff.
-An Administrator replaces each on Administration > Integrations; Pegasus
-keeps them encrypted, never shows a stored value back, and records each change
+An Administrator replaces each on Administration > Integrations
+([FRD-17](frd-17-administration-workspace.md#integrations); R1289), which
+shows each login's account and when it was last updated; Pegasus keeps them
+encrypted, shows no other stored value back, and records each change
 in permanent history, attributed to the Administrator, naming the login and
 never a value (operator, 26 November 2026; R1288,
 [ADR-0091](../adr/0091-integration-logins-in-the-database.md)).
