@@ -342,7 +342,8 @@ public sealed class PrincipalReportSendingSeedTests
     /// with a rule left with nothing else, Rate card and Garage figures become
     /// tasks, and RJS's two rules read the Claim Sources that exist and active
     /// (R1268). Met again it changes nothing, and an old condition kind it
-    /// does not know stops it with the row unchanged.
+    /// does not know, or a rule adding and removing the same Cc address,
+    /// stops it with the row unchanged.
     /// </summary>
     [Fact]
     public async Task TheBuiltRulesRestatementBuildsEveryOldSettingAndChangesNothingTwice()
@@ -432,6 +433,20 @@ public sealed class PrincipalReportSendingSeedTests
 
         Assert.Contains("restate that rule on the Principal contact", refused.Message, StringComparison.Ordinal);
         Assert.Equal(unknown, (await PrincipalAsync("WLS")).ReportSendingRulesJson);
+
+        // A rule that adds and removes the same Cc address would be built
+        // into one the store refuses to read, so it stops the statement too.
+        var overlap = wls.Replace(
+            "\"ccAdd\":[],\"ccRemove\":[\"cc@principal.example\"]",
+            "\"ccAdd\":[\"CC@principal.example\"],\"ccRemove\":[\"cc@principal.example\"]",
+            StringComparison.Ordinal);
+        Assert.NotEqual(wls, overlap);
+        await SetRulesAsync("WLS", overlap);
+
+        var overlapRefused = await Assert.ThrowsAnyAsync<DbException>(() => context.Database.ExecuteSqlRawAsync(build));
+
+        Assert.Contains("both adds and removes the same Cc address", overlapRefused.Message, StringComparison.Ordinal);
+        Assert.Equal(overlap, (await PrincipalAsync("WLS")).ReportSendingRulesJson);
     }
 
     /// <summary>
