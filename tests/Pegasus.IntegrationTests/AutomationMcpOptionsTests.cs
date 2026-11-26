@@ -73,8 +73,8 @@ public sealed class AutomationMcpOptionsTests
         Assert.NotNull(options);
         Assert.True(options.DesktopSignInEnabled);
         Assert.Equal(
-            new[] { "http://127.0.0.1/callback", "http://[::1]:51793/callback", "http://127.0.0.1:62031/callback" },
-            options.DesktopRedirectUris.Select(uri => uri.OriginalString).ToArray());
+            "http://127.0.0.1/callback http://[::1]:51793/callback http://127.0.0.1:62031/callback",
+            string.Join(' ', options.DesktopRedirectUris.Select(uri => uri.OriginalString)));
         // The connector's own redirect URIs are a separate setting.
         Assert.Empty(options.RedirectUris);
         Assert.False(options.ConnectorAuthorizationEnabled);

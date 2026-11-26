@@ -253,36 +253,37 @@ public sealed class DesktopSignInTests
 
         refreshTokens["desktop-disabled"] = (refreshTokens["desktop-disabled"].StaffId, renewed);
 
-        await using (var scope = host.Services.CreateAsyncScope())
-        {
-            var services = scope.ServiceProvider;
-            var disabled = refreshTokens["desktop-disabled"].StaffId;
-            await services.GetRequiredService<IDisableStaffAccount>().ExecuteAsync(
-                new(Administrator, disabled, "Left the company", OperationKey(), await VersionAsync(host, disabled)),
-                CancellationToken.None);
-            var reset = refreshTokens["desktop-reset"].StaffId;
-            await services.GetRequiredService<IResetStaffPassword>().ExecuteAsync(
-                new(Administrator, reset, "Forgotten password", OperationKey(), await VersionAsync(host, reset)),
-                CancellationToken.None);
-            var signedOut = refreshTokens["desktop-signed-out"].StaffId;
-            await services.GetRequiredService<IForceStaffLogout>().ExecuteAsync(
-                new(Administrator, signedOut, "Lost laptop", OperationKey(), await VersionAsync(host, signedOut)),
-                CancellationToken.None);
-            var roleChanged = refreshTokens["desktop-role-changed"].StaffId;
-            await services.GetRequiredService<IUpdateStaffAccountSettings>().ExecuteAsync(
-                new(
-                    Administrator,
-                    roleChanged,
-                    StaffRole.Engineer,
-                    IsSignOffEngineer: false,
-                    PrintedName: null,
-                    Qualifications: null,
-                    Signature: null,
-                    IsDefaultSignOffEngineer: false,
-                    OperationKey(),
-                    await VersionAsync(host, roleChanged)),
-                CancellationToken.None);
-        }
+        // Each Administrator command in its own scope, as each is its own request.
+        var disabled = refreshTokens["desktop-disabled"].StaffId;
+        var disabledVersion = await VersionAsync(host, disabled);
+        await AdministerAsync<IDisableStaffAccount>(host, service => service.ExecuteAsync(
+            new(Administrator, disabled, "Left the company", OperationKey(), disabledVersion),
+            CancellationToken.None));
+        var reset = refreshTokens["desktop-reset"].StaffId;
+        var resetVersion = await VersionAsync(host, reset);
+        await AdministerAsync<IResetStaffPassword>(host, service => service.ExecuteAsync(
+            new(Administrator, reset, "Forgotten password", OperationKey(), resetVersion),
+            CancellationToken.None));
+        var signedOut = refreshTokens["desktop-signed-out"].StaffId;
+        var signedOutVersion = await VersionAsync(host, signedOut);
+        await AdministerAsync<IForceStaffLogout>(host, service => service.ExecuteAsync(
+            new(Administrator, signedOut, "Lost laptop", OperationKey(), signedOutVersion),
+            CancellationToken.None));
+        var roleChanged = refreshTokens["desktop-role-changed"].StaffId;
+        var roleChangedVersion = await VersionAsync(host, roleChanged);
+        await AdministerAsync<IUpdateStaffAccountSettings>(host, service => service.ExecuteAsync(
+            new(
+                Administrator,
+                roleChanged,
+                StaffRole.Engineer,
+                IsSignOffEngineer: false,
+                PrintedName: null,
+                Qualifications: null,
+                Signature: null,
+                IsDefaultSignOffEngineer: false,
+                OperationKey(),
+                roleChangedVersion),
+            CancellationToken.None));
 
         foreach (var (userName, (_, refreshToken)) in refreshTokens)
         {
@@ -609,6 +610,15 @@ public sealed class DesktopSignInTests
             _ => StaffRoleNames.User
         })).Succeeded);
         return user.Id;
+    }
+
+    private static async Task AdministerAsync<TService>(
+        WebApplicationFactory<Program> host,
+        Func<TService, Task> command)
+        where TService : notnull
+    {
+        await using var scope = host.Services.CreateAsyncScope();
+        await command(scope.ServiceProvider.GetRequiredService<TService>());
     }
 
     private static async Task<long> VersionAsync(WebApplicationFactory<Program> host, Guid staffId)
