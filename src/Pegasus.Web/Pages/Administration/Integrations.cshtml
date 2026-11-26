@@ -106,18 +106,20 @@
                         {
                             var inputId = $"login-{login}-{field}";
                             var fieldName = IntegrationsModel.FieldName(field);
+                            // Brego's password alone is optional (R1290).
+                            var isRequired = IntegrationLoginFields.IsRequired(login, field);
                             <div class="field field--narrow">
-                                <label class="req" for="@inputId">@OperatorLabels.Integrations.Field(field)</label>
+                                <label class="@(isRequired ? "req" : null)" for="@inputId">@OperatorLabels.Integrations.Field(field)</label>
                                 @if (IntegrationsModel.IsSecret(field))
                                 {
                                     @* No tag helper and no value attribute: the
                                        submitted secret is never written back. *@
-                                    <input id="@inputId" name="@fieldName" type="password" required
+                                    <input id="@inputId" name="@fieldName" type="password" required="@isRequired"
                                            maxlength="4096" autocomplete="new-password" />
                                 }
                                 else
                                 {
-                                    <input id="@inputId" name="@fieldName" required maxlength="4096"
+                                    <input id="@inputId" name="@fieldName" required="@isRequired" maxlength="4096"
                                            autocomplete="off" value="@Model.FieldValue(login, field)" />
                                 }
                             </div>
@@ -129,6 +131,42 @@
                             </button>
                         </div>
                     </form>
+                    @* Signing the Brego account in (R1290, #2180), offered only
+                       where the host composes it and the account's e-mail is
+                       saved. The link and the code are never written back. *@
+                    @if (login == IntegrationLogin.Brego && Model.BregoLinkOffered)
+                    {
+                        <form method="post" asp-page-handler="SendBregoLink" class="cluster admin-actions-end">
+                            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                            <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Sending">@OperatorLabels.Integrations.SendBregoLink</button>
+                        </form>
+                        <form method="post" asp-page-handler="LinkBrego" class="stack" autocomplete="off">
+                            <input type="hidden" name="expectedVersion" value="@status.Version" />
+                            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                            <div class="field field--narrow">
+                                <label class="req" for="brego-sign-in-link">@OperatorLabels.Integrations.BregoSignInLink</label>
+                                <input id="brego-sign-in-link" name="link" required maxlength="4096" autocomplete="off" />
+                            </div>
+                            <div class="cluster admin-actions-end">
+                                <button type="submit" class="btn" data-busy-label="@OperatorLabels.Busy.Linking">@OperatorLabels.Integrations.LinkBrego</button>
+                            </div>
+                        </form>
+                        @if (Model.BregoPending is { } pending)
+                        {
+                            <form method="post" asp-page-handler="ConfirmBregoCode" class="stack" autocomplete="off">
+                                <input type="hidden" name="expectedVersion" value="@status.Version" />
+                                <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                                <p>@OperatorLabels.Integrations.BregoCodeSent(pending.Email)</p>
+                                <div class="field field--narrow">
+                                    <label class="req" for="brego-code">@OperatorLabels.Integrations.BregoCode</label>
+                                    <input id="brego-code" name="code" required inputmode="numeric" autocomplete="one-time-code" />
+                                </div>
+                                <div class="cluster admin-actions-end">
+                                    <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Confirming">@OperatorLabels.Integrations.ConfirmBregoCode</button>
+                                </div>
+                            </form>
+                        }
+                    }
                 </div>
             </section>
         }

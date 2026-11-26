@@ -468,7 +468,10 @@ shows each login's account and when it was last updated; Pegasus keeps them
 encrypted, shows no other stored value back, and records each change
 in permanent history, attributed to the Administrator, naming the login and
 never a value (operator, 26 November 2026; R1288,
-[ADR-0091](../adr/0091-integration-logins-in-the-database.md)).
+[ADR-0091](../adr/0091-integration-logins-in-the-database.md)). The Brego
+account is signed in on the same panel, with Send sign-in link, Link account
+and, when Brego asks for a code, Confirm code, or with its saved password
+(R1290).
 
 **Sign-off Engineer** is an Administrator-managed account setting available
 for any staff role: a flag, the account's qualifications and a signature

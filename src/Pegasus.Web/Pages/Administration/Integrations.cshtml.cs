@@ -70,6 +70,16 @@ public sealed partial class IntegrationsModel(
     /// <summary>The logins whose integration this host composes, in the page's order.</summary>
     public IReadOnlyList<IntegrationLoginStatus> Logins { get; private set; } = [];
 
+    /// <summary>
+    /// Whether the Brego panel offers its sign-in steps: the host composes the
+    /// link and the account's e-mail is saved (R1290). An action that cannot
+    /// work is absent.
+    /// </summary>
+    public bool BregoLinkOffered { get; private set; }
+
+    /// <summary>The Brego sign-in that waits for its six-digit code, while one does.</summary>
+    public BregoPendingCode? BregoPending { get; private set; }
+
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
 
@@ -184,7 +194,12 @@ public sealed partial class IntegrationsModel(
             };
             if (string.IsNullOrWhiteSpace(value))
             {
-                ModelState.AddModelError(string.Empty, OperatorLabels.Integrations.Required(field));
+                // An optional value left blank is not stored (Brego's
+                // password, R1290).
+                if (IntegrationLoginFields.IsRequired(target, field))
+                {
+                    ModelState.AddModelError(string.Empty, OperatorLabels.Integrations.Required(field));
+                }
             }
             else
             {
@@ -203,9 +218,10 @@ public sealed partial class IntegrationsModel(
             return Page();
         }
 
+        IntegrationLoginStatus replaced;
         try
         {
-            await logins.ReplaceAsync(actor, target, version, values, OperationKey, cancellationToken);
+            replaced = await logins.ReplaceAsync(actor, target, version, values, OperationKey, cancellationToken);
             StatusMessage = OperatorLabels.Integrations.Saved;
         }
         catch (Exception exception) when (exception is DbUpdateConcurrencyException or ArgumentException)
@@ -213,6 +229,7 @@ public sealed partial class IntegrationsModel(
             // Another Administrator replaced the login since the page was
             // drawn, or Core refused the values.
             ErrorMessage = OperatorLabels.Integrations.NotAccepted;
+            return RedirectToPage();
         }
         catch (Exception exception) when (exception is not OperationCanceledException
             and not StaffAuthorizationException)
@@ -221,8 +238,125 @@ public sealed partial class IntegrationsModel(
             // The log names the login, never a value.
             LogReplaceFailed(logger, target, exception);
             ErrorMessage = OperatorLabels.Integrations.NotAccepted;
+            return RedirectToPage();
         }
 
+        // A Brego account saved with its password signs in with it at once,
+        // at the version the save left (R1290). The credential stays saved
+        // whatever Brego answers.
+        if (target == IntegrationLogin.Brego
+            && values.ContainsKey(IntegrationLoginField.Password)
+            && BregoLink() is { } link)
+        {
+            StatusMessage = null;
+            await RunBregoStepAsync(
+                replaced.AccountName ?? string.Empty,
+                passwordSignIn: true,
+                async () => await link.SignInWithPasswordAsync(actor, replaced.Version, OperationKey, cancellationToken));
+        }
+
+        return RedirectToPage();
+    }
+
+    /// <summary>Send sign-in link: Brego e-mails a sign-in link to the saved account.</summary>
+    public async Task<IActionResult> OnPostSendBregoLinkAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (BregoLink() is not { } link || !IsOperationKeyValid(OperationKey))
+        {
+            ErrorMessage = BregoLink() is null
+                ? OperatorLabels.Integrations.NotAccepted
+                : OperatorLabels.Integrations.Expired;
+            return RedirectToPage();
+        }
+
+        var email = await BregoAccountNameAsync(actor, cancellationToken);
+        if (await RunBregoStepAsync(email, passwordSignIn: false, async () =>
+            {
+                await link.SendLinkAsync(actor, OperationKey, cancellationToken);
+                return null;
+            }))
+        {
+            StatusMessage = OperatorLabels.Integrations.BregoLinkSent(email);
+        }
+
+        return RedirectToPage();
+    }
+
+    /// <summary>Link account: redeems the pasted sign-in link for the saved account.</summary>
+    public async Task<IActionResult> OnPostLinkBregoAsync(
+        string? link,
+        string? expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        // The pasted link is read once, here, and never written back.
+        ModelState.Remove(nameof(link));
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (BregoLinkStepRefused(expectedVersion, out var version) is { } refused)
+        {
+            ErrorMessage = refused;
+            return RedirectToPage();
+        }
+
+        if (string.IsNullOrWhiteSpace(link))
+        {
+            ErrorMessage = OperatorLabels.Integrations.BregoNoToken;
+            return RedirectToPage();
+        }
+
+        string pasted = link;
+        var accountLink = BregoLink()!;
+        var email = await BregoAccountNameAsync(actor, cancellationToken);
+        await RunBregoStepAsync(
+            email,
+            passwordSignIn: false,
+            async () => await accountLink.LinkAsync(actor, pasted, version, OperationKey, cancellationToken));
+        return RedirectToPage();
+    }
+
+    /// <summary>Confirm code: enters the six-digit code a waiting sign-in asked for.</summary>
+    public async Task<IActionResult> OnPostConfirmBregoCodeAsync(
+        string? code,
+        string? expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        // The code is read once, here, and never written back.
+        ModelState.Remove(nameof(code));
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (BregoLinkStepRefused(expectedVersion, out var version) is { } refused)
+        {
+            ErrorMessage = refused;
+            return RedirectToPage();
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            ErrorMessage = OperatorLabels.Integrations.BregoCodeFormat;
+            return RedirectToPage();
+        }
+
+        string entered = code;
+        var accountLink = BregoLink()!;
+        var email = await BregoAccountNameAsync(actor, cancellationToken);
+        await RunBregoStepAsync(
+            email,
+            passwordSignIn: false,
+            async () => await accountLink.ConfirmCodeAsync(actor, entered, version, OperationKey, cancellationToken));
         return RedirectToPage();
     }
 
@@ -286,6 +420,78 @@ public sealed partial class IntegrationsModel(
                 .Where(IsComposed)
                 .Select(login => statuses.First(status => status.Login == login))
         ];
+
+        var link = BregoLink();
+        var brego = Logins.FirstOrDefault(status => status.Login == IntegrationLogin.Brego);
+        BregoLinkOffered = link is not null && !string.IsNullOrWhiteSpace(brego?.AccountName);
+        BregoPending = BregoLinkOffered
+            ? await link!.ReadPendingAsync(actor, cancellationToken)
+            : null;
+    }
+
+    /// <summary>The Brego sign-in steps, where this host composes Brego; null elsewhere.</summary>
+    private IBregoAccountLink? BregoLink() =>
+        HttpContext.RequestServices.GetService<IBregoAccountLink>();
+
+    /// <summary>The saved Brego account's e-mail address, which the step sentences name.</summary>
+    private async Task<string> BregoAccountNameAsync(ActionActor actor, CancellationToken cancellationToken) =>
+        (await logins.ListAsync(actor, cancellationToken))
+            .FirstOrDefault(status => status.Login == IntegrationLogin.Brego)?.AccountName ?? string.Empty;
+
+    /// <summary>
+    /// The refusal of a link or code step before Brego is asked: no link on
+    /// this host, an expired form or an unreadable version; null when the step
+    /// may run.
+    /// </summary>
+    private string? BregoLinkStepRefused(string? expectedVersion, out long version)
+    {
+        version = 0;
+        if (BregoLink() is null
+            || !long.TryParse(expectedVersion, NumberStyles.None, CultureInfo.InvariantCulture, out version))
+        {
+            return OperatorLabels.Integrations.NotAccepted;
+        }
+
+        return IsOperationKeyValid(OperationKey) ? null : OperatorLabels.Integrations.Expired;
+    }
+
+    /// <summary>
+    /// Runs one Brego sign-in step and states its outcome: Linked as linked, a
+    /// code asked for by the code step the page then shows, a refusal in its
+    /// own sentence and a stale version as not accepted. True when the step
+    /// was not refused.
+    /// </summary>
+    private async Task<bool> RunBregoStepAsync(
+        string email,
+        bool passwordSignIn,
+        Func<Task<BregoLinkStep?>> step)
+    {
+        try
+        {
+            if (await step() == BregoLinkStep.Linked)
+            {
+                StatusMessage = OperatorLabels.Integrations.BregoLinked;
+            }
+
+            return true;
+        }
+        catch (BregoLinkRefusedException refusal)
+        {
+            ErrorMessage = OperatorLabels.Integrations.BregoRefusal(refusal.Refusal, email, passwordSignIn);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = OperatorLabels.Integrations.NotAccepted;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException
+            and not StaffAuthorizationException)
+        {
+            // The log names no value: no link, code, password or address.
+            LogBregoStepFailed(logger, exception);
+            ErrorMessage = OperatorLabels.Integrations.NotAccepted;
+        }
+
+        return false;
     }
 
     /// <summary>Whether this host composes the integration the login signs in to.</summary>
@@ -304,4 +510,10 @@ public sealed partial class IntegrationsModel(
         Level = LogLevel.Error,
         Message = "Replacing the {Login} integration login failed and changed nothing.")]
     private static partial void LogReplaceFailed(ILogger logger, IntegrationLogin login, Exception exception);
+
+    [LoggerMessage(
+        EventId = 1290,
+        Level = LogLevel.Error,
+        Message = "A Brego sign-in step on the Integrations page failed.")]
+    private static partial void LogBregoStepFailed(ILogger logger, Exception exception);
 }

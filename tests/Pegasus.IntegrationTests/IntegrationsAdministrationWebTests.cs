@@ -33,6 +33,10 @@ public sealed partial class IntegrationsAdministrationWebTests
     private const string Route = "/Administration/Integrations";
     private const string TypedSecret = "Typed-secret-never-shown-41";
     private const string TypedName = "typed-account-name";
+    private const string BregoEmail = "brego-account@ce.test";
+    private const string PastedToken = "pasted-token-never-shown-58";
+    private const string PastedLink = "https://app.brego.io/#magic-link=" + PastedToken;
+    private const string EnteredCode = "908172";
 
     private static readonly ActionActor Administrator = ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
@@ -259,8 +263,9 @@ public sealed partial class IntegrationsAdministrationWebTests
             }
         }
 
-        // Brego's panel, in this change, is its account's e-mail address alone.
-        Assert.DoesNotContain("type=\"password\"", Panel(html, IntegrationLogin.Brego), StringComparison.Ordinal);
+        // Brego's password alone is optional (R1290): no required mark, no required attribute.
+        Assert.DoesNotContain("required", PasswordInput(Panel(html, IntegrationLogin.Brego)), StringComparison.Ordinal);
+        Assert.Contains("required", PasswordInput(Panel(html, IntegrationLogin.GlassValuation)), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -445,6 +450,337 @@ public sealed partial class IntegrationsAdministrationWebTests
                 + Environment.NewLine + counter.Describe());
     }
 
+    /// <summary>
+    /// The Brego sign-in steps are offered only where the host composes them
+    /// and the account's e-mail is saved (R1290): an action that cannot work is
+    /// absent.
+    /// </summary>
+    [Fact]
+    public async Task TheBregoLinkStepsAreAbsentUntilTheAccountIsSet()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, new FakeBregoAccountLink());
+        using var client = CreateClient(factory);
+
+        var panel = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+
+        Assert.DoesNotContain("handler=SendBregoLink", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=LinkBrego", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ConfirmBregoCode", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheBregoLinkStepsAreAbsentWhereTheHostHasNoLink()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+
+        var panel = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+
+        Assert.Equal(BregoEmail, FactValue(panel, OperatorLabels.Integrations.Account));
+        Assert.DoesNotContain("handler=SendBregoLink", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=LinkBrego", panel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendSignInLinkSaysWhereBregoSentIt()
+    {
+        var link = new FakeBregoAccountLink();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+        var panel = Panel(html, IntegrationLogin.Brego);
+        Assert.Contains($">{OperatorLabels.Integrations.SendBregoLink}</button>", panel, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Integrations.LinkBrego}</button>", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ConfirmBregoCode", panel, StringComparison.Ordinal);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SendBregoLink",
+            Form(AntiforgeryValue(html), ("OperationKey", InputValue(panel, "OperationKey")))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Equal(1, link.SendCalls);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode($"Brego e-mailed a sign-in link to {BregoEmail}. It expires 15 minutes later."),
+            await GetHtmlAsync(client, Route),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ALinkThatSignsInSaysLinkedAndIsNeverShownBack()
+    {
+        var link = new FakeBregoAccountLink { Step = BregoLinkStep.Linked };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, PastedLink)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Equal(PastedLink, Assert.Single(link.Links));
+        var after = await GetHtmlAsync(client, Route);
+        Assert.Contains(OperatorLabels.Integrations.BregoLinked, after, StringComparison.Ordinal);
+        Assert.DoesNotContain(PastedToken, after, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A link Brego answers with a device code leaves a sign-in waiting; the
+    /// page then asks for the code, and the code signs the account in.
+    /// </summary>
+    [Fact]
+    public async Task ALinkThatAsksForACodeShowsTheCodeStepAndTheCodeLinks()
+    {
+        var link = new FakeBregoAccountLink { Step = BregoLinkStep.CodeSent };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, PastedLink)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var waiting = await GetHtmlAsync(client, Route);
+        var panel = Panel(waiting, IntegrationLogin.Brego);
+        Assert.Contains(
+            HtmlEncoder.Default.Encode($"Brego e-mailed a six-digit code to {BregoEmail}."),
+            panel,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"code\"", panel, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Integrations.ConfirmBregoCode}</button>", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Integrations.BregoLinked, waiting, StringComparison.Ordinal);
+
+        link.Step = BregoLinkStep.Linked;
+        using (var response = await client.PostAsync($"{Route}?handler=ConfirmBregoCode", CodeForm(waiting, EnteredCode)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Equal(EnteredCode, Assert.Single(link.Codes));
+        var linked = await GetHtmlAsync(client, Route);
+        Assert.Contains(OperatorLabels.Integrations.BregoLinked, linked, StringComparison.Ordinal);
+        Assert.DoesNotContain(EnteredCode, Panel(linked, IntegrationLogin.Brego), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(BregoRefusalRows))]
+    public async Task ARefusedBregoStepSaysWhy(string row)
+    {
+        var refusal = BregoRefusals[row];
+        var link = new FakeBregoAccountLink { Refusal = refusal.Refusal };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler={refusal.Handler}",
+            refusal.Handler switch
+            {
+                "LinkBrego" => LinkForm(html, PastedLink),
+                "ConfirmBregoCode" => CodeForm(html, EnteredCode),
+                _ => Form(AntiforgeryValue(html), ("OperationKey", InputValue(Panel(html, IntegrationLogin.Brego), "OperationKey"))),
+            }))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var after = await GetHtmlAsync(client, Route);
+        Assert.Contains(
+            $"<div class=\"notice notice--danger\" role=\"alert\"><span>{HtmlEncoder.Default.Encode(refusal.Sentence)}</span></div>",
+            after,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(PastedToken, after, StringComparison.Ordinal);
+    }
+
+    /// <summary>A blank link or code is refused in the step's own sentence, and Brego is not asked.</summary>
+    [Fact]
+    public async Task ABlankLinkOrCodeIsRefusedWithoutAskingBrego()
+    {
+        var link = new FakeBregoAccountLink();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, " ")))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Contains(OperatorLabels.Integrations.BregoNoToken, await GetHtmlAsync(client, Route), StringComparison.Ordinal);
+
+        using (var response = await client.PostAsync($"{Route}?handler=ConfirmBregoCode", CodeForm(html, " ")))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Contains(OperatorLabels.Integrations.BregoCodeFormat, await GetHtmlAsync(client, Route), StringComparison.Ordinal);
+        Assert.Empty(link.Links);
+        Assert.Empty(link.Codes);
+    }
+
+    /// <summary>
+    /// A Brego account saved with its password signs in with it at once, at
+    /// the version the save left; a refusal is stated and the credential stays
+    /// saved. Saved without a password, nothing signs in.
+    /// </summary>
+    [Fact]
+    public async Task SavingBregoWithAPasswordSignsInAtOnce()
+    {
+        var link = new FakeBregoAccountLink { Refusal = BregoLinkRefusal.PasswordRefused };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email ? BregoEmail : TypedSecret)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Equal(1L, Assert.Single(link.PasswordVersions));
+        var refused = await GetHtmlAsync(client, Route);
+        Assert.Contains(OperatorLabels.Integrations.BregoPasswordRefused, refused, StringComparison.Ordinal);
+        Assert.Equal(BregoEmail, FactValue(Panel(refused, IntegrationLogin.Brego), OperatorLabels.Integrations.Account));
+        Assert.DoesNotContain(TypedSecret, refused, StringComparison.Ordinal);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(refused, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email ? BregoEmail : " ")))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        Assert.Single(link.PasswordVersions);
+        var saved = await GetHtmlAsync(client, Route);
+        Assert.Contains(OperatorLabels.Integrations.Saved, saved, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.Integrations.BregoPasswordRefused, saved, StringComparison.Ordinal);
+    }
+
+    /// <summary>In the password sign-in, Brego offering no sign-in reads as the password refused.</summary>
+    [Fact]
+    public async Task APasswordSignInBregoDoesNotOfferReadsAsThePasswordRefused()
+    {
+        var link = new FakeBregoAccountLink { Refusal = BregoLinkRefusal.NotOffered };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email ? BregoEmail : TypedSecret)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var after = await GetHtmlAsync(client, Route);
+        Assert.Contains(OperatorLabels.Integrations.BregoPasswordRefused, after, StringComparison.Ordinal);
+        Assert.DoesNotContain("did not offer", after, StringComparison.Ordinal);
+    }
+
+    public static TheoryData<string> BregoRefusalRows
+    {
+        get
+        {
+            var rows = new TheoryData<string>();
+            foreach (var key in BregoRefusals.Keys)
+            {
+                rows.Add(key);
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>Each refused step, keyed by a short row name, with the sentence the page gives it.</summary>
+    private static readonly Dictionary<string, BregoRefusalCase> BregoRefusals = new(StringComparer.Ordinal)
+    {
+        ["send-not-offered"] = new("SendBregoLink", BregoLinkRefusal.NotOffered, $"Brego did not offer a sign-in link for {BregoEmail}."),
+        ["send-unreachable"] = new("SendBregoLink", BregoLinkRefusal.Unreachable, "Brego could not be reached. Try again."),
+        ["link-no-token"] = new("LinkBrego", BregoLinkRefusal.NoToken, "Paste the whole sign-in link."),
+        ["link-another"] = new("LinkBrego", BregoLinkRefusal.AnotherAccount, $"The link is for another account than {BregoEmail}."),
+        ["link-refused"] = new("LinkBrego", BregoLinkRefusal.LinkRefused, "Brego rejected the link: it is used, expired or not the latest one sent."),
+        ["link-no-account"] = new("LinkBrego", BregoLinkRefusal.NoAccount, "The change was not accepted."),
+        ["code-format"] = new("ConfirmBregoCode", BregoLinkRefusal.CodeFormat, "A code is six digits."),
+        ["code-refused"] = new("ConfirmBregoCode", BregoLinkRefusal.CodeRefused, "Brego refused the code."),
+        ["code-none"] = new("ConfirmBregoCode", BregoLinkRefusal.NoLinkWaiting, "No link is waiting for a code. Send a new sign-in link."),
+        ["code-password"] = new("ConfirmBregoCode", BregoLinkRefusal.PasswordRefused, "Brego refused the password."),
+    };
+
+    private sealed record BregoRefusalCase(string Handler, BregoLinkRefusal Refusal, string Sentence);
+
+    private static async Task SeedBregoLoginAsync(WebApplicationFactory<Program> factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider
+            .GetRequiredService<IIntegrationLoginAdministration>()
+            .ReplaceAsync(
+                Administrator,
+                IntegrationLogin.Brego,
+                expectedVersion: 0,
+                new Dictionary<IntegrationLoginField, string> { [IntegrationLoginField.Email] = BregoEmail },
+                "integrations-page-brego-seed",
+                CancellationToken.None);
+    }
+
+    private static FormUrlEncodedContent LinkForm(string html, string pasted)
+    {
+        var form = StepForm(html, "LinkBrego");
+        return Form(
+            AntiforgeryValue(html),
+            ("expectedVersion", InputValue(form, "expectedVersion")),
+            ("OperationKey", InputValue(form, "OperationKey")),
+            ("link", pasted));
+    }
+
+    /// <summary>The code form, or, where the page draws none, the link form's version and key.</summary>
+    private static FormUrlEncodedContent CodeForm(string html, string code)
+    {
+        var form = html.Contains("handler=ConfirmBregoCode", StringComparison.Ordinal)
+            ? StepForm(html, "ConfirmBregoCode")
+            : StepForm(html, "LinkBrego");
+        return Form(
+            AntiforgeryValue(html),
+            ("expectedVersion", InputValue(form, "expectedVersion")),
+            ("OperationKey", InputValue(form, "OperationKey")),
+            ("code", code));
+    }
+
+    /// <summary>One Brego step's form, by its handler.</summary>
+    private static string StepForm(string html, string handler)
+    {
+        var match = Regex.Match(
+            Panel(html, IntegrationLogin.Brego),
+            $"<form[^>]*handler={handler}[^>]*>[\\s\\S]*?</form>",
+            RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"The Brego panel must draw the {handler} form.");
+        return match.Value;
+    }
+
+    /// <summary>The password box of one panel.</summary>
+    private static string PasswordInput(string panel) =>
+        InputRegex().Matches(panel)
+            .Select(match => match.Value)
+            .Single(value => value.Contains("name=\"password\"", StringComparison.Ordinal));
+
     private static async Task SeedGlassLoginAsync(WebApplicationFactory<Program> factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -467,7 +803,9 @@ public sealed partial class IntegrationsAdministrationWebTests
     /// A provider for every integration, never asked, so the host composes each
     /// login's integration and the page draws its panel.
     /// </summary>
-    private static WebApplicationFactory<Program> WithEveryIntegration(WebApplicationFactory<Program> factory) =>
+    private static WebApplicationFactory<Program> WithEveryIntegration(
+        WebApplicationFactory<Program> factory,
+        IBregoAccountLink? bregoLink = null) =>
         factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             foreach (var source in GuideSources)
@@ -476,6 +814,10 @@ public sealed partial class IntegrationsAdministrationWebTests
             }
 
             services.AddSingleton<IVehicleHistoryCheckProvider>(new UnaskedVehicleHistoryCheckProvider());
+            if (bregoLink is not null)
+            {
+                services.AddSingleton<IBregoAccountLink>(bregoLink);
+            }
         }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -569,6 +911,90 @@ public sealed partial class IntegrationsAdministrationWebTests
 
         public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The Integrations page never asks for a valuation.");
+    }
+
+    /// <summary>
+    /// The Brego sign-in steps as the page drives them: it records what each
+    /// step was given and answers <see cref="Step"/>, or throws
+    /// <see cref="Refusal"/> when one is set. A step answered with a code
+    /// leaves a sign-in waiting until a later step links the account.
+    /// </summary>
+    private sealed class FakeBregoAccountLink : IBregoAccountLink
+    {
+        private int _sendCalls;
+
+        public BregoLinkStep Step { get; set; } = BregoLinkStep.Linked;
+
+        public BregoLinkRefusal? Refusal { get; set; }
+
+        public BregoPendingCode? Pending { get; private set; }
+
+        public int SendCalls => Volatile.Read(ref _sendCalls);
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> Links { get; } = new();
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> Codes { get; } = new();
+
+        public System.Collections.Concurrent.ConcurrentQueue<long> PasswordVersions { get; } = new();
+
+        public Task SendLinkAsync(ActionActor actor, string operationKey, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _sendCalls);
+            ThrowIfRefused();
+            return Task.CompletedTask;
+        }
+
+        public Task<BregoLinkStep> LinkAsync(
+            ActionActor actor,
+            string link,
+            long expectedVersion,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            Links.Enqueue(link);
+            return AnswerAsync();
+        }
+
+        public Task<BregoLinkStep> ConfirmCodeAsync(
+            ActionActor actor,
+            string code,
+            long expectedVersion,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            Codes.Enqueue(code);
+            return AnswerAsync();
+        }
+
+        public Task<BregoLinkStep> SignInWithPasswordAsync(
+            ActionActor actor,
+            long expectedVersion,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            PasswordVersions.Enqueue(expectedVersion);
+            return AnswerAsync();
+        }
+
+        public Task<BregoPendingCode?> ReadPendingAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            Task.FromResult(Pending);
+
+        private Task<BregoLinkStep> AnswerAsync()
+        {
+            ThrowIfRefused();
+            Pending = Step == BregoLinkStep.CodeSent
+                ? new BregoPendingCode(BregoEmail, DateTimeOffset.UnixEpoch)
+                : null;
+            return Task.FromResult(Step);
+        }
+
+        private void ThrowIfRefused()
+        {
+            if (Refusal is { } refusal)
+            {
+                throw new BregoLinkRefusedException(refusal);
+            }
+        }
     }
 
     private sealed class UnaskedVehicleHistoryCheckProvider : IVehicleHistoryCheckProvider
