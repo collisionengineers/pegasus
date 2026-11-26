@@ -182,7 +182,11 @@ public sealed class DesktopConnectorIngressTests
             sourceOccurrenceIdentity = "automation:desktop-document-2"
         })))
         {
-            Assert.Contains("must start with 'staff:'", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
+            // The answer is JSON, which writes the sentence's quotation marks as escapes.
+            var refusal = await ReadErrorTextAsync(refused);
+            Assert.Contains("The source occurrence identity must start with", refusal, StringComparison.Ordinal);
+            Assert.Contains("staff:", refusal, StringComparison.Ordinal);
+            Assert.DoesNotContain("automation:", refusal, StringComparison.Ordinal);
         }
 
         // A staged upload is the person's: a colleague cannot use it, the person can.

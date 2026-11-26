@@ -258,6 +258,7 @@ public sealed class AutomationConnectorAuthorizationTests
             "pegasus_report_list",
             "pegasus_report_wording_get",
             "pegasus_report_wording_save",
+            "pegasus_session_get",
             "pegasus_upload_begin",
             "pegasus_upload_part",
             "pegasus_vocabulary_get",
