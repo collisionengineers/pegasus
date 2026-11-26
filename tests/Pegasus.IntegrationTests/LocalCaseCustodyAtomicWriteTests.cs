@@ -163,6 +163,9 @@ public sealed class LocalCaseCustodyAtomicWriteTests
             DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException("The atomic custody test only reads its retained source.");
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken)

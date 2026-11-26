@@ -441,9 +441,12 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         {
             var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
             receipt.SourceChannel = "mailbox";
+            // Custody has confirmed the first file in Box; the second is not held yet.
+            var held = AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A");
+            held.ConfirmCustody("box-file-1", "box-version-1", "box-folder-1");
             receipt.Assets.AddRange(
             [
-                AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A"),
+                held,
                 AttachmentAsset(secondAssetId, receipt.Id, "message, attachment 2", "evidence.pdf", 22, "B")
             ]);
             receipt.SearchDocuments.AddRange(
@@ -467,12 +470,14 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 Assert.Equal("evidence.pdf", first.FileName);
                 Assert.False(first.IsSearchable);
                 Assert.Equal(firstAssetId, first.IntakeAssetId);
+                Assert.True(first.IsHeldInBox);
             },
             second =>
             {
                 Assert.Equal("evidence.pdf", second.FileName);
                 Assert.True(second.IsSearchable);
                 Assert.Equal(secondAssetId, second.IntakeAssetId);
+                Assert.False(second.IsHeldInBox);
             });
     }
 
@@ -1793,6 +1798,74 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
                 Assert.Equal("estimate.pdf", attachment.FileName);
                 Assert.Null(attachment.IntakeAssetId);
             });
+    }
+
+    /// <summary>
+    /// Whether a kept message's original has HTML round-trips, null for a row
+    /// kept before it was recorded. The original's facts are read without the
+    /// body: the receipt on the message's channel, its folder and whether a
+    /// member of staff forwarded it; and the conversation says which messages
+    /// offer their view as sent (R1277, R1279).
+    /// </summary>
+    [Fact]
+    public async Task TheOriginalOfAKeptMessageIsReadWithItsReceiptFolderAndFormatting()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var forwarded = Message(
+            "original-forwarded",
+            senderAddress: "desk@collisionengineers.co.uk",
+            senderDisplayName: "Desk");
+        forwarded = forwarded with { Metadata = forwarded.Metadata with { HasHtmlBody = true } };
+        await RetainAsync(database, forwarded);
+        var sent = SentReply("original-sent", "Booked for Thursday.");
+        sent = sent with { Metadata = sent.Metadata with { HasHtmlBody = false } };
+        await RetainAsync(database, sent);
+        var older = Message("original-older", receivedAtUtc: ReceivedAtUtc.AddMinutes(5));
+        await RetainAsync(database, older);
+        // Rows are write-once: the same message polled again with the fact is
+        // the row already kept, not a contradiction, and the row is unchanged.
+        await RetainAsync(database, older with { Metadata = older.Metadata with { HasHtmlBody = true } });
+        var receipt = await database.StoreAsync(ReceiptDraft(forwarded, null) with
+        {
+            MailRouteDecision = new(
+                MailRouteDisposition.Accepted,
+                new("QDOS", MailRouteKind.DirectPrincipal, "QDOS"),
+                [],
+                "Fixture accepted route.",
+                "qdos_mail_route",
+                1,
+                [new("desk@collisionengineers.co.uk", "transport")],
+                [new("original@qdosassist.co.uk", "inline forward")],
+                new("original@qdosassist.co.uk", "inline forward"))
+        });
+        var forwardedId = await RetainedIdAsync(database, forwarded);
+        var sentId = await RetainedIdAsync(database, sent);
+        var olderId = await RetainedIdAsync(database, older);
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+
+        Assert.Equal(
+            new RetainedMailOriginal(receipt.Id, new string('A', 64), MailFolderScope.Inbox, true, true),
+            await queries.GetOriginalAsync(forwardedId, CancellationToken.None));
+        Assert.Equal(
+            new RetainedMailOriginal(null, new string('A', 64), MailFolderScope.Sent, false, false),
+            await queries.GetOriginalAsync(sentId, CancellationToken.None));
+        Assert.Equal(
+            new RetainedMailOriginal(null, new string('A', 64), MailFolderScope.Inbox, false, null),
+            await queries.GetOriginalAsync(olderId, CancellationToken.None));
+        Assert.Null(await queries.GetOriginalAsync(Guid.NewGuid(), CancellationToken.None));
+
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(forwardedId, CancellationToken.None, withConversation: true));
+        var conversation = Assert.IsAssignableFrom<IReadOnlyList<RetainedMailConversationMessage>>(detail.Conversation);
+        var forwardedRow = Assert.Single(conversation, row => row.Id == forwardedId);
+        Assert.True(forwardedRow.OffersAsSent);
+        Assert.Equal(new string('A', 64), forwardedRow.AsSentVersion);
+        Assert.False(Assert.Single(conversation, row => row.Id == sentId).OffersAsSent);
+        Assert.False(Assert.Single(conversation, row => row.Id == olderId).OffersAsSent);
+        Assert.All(conversation.Where(row => row.Id is null), row => Assert.False(row.OffersAsSent));
     }
 
     /// <summary>

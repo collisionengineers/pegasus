@@ -32,6 +32,12 @@
             <input type="hidden" name="queue" value="@Model.QueueFilter" />
             <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
             <input type="hidden" name="compose" value="@correspondenceMode" />
+            @if (Model.ReturnCase is { } returnCaseId)
+            {
+                @* Opened from a Case page, the send returns there (R1278). *@
+                <input type="hidden" name="returnCase" value="@returnCaseId" />
+                <input type="hidden" name="returnSection" value="@Model.ReturnSectionRouteValue" />
+            }
             <input type="hidden" asp-for="CorrespondenceOperationKey" />
             <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
             <input type="hidden" asp-for="FixedCorrespondenceCaseReference" />

@@ -5,6 +5,8 @@ namespace Pegasus.Core.Intake;
 /// <summary>One message of a conversation that Pegasus keeps, as the conversation policy reads it.</summary>
 /// <param name="EffectiveSenderAddress">The route's effective sender; for a staff forward, the original sender.</param>
 /// <param name="Body">The cleaned whole body.</param>
+/// <param name="HasHtmlBody">Whether the kept original has an HTML part; null when not known.</param>
+/// <param name="SourceSha256">The kept original's content hash, as stored.</param>
 public sealed record KeptConversationMessage(
     Guid Id,
     RetainedMailDirection Direction,
@@ -16,7 +18,9 @@ public sealed record KeptConversationMessage(
     DateTimeOffset ReceivedAtUtc,
     string Body,
     IReadOnlyList<RetainedMailAttachment> Attachments,
-    Guid? IntakeReceiptId);
+    Guid? IntakeReceiptId,
+    bool? HasHtmlBody = null,
+    string? SourceSha256 = null);
 
 /// <summary>
 /// The rule that turns the kept messages of a conversation into the stack the
@@ -129,20 +133,38 @@ public static class RetainedMailConversationPolicy
         string? senderDisplayName,
         string? senderAddress,
         string? forwardedByAddress,
-        string text) => new(
-        message.Id,
-        message.Direction,
-        senderDisplayName,
-        senderAddress,
-        forwardedByAddress,
-        message.ToAddresses ?? [],
-        message.CcAddresses ?? [],
-        message.ReceivedAtUtc,
-        null,
-        null,
-        text,
-        message.Attachments ?? [],
-        message.IntakeReceiptId);
+        string text)
+    {
+        var offersAsSent = OffersAsSent(message);
+        return new(
+            message.Id,
+            message.Direction,
+            senderDisplayName,
+            senderAddress,
+            forwardedByAddress,
+            message.ToAddresses ?? [],
+            message.CcAddresses ?? [],
+            message.ReceivedAtUtc,
+            null,
+            null,
+            text,
+            message.Attachments ?? [],
+            message.IntakeReceiptId,
+            offersAsSent,
+            offersAsSent ? message.SourceSha256 : null);
+    }
+
+    /// <summary>
+    /// Whether a kept message offers its view as sent: a received one whose
+    /// original is kept with its receipt, unless it is known to have no HTML
+    /// part; a sent one only when it is known to have one (R1279).
+    /// </summary>
+    private static bool OffersAsSent(KeptConversationMessage message) => message.Direction switch
+    {
+        RetainedMailDirection.Received => message.IntakeReceiptId is not null && message.HasHtmlBody != false,
+        RetainedMailDirection.Sent => message.HasHtmlBody == true,
+        _ => false
+    };
 
     private static RetainedMailConversationMessage Quoted(QuotedMailMessage message) => new(
         null,

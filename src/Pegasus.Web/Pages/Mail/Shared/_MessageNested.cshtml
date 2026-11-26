@@ -22,7 +22,9 @@
                   asp-route-queue="@Model.QueueFilter"
                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                   asp-route-pageNumber="@Model.PageNumber"
-                  asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                  asp-route-dialog="@(Model.InDialog ? "true" : null)"
+                  asp-route-returnCase="@Model.ReturnCase"
+                  asp-route-returnSection="@Model.ReturnSectionRouteValue">
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 <div class="dialog-body stack">
                     <div class="field">
@@ -54,7 +56,9 @@
                   asp-route-queue="@Model.QueueFilter"
                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                   asp-route-pageNumber="@Model.PageNumber"
-                  asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                  asp-route-dialog="@(Model.InDialog ? "true" : null)"
+                  asp-route-returnCase="@Model.ReturnCase"
+                  asp-route-returnSection="@Model.ReturnSectionRouteValue">
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 <div class="dialog-body stack">
                     <div class="field">
@@ -95,28 +99,34 @@
         search = Model.SearchTerm,
         queue = Model.QueueFilter,
         sort = Model.OldestFirst ? "oldest" : null,
-        dialog = Model.InDialog ? "true" : null
+        dialog = Model.InDialog ? "true" : null,
+        returnCase = Model.ReturnCase,
+        returnSection = Model.ReturnSectionRouteValue
     };
     if (Model.CurrentDestination is { } current)
     {
         var consequence = receipt.UnlinkCancelsCase
             ? $"Unlinking this email cancels case {current.Reference}."
             : null;
-        var unlinkDialogData = new ViewDataDictionary(ViewData)
+        // Drawn with its button: not for the Case page being edited (R1278 C6).
+        if (Model.OffersUnlink)
         {
-            ["DialogId"] = "unlinkCaseDialog",
-            ["DialogTitle"] = $"Unlink from {current.Reference}",
-            ["DialogConsequence"] = consequence,
-            ["DialogActionUrl"] = Url.Page("/Mail/Message", "UnlinkCase", route),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            var unlinkDialogData = new ViewDataDictionary(ViewData)
             {
-                ["caseId"] = current.CaseId.ToString("D"),
-                ["expectedIntakeVersion"] = intakeVersion,
-                ["leaseOperationKey"] = leaseKey,
-                ["operationKey"] = operationKey
-            }
-        };
-        <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
+                ["DialogId"] = "unlinkCaseDialog",
+                ["DialogTitle"] = $"Unlink from {current.Reference}",
+                ["DialogConsequence"] = consequence,
+                ["DialogActionUrl"] = Url.Page("/Mail/Message", "UnlinkCase", route),
+                ["DialogHiddenFields"] = new Dictionary<string, string?>
+                {
+                    ["caseId"] = current.CaseId.ToString("D"),
+                    ["expectedIntakeVersion"] = intakeVersion,
+                    ["leaseOperationKey"] = leaseKey,
+                    ["operationKey"] = operationKey
+                }
+            };
+            <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
+        }
 
         // Drawn with its button: only where the message's decision leaves a Case to change to.
         if (Model.OffersChangeLinkedCase)

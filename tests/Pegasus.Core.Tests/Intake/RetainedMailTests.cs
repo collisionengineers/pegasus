@@ -1030,6 +1030,9 @@ public sealed class RetainedMailTests
 
         public Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<RetainedMailOriginal?> GetOriginalAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
 

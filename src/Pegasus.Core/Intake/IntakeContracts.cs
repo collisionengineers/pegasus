@@ -678,7 +678,8 @@ public sealed record IntakeAttachmentDescriptor(
 /// by the reader so an uploaded <c>.eml</c> can be retained the same way.
 /// <see cref="ReplyIdentities"/> holds the messages it answers, from its
 /// In-Reply-To and References headers: empty when it carries neither, null
-/// when the reader could not tell.
+/// when the reader could not tell. <see cref="HasHtmlBody"/> is whether the
+/// message has an HTML part, so it can be shown as it was sent.
 /// </summary>
 public sealed record IntakeEmailSummary(
     string? SenderAddress,
@@ -691,7 +692,8 @@ public sealed record IntakeEmailSummary(
     IReadOnlyList<RetainedMailboxAttachment> Attachments,
     string? ThreadIdentity,
     DateTimeOffset? SentAtUtc,
-    IReadOnlyList<string>? ReplyIdentities = null);
+    IReadOnlyList<string>? ReplyIdentities = null,
+    bool? HasHtmlBody = null);
 
 public sealed record IntakeAssetRecord(
     Guid Id,
@@ -1082,6 +1084,15 @@ public interface IIntakeArtifactStore
 
     Task<ReadOnlyMemory<byte>?> ReadAsync(
         string storageKey,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The durable content <see cref="StoreAsync"/> kept under
+    /// <paramref name="contentHash"/>, or null when the store holds none. The
+    /// store builds its own key, so a caller never does.
+    /// </summary>
+    Task<ReadOnlyMemory<byte>?> ReadByHashAsync(
+        string contentHash,
         CancellationToken cancellationToken);
 
     async Task<StagedArtifactInventoryItem> StageAsync(

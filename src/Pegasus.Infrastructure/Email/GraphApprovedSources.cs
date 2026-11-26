@@ -1117,7 +1117,8 @@ internal sealed class GraphApprovedInboxSource(
                 string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
                 string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
                 display.Attachments ?? [],
-                item.IsRead);
+                item.IsRead,
+                display.HasHtmlBody);
         }
         catch (FormatException)
         {
@@ -1173,8 +1174,14 @@ internal sealed class GraphApprovedInboxSource(
         && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character));
 }
 
-internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprovedSentSource
+/// <param name="artifacts">Keeps each discovered Sent item's MIME under its content hash (R1279).</param>
+internal sealed partial class GraphApprovedSentSource(
+    GraphMailClient client,
+    IIntakeArtifactStore artifacts,
+    ILogger<GraphApprovedSentSource>? logger = null) : IApprovedSentSource
 {
+    private readonly ILogger log = (ILogger?)logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
     public async Task<ApprovedSentPage> ReadAsync(
         ApprovedSentPollLease lease,
         int maximumItems,
@@ -1344,6 +1351,7 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
                 attachmentHashes.Add(Convert.ToHexString(
                     SHA256.HashData(bytes.GetBuffer().AsSpan(0, (int)bytes.Length))));
             }
+            await KeepOriginalAsync(sourceHash, mime, cancellationToken);
             return new(
                 Occurrence(lease.MailboxId, item.Id),
                 sourceHash,
@@ -1381,6 +1389,26 @@ internal sealed class GraphApprovedSentSource(GraphMailClient client) : IApprove
             return Malformed(lease.MailboxId, lease.SentFolderIdentity, item, sourceHash, "graph_sent_mime_invalid", nextCursor);
         }
     }
+
+    /// <summary>
+    /// Keeps the Sent item's original so the e-mail can be shown as it was sent
+    /// (R1279). A failure does not fail the poll: the e-mail then has no
+    /// formatted view.
+    /// </summary>
+    private async Task KeepOriginalAsync(string sourceHash, byte[] mime, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await artifacts.StoreAsync(sourceHash, mime, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogOriginalNotKept(log, sourceHash, exception);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The original of Sent item {SourceHash} was not kept; it has no formatted view.")]
+    private static partial void LogOriginalNotKept(ILogger logger, string sourceHash, Exception exception);
 
     private static string[] HeaderValues(MimeMessage message, string name) =>
         message.Headers

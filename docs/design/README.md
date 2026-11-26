@@ -607,7 +607,7 @@ record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
 `<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
 applies the stroke and caps because a `<use>` clone does not inherit them. The
-file holds the seventy-seven glyphs in the two tables below; each glyph
+file holds the seventy-eight glyphs in the two tables below; each glyph
 checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
 element in that file.
 
@@ -679,8 +679,8 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the file's seventy-seven
-symbols: the fifty-three above plus these twenty-four.
+The v26 shell and Case record glyphs below complete the file's seventy-eight
+symbols: the fifty-three above plus these twenty-five.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
@@ -708,6 +708,7 @@ symbols: the fifty-three above plus these twenty-four.
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 | — | `camera` | `08402EEB94664F771FCAFBDDF9E0D122B27CA3113245262C898599F72F60BB0C` | Photo links (`Send photo link`, Administration nav and hub) |
 | — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R964) |
+| — | `text` | `34D0476D663BE4F0ED14BDF8542B0F64D0F11B37D5C77B989521FA05F4E215E1` | Message dialog: Plain text, the switch from an e-mail as sent (R1277) |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
 Cases uses `list-checks` and Administration `settings` (`list` and
@@ -1022,7 +1023,8 @@ deleted in wave 5.
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
 | `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar with the one outcome chip, and the cog settings menu (Case, Type, Query, Change case, Decided) |
-| `mail-stack`, `mail-msg`, `mail-files` | The message dialog's one column: the conversation as folded rows, the opened message unfolded with its recipients, its text at body size in a 72ch column, and its files as rows beneath it |
+| `mail-stack`, `mail-msg`, `mail-files` | The message dialog's one column: the conversation as folded rows, the opened message unfolded with its recipients, its text at body size in a 72ch column, and its files as rows beneath it, each with View and Download; View opens the page's viewer over the dialog (R1275) |
+| `mail-sent`, `mail-format`, `icon-text` | The e-mail as it was sent, in a script-less frame sized to its content, and the 32px icon button beside the recipients that switches that message to plain text and back (R1277) |
 | `mail-settings-section`, `mail-settings-case`, `mail-settings-actions`, `mail-settings-foot` | The cog menu's sections: one `mail-decision-label` each, a divider between them, actions as `btn--small` in a row, and the muted Decided foot line (R632 to R637) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |

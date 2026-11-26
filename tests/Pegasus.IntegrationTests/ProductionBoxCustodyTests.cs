@@ -1925,6 +1925,8 @@ public sealed class ProductionBoxCustodyTests
     {
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream content, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) => Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 
@@ -1935,6 +1937,9 @@ public sealed class ProductionBoxCustodyTests
 
         public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream value, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(content);

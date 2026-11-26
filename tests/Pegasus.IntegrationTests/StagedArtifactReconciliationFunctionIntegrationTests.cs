@@ -1162,6 +1162,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             throw new InvalidOperationException(
                 "The reconciliation timer must not stage a new artifact.");
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>

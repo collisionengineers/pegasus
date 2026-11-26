@@ -1662,6 +1662,9 @@ public sealed partial class QdosTriageIntegrationTests
         public Task<Guid?> FindReceiptIdAsync(Guid id, CancellationToken cancellationToken) =>
             inner.FindReceiptIdAsync(id, cancellationToken);
 
+        public Task<RetainedMailOriginal?> GetOriginalAsync(Guid id, CancellationToken cancellationToken) =>
+            inner.GetOriginalAsync(id, cancellationToken);
+
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
             inner.ListMailboxesAsync(cancellationToken);

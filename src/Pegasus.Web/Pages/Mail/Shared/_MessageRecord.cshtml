@@ -122,7 +122,27 @@
                         }
                     </summary>
                     <div class="mail-msg-main">
-                        @if (row.RouteParts.Count > 0)
+                        @if (row.AsSentId is not null)
+                        {
+                            @* The recipients line shares its line with the small switch between
+                               as sent and plain text (v54 D5; R1277, R1280). It stays hidden until
+                               the script has shown the message as sent; its title names the view it
+                               switches to. *@
+                            <div class="mail-msg-meta">
+                                @if (row.RouteParts.Count > 0)
+                                {
+                                    <p class="mail-to">@string.Join(" · ", row.RouteParts)</p>
+                                }
+                                <button type="button" class="icon-button mail-format" data-mail-format
+                                        aria-label="@OperatorLabels.Inbox.PlainText" aria-pressed="false"
+                                        title="@OperatorLabels.Inbox.PlainText"
+                                        data-mail-format-plain="@OperatorLabels.Inbox.PlainText"
+                                        data-mail-format-as-sent="@OperatorLabels.Inbox.AsSent" hidden>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-text")" /></svg>
+                                </button>
+                            </div>
+                        }
+                        else if (row.RouteParts.Count > 0)
                         {
                             <p class="mail-to">@string.Join(" · ", row.RouteParts)</p>
                         }
@@ -150,21 +170,69 @@
                                 }
                             }
                         </div>
+                        @if (row.AsSentId is { } asSentId)
+                        {
+                            @* The message as sent (v54 D5 to D8): the script frames it here and
+                               hides the plain text above once it shows; without script, or where
+                               it cannot be shown, the plain text stays. *@
+                            <div class="mail-sent" data-mail-sent
+                                 data-mail-sent-src="@(Url.Page("/Mail/AsSent", new { id = asSentId, v = row.AsSentVersion }))"
+                                 data-mail-sent-title="@OperatorLabels.Inbox.AsSent" hidden></div>
+                        }
                         @if (row.Files.Count > 0)
                         {
-                            <div class="mail-files" data-mail-files>
+                            @* One message's files are one set (v54 D10, D11; R1275, R1280):
+                               View opens the page's viewer, whose Previous and Next move
+                               among them and pass over one it cannot show; a Word file Box
+                               holds is viewed as its PDF rendering; Download is the file.
+                               A file with no retained asset is a plain row. *@
+                            <div class="mail-files" data-mail-files data-evidence-set>
                                 @foreach (var messageFile in row.Files)
                                 {
+                                    var fileName = messageFile.Attachment.FileName;
                                     var size = OperatorLabels.FileSize(messageFile.Attachment.ContentLength);
                                     <div class="mail-file" data-mail-file>
                                         <svg class="icon mail-file-glyph" aria-hidden="true"><use href="@IconSprite.Href(messageFile.Glyph)" /></svg>
                                         <span class="mail-file-main">
-                                            <span class="mail-file-name">@messageFile.Attachment.FileName</span>
+                                            <span class="mail-file-name">@fileName</span>
                                             <span class="mail-file-meta">@(messageFile.TypeLabel is { } typeLabel ? $"{typeLabel} · {size}" : size)</span>
                                         </span>
-                                        @if (messageFile.OpenHref is { } openHref)
+                                        @if (messageFile.DownloadHref is { } downloadHref)
                                         {
-                                            <a class="btn btn--small" href="@openHref" target="_blank" rel="noopener">@OperatorLabels.Inbox.OpenFile</a>
+                                            <span class="mail-file-actions">
+                                                @if (messageFile.ViewHref is { } viewHref)
+                                                {
+                                                    <a class="btn btn--small" href="@viewHref"
+                                                       data-evidence-item
+                                                       data-media-type="@messageFile.ViewMediaType"
+                                                       data-file-name="@fileName"
+                                                       data-download-href="@downloadHref">
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                        <span>@CaseWorkspaceLabels.Files.View</span>
+                                                    </a>
+                                                }
+                                                else if (messageFile.PdfHref is { } pdfHref)
+                                                {
+                                                    @* The viewer fetches the rendering first, so the wait for
+                                                       one still being made shows on this button. *@
+                                                    <a class="btn btn--small" href="@pdfHref"
+                                                       data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
+                                                       data-download-href="@downloadHref"
+                                                       data-file-name="@fileName">
+                                                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-eye")" /></svg>
+                                                        <span>@CaseWorkspaceLabels.Files.View</span>
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="muted" data-mail-unavailable>@OperatorLabels.Inbox.PreviewUnavailable</span>
+                                                }
+                                                <a class="icon-button" href="@downloadHref" download
+                                                   title="@($"{CaseWorkspaceLabels.Viewer.Download} {fileName}")"
+                                                   aria-label="@($"{CaseWorkspaceLabels.Viewer.Download} {fileName}")">
+                                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-download")" /></svg>
+                                                </a>
+                                            </span>
                                         }
                                     </div>
                                 }
@@ -187,7 +255,8 @@
            asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
            asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" data-mail-dialog-link>Cancel</a>
+           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+           asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue" data-mail-dialog-link>Cancel</a>
         <button type="submit" form="mailComposerForm" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
             <span>Send</span>
@@ -201,6 +270,7 @@
                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
                   asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                   asp-route-dialog="@(Model.InDialog ? "true" : null)"
+                  asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue"
                   data-message-dismissal="@(Model.IsDismissed ? "restore" : "dismiss")">
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                 @if (Model.InDialog)
@@ -222,7 +292,8 @@
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
                    asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                   asp-route-compose="reply" data-mail-dialog-link>
+                   asp-route-compose="reply"
+                   asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue" data-mail-dialog-link>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-reply")" /></svg>
                     <span>@OperatorLabels.StaffMail.Reply</span>
                 </a>
@@ -230,7 +301,8 @@
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
                    asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                   asp-route-compose="reply-all" data-mail-dialog-link>@OperatorLabels.StaffMail.ReplyAll</a>
+                   asp-route-compose="reply-all"
+                   asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue" data-mail-dialog-link>@OperatorLabels.StaffMail.ReplyAll</a>
             }
             @if (Model.CanForward)
             {
@@ -238,7 +310,8 @@
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
                    asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                   asp-route-compose="forward" data-mail-dialog-link>@OperatorLabels.StaffMail.Forward</a>
+                   asp-route-compose="forward"
+                   asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue" data-mail-dialog-link>@OperatorLabels.StaffMail.Forward</a>
             }
         }
 
@@ -254,6 +327,7 @@
                    asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                    asp-route-compose="reply" asp-route-correspondenceCaseReference="@draftCase.Summary.Reference"
                    asp-route-markQueryDone="true" asp-route-aiJob="@readyJob.JobId"
+                   asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue"
                    data-query-ai-draft="@readyJob.JobId" data-mail-dialog-link>
                     <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-sparkles")" /></svg>
                     <span>@OperatorLabels.QueryResponseJobs.ReplyWithDraft</span>
@@ -273,7 +347,9 @@
                       asp-route-search="@Model.SearchTerm"
                       asp-route-queue="@Model.QueueFilter"
                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-                      asp-route-dialog="@(Model.InDialog ? "true" : null)">
+                      asp-route-dialog="@(Model.InDialog ? "true" : null)"
+                      asp-route-returnCase="@Model.ReturnCase"
+                      asp-route-returnSection="@Model.ReturnSectionRouteValue">
                     <input type="hidden" name="operationKey"
                            value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
                     <button class="btn btn--dark" type="submit" data-busy-label="@OperatorLabels.Busy.Drafting">

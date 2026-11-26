@@ -156,6 +156,9 @@ public static class DependencyInjection
         services.AddScoped<SearchApprovedMailboxes>();
         services.AddScoped<SearchOldSystemCaseFolders>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
+        // An e-mail as it was sent (R1277, R1279): its kept original, rendered safe.
+        services.AddSingleton<IRenderMailAsSent, MimeKitMailAsSentRenderer>();
+        services.AddScoped<GetMailAsSent>();
         services.AddScoped<ReadUploadedImage>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();

@@ -85,6 +85,12 @@ internal sealed class RetainedMailboxMessageEntity
     public bool IsRead { get; set; }
     public long SourceLength { get; set; }
     public required string SourceSha256 { get; set; }
+
+    /// <summary>
+    /// Whether the original has an HTML part, so it can be shown as it was
+    /// sent (R1277, R1279); null for a row kept before this was recorded.
+    /// </summary>
+    public bool? HasHtmlBody { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
     public DateTimeOffset RetainedAtUtc { get; set; }
     // Dismissed from the incoming scopes by a member of staff; null while it is not.

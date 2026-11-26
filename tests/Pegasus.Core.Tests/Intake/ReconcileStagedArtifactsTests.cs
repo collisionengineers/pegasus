@@ -404,6 +404,9 @@ public sealed class ReconcileStagedArtifactsTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("The sweep never stages.");
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken) =>

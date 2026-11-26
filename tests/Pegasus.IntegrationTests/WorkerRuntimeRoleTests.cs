@@ -409,6 +409,9 @@ public sealed class WorkerRuntimeRoleTests
             DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string key, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(key == storageKey ? content : null);
     }

@@ -924,9 +924,10 @@
     // top closes.
     // The Case viewer's host is spared too: a document opened from inside a
     // dialog (the Send report composer's Files rows, v48) shows over it and
-    // must stay reachable.
+    // must stay reachable. So is the evidence viewer, which an e-mail's files
+    // open over its dialog on the Inbox and a Triage Case (R1275).
     function inertOutside(dialog) {
-        return window.pegasusUi.inertOutside(dialog, '[data-dialog], [data-case-viewer-host]');
+        return window.pegasusUi.inertOutside(dialog, '[data-dialog], [data-case-viewer-host], [data-evidence-viewer]');
     }
 
     var dialogOpeners = {};
@@ -1088,8 +1089,9 @@
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
                     return;
                 }
-                // The Case viewer over a dialog owns the keys while it shows
-                // (v48 item F): Escape closes the viewer first, then the dialog.
+                // A viewer over a dialog -- the Case's, or the evidence
+                // viewer -- owns the keys while it shows (v48 item F, v54
+                // D11): Escape closes the viewer first, then the dialog.
                 if (document.body.classList.contains('has-viewer')) {
                     return;
                 }
@@ -1207,10 +1209,16 @@
 
         var previewKind = window.pegasusUi.previewKind;
 
+        // Links are a[href], as in the dialogs above: a bare [href] matched an
+        // icon's <use>, which then stood as the last control, so Tab from Next
+        // left the viewer instead of wrapping. A control inside a hidden part
+        // (the pre-Case tools) has no box and is passed over.
         function focusable() {
             return Array.prototype.filter.call(
-                viewer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                function (element) { return !element.disabled && !element.hidden; });
+                viewer.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) {
+                    return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
+                });
         }
 
         function settle() {
@@ -1546,6 +1554,9 @@
             invoker = returnTo || trigger;
             viewer.hidden = false;
             release = inertOutside(viewer);
+            // Marks the page as the Case viewer does, so a dialog beneath
+            // (an e-mail's, R1275) leaves Escape and Tab to the viewer.
+            document.body.classList.add('has-viewer');
             document.addEventListener('keydown', onKeydown, true);
             show(start < 0 ? 0 : start);
             var controls = focusable();
@@ -1560,6 +1571,7 @@
                 release();
                 release = null;
             }
+            document.body.classList.remove('has-viewer');
             document.removeEventListener('keydown', onKeydown, true);
             // Drop the source so a large preview stops loading once it is off
             // screen; the next open sets it again.
@@ -1927,35 +1939,58 @@
     });
 })();
 
-// --- The Inbox: one message in a dialog over the list, and the ticks ---------
-// (v41 I2, I6, I10, I17, I18). Every control is a real link or form: without
-// script a subject opens the /Inbox/{id} page and the bulk form posts as it is.
-// A row's subject or Reply opens the message in the dialog the record's Dialog
-// handler draws; Previous and Next walk the rendered rows, so a press asks the
-// server only for the message it opens; a request is never aborted, so a quick
-// walk down the list leaves no cancelled requests behind. A write made in the
-// dialog returns to the Inbox with `open` naming the message, and this reopens it.
+// --- The e-mail dialog: one message over its list, and the Inbox's ticks -----
+// (v41 I2, I6, I10, I17, I18; R1278). Every control is a real link or form:
+// without script a subject opens the /Inbox/{id} page and the bulk form posts
+// as it is. Wherever a page holds the mount (the Inbox, a Case and a Triage
+// Case), a list's subject or Reply opens the message in the dialog the
+// record's Dialog handler draws. Previous and Next walk the rendered rows of
+// the list the message was opened from (the Inbox's, or the Case's
+// Correspondence or Queries), so a press asks the server only for the message
+// it opens; a request is never aborted, so a quick walk down the list leaves
+// no cancelled requests behind. A write made in the dialog returns to the page
+// it was opened on with `open` naming the message, and this reopens it.
 (function () {
     'use strict';
-    var workspace = document.querySelector('[data-mail-workspace]');
     var mount = document.querySelector('[data-mail-dialog-root]');
-    if (!workspace || !mount || typeof window.fetch !== 'function') { return; }
+    if (!mount || typeof window.fetch !== 'function') { return; }
+    // The Inbox has its list context and selection mark; a Case page has
+    // neither, and its mount names the Case every request carries back.
+    var workspace = document.querySelector('[data-mail-workspace]');
+    var returnCase = mount.getAttribute('data-mail-return-case') || '';
 
     var CONTEXT = ['mailbox', 'folder', 'pageNumber', 'search', 'queue', 'sort'];
+    // What a landing names for the message it opens, beside `open` itself.
+    var LANDING = ['compose', 'mailOperationId', 'correspondenceCaseReference', 'markQueryDone', 'aiJob'];
     var DIALOG = 'mailMessageDialog';
     var latest = 0;
     var opener = null;
+    // The list the open message came from, and its name: a Case section drawn
+    // anew replaces the element, and the name finds the new one.
+    var list = null;
+    var listName = '';
 
-    function rows() { return Array.prototype.slice.call(workspace.querySelectorAll('[data-mail-row]')); }
+    function listOf(element) { return element ? element.closest('[data-mail-list]') : null; }
+    function currentList() {
+        if (!list || !list.isConnected) {
+            list = listName ? document.querySelector('[data-mail-list="' + listName + '"]') : null;
+        }
+        return list;
+    }
+    function rows() {
+        var holder = currentList();
+        return holder ? Array.prototype.slice.call(holder.querySelectorAll('[data-mail-row]')) : [];
+    }
     function rowOf(id) {
         return rows().filter(function (row) { return row.getAttribute('data-mail-row') === id; })[0] || null;
     }
     function isModified(event) { return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey; }
     function dialogShown() { return mount.querySelector('[data-dialog="' + DIALOG + '"]'); }
 
-    // The selection mark: the row carries it and the address names it, so a
-    // reload or Back lands on it.
+    // The Inbox's selection mark: the row carries it and the address names
+    // it, so a reload or Back lands on it.
     function pin(row) {
+        if (!workspace) { return; }
         rows().forEach(function (candidate) {
             if (candidate === row) {
                 candidate.setAttribute('aria-current', 'true');
@@ -1969,19 +2004,26 @@
     }
 
     // A link into the record, as the record's Dialog handler: the same address
-    // with the handler, and the Inbox's own list context where the link has none.
+    // with the handler, the Inbox's own list context where the link has none,
+    // and on a Case page the Case and the list it was opened from.
     function fragmentUrl(href) {
         var url = new URL(href, window.location.href);
         url.searchParams.set('handler', 'Dialog');
-        var here = new URLSearchParams(window.location.search);
-        CONTEXT.forEach(function (key) {
-            if (!url.searchParams.has(key) && here.has(key)) { url.searchParams.set(key, here.get(key)); }
-        });
+        if (workspace) {
+            var here = new URLSearchParams(window.location.search);
+            CONTEXT.forEach(function (key) {
+                if (!url.searchParams.has(key) && here.has(key)) { url.searchParams.set(key, here.get(key)); }
+            });
+        }
+        if (returnCase) {
+            url.searchParams.set('returnCase', returnCase);
+            url.searchParams.set('returnSection', listName === 'queries' ? 'queries' : 'files');
+        }
         return url.toString();
     }
 
     // Previous and Next are resolved from the rendered rows: disabled at the ends
-    // of the page's rows, and for a message that is not among them.
+    // of the list's rows, and for a message that is not among them.
     function walk(dialog) {
         var ids = rows().map(function (row) { return row.getAttribute('data-mail-row'); });
         var at = ids.indexOf(dialog.getAttribute('data-mail-message'));
@@ -2035,13 +2077,27 @@
                 if (mine === latest) { show(html); }
             })
             .catch(function () {
-                // The record page is what the link always was.
-                if (mine === latest) { window.location.assign(href); }
+                // The record page is what the link always was; from a Case
+                // page it keeps the Case, so its way back returns there.
+                if (mine === latest) { window.location.assign(recordUrl(href)); }
             });
     }
 
-    // Opens the message a row's link names, marking the row it belongs to.
+    function recordUrl(href) {
+        if (!returnCase) { return href; }
+        var url = new URL(fragmentUrl(href));
+        url.searchParams.delete('handler');
+        return url.toString();
+    }
+
+    // Opens the message a list's link names, remembering the list and marking
+    // the row it belongs to.
     function openLink(link) {
+        var holder = listOf(link);
+        if (holder) {
+            list = holder;
+            listName = holder.getAttribute('data-mail-list') || '';
+        }
         var row = link.closest('[data-mail-row]');
         if (row) { pin(row); }
         opener = link;
@@ -2056,24 +2112,31 @@
     function step(delta) {
         var dialog = dialogShown();
         if (!dialog) { return; }
-        var list = rows();
-        var at = list.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
-        if (at >= 0 && list[at + delta]) { openRow(list[at + delta]); }
+        var listed = rows();
+        var at = listed.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
+        if (at >= 0 && listed[at + delta]) { openRow(listed[at + delta]); }
     }
 
-    workspace.addEventListener('click', function (event) {
+    // On the document, so a Case section drawn anew needs no binding of its
+    // own, and in the capture phase, so the opener is taken before a link's
+    // busy state or a Case's way-out handling reads the click as a navigation.
+    document.addEventListener('click', function (event) {
         var target = event.target instanceof Element ? event.target : null;
         if (!target) { return; }
         var link = target.closest('a[data-mail-open]');
-        if (link && !isModified(event)) {
+        if (link && listOf(link) && !isModified(event)) {
             event.preventDefault();
             openLink(link);
             return;
         }
-        // A click on the row anywhere but a link, a button, a form or the tick pins it.
-        var clicked = target.closest('[data-mail-row]');
-        if (clicked && !target.closest('a, button, form, label, input, select, textarea')) { pin(clicked); }
-    });
+        // On the Inbox a click on the row anywhere but a link, a button, a form
+        // or the tick pins it.
+        var clicked = workspace ? target.closest('[data-mail-row]') : null;
+        if (clicked && workspace.contains(clicked)
+            && !target.closest('a, button, form, label, input, select, textarea')) {
+            pin(clicked);
+        }
+    }, true);
 
     mount.addEventListener('click', function (event) {
         var target = event.target instanceof Element ? event.target : null;
@@ -2100,50 +2163,223 @@
         var field = form.querySelector('[data-mail-next-id]');
         var dialog = form.closest('[data-dialog]');
         if (!field || !dialog) { return; }
-        var list = rows();
-        var at = list.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
-        var following = at >= 0 ? (list[at + 1] || list[at - 1]) : null;
+        var listed = rows();
+        var at = listed.indexOf(rowOf(dialog.getAttribute('data-mail-message')));
+        var following = at >= 0 ? (listed[at + 1] || listed[at - 1]) : null;
         field.value = following ? following.getAttribute('data-mail-row') : '';
     }, true);
 
-    // The ticked count is the bare number; Correct classification opens its
-    // dialog only while something is ticked (a post with nothing ticked writes nothing).
-    var count = workspace.querySelector('[data-bulk-count]');
-    function ticks() { return workspace.querySelectorAll('input[data-mail-tick]:checked').length; }
-    if (count) {
-        count.textContent = String(ticks());
-        workspace.addEventListener('change', function (event) {
-            if (event.target instanceof Element && event.target.matches('input[data-mail-tick]')) {
-                count.textContent = String(ticks());
-            }
-        });
-    }
-    document.addEventListener('click', function (event) {
-        var button = event.target instanceof Element ? event.target.closest('[data-bulk-classify]') : null;
-        if (button && ticks() === 0) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        }
-    }, true);
+    // The opened message's view as sent takes its height once it has loaded,
+    // so the opened message is brought to the top of the body again then.
+    mount.addEventListener('pegasus:mail-sent-shown', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        var dialog = dialogShown();
+        if (dialog && !dialog.hidden && target && target.closest('[data-mail-opened]')) { reveal(dialog); }
+    });
 
-    // A write made in the dialog lands here with `open` naming its message.
+    if (workspace) {
+        // The ticked count is the bare number; Correct classification opens its
+        // dialog only while something is ticked (a post with nothing ticked writes nothing).
+        var count = workspace.querySelector('[data-bulk-count]');
+        var ticks = function () { return workspace.querySelectorAll('input[data-mail-tick]:checked').length; };
+        if (count) {
+            count.textContent = String(ticks());
+            workspace.addEventListener('change', function (event) {
+                if (event.target instanceof Element && event.target.matches('input[data-mail-tick]')) {
+                    count.textContent = String(ticks());
+                }
+            });
+        }
+        document.addEventListener('click', function (event) {
+            var button = event.target instanceof Element ? event.target.closest('[data-bulk-classify]') : null;
+            if (button && ticks() === 0) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            }
+        }, true);
+    }
+
+    // A write made in the dialog lands here with `open` naming its message,
+    // and on a Case page `section` naming the list it was opened from. The
+    // landing's own parameters ride to the record once and leave the address.
     var address = new URL(window.location.href);
     var opening = address.searchParams.get('open');
     if (opening) {
+        var url = new URL('/Inbox/' + encodeURIComponent(opening), window.location.href);
+        LANDING.forEach(function (key) {
+            if (address.searchParams.has(key)) { url.searchParams.set(key, address.searchParams.get(key)); }
+            address.searchParams.delete(key);
+        });
         address.searchParams.delete('open');
         window.history.replaceState(window.history.state, '', address.toString());
+        listName = workspace
+            ? (workspace.getAttribute('data-mail-list') || '')
+            : address.searchParams.get('section') === 'queries' ? 'queries' : 'files';
         var openedRow = rowOf(opening);
         var openedLink = openedRow ? openedRow.querySelector('a[data-mail-open]') : null;
         if (openedRow) { pin(openedRow); }
         opener = openedLink;
-        var url = new URL(openedLink ? openedLink.href : '/Inbox/' + encodeURIComponent(opening), window.location.href);
-        // The rest of the address (the composer, the send's operation) rides to the record.
-        var carried = CONTEXT.concat(['selected', 'open', 'handler']);
-        new URLSearchParams(window.location.search).forEach(function (value, key) {
-            if (carried.indexOf(key) === -1) { url.searchParams.set(key, value); }
-        });
+        if (openedLink) {
+            // The row's own link carries the Inbox's list context.
+            var linked = new URL(openedLink.href, window.location.href);
+            url.searchParams.forEach(function (value, key) { linked.searchParams.set(key, value); });
+            url = linked;
+        }
         load(url.toString());
     }
+})();
+
+// --- An e-mail as sent (v54 D5 to D8; R1277, R1280) ---------------------------
+// A message whose original has formatting opens as it was sent: the record
+// draws its plain text and an empty holder naming the view's address, and
+// this frames the view there once the message is unfolded, in the dialog and
+// on the /Inbox/{id} page alike. The frame runs no script; its document is
+// read from here (same origin, sandboxed) to size the frame to it and to tell
+// a view from the empty answer of a message with no formatting. Until the
+// view has shown, the switch stays hidden; where it cannot show (no
+// formatting, the original unreadable, an error, or nothing in 15 seconds)
+// the plain text stays and there is no switch. Without script the plain text
+// is all there is.
+(function () {
+    'use strict';
+    var WAIT_MS = 15000;
+
+    function documentOf(frame) {
+        try { return frame.contentDocument; } catch (error) { return null; }
+    }
+    function isBlank(doc) { return !!doc && doc.URL === 'about:blank'; }
+    // A view is the rendered document, whose links open a new tab; the empty
+    // answer, a status page or a sign-in page is not.
+    function isView(doc) {
+        return !!doc && !isBlank(doc) && !!doc.documentElement
+            && doc.documentElement.getAttribute('data-mail-as-sent') !== 'none'
+            && !!doc.querySelector('base[target="_blank"]');
+    }
+
+    // The frame is as tall as its document, so only the dialog's body scrolls.
+    // A document that overflows its frame is measured by its scroll height,
+    // one that fits by its own box; a wide one's scroll bar is added.
+    function fit(frame) {
+        var doc = documentOf(frame);
+        var root = doc ? doc.documentElement : null;
+        var view = frame.contentWindow;
+        if (!root || !view || frame.getClientRects().length === 0) { return; }
+        var height = root.scrollHeight > root.clientHeight
+            ? root.scrollHeight
+            : Math.ceil(root.getBoundingClientRect().height);
+        var next = Math.max(1, height + Math.max(0, view.innerHeight - root.clientHeight)) + 'px';
+        if (frame.style.height !== next) { frame.style.height = next; }
+    }
+
+    // Pictures still arriving, and a change of width, size the frame again.
+    function watch(frame, doc) {
+        var refit = function () { fit(frame); };
+        Array.prototype.forEach.call(doc.images, function (image) {
+            if (!image.complete) {
+                image.addEventListener('load', refit);
+                image.addEventListener('error', refit);
+            }
+        });
+        if (typeof window.ResizeObserver === 'function') {
+            var width = -1;
+            new window.ResizeObserver(function () {
+                if (frame.clientWidth === width) { return; }
+                width = frame.clientWidth;
+                refit();
+            }).observe(frame);
+        }
+        window.requestAnimationFrame(refit);
+    }
+
+    function start(holder) {
+        var message = holder.closest('[data-mail-msg]');
+        var text = message ? message.querySelector('[data-mail-text]') : null;
+        var button = message ? message.querySelector('[data-mail-format]') : null;
+        var src = holder.getAttribute('data-mail-sent-src');
+        if (!text || !src) { return; }
+
+        var frame = document.createElement('iframe');
+        frame.className = 'mail-sent-frame';
+        frame.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.title = holder.getAttribute('data-mail-sent-title') || '';
+        var state = 'waiting';
+        var timer = 0;
+
+        function none() {
+            if (state !== 'waiting') { return; }
+            state = 'none';
+            window.clearTimeout(timer);
+            frame.remove();
+            holder.removeAttribute('aria-busy');
+            holder.hidden = true;
+            text.hidden = false;
+        }
+
+        function shown(doc) {
+            state = 'shown';
+            window.clearTimeout(timer);
+            holder.removeAttribute('aria-busy');
+            fit(frame);
+            watch(frame, doc);
+            if (button) {
+                button.hidden = false;
+                button.addEventListener('click', function () {
+                    // Pressed while plain text shows; the title names the view a press shows.
+                    var plain = button.getAttribute('aria-pressed') !== 'true';
+                    holder.hidden = plain;
+                    text.hidden = !plain;
+                    button.setAttribute('aria-pressed', String(plain));
+                    button.title = (plain
+                        ? button.getAttribute('data-mail-format-as-sent')
+                        : button.getAttribute('data-mail-format-plain')) || '';
+                    if (!plain) { fit(frame); }
+                });
+            }
+            holder.dispatchEvent(new CustomEvent('pegasus:mail-sent-shown', { bubbles: true }));
+        }
+
+        frame.addEventListener('load', function () {
+            var doc = documentOf(frame);
+            if (state === 'shown') { fit(frame); return; }
+            if (state !== 'waiting' || isBlank(doc)) { return; }
+            if (isView(doc)) { shown(doc); } else { none(); }
+        });
+        frame.addEventListener('error', none);
+        // A view whose document has arrived shows while its pictures still
+        // load; anything else by then is the plain text.
+        timer = window.setTimeout(function () {
+            var doc = documentOf(frame);
+            if (state === 'waiting' && isView(doc) && doc.readyState !== 'loading') { shown(doc); } else { none(); }
+        }, WAIT_MS);
+
+        // The view waits with the viewer's spinner in place of the plain text.
+        holder.setAttribute('aria-busy', 'true');
+        frame.src = src;
+        holder.appendChild(frame);
+        holder.hidden = false;
+        text.hidden = true;
+    }
+
+    function bindAsSent(root) {
+        root.querySelectorAll('[data-mail-sent]').forEach(function (holder) {
+            if (holder.dataset.mailSentBound === 'true') { return; }
+            holder.dataset.mailSentBound = 'true';
+            var details = holder.closest('details');
+            if (!details || details.open) {
+                start(holder);
+                return;
+            }
+            // A folded message frames its view the first time it is unfolded.
+            details.addEventListener('toggle', function opened() {
+                if (!details.open) { return; }
+                details.removeEventListener('toggle', opened);
+                start(holder);
+            });
+        });
+    }
+    bindAsSent(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindAsSent);
 })();
 
 // ===========================================================================
@@ -2975,7 +3211,7 @@ window.pegasusPreferences = (function () {
     }, true);
 })();
 
-// --- Files tabs and the Correspondence message dialog ----------------------------
+// --- Files tabs ------------------------------------------------------------------
 // Shared by the Case record and the Triage Case (moved from case-workspace.js).
 (function () {
     'use strict';
@@ -3023,76 +3259,6 @@ window.pegasusPreferences = (function () {
         });
     }
 
-    // ---- Correspondence: a message in a dialog -----------------------------------
-    // Open message opens its row's dialog through the shell's dialog binding;
-    // the first open fetches the message from the Inbox record's Content
-    // handler, and the record's Reply, Reply all and Forward, where it offers
-    // them, join the dialog's foot. A failure says so and the next open tries
-    // again. Both listeners are on the document, so a lazily mounted or
-    // swapped Files section needs no binding of its own.
-    function messageSpinner() {
-        var spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        spinner.setAttribute('aria-hidden', 'true');
-        return spinner;
-    }
-    document.addEventListener('pegasus:dialog-open', function (event) {
-        var dialog = event.target;
-        if (!(dialog instanceof Element) || !dialog.matches('[data-case-message-dialog]')) { return; }
-        var state = dialog.dataset.caseMessageState;
-        var body = dialog.querySelector('[data-case-message-body]');
-        var url = dialog.getAttribute('data-case-message-url');
-        if (state === 'loading' || state === 'loaded' || !body || !url) { return; }
-        dialog.dataset.caseMessageState = 'loading';
-        body.setAttribute('aria-busy', 'true');
-        body.replaceChildren(messageSpinner());
-        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
-            .then(function (response) {
-                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
-                    throw new Error('message: ' + response.status);
-                }
-                return response.text();
-            })
-            .then(function (html) {
-                var fragment = new DOMParser().parseFromString(html, 'text/html');
-                var content = fragment.querySelector('[data-message-content]');
-                if (!content) { throw new Error('message: no content'); }
-                body.replaceChildren(document.importNode(content, true));
-                var actions = fragment.querySelector('[data-message-actions]');
-                var foot = dialog.querySelector('[data-case-message-foot]');
-                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
-                body.removeAttribute('aria-busy');
-                dialog.dataset.caseMessageState = 'loaded';
-            })
-            .catch(function () {
-                var status = document.createElement('p');
-                status.className = 'muted';
-                status.setAttribute('role', 'status');
-                status.textContent = 'Preview unavailable';
-                body.replaceChildren(status);
-                body.removeAttribute('aria-busy');
-                delete dialog.dataset.caseMessageState;
-            });
-    });
-    // Capture, ahead of the shell's dialog opener and the edit session's
-    // unsaved-changes guard. A modified click on Open message stays a link
-    // click (a new tab or window) rather than opening the dialog. A link to
-    // the record (Open full message, Reply, Reply all, Forward) closes the
-    // dialog first, so that question is not left behind this dialog's inert
-    // backdrop.
-    document.addEventListener('click', function (event) {
-        var target = event.target instanceof Element ? event.target : null;
-        if (!target) { return; }
-        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
-        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
-            event.stopPropagation();
-            return;
-        }
-        var link = target.closest('[data-case-message-record]');
-        if (!link || modified) { return; }
-        var dialog = link.closest('[data-case-message-dialog]');
-        if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
-    }, true);
     bindFileTabs(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindFileTabs);
 })();

@@ -337,7 +337,9 @@ There is no received-file page. A received file is shown where it matters:
 on its message, on the upload that brought it, and on the record it became
 (Case, Triage Case, Image-initiated Case, or Unidentified item). Each of those
 offers **Open file** for the retained original and, for email, **Open
-message**. A retained email is named by its subject with `.eml`, or
+message**; the message dialog offers **View** and **Download** on each
+attachment instead
+([FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)). A retained email is named by its subject with `.eml`, or
 `Message.eml` when it has none or when the subject is a name Windows keeps for
 a device, and its download carries that name. Two emails
 may share a name, because the receipt is the identity.
