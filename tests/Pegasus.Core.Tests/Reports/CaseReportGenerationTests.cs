@@ -1450,9 +1450,8 @@ public sealed class CaseReportGenerationTests
             Rules =
             [
                 new(
-                    ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.ClaimSource, [claimSource.ToString("D")])],
-                    new([], [], Attach: new(FigureBreakdown: true)))
+                    [[new(ReportSendingFact.ClaimSource, [claimSource.ToString("D")])]],
+                    [new(ReportSendingActionKind.Attach, File: ReportSendingFile.FigureBreakdown)])
             ]
         };
 
@@ -1524,15 +1523,19 @@ public sealed class CaseReportGenerationTests
 
     private static string CompanionKey(CaseReportArtifactKind kind) => "companion-" + kind;
 
-    private static PrincipalReportSendingRules Requiring(bool images, bool breakdown) =>
-        PrincipalReportSendingRules.Default with
+    private static PrincipalReportSendingRules Requiring(bool images, bool breakdown)
+    {
+        var everyCase = new List<ReportSendingAction>(PrincipalReportSendingRules.Default.EveryCase);
+        if (images)
         {
-            Attach = ReportSendingAttachments.Default with
-            {
-                VehicleImagesDocument = images,
-                FigureBreakdown = breakdown,
-            },
-        };
+            everyCase.Add(new(ReportSendingActionKind.Attach, File: ReportSendingFile.VehicleImagesDocument));
+        }
+        if (breakdown)
+        {
+            everyCase.Add(new(ReportSendingActionKind.Attach, File: ReportSendingFile.FigureBreakdown));
+        }
+        return PrincipalReportSendingRules.Default with { EveryCase = everyCase };
+    }
 
     private static ReportDispatchFacts DispatchFacts(PrincipalReportSendingRules rules) =>
         new("CE-100", "AB12 CDE", "Principal Ltd", rules, Instruction: null);

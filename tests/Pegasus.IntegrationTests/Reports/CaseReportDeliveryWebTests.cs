@@ -1879,7 +1879,11 @@ public sealed partial class AssessmentReportDraftWebTests
         "QDOS26001", "PK12TMZ", "Principal Ltd",
         PrincipalReportSendingRules.Default with
         {
-            Attach = ReportSendingAttachments.Default with { FigureBreakdown = true }
+            EveryCase =
+            [
+                .. PrincipalReportSendingRules.Default.EveryCase,
+                new(ReportSendingActionKind.Attach, File: ReportSendingFile.FigureBreakdown),
+            ]
         },
         null)
     {
