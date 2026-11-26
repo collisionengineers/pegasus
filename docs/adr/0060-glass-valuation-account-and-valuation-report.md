@@ -48,6 +48,11 @@ Web App only as versioned Key Vault references, each read through its own
 secret-scoped grant. Both are Production required settings. The account is
 read on each valuation, never when the host or a Case page is built. The
 repair estimate keeps each Engineer's own account; ADR-0043 is unchanged.
+Amended 26 November 2026 (R1288): the account is no longer deployment
+configuration. It is held in the database, protected with the Web host's key
+ring, and replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings are
+read once by that release's import and removed in the next.
 
 **The valuation follows the portal.** One Get valuation signs in, values the
 Case's accepted registration and its accepted mileage in whole miles for the

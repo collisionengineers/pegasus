@@ -66,7 +66,8 @@ zero, so the next allocation is `QDOSyy001`.
 - **For an ordinary wipe, the SQL preserve list** — identity/auth
   (`AspNet*`, `OpenIddict*`), each staff member's stored external credential
   (`UserExternalCredentials`, e.g. the Glass's login, which only its owner can
-  re-enter), mailbox configuration and Graph subscriptions,
+  re-enter), the integrations' logins (`IntegrationLogins`, R1288, preserved
+  once the schema has it), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `InspectionLocation*`, `PrincipalDomain*`/
   `PrincipalReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets`, `EmailTemplates`, `CaseListPresets`,

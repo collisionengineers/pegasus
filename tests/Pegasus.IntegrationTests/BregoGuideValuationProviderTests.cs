@@ -173,34 +173,69 @@ public sealed class BregoGuideValuationProviderTests
     {
         var harness = row switch
         {
-            "no store" => Harness.Create(withoutStore: true),
-            "empty store" => Harness.Create(sessionStore: new InMemoryBregoSessionStore(Email, null, null)),
-            _ => Harness.Create(sessionStore: new InMemoryBregoSessionStore(Email, PersistedCookie, null)),
+            "no store" => Harness.Create(login: new InMemoryBregoLogin(Email, null, null), withoutStore: true),
+            "empty store" => Harness.Create(login: new InMemoryBregoLogin(Email, null, null)),
+            _ => Harness.Create(login: new InMemoryBregoLogin(Email, PersistedCookie, null)),
         };
 
         await AssertUnavailableAsync(harness, "brego.valuation.unreadable stage=sign_in refresh_token=absent");
         Assert.Empty(harness.Requests);
     }
 
+    /// <summary>
+    /// The session this host holds is still within its 24 hours, but the
+    /// account was replaced and linked again since: the next press signs in
+    /// with the new link instead of reusing it (R1288).
+    /// </summary>
     [Fact]
-    public async Task AStoredSignInForAnotherAccountIsNotUsed()
+    public async Task AStillValidSessionIsNotReusedOnceTheAccountGenerationMoves()
     {
-        var store = new InMemoryBregoSessionStore("someone-else@collisionengineers.test", PersistedCookie, RefreshToken);
-        var harness = Harness.Create(sessionStore: store);
+        const string relinkedRefreshToken = "synthetic-relinked-refresh-token";
+        var login = new InMemoryBregoLogin(Email, null, RefreshToken);
+        var harness = Harness.Create(login: login);
 
-        await AssertUnavailableAsync(harness, "brego.valuation.unreadable stage=sign_in refresh_token=absent");
+        await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+        Assert.Equal(6, harness.Requests.Count);
 
-        Assert.Empty(harness.Requests);
-        Assert.Equal(0, store.Saves);
+        login.Link(null, relinkedRefreshToken);
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        var renewal = Assert.Single(
+            harness.Requests.Skip(6),
+            request => request.Uri.Host.StartsWith("cognito-idp.", StringComparison.Ordinal));
+        using var body = JsonDocument.Parse(renewal.Body!);
+        Assert.Equal(relinkedRefreshToken, body.RootElement.GetProperty("RefreshToken").GetString());
+    }
+
+    /// <summary>
+    /// A press that began before the account was replaced still finishes, but
+    /// the sign-in it renewed belongs to the old account and is not stored
+    /// over the new one.
+    /// </summary>
+    [Fact]
+    public async Task ASignInRenewedForAReplacedAccountIsNotStoredOverIt()
+    {
+        var login = new InMemoryBregoLogin(Email, null, RefreshToken);
+        var before = await login.ReadAsync(default);
+        login.Replace("new-account@collisionengineers.test");
+        var harness = Harness.Create(account: _ => Task.FromResult(before), login: login);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        Assert.Equal(0, login.Saves);
+        Assert.Null(login.Cookie);
+        Assert.Null(login.StoredRefreshToken);
     }
 
     [Fact]
     public async Task ARotatedRefreshTokenIsCarriedForwardAndStoredWithTheKeptCookie()
     {
-        var store = new InMemoryBregoSessionStore(Email, PersistedCookie, RefreshToken);
+        var store = new InMemoryBregoLogin(Email, PersistedCookie, RefreshToken);
         var harness = Harness.Create(
             request => IsTokenRenewal(request) ? Json(HttpStatusCode.OK, RotatingRefreshTokensJson) : null,
-            sessionStore: store);
+            login: store);
 
         var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
 
@@ -219,7 +254,7 @@ public sealed class BregoGuideValuationProviderTests
     [Fact]
     public async Task APlatform401MintsANewSessionFromTheRefreshTokenAndStoresTheNewCookie()
     {
-        var store = new InMemoryBregoSessionStore(Email, PersistedCookie, RefreshToken);
+        var store = new InMemoryBregoLogin(Email, PersistedCookie, RefreshToken);
         var rejected = false;
         var harness = Harness.Create(
             request =>
@@ -232,7 +267,7 @@ public sealed class BregoGuideValuationProviderTests
 
                 return null;
             },
-            sessionStore: store);
+            login: store);
 
         var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
 
@@ -327,7 +362,7 @@ public sealed class BregoGuideValuationProviderTests
     [Fact]
     public async Task HostRestartLoadsPersistedSessionCookieWithoutDeviceApprovalAndReplacesItOn401()
     {
-        var store = new InMemoryBregoSessionStore(Email, PersistedCookie, RefreshToken);
+        var store = new InMemoryBregoLogin(Email, PersistedCookie, RefreshToken);
         var failPersistedCookieOnce = false;
         var harness = Harness.Create(
             request =>
@@ -341,7 +376,7 @@ public sealed class BregoGuideValuationProviderTests
 
                 return null;
             },
-            sessionStore: store);
+            login: store);
 
         // First call after host restart uses the persisted brego-session cookie without device-approval or v1/sessions (4 calls total).
         var firstQuote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
@@ -365,7 +400,7 @@ public sealed class BregoGuideValuationProviderTests
 
                 return null;
             },
-            sessionStore: store);
+            login: store);
         failPersistedCookieOnce = true;
         var secondQuote = await restartedHarness.Provider.GetAsync(Request("AB12CDE", April), default);
         Assert.Equal(14250m, secondQuote.RetailValue);
@@ -380,14 +415,14 @@ public sealed class BregoGuideValuationProviderTests
         const string relinkedRefreshToken = "synthetic-relinked-refresh-token";
         const string relinkedCookie = "synthetic-relinked-session-cookie";
         var currentUtc = Now;
-        var store = new InMemoryBregoSessionStore(Email, null, RefreshToken);
-        var harness = Harness.Create(timeProvider: new DelegateClock(() => currentUtc), sessionStore: store);
+        var store = new InMemoryBregoLogin(Email, null, RefreshToken);
+        var harness = Harness.Create(timeProvider: new DelegateClock(() => currentUtc), login: store);
 
         await harness.Provider.GetAsync(Request("AB12CDE", April), default);
         Assert.Equal(6, harness.Requests.Count);
 
         // The operator links the account again while this host runs.
-        store.Replace(relinkedCookie, relinkedRefreshToken);
+        store.Link(relinkedCookie, relinkedRefreshToken);
         currentUtc = Now.AddHours(25);
         var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
 
@@ -406,34 +441,6 @@ public sealed class BregoGuideValuationProviderTests
             Assert.Contains($"brego-session={relinkedCookie}", cookie, StringComparison.Ordinal);
             Assert.Contains($".{CognitoUsername}.refreshToken={relinkedRefreshToken};", cookie, StringComparison.Ordinal);
         }
-    }
-
-    [Fact]
-    public async Task WhenTheStoreCannotBeReadTheHostsOwnSignInIsUsed()
-    {
-        var currentUtc = Now;
-        var store = new InMemoryBregoSessionStore(Email, null, RefreshToken);
-        var harness = Harness.Create(timeProvider: new DelegateClock(() => currentUtc), sessionStore: store);
-
-        await harness.Provider.GetAsync(Request("AB12CDE", April), default);
-        Assert.Equal(6, harness.Requests.Count);
-
-        store.Unreadable = true;
-        currentUtc = Now.AddHours(25);
-        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
-
-        Assert.Equal(14250m, quote.RetailValue);
-        var later = harness.Requests.Skip(6).ToArray();
-        Assert.Equal(4, later.Length);
-        var renewal = Assert.Single(
-            later,
-            request => request.Uri.Host.StartsWith("cognito-idp.", StringComparison.Ordinal));
-        using var body = JsonDocument.Parse(renewal.Body!);
-        Assert.Equal(RefreshToken, body.RootElement.GetProperty("RefreshToken").GetString());
-        Assert.Contains(
-            $"brego-session={BregoSessionCookie}",
-            Assert.Single(later[^1].Headers["Cookie"]),
-            StringComparison.Ordinal);
     }
 
     [Theory]
@@ -634,35 +641,34 @@ public sealed class BregoGuideValuationProviderTests
             message.Contains("brego.valuation.mileage_unit stage=mileage unit=unreadable", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("Brego:ValuationAccount:Email")]
-    public async Task AnUnresolvedAccountSettingIsUnavailableAndNamesTheKeyNotItsValue(string unresolvedKey)
+    [Fact]
+    public async Task ALoginNotSetIsUnavailableAndNamesTheLoginNotAValue()
     {
-        var reference = "@Microsoft.KeyVault(SecretUri=https://vault.test/secrets/brego-valuation/1)";
-        var harness = Harness.Create(
-            account: () => BregoValuationAccount.Create(key => key == unresolvedKey ? reference : "configured"));
+        var harness = Harness.Create(account: _ => Task.FromResult(BregoValuationAccount.Create(null)));
 
         await AssertUnavailableAsync(
             harness,
-            $"brego.valuation.configuration {unresolvedKey} is an unresolved Key Vault reference");
+            "brego.valuation.configuration The Brego valuation login is not set.");
         Assert.Empty(harness.Requests);
     }
 
     [Fact]
-    public void TheValuationAccountIsItsEmailAloneAndRefusesBlankControlAndUnresolvedValues()
+    public void TheValuationAccountIsItsEmailAndStoredSignInAndRefusesAMissingBlankOrControlEmail()
     {
-        // Any key but the e-mail is a failure: the account reads nothing else.
-        static Func<string, string?> Read(string? email) =>
-            key => key == "Brego:ValuationAccount:Email" ? email : throw new KeyNotFoundException(key);
-
-        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(Read(" ")));
-        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(Read(null)));
-        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(Read("digital@\ncollisionengineers.test")));
+        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(null));
         Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(
-            Read("@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/brego-valuation-email)")));
+            TestIntegrationLogins.Brego(" ", RefreshToken, null)));
+        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(
+            TestIntegrationLogins.Brego("digital@\ncollisionengineers.test", RefreshToken, null)));
+        Assert.Throws<InvalidOperationException>(() => BregoValuationAccount.Create(
+            TestIntegrationLogins.Cazana(Email, "secret")));
 
-        var account = BregoValuationAccount.Create(Read($" {Email} "));
+        var account = BregoValuationAccount.Create(
+            TestIntegrationLogins.Brego($" {Email} ", $" {RefreshToken} ", " ", generation: 3));
         Assert.Equal(Email, account.Email);
+        Assert.Equal(RefreshToken, account.RefreshToken);
+        Assert.Null(account.SessionCookie);
+        Assert.Equal(3, account.Generation);
         Assert.Equal(nameof(BregoValuationAccount), account.ToString());
     }
 
@@ -684,24 +690,23 @@ public sealed class BregoGuideValuationProviderTests
     }
 
     [Fact]
-    public void AddBregoGuideValuationComposesOneProviderAndReadsTheAccountOnlyWhenValuing()
+    public void AddBregoGuideValuationComposesOneProviderAndReadsTheLoginOnlyWhenValuing()
     {
-        var reads = 0;
+        // The composition-only database does not exist, so a read at
+        // resolution would fail this test (R1288).
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
-        services.AddBregoGuideValuation(_ =>
-        {
-            reads++;
-            return BregoValuationAccount.Create(static _ => null);
-        });
+        TestIntegrationLogins.AddCompositionOnlyStore(services);
+        services.AddBregoGuideValuation();
         using var provider = services.BuildServiceProvider();
 
         var source = Assert.Single(provider.GetServices<IGuideValuationProvider>());
 
         Assert.IsType<BregoGuideValuationProvider>(source);
         Assert.Equal(ValuationSource.Brego, source.Source);
-        Assert.Equal(0, reads);
+        Assert.IsType<Pegasus.Infrastructure.Persistence.EfIntegrationLoginStore>(
+            provider.GetRequiredService<IBregoSessionStore>());
     }
 
     internal static string LookupJson(string vin = Vin) => $$$"""
@@ -832,16 +837,14 @@ public sealed class BregoGuideValuationProviderTests
 
         public static Harness Create(
             Func<HttpRequestMessage, HttpResponseMessage?>? overrideRequest = null,
-            Func<BregoValuationAccount>? account = null,
+            Func<CancellationToken, Task<BregoValuationAccount>>? account = null,
             TimeProvider? timeProvider = null,
-            IBregoSessionStore? sessionStore = null,
+            InMemoryBregoLogin? login = null,
             bool withoutStore = false)
         {
             // By default the account is linked: its refresh token is stored
             // and no session cookie has been minted yet.
-            var store = withoutStore
-                ? null
-                : sessionStore ?? new InMemoryBregoSessionStore(Email, null, RefreshToken);
+            login ??= new InMemoryBregoLogin(Email, null, RefreshToken);
             var requests = new List<CazanaGuideValuationProviderTests.RecordedRequest>();
             var logger = new CapturingLogger();
             return new(
@@ -862,11 +865,10 @@ public sealed class BregoGuideValuationProviderTests
 
                         return DefaultAnswer(request);
                     })),
-                    account ?? (() => BregoValuationAccount.Create(
-                        key => key == "Brego:ValuationAccount:Email" ? Email : null)),
+                    account ?? (cancellationToken => login.ReadAsync(cancellationToken)),
                     timeProvider ?? new CazanaGuideValuationProviderTests.FixedClock(Now),
                     logger,
-                    store),
+                    withoutStore ? null : login),
                 logger,
                 requests);
         }
@@ -898,7 +900,12 @@ public sealed class BregoGuideValuationProviderTests
         public override DateTimeOffset GetUtcNow() => now();
     }
 
-    private sealed class InMemoryBregoSessionStore(string email, string? cookie, string? refreshToken) : IBregoSessionStore
+    /// <summary>
+    /// The Brego login's row as the store keeps it (R1288): the account, its
+    /// stored sign-in and its generation, read whole on each press and
+    /// renewed in place only while the generation is unchanged.
+    /// </summary>
+    internal sealed class InMemoryBregoLogin(string email, string? cookie, string? refreshToken) : IBregoSessionStore
     {
         public string Email { get; private set; } = email;
 
@@ -906,34 +913,42 @@ public sealed class BregoGuideValuationProviderTests
 
         public string? StoredRefreshToken { get; private set; } = refreshToken;
 
+        public long Generation { get; private set; } = 1;
+
         public int Saves { get; private set; }
 
-        /// <summary>When set, the store answers nothing, as an unreadable blob does.</summary>
-        public bool Unreadable { get; set; }
+        /// <summary>An Administrator replaces the account: its sign-in is cleared.</summary>
+        public void Replace(string email)
+        {
+            Email = email;
+            Cookie = null;
+            StoredRefreshToken = null;
+            Generation++;
+        }
 
-        /// <summary>The account linked again by the script: a new refresh token and cookie.</summary>
-        public void Replace(string? cookie, string refreshToken)
+        /// <summary>The account linked again: a new refresh token and cookie.</summary>
+        public void Link(string? cookie, string refreshToken)
         {
             Cookie = cookie;
             StoredRefreshToken = refreshToken;
+            Generation++;
         }
 
-        public Task<BregoStoredSignIn?> TryLoadAsync(string email, CancellationToken cancellationToken) =>
-            Task.FromResult<BregoStoredSignIn?>(
-                !Unreadable
-                && string.Equals(Email, email, StringComparison.OrdinalIgnoreCase)
-                && StoredRefreshToken is { } stored
-                && !string.IsNullOrWhiteSpace(stored)
-                    ? new BregoStoredSignIn(Cookie, stored)
-                    : null);
+        public Task<BregoValuationAccount> ReadAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(BregoValuationAccount.Create(
+                TestIntegrationLogins.Brego(Email, StoredRefreshToken, Cookie, Generation)));
 
-        public Task TrySaveAsync(string email, BregoStoredSignIn signIn, CancellationToken cancellationToken)
+        public Task<bool> TrySaveAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken)
         {
-            Email = email;
+            if (generation != Generation)
+            {
+                return Task.FromResult(false);
+            }
+
             Cookie = signIn.BregoSessionCookie;
             StoredRefreshToken = signIn.RefreshToken;
             Saves++;
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
     }
 }

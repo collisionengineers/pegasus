@@ -15,6 +15,26 @@ internal sealed class UserExternalCredentialEntity : IApplicationManagedConcurre
     public Guid ConcurrencyToken { get; set; }
 }
 
+/// <summary>
+/// One integration's login (R1288, ADR-0091): its values protected with the
+/// Web host's key ring under the row's <see cref="Generation"/>, never in
+/// plain text. An empty <see cref="ProtectedLogin"/> is a login not set.
+/// </summary>
+internal sealed class IntegrationLoginEntity : IApplicationManagedConcurrencyToken
+{
+    public required string Id { get; set; }
+    public required string ProtectedLogin { get; set; }
+
+    /// <summary>A link to the account begun and not yet finished; none until Brego's link flow uses it.</summary>
+    public string? ProtectedPendingLink { get; set; }
+    public DateTimeOffset? PendingLinkExpiresAtUtc { get; set; }
+    public long Generation { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public long Version { get; set; }
+    public Guid ConcurrencyToken { get; set; }
+}
+
 internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }

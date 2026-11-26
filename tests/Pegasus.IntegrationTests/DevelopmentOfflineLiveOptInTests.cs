@@ -154,14 +154,14 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     }
 
     /// <summary>
-    /// Features:LiveGuideValuation keeps Brego's session cookie in the run's
-    /// Azurite account, as Production keeps it in custody storage, so a Web
-    /// start reuses it instead of signing in through Brego's device-approval
-    /// challenge (R933, #2062).
+    /// Features:LiveGuideValuation keeps Brego's stored sign-in where
+    /// Production keeps it, with the account in the run's own database
+    /// (R1288), so a Web start reuses it instead of signing in through Brego's
+    /// device-approval challenge (R933, #2062).
     /// </summary>
     [Fact]
     [Trait("Category", "SqlServer")]
-    public async Task LiveGuideValuationKeepsTheBregoSessionInABlobStore()
+    public async Task LiveGuideValuationKeepsTheBregoSignInInTheIntegrationLoginStore()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         using var factory = new ConfiguredWebApplicationFactory(
@@ -177,17 +177,12 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
                 ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
                 ["Glass:EstimatorBaseUri"] = "https://ere.test/",
                 ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
-                ["Glass:RepairProfileId"] = "4063",
-                ["Glass:ValuationAccount:Username"] = "valuation-test",
-                ["Glass:ValuationAccount:Password"] = "synthetic-password",
-                ["Cazana:CompanionAccount:Email"] = "companion@example.test",
-                ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
-                ["Brego:ValuationAccount:Email"] = "brego@example.test"
+                ["Glass:RepairProfileId"] = "4063"
             });
 
         await using var scope = factory.Services.CreateAsyncScope();
 
-        Assert.IsType<Pegasus.Infrastructure.Brego.AzureBlobBregoSessionStore>(
+        Assert.IsType<Pegasus.Infrastructure.Persistence.EfIntegrationLoginStore>(
             scope.ServiceProvider.GetRequiredService<Pegasus.Infrastructure.Brego.IBregoSessionStore>());
         Assert.Contains(
             scope.ServiceProvider.GetServices<Pegasus.Core.Assessment.IGuideValuationProvider>(),

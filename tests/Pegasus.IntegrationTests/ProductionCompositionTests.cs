@@ -260,11 +260,13 @@ public sealed class ProductionCompositionTests
 
     /// <summary>
     /// Glass's is a connected guide source only where a host composes it, and
-    /// composing or resolving it reads no account: the account is read on each
-    /// valuation, so an unresolved Key Vault reference never stops a Case page.
+    /// composing or resolving it reads no login: the login is read from the
+    /// database on each valuation (R1288), so a login not set never stops a
+    /// Case page. The composition-only database does not exist, so a read at
+    /// resolution would fail this test.
     /// </summary>
     [Fact]
-    public void GlassValuationIsConnectedOnlyWhereComposedAndReadsItsAccountOnlyWhenValuing()
+    public void GlassValuationIsConnectedOnlyWhereComposedAndReadsItsLoginOnlyWhenValuing()
     {
         using var bare = BuildGlassProduction(
             GlassConfiguration(),
@@ -279,16 +281,11 @@ public sealed class ProductionCompositionTests
                 .IsConnected(ValuationSource.Glasses));
         }
 
-        var reads = 0;
         using var connected = BuildGlassProduction(GlassConfiguration(), services =>
         {
             services.AddScoped<IScheduleGuideValuationReport, NothingScheduled>();
             services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
-            services.AddGlassGuideValuation(_ =>
-            {
-                reads++;
-                return GlassValuationAccount.Create(static _ => null);
-            });
+            services.AddGlassGuideValuation();
         });
         using var connectedScope = connected.CreateScope();
         var fetch = connectedScope.ServiceProvider.GetRequiredService<IFetchGuideValuation>();
@@ -297,7 +294,6 @@ public sealed class ProductionCompositionTests
         Assert.False(fetch.IsConnected(ValuationSource.Brego));
         Assert.IsType<GlassGuideValuationProvider>(
             Assert.Single(connectedScope.ServiceProvider.GetServices<IGuideValuationProvider>()));
-        Assert.Equal(0, reads);
     }
 
     private sealed class NothingScheduled : IScheduleGuideValuationReport

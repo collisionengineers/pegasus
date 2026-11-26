@@ -99,7 +99,16 @@ valuation rather than when the host or a Case page is built. From 23 November
 `Brego__ValuationAccount__Password` setting is still deployed until a later
 release removes it, because the release before this one stops at startup
 without it. Neither the refresh token nor the Cognito tokens or session
-cookies ever reach a URL or log.
+cookies ever reach a URL or log. Amended 26 November 2026 (R1288): the
+account is no longer deployment configuration. Its e-mail address and its
+stored sign-in (the refresh token and the `brego-session` cookie) are held in
+the database, protected with the Web host's key ring, and the account is
+replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)); a renewed refresh
+token or a new cookie is written back there, not to
+`authentication-ring/brego-session.json`. The setting and that file are read
+once by that release's import and removed in the next. A session held in
+memory is reused only while the account is the one it was signed in for.
 
 **The account is linked by its e-mailed sign-in link** (23 November 2026,
 [R1231](../rulings.md)). Brego's login page signs an account in by Cognito
@@ -117,7 +126,8 @@ Brego; one whose refresh token Cognito refuses does so at
 `stage=cognito_refresh`, and the account is linked again
 ([runbook](../runbook.md#linking-the-brego-valuation-account)). A host reads
 the store before its own memory at each sign-in, so a link made while it runs
-is used without a restart. There is no screen for the link yet.
+is used without a restart; from 26 November 2026 (R1288) the store is the
+account's row in the database. There is no screen for the link yet.
 
 **The month is a date.** Brego values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and
@@ -165,6 +175,9 @@ setting's key instead.
   The test instance keeps its `brego-session` cookie in its own Azurite
   `authentication-ring/brego-session.json`, seeded with production's cookie, so
   it never signs in through device approval ([R933](../rulings.md), 11 November 2026).
+  From 26 November 2026 (R1288) it keeps them in its own database, imported
+  once from that file, and a production copy keeps the instance's own
+  ([ADR-0091](0091-integration-logins-in-the-database.md)).
 
 ## Links
 

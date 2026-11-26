@@ -9,9 +9,9 @@ namespace Pegasus.Infrastructure.Brego;
 /// <summary>
 /// Brego as a connected guide source (ADR-0084): Get valuation signs in with
 /// Collision Engineers' Brego valuation account by renewing its Cognito
-/// tokens from the refresh token stored when the account was linked by
-/// <c>scripts/Connect-BregoAccount.ps1</c> (reusing the active BFF session
-/// across calls so Brego's single-web-session limit is respected),
+/// tokens from the refresh token stored with the account when it was linked
+/// (reusing the active BFF session across calls so Brego's single-web-session
+/// limit is respected, until the account is replaced or linked again),
 /// looks up the Case's registration and queries a point-in-time valuation at
 /// its accepted mileage, and answers Brego's <c>retail.high</c> as the card's
 /// retail and <c>trade.high</c> as the card's trade. The quote carries the
@@ -35,12 +35,13 @@ namespace Pegasus.Infrastructure.Brego;
 /// says that instead. The account is read on each valuation, never when the
 /// provider is built, and neither the refresh token nor the session tokens or
 /// cookies ever reach a URL or log. An account with no stored refresh token
-/// is unavailable at stage <c>sign_in</c> without calling Brego.
+/// is unavailable at stage <c>sign_in</c> without calling Brego, and a login
+/// not set is unavailable as configuration.
 /// </para>
 /// </summary>
 public sealed partial class BregoGuideValuationProvider(
     IHttpClientFactory httpClientFactory,
-    Func<BregoValuationAccount> account,
+    Func<CancellationToken, Task<BregoValuationAccount>> account,
     TimeProvider timeProvider,
     ILogger<BregoGuideValuationProvider> logger,
     IBregoSessionStore? sessionStore = null) : IGuideValuationProvider, IDisposable
@@ -70,7 +71,7 @@ public sealed partial class BregoGuideValuationProvider(
                 throw new BregoFailure("mileage", null, "unit=unreadable");
             }
 
-            var signIn = account();
+            var signIn = await account(cancellationToken);
             var client = new BregoClient(httpClientFactory.CreateClient(HttpClientName));
             var vrm = Vrm(request.Registration);
             var (session, canRetry) = await GetSessionAsync(client, signIn, forceRefresh: false, cancellationToken);
@@ -143,22 +144,22 @@ public sealed partial class BregoGuideValuationProvider(
                 return (current!, true);
             }
 
-            // The refresh token and cookie come from the store first: the
-            // account may have been linked again since this host signed in,
-            // and the new link must be used without a restart. Only when the
-            // store holds nothing for the account, or cannot be read, does
-            // the session this host already holds supply them. A 401 from the
-            // platform mints a new session: the cookie is left behind, the
-            // refresh token is not.
+            // The refresh token and cookie come from the account first: it is
+            // read with its stored sign-in on each valuation, so a link made
+            // since this host signed in is used without a restart. Only when
+            // the account holds none does the session this host already holds
+            // for the same generation supply them. A 401 from the platform
+            // mints a new session: the cookie is left behind, the refresh
+            // token is not.
             string? refreshToken = null;
             string? existingSessionCookie = null;
-            if (sessionStore is not null
-                && await sessionStore.TryLoadAsync(signIn.Email, cancellationToken) is { } stored)
+            if (!string.IsNullOrWhiteSpace(signIn.RefreshToken))
             {
-                refreshToken = stored.RefreshToken;
-                existingSessionCookie = stored.BregoSessionCookie;
+                refreshToken = signIn.RefreshToken;
+                existingSessionCookie = signIn.SessionCookie;
             }
             else if (current is not null
+                && current.Generation == signIn.Generation
                 && string.Equals(current.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(current.RefreshToken))
             {
@@ -171,18 +172,19 @@ public sealed partial class BregoGuideValuationProvider(
                 throw new BregoFailure("sign_in", null, "refresh_token=absent");
             }
 
-            var created = await client.SignInAsync(
+            var signedIn = await client.SignInAsync(
                 signIn.Email,
                 refreshToken,
                 timeProvider,
                 cancellationToken,
                 forceRefresh ? null : existingSessionCookie);
+            var created = signedIn with { Generation = signIn.Generation };
             if (sessionStore is not null
                 && (!created.ReusedSessionCookie
                     || !string.Equals(created.RefreshToken, refreshToken, StringComparison.Ordinal)))
             {
                 await sessionStore.TrySaveAsync(
-                    signIn.Email,
+                    signIn.Generation,
                     new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
                     cancellationToken);
             }
@@ -196,8 +198,14 @@ public sealed partial class BregoGuideValuationProvider(
         }
     }
 
+    /// <summary>
+    /// A session this host holds serves the next press only while it is for
+    /// the account's current generation: a replaced or newly linked account is
+    /// used on the next press, not when the old session expires (R1288).
+    /// </summary>
     private bool IsReusable(BregoSession? session, BregoValuationAccount signIn) =>
         session is not null
+        && session.Generation == signIn.Generation
         && string.Equals(session.Email, signIn.Email, StringComparison.OrdinalIgnoreCase)
         && timeProvider.GetUtcNow() < session.ExpiresAtUtc;
 

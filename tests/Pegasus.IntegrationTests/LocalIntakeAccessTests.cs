@@ -104,21 +104,8 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:EstimatorBaseUri")]
     [InlineData("Glass:CallbackBaseUri")]
     [InlineData("Glass:RepairProfileId")]
-    [InlineData("Glass:ValuationAccount:Username")]
-    [InlineData("Glass:ValuationAccount:Password")]
-    [InlineData("Cazana:CompanionAccount:Email")]
-    [InlineData("Cazana:CompanionAccount:Password")]
-    [InlineData("Brego:ValuationAccount:Email")]
     [InlineData("Experian:BaseUri")]
     [InlineData("Experian:TokenUri")]
-    [InlineData("Experian:HistoryAccount:ClientId")]
-    [InlineData("Experian:HistoryAccount:ClientSecret")]
-    [InlineData("Experian:HistoryAccount:Username")]
-    [InlineData("Experian:HistoryAccount:Password")]
-    [InlineData("Experian:CapAccount:ClientId")]
-    [InlineData("Experian:CapAccount:ClientSecret")]
-    [InlineData("Experian:CapAccount:Username")]
-    [InlineData("Experian:CapAccount:Password")]
     [InlineData("GitHub:ProblemReports:Token")]
     [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
@@ -147,21 +134,8 @@ public sealed class LocalIntakeAccessTests
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
-            ["Glass:ValuationAccount:Username"] = "valuation-test",
-            ["Glass:ValuationAccount:Password"] = "synthetic-password",
-            ["Cazana:CompanionAccount:Email"] = "companion@example.test",
-            ["Cazana:CompanionAccount:Password"] = "synthetic-cazana-password",
-            ["Brego:ValuationAccount:Email"] = "brego@example.test",
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
-            ["Experian:HistoryAccount:ClientId"] = "experian-client",
-            ["Experian:HistoryAccount:ClientSecret"] = "synthetic-experian-secret",
-            ["Experian:HistoryAccount:Username"] = "experian-user",
-            ["Experian:HistoryAccount:Password"] = "synthetic-experian-password",
-            ["Experian:CapAccount:ClientId"] = "experian-client",
-            ["Experian:CapAccount:ClientSecret"] = "synthetic-experian-secret",
-            ["Experian:CapAccount:Username"] = "experian-user",
-            ["Experian:CapAccount:Password"] = "synthetic-experian-password",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",
             ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };

@@ -818,6 +818,12 @@ internal sealed record BregoSession(
     DateTimeOffset ExpiresAtUtc,
     bool ReusedSessionCookie = false)
 {
+    /// <summary>
+    /// The account login's generation the session was signed in under: a
+    /// session of another generation is never reused (R1288).
+    /// </summary>
+    public long Generation { get; init; }
+
     public override string ToString() => nameof(BregoSession);
 }
 

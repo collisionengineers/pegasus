@@ -384,17 +384,14 @@ public sealed class GlassGuideValuationProviderTests
     }
 
     [Fact]
-    public async Task AnUnresolvedAccountOrUnreadableUnitIsUnavailableBeforeAnyRequest()
+    public async Task ALoginNotSetOrUnreadableUnitIsUnavailableBeforeAnyRequest()
     {
-        var unresolved = Harness.Create(account: () => GlassValuationAccount.Create(key =>
-            key.EndsWith("Password", StringComparison.Ordinal)
-                ? "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/glass-valuation-password)"
-                : "valuation-test"));
+        var unresolved = Harness.Create(account: _ => Task.FromResult(GlassValuationAccount.Create(null)));
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             unresolved.Provider.GetAsync(Request(), default));
         Assert.Empty(unresolved.Mva.Requests);
         Assert.Contains(unresolved.Logger.Messages, message =>
-            message.Contains("Glass:ValuationAccount:Password is an unresolved Key Vault reference", StringComparison.Ordinal));
+            message.Contains("The Glass's valuation login is not set.", StringComparison.Ordinal));
 
         var unreadable = Harness.Create();
         await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
@@ -431,18 +428,16 @@ public sealed class GlassGuideValuationProviderTests
     }
 
     [Fact]
-    public void TheValuationAccountRefusesBlankControlAndUnresolvedValuesAndNeverPrintsItsPassword()
+    public void TheValuationAccountRefusesAMissingBlankOrControlLoginAndNeverPrintsItsPassword()
     {
-        static Func<string, string?> Read(string? username, string? password) =>
-            key => key == "Glass:ValuationAccount:Username" ? username : password;
-
-        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(Read(" ", "secret")));
-        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(Read("valuation-test", null)));
-        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(Read("valuation-test", "sec\nret")));
+        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(null));
+        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(TestIntegrationLogins.Glass(" ", "secret")));
+        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(TestIntegrationLogins.Glass("valuation-test", " ")));
+        Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(TestIntegrationLogins.Glass("valuation-test", "sec\nret")));
         Assert.Throws<InvalidOperationException>(() => GlassValuationAccount.Create(
-            Read("@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/glass-valuation-username)", "secret")));
+            TestIntegrationLogins.Cazana("valuation-test", "secret")));
 
-        var account = GlassValuationAccount.Create(Read(" valuation-test ", " spaced secret "));
+        var account = GlassValuationAccount.Create(TestIntegrationLogins.Glass(" valuation-test ", " spaced secret "));
         Assert.Equal("valuation-test", account.Username);
         Assert.Equal(" spaced secret ", account.Password);
         Assert.DoesNotContain("secret", account.ToString(), StringComparison.Ordinal);
@@ -473,7 +468,7 @@ public sealed class GlassGuideValuationProviderTests
 
         public static Harness Create(
             Func<HttpMessageHandler, HttpMessageHandler>? transport = null,
-            Func<GlassValuationAccount>? account = null)
+            Func<CancellationToken, Task<GlassValuationAccount>>? account = null)
         {
             var mva = new ScriptedGlass();
             Script(mva);
@@ -491,8 +486,8 @@ public sealed class GlassGuideValuationProviderTests
                 new GlassGuideValuationProvider(
                     new ScriptedClientFactory(transport?.Invoke(mva) ?? mva),
                     () => options,
-                    account ?? (() => GlassValuationAccount.Create(key =>
-                        key.EndsWith("Username", StringComparison.Ordinal) ? "valuation-test" : "synthetic-password")),
+                    account ?? (_ => Task.FromResult(GlassValuationAccount.Create(
+                        TestIntegrationLogins.Glass("valuation-test", "synthetic-password")))),
                     TimeProvider.System,
                     logger),
                 logger);

@@ -13,16 +13,18 @@ namespace Pegasus.Infrastructure.Experian;
 /// permissions per account (R1207): one client is one account and its token.
 ///
 /// <para>
-/// The account is read on each query, never when the client is built; neither
-/// the credentials nor the token ever reaches a URL or log, and the
-/// registration travels in the body. A call that stops is an
-/// <see cref="ExperianFailure"/> naming its stage; a missing or unresolved
-/// setting is the account's own <see cref="InvalidOperationException"/>.
+/// The account is read on each query, never when the client is built, and
+/// the kept token is used only while the login is the one it was issued to
+/// (R1288): a replaced login signs in afresh on the next call. Neither the
+/// credentials nor the token ever reaches a URL or log, and the registration
+/// travels in the body. A call that stops is an <see cref="ExperianFailure"/>
+/// naming its stage; a login not set or a missing setting is the account's
+/// own <see cref="InvalidOperationException"/>.
 /// </para>
 /// </summary>
 public sealed class ExperianClient(
     IHttpClientFactory httpClientFactory,
-    Func<ExperianAccount> account,
+    Func<CancellationToken, Task<ExperianAccount>> account,
     TimeProvider timeProvider) : IDisposable
 {
     public const string HttpClientName = "Experian";
@@ -32,6 +34,7 @@ public sealed class ExperianClient(
 
     private readonly SemaphoreSlim tokenLock = new(1, 1);
     private string? token;
+    private long tokenGeneration;
     private DateTimeOffset tokenExpiresAtUtc;
 
     /// <summary>
@@ -43,7 +46,7 @@ public sealed class ExperianClient(
         byte[] query,
         CancellationToken cancellationToken)
     {
-        var signIn = account();
+        var signIn = await account(cancellationToken);
         var http = httpClientFactory.CreateClient(HttpClientName);
         var bearer = await TokenAsync(http, signIn, refresh: false, cancellationToken);
         var (status, body) = await QueryAsync(http, signIn, bearer, query, cancellationToken);
@@ -99,8 +102,8 @@ public sealed class ExperianClient(
     }
 
     /// <summary>
-    /// The bearer token, from the in-process cache while it has a minute left,
-    /// else a fresh sign-in. Experian's gateway takes the password grant as a
+    /// The bearer token, from the in-process cache while it has a minute left
+    /// and was issued to the login's current generation, else a fresh sign-in. Experian's gateway takes the password grant as a
     /// JSON body with a <c>Grant_type</c> header.
     /// </summary>
     private async Task<string> TokenAsync(
@@ -112,7 +115,10 @@ public sealed class ExperianClient(
         await tokenLock.WaitAsync(cancellationToken);
         try
         {
-            if (!refresh && token is not null && tokenExpiresAtUtc > timeProvider.GetUtcNow().AddMinutes(1))
+            if (!refresh
+                && token is not null
+                && tokenGeneration == signIn.Generation
+                && tokenExpiresAtUtc > timeProvider.GetUtcNow().AddMinutes(1))
             {
                 return token;
             }
@@ -147,6 +153,7 @@ public sealed class ExperianClient(
                 }
 
                 token = accessToken.GetString()!;
+                tokenGeneration = signIn.Generation;
                 tokenExpiresAtUtc = timeProvider.GetUtcNow().AddSeconds(seconds);
                 return token;
             }
