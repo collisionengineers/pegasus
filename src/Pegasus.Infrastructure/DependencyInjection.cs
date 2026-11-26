@@ -1198,7 +1198,10 @@ public static class DependencyInjection
     /// does not call this has no Brego provider, so the Case's Brego card
     /// says it is unavailable and offers no Get valuation. The account and
     /// its stored sign-in are read from the database on each valuation, and a
-    /// renewed sign-in is written back there (R1288).
+    /// renewed sign-in is written back there (R1288). The same host composes
+    /// <see cref="IBregoAccountLink"/>, through which an Administrator signs
+    /// the account in on the Integrations page (R1290); a host without Brego
+    /// has none.
     /// </summary>
     public static IServiceCollection AddBregoGuideValuation(this IServiceCollection services)
     {
@@ -1224,6 +1227,14 @@ public static class DependencyInjection
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>(),
             provider.GetRequiredService<IBregoSessionStore>()));
+
+        // The Integrations page signs the account in over the same client
+        // and the same login row (R1290).
+        services.TryAddSingleton<IBregoAccountLink>(provider => new BregoAccountLink(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<EfIntegrationLoginStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<BregoAccountLink>>()));
         return services;
     }
 

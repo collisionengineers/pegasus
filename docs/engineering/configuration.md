@@ -162,9 +162,13 @@ the source is unavailable.
 
 The Brego valuation account
 ([ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)) is
-an [integration login](#integration-logins): its e-mail address, with the
-stored sign-in (the Cognito refresh token and the `brego-session` cookie)
-kept and renewed beside it. No host reads a Brego password (R1231).
+an [integration login](#integration-logins): its e-mail address and, when
+it has one, its password (optional, R1290), with the stored sign-in (the
+Cognito refresh token and the `brego-session` cookie) kept and renewed beside
+it. The account is linked on Administration > Integrations, by its e-mailed
+sign-in link or its saved password and the six-digit code Brego e-mails when
+it asks to approve the device; no setting, script or storage role is involved
+([runbook](../runbook.md#linking-the-brego-valuation-account)).
 `DevelopmentOffline` composes no Brego valuation unless
 `Features:LiveGuideValuation` is set, so its Brego card says the source is
 unavailable.

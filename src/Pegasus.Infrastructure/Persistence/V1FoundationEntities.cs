@@ -25,7 +25,7 @@ internal sealed class IntegrationLoginEntity : IApplicationManagedConcurrencyTok
     public required string Id { get; set; }
     public required string ProtectedLogin { get; set; }
 
-    /// <summary>A link to the account begun and not yet finished; none until Brego's link flow uses it.</summary>
+    /// <summary>A Brego sign-in that waits for the code Brego e-mailed (R1290), protected under its own purpose until it expires.</summary>
     public string? ProtectedPendingLink { get; set; }
     public DateTimeOffset? PendingLinkExpiresAtUtc { get; set; }
     public long Generation { get; set; }

@@ -68,7 +68,14 @@ from Key Vault directly 183 to 405 ms. A Get valuation press takes 0.76 s
 - **Brego's sign-in lives in its row.** A renewed refresh token or new session
   cookie is written back in place while the generation is unchanged; a
   renewal is not an Administrator's change, so it moves neither the version
-  nor the generation and writes no history.
+  nor the generation and writes no history. Amended the same day
+  ([R1290](../rulings.md)): Brego's login may also hold a password, the one
+  optional value of any login. An Administrator's sign-in on the
+  Integrations page ([ADR-0084](0084-brego-valuation-account-and-valuation-report.md))
+  is a change: it stores the sign-in under the next generation with one
+  history row. A sign-in that waits for Brego's e-mailed code is kept in the
+  row's pending columns, protected under its own purpose, moving only the
+  version; any replacement clears it.
 - **One-time import.** The release that ships this imports each login whose
   row is empty from its settings, once, never over a stored login and never
   from an unresolved Key Vault reference; Brego's sign-in comes from its blob.

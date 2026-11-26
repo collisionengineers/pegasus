@@ -12,8 +12,9 @@
   damage markers on the plan are the report's picture only; nothing is derived
   from them (3 November 2026, R642–R646).
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's, Brego and Cazana are connected: Get valuation fetches their figures,
-  files each provider's PDF report on the Case, and fills an empty Case VIN.
+  Glass's, Brego, Cazana and CAP are connected: Get valuation fetches their
+  figures; Glass's, Brego and Cazana also file their PDF report on the Case
+  and fill an empty Case VIN, and CAP files none (R1205).
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -594,7 +595,9 @@ HTML and PDF, the date each month is valued on, the mileage in whole miles,
 credentials and JWT kept out of URLs and logs, every failure answering the
 notice and a registration with no data answering its own sentence. Integration
 tests cover Brego's Get valuation and Valuation Report against a scripted Brego
-platform and Cognito API — Cognito `USER_SRP_AUTH` sign-in, session reuse and
+platform and Cognito API — sign-in from the stored refresh token and, with a
+saved password, by Cognito `USER_SRP_AUTH` when none is held or it is refused
+(R1290), the account linked by its e-mailed link and its device code, session reuse and
 refresh on 401, VRM lookup, `retail.high` and `trade.high` figures, VIN fill,
 Valuation Report PDF generation and 14×16 broken-image stock replacement, the
 date each month is valued on, the mileage in whole miles, credentials and

@@ -105,7 +105,11 @@ unsaved edit and its Save are untouched.
   the repository forbids a vault-wide grant, and no CI check proves a grant.
   The pre-provision check refuses an empty or malformed secret URI.
 - The other four guide sources stay unconnected until each has its own
-  adapter.
+  adapter. Corrected 26 November 2026: Cazana
+  ([ADR-0079](0079-cazana-companion-account-and-companion-report.md)), Brego
+  ([ADR-0084](0084-brego-valuation-account-and-valuation-report.md)) and CAP
+  ([ADR-0089](0089-experian-vehicle-history-check.md)) have since been
+  connected, each by its own adapter; Super CAP is not.
 - The Automation Actor presses Get valuation through `pegasus_valuation_get`
   with the same account (operator, 8 October 2026); it is not a Glass's
   session ([ADR-0064](0064-automation-actor-staff-casework-parity.md)).

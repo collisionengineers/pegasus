@@ -16,8 +16,11 @@ namespace Pegasus.Infrastructure.Persistence;
 /// of a second or more). An Administrator replaces a login, and each
 /// replacement is one history row naming the login, its generation and
 /// version, never a value. Brego's stored sign-in lives in its row and is
-/// renewed in place (<see cref="IBregoSessionStore"/>). Every call takes its
-/// own context from the factory, so the singleton providers may hold it.
+/// renewed in place (<see cref="IBregoSessionStore"/>); an Administrator
+/// signs the account in on the Integrations page (<see cref="BregoAccountLink"/>,
+/// R1290), and a sign-in that waits for Brego's e-mailed code is kept in the
+/// row's pending columns until it is finished or expires. Every call takes
+/// its own context from the factory, so the singleton providers may hold it.
 /// </summary>
 public sealed class EfIntegrationLoginStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -25,6 +28,7 @@ public sealed class EfIntegrationLoginStore(
     TimeProvider timeProvider) : IIntegrationLoginAdministration, IBregoSessionStore
 {
     private const string ProtectionPurpose = "Pegasus.IntegrationLogin.v1";
+    private const string PendingPurpose = "pending";
     private const string AggregateType = "integration_login";
     private const string ImportActor = "settings-import";
     private const int MaximumValueLength = 4096;
@@ -177,6 +181,135 @@ public sealed class EfIntegrationLoginStore(
     }
 
     /// <summary>
+    /// Brego's account as the Integrations page signs it in (R1290): its
+    /// version and generation, e-mail address and saved password, and the
+    /// sign-in that waits for a code while it has not expired. None when the
+    /// login is not set or the key ring can no longer read it.
+    /// </summary>
+    internal async Task<BregoLinkState?> ReadBregoLinkAsync(CancellationToken cancellationToken)
+    {
+        var id = RowId(IntegrationLogin.Brego);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.IntegrationLogins
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (entity is null
+            || entity.ProtectedLogin.Length == 0
+            || TryReadPayload(IntegrationLogin.Brego, entity) is not { } payload
+            || !payload.TryGetValue(IntegrationLoginMaterial.PayloadName(IntegrationLoginField.Email), out var email)
+            || string.IsNullOrWhiteSpace(email))
+        {
+            return null;
+        }
+
+        var password = payload.GetValueOrDefault(IntegrationLoginMaterial.PayloadName(IntegrationLoginField.Password));
+        var pending = entity.PendingLinkExpiresAtUtc is { } expiresAt && expiresAt > timeProvider.GetUtcNow()
+            ? TryReadPending(entity)
+            : null;
+        return new BregoLinkState(
+            entity.Version,
+            entity.Generation,
+            email.Trim(),
+            string.IsNullOrWhiteSpace(password) ? null : password,
+            pending,
+            pending is null ? null : entity.PendingLinkExpiresAtUtc);
+    }
+
+    /// <summary>
+    /// Keeps a Brego sign-in that waits for Brego's e-mailed code, protected
+    /// under its own purpose, until <paramref name="expiresAtUtc"/>. The
+    /// login's version moves; its generation and sign-in do not.
+    /// </summary>
+    internal async Task WriteBregoPendingAsync(
+        long expectedVersion,
+        Dictionary<string, string> pending,
+        DateTimeOffset expiresAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(pending);
+        var id = RowId(IntegrationLogin.Brego);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockAsync(context, id, cancellationToken);
+        var entity = await context.IntegrationLogins
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if ((entity?.Version ?? 0) != expectedVersion)
+        {
+            throw new DbUpdateConcurrencyException();
+        }
+
+        if (entity is null || entity.ProtectedLogin.Length == 0)
+        {
+            throw new BregoLinkRefusedException(BregoLinkRefusal.NoAccount);
+        }
+
+        entity.ProtectedPendingLink = CreatePendingProtector(entity.Generation)
+            .Protect(JsonSerializer.Serialize(pending));
+        entity.PendingLinkExpiresAtUtc = expiresAtUtc;
+        entity.Version++;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Stores a Brego sign-in an Administrator finished on the Integrations
+    /// page (R1290): the refresh token and the new <c>brego-session</c>
+    /// beside the account's e-mail address and password, under the login's
+    /// next generation, so no host reuses a session of the one before. Any
+    /// sign-in that waited for a code is dropped, and one history row names
+    /// the login, its generation and version, never a value.
+    /// </summary>
+    internal async Task WriteBregoSignInAsync(
+        ActionActor actor,
+        long expectedVersion,
+        BregoStoredSignIn signIn,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        RequireAdministrator(actor);
+        ArgumentNullException.ThrowIfNull(signIn);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        var id = RowId(IntegrationLogin.Brego);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
+        await LockAsync(context, id, cancellationToken);
+        var entity = await context.IntegrationLogins
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if ((entity?.Version ?? 0) != expectedVersion)
+        {
+            throw new DbUpdateConcurrencyException();
+        }
+
+        if (entity is null
+            || entity.ProtectedLogin.Length == 0
+            || TryReadPayload(IntegrationLogin.Brego, entity) is not { } stored)
+        {
+            throw new BregoLinkRefusedException(BregoLinkRefusal.NoAccount);
+        }
+
+        var payload = new Dictionary<string, string>(stored, StringComparer.Ordinal)
+        {
+            [IntegrationLoginMaterial.RefreshTokenName] = signIn.RefreshToken.Trim()
+        };
+        if (string.IsNullOrWhiteSpace(signIn.BregoSessionCookie))
+        {
+            payload.Remove(IntegrationLoginMaterial.SessionCookieName);
+        }
+        else
+        {
+            payload[IntegrationLoginMaterial.SessionCookieName] = signIn.BregoSessionCookie.Trim();
+        }
+
+        var before = HistoryState(entity);
+        entity.Generation++;
+        entity.Version++;
+        Write(IntegrationLogin.Brego, entity, payload, actor.SubjectId);
+        AddHistory(context, actor, entity, "integration_login_linked", before, operationKey.Trim());
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// The one-time import of a login from the settings that held it before
     /// R1288; it goes, with those settings, in the next release. A login that
     /// is already set is never overwritten, and a concurrent import that set
@@ -317,6 +450,40 @@ public sealed class EfIntegrationLoginStore(
             generation.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
+    /// A Brego sign-in that waits for a code is protected under its own
+    /// purpose, beside the login's generation, so neither payload can be read
+    /// as the other.
+    /// </summary>
+    private IDataProtector CreatePendingProtector(long generation) =>
+        dataProtection.CreateProtector(
+            ProtectionPurpose,
+            RowId(IntegrationLogin.Brego),
+            generation.ToString(CultureInfo.InvariantCulture),
+            PendingPurpose);
+
+    private Dictionary<string, string>? TryReadPending(IntegrationLoginEntity entity)
+    {
+        if (string.IsNullOrEmpty(entity.ProtectedPendingLink))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(
+                CreatePendingProtector(entity.Generation).Unprotect(entity.ProtectedPendingLink));
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// The decrypted payload, or <see langword="null"/> when the key ring that
     /// protected it is gone or the payload is not a login's.
     /// </summary>
@@ -357,9 +524,10 @@ public sealed class EfIntegrationLoginStore(
     }
 
     /// <summary>
-    /// The JSON payload of <paramref name="values"/>: exactly the login's
-    /// fields, none blank. A name is trimmed; a password or secret is kept
-    /// exactly as entered.
+    /// The JSON payload of <paramref name="values"/>: the login's fields and
+    /// no other, every required one not blank, and an optional one left out
+    /// or blank not stored (Brego's password, R1290). A name is trimmed; a
+    /// password or secret is kept exactly as entered.
     /// </summary>
     private static Dictionary<string, string> Payload(
         IntegrationLogin login,
@@ -367,16 +535,25 @@ public sealed class EfIntegrationLoginStore(
     {
         ArgumentNullException.ThrowIfNull(values);
         var fields = IntegrationLoginFields.Of(login);
-        if (values.Count != fields.Count)
+        foreach (var given in values.Keys)
         {
-            throw new ArgumentException(
-                "Exactly the login's own fields are required.",
-                nameof(values));
+            if (!fields.Contains(given))
+            {
+                throw new ArgumentException(
+                    "Exactly the login's own fields are required.",
+                    nameof(values));
+            }
         }
 
         var payload = new Dictionary<string, string>(fields.Count + 2, StringComparer.Ordinal);
         foreach (var field in fields)
         {
+            if (!IntegrationLoginFields.IsRequired(login, field)
+                && (!values.TryGetValue(field, out var optional) || string.IsNullOrWhiteSpace(optional)))
+            {
+                continue;
+            }
+
             if (!values.TryGetValue(field, out var value)
                 || string.IsNullOrWhiteSpace(value)
                 || value.Length > MaximumValueLength)

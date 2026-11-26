@@ -1112,39 +1112,44 @@ configuration.
 
 ## Linking the Brego valuation account
 
-Brego signs the valuation account in by an e-mailed link, not a password
-([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md), R1231).
-A host keeps itself signed in from the refresh token in
-`authentication-ring/brego-session.json`; a person links the account once,
-and again whenever Brego ends that sign-in. The sign of that is every Get
-valuation for Brego answering unavailable, with a `brego.valuation.` line at
-`stage=cognito_refresh` or `stage=sign_in` in the Web log.
+Brego signs the valuation account in by an e-mailed link
+([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md), R1231),
+and also by password when the account has one (R1290). A host keeps itself
+signed in from the refresh token stored with the account in the database; an
+Administrator links the account once, and again whenever Brego ends that
+sign-in. The sign of that is every Get valuation for Brego answering
+unavailable, with a `brego.valuation.` line in the Web log at
+`stage=sign_in` (nothing stored) or `stage=cognito_refresh` (Brego refused the
+stored sign-in).
 
-`scripts/Connect-BregoAccount.ps1` does it, from a workstation, with someone at
-the account's mailbox. Nothing is sent or written without `-Approve`.
+It is done on Administration > Integrations, at the Brego valuation account,
+with someone at the account's mailbox. No Azure sign-in or storage role is
+needed.
 
-1. `-Step RequestLink -Email <account>`: Brego e-mails a link that expires 15
-   minutes later.
-2. `-Step Redeem -Email <account> -Target Production -Link '<the whole link>'`:
-   redeems the link, has the host's device approved, mints the one-year Brego
-   session and writes the file. If Brego e-mails a six-digit code, the script
-   asks for it. Run without a terminal, it stops with exit 3 instead: request
-   a new link and redeem that one with `-Code <code>`.
-3. Press Get valuation for Brego on a Case. No restart is needed.
+1. Send sign-in link: Brego e-mails a link that expires 15 minutes later.
+2. Link account: paste the whole link from the e-mail. A link for another
+   e-mail address than the account's is refused without being used.
+3. If Brego e-mails a six-digit code to approve Pegasus's device, the page asks
+   for it: Confirm code. The sign-in waits for the code until the sign-in's
+   access token expires; after that, send a new link.
 
-Production needs the signed-in Azure CLI account to hold Storage Blob Data
-Contributor on the `authentication-ring` container of the custody account for
-the run; the container also holds the data-protection keys, so the assignment
-is scoped to it and removed afterwards.
+The next Get valuation uses the new sign-in; no restart is needed.
 
-Brego keeps one web session for an account, so the test instance shares
-production's sign-in when it uses the same account: name both in one Redeem
-(`-Target Production, TestInstance -RunManifestPath <run>/run-manifest.json`).
-Linking the two in separate runs makes each end the other's session.
+With a Brego password saved, Pegasus signs in with it by itself whenever it
+holds no usable sign-in: saving the account with a password signs in at once,
+and a host whose stored sign-in is refused signs in with the password at the
+next Get valuation. The link stays for an account without a password. A
+refused password shows as `stage=password` in the Web log; a device Brego
+wants a code for as `stage=device_approval`, and the code is then entered on
+the page (save the password again, or link the account, to have Brego send
+one).
 
-A browser sign-in to Brego with the same account can end a host's session. The
-host then mints a new one itself while its device stays approved; when Brego
-asks for a code instead, link the account again.
+Brego keeps one web session for an account, so production and the test
+instance, each linked on its own page with the same account, may end each
+other's session; what happens with two separately linked hosts is being
+checked (R1292). A browser sign-in to Brego with the same account can end a
+host's session too. The host then mints a new one itself while its device
+stays approved; when Brego asks for a code instead, link the account again.
 
 ## Monitoring and diagnosis
 

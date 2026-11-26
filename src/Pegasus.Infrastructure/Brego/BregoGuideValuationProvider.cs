@@ -35,8 +35,11 @@ namespace Pegasus.Infrastructure.Brego;
 /// says that instead. The account is read on each valuation, never when the
 /// provider is built, and neither the refresh token nor the session tokens or
 /// cookies ever reach a URL or log. An account with no stored refresh token
-/// is unavailable at stage <c>sign_in</c> without calling Brego, and a login
-/// not set is unavailable as configuration.
+/// signs in with its saved password, as does one whose refresh token Cognito
+/// refuses (R1290); without a password the first is unavailable at stage
+/// <c>sign_in</c> without calling Brego and the second at
+/// <c>cognito_refresh</c>. A refused password is unavailable at stage
+/// <c>password</c>, and a login not set is unavailable as configuration.
 /// </para>
 /// </summary>
 public sealed partial class BregoGuideValuationProvider(
@@ -167,17 +170,36 @@ public sealed partial class BregoGuideValuationProvider(
                 existingSessionCookie = current.BregoSessionCookie;
             }
 
+            // With no usable sign-in, an account with a saved password signs
+            // in with it (R1290); one without is linked on the Integrations
+            // page, and its valuations are unavailable until it is.
             if (string.IsNullOrWhiteSpace(refreshToken))
             {
-                throw new BregoFailure("sign_in", null, "refresh_token=absent");
+                if (signIn.Password is null)
+                {
+                    throw new BregoFailure("sign_in", null, "refresh_token=absent");
+                }
+
+                return (await PasswordSessionAsync(client, signIn, cancellationToken), false);
             }
 
-            var signedIn = await client.SignInAsync(
-                signIn.Email,
-                refreshToken,
-                timeProvider,
-                cancellationToken,
-                forceRefresh ? null : existingSessionCookie);
+            BregoSession signedIn;
+            try
+            {
+                signedIn = await client.SignInAsync(
+                    signIn.Email,
+                    refreshToken,
+                    timeProvider,
+                    cancellationToken,
+                    forceRefresh ? null : existingSessionCookie);
+            }
+            catch (BregoFailure failure) when (failure.Stage == "cognito_refresh"
+                && failure.Forbidden
+                && signIn.Password is not null)
+            {
+                return (await PasswordSessionAsync(client, signIn, cancellationToken), false);
+            }
+
             var created = signedIn with { Generation = signIn.Generation };
             if (sessionStore is not null
                 && (!created.ReusedSessionCookie
@@ -196,6 +218,38 @@ public sealed partial class BregoGuideValuationProvider(
         {
             _sessionLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Signs in with the account's saved password (R1290) on a device Brego
+    /// has approved, mints a new <c>brego-session</c> and stores the sign-in
+    /// for the next press. A device Brego wants a code for is unavailable at
+    /// <c>device_approval</c>: the code is entered on the Integrations page,
+    /// never here, and nothing of this sign-in is kept.
+    /// </summary>
+    private async Task<BregoSession> PasswordSessionAsync(
+        BregoClient client,
+        BregoValuationAccount signIn,
+        CancellationToken cancellationToken)
+    {
+        var tokens = await client.PasswordSignInAsync(signIn.Email, signIn.Password!, timeProvider, cancellationToken);
+        if (!await client.IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken))
+        {
+            throw new BregoFailure("device_approval", null, "device=challenge_required");
+        }
+
+        var minted = await client.MintSessionAsync(signIn.Email, tokens, timeProvider, cancellationToken);
+        var created = minted with { Generation = signIn.Generation };
+        if (sessionStore is not null)
+        {
+            await sessionStore.TrySaveAsync(
+                signIn.Generation,
+                new BregoStoredSignIn(created.BregoSessionCookie, created.RefreshToken),
+                cancellationToken);
+        }
+
+        Volatile.Write(ref _session, created);
+        return created;
     }
 
     /// <summary>

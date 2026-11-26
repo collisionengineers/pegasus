@@ -48,13 +48,22 @@ internal static class TestIntegrationLogins
         string email,
         string? refreshToken,
         string? sessionCookie,
-        long generation = 1) =>
-        IntegrationLoginMaterial.Create(
+        long generation = 1,
+        string? password = null)
+    {
+        var fields = new Dictionary<IntegrationLoginField, string> { [IntegrationLoginField.Email] = email };
+        if (password is not null)
+        {
+            fields[IntegrationLoginField.Password] = password;
+        }
+
+        return IntegrationLoginMaterial.Create(
             IntegrationLogin.Brego,
             generation,
-            new Dictionary<IntegrationLoginField, string> { [IntegrationLoginField.Email] = email },
+            fields,
             refreshToken,
             sessionCookie);
+    }
 
     public static IntegrationLoginMaterial Experian(
         IntegrationLogin login,
