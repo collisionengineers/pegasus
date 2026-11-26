@@ -1211,8 +1211,9 @@ public static partial class OperatorLabels
     public static string ActionLogArea(string area) => area switch
     {
         "ai_job" => "AI job",
-        "automation_mcp" => "Automation",
-        // The product's own name, for a sign-in decision made on its page (ADR-0092).
+        Pegasus.Web.Mcp.AutomationMcpAuditor.AutomationAggregateType => "Automation",
+        // The product's own name, for a sign-in decision made on its page and
+        // for what a member of staff then does from it (ADR-0092, R1300).
         Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType =>
             Pegasus.Web.Mcp.AutomationMcp.DesktopClientDisplayName,
         "email_template" => EmailTemplates.ActionLogArea,

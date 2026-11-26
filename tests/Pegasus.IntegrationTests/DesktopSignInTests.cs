@@ -10,6 +10,7 @@ using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
+using static Pegasus.IntegrationTests.DesktopSignInTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -24,20 +25,6 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class DesktopSignInTests
 {
-    private const string State = "state-desktop-7f3a";
-    private const string Password = "correct horse battery staple";
-    private const string AdministratorPassword = "Local-Test-Instance-2026!";
-
-    // What a deployment that offers the sign-in configures: no port, so the
-    // application may listen on whichever of its ports is free.
-    private const string RegisteredRedirectUri = "http://127.0.0.1/callback";
-
-    // The ports Pegasus Desktop listens on, in the order it tries them.
-    private static readonly int[] DesktopPorts = [51793, 56427, 62031];
-
-    private static readonly ActionActor Administrator = ActionActor.Staff(
-        DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
-
     [Fact]
     public async Task AUserSignsInFromPegasusDesktopAndTheTokenNamesThemNotTheAutomationActor()
     {
@@ -112,32 +99,35 @@ public sealed class DesktopSignInTests
               AND Reason = N'http://127.0.0.1:{DesktopPorts[0]}'
             """));
 
-        // Nothing acts as a member of staff through the connector yet: every
-        // tool refuses the token, and never reads it as the Automation Actor.
-        var rpcId = 1;
-        foreach (var (tool, arguments) in new (string, object)[]
+        // The token is the member of staff's (R1300): the connector names
+        // them, and a call is recorded under their name in Pegasus Desktop's
+        // area, never read as the Automation Actor.
+        using (var session = await PostMcpAsync(desktop, accessToken, ToolCallPayload(1, "pegasus_session_get", new { })))
         {
-            ("pegasus_case_search", new { query = "desktop" }),
-            ("pegasus_intake_queue_list", new { limit = 10 })
-        })
-        {
-            using var call = await PostMcpAsync(desktop, accessToken, ToolCallPayload(rpcId++, tool, arguments));
-            Assert.Equal(HttpStatusCode.OK, call.StatusCode);
-            using var document = await ReadJsonRpcAsync(call);
-            var answer = document.RootElement.ToString();
-            Assert.Contains("The automation authorization is not valid.", answer, StringComparison.Ordinal);
-            Assert.DoesNotContain("structuredContent", answer, StringComparison.Ordinal);
+            var who = await ReadStructuredContentAsync(session);
+            Assert.Equal(nameof(ActorKind.Staff), who.GetProperty("actorKind").GetString());
+            Assert.Equal(staffId, who.GetProperty("staffId").GetGuid());
+            Assert.Equal("desktop-user", who.GetProperty("userName").GetString());
+            Assert.Equal(nameof(StaffRole.User), who.GetProperty("role").GetString());
         }
 
-        Assert.Equal(2, await database.ScalarAsync<int>(
+        using (var search = await PostMcpAsync(
+            desktop, accessToken, ToolCallPayload(2, "pegasus_case_search", new { query = "desktop" })))
+        {
+            Assert.Empty((await ReadStructuredContentAsync(search)).GetProperty("items").EnumerateArray());
+        }
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
             $"""
-            SELECT COUNT(*) FROM SecurityEvents
-            WHERE ReasonCode = N'{AutomationMcp.DesktopAccessDenied}'
-              AND Outcome = N'Denied'
-              AND SubjectId = N'{staffId:D}'
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'{AutomationClientRegistry.DesktopAggregateType}'
+              AND EventKind = N'pegasus_case_search'
               AND ActorKind = N'Staff'
               AND ActorSubjectId = N'{staffId:D}'
+              AND Outcome = N'Succeeded'
             """));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM SecurityEvents WHERE ReasonCode = N'{AutomationMcp.DesktopAccessDenied}'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM SecurityEvents WHERE ReasonCode LIKE N'automation[_]%'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
@@ -522,45 +512,6 @@ public sealed class DesktopSignInTests
             AuthorizeUrl(challenge, LoopbackRedirectUri(DesktopPorts[0])));
     }
 
-    private static WebApplicationFactory<Program> WithDesktopSignIn(
-        IntakeWebApplicationFactory factory,
-        string desktopRedirectUris = RegisteredRedirectUri) =>
-        WithAutomationMcp(factory).WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Features:PasswordSignIn", "true");
-            builder.UseSetting("DevelopmentOffline:AdministratorPassword", AdministratorPassword);
-            builder.UseSetting("AutomationMcp:DesktopRedirectUris", desktopRedirectUris);
-        });
-
-    private static string LoopbackRedirectUri(int port) => $"http://127.0.0.1:{port}/callback";
-
-    private static string AuthorizeUrl(string? challenge, string redirectUri)
-    {
-        var query = new List<string>
-        {
-            "response_type=code",
-            $"client_id={Uri.EscapeDataString(AutomationMcp.DesktopClientId)}",
-            $"redirect_uri={Uri.EscapeDataString(redirectUri)}",
-            $"state={State}",
-            $"resource={Uri.EscapeDataString("http://localhost" + McpServer)}"
-        };
-        if (challenge is not null)
-        {
-            query.Add($"code_challenge={challenge}");
-            query.Add("code_challenge_method=S256");
-        }
-
-        return AutomationMcp.AuthorizationEndpointPath + "?" + string.Join('&', query);
-    }
-
-    private static string AuthorizeHandlerUrl(string handler) =>
-        AutomationMcp.AuthorizationEndpointPath + "?handler=" + handler;
-
-    private static FormUrlEncodedContent SignInForm(string html) =>
-        RenderedForm(html, "data-desktop-sign-in", "</form>");
-
-    private static string OperationKey() => Guid.NewGuid().ToString("N");
-
     private static async Task AssertSignInPageAsync(HttpClient browser, string authorizeUrl)
     {
         using var page = await browser.GetAsync(authorizeUrl);
@@ -582,115 +533,4 @@ public sealed class DesktopSignInTests
             await refused.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
     }
-
-    private static async Task<Guid> CreateStaffAsync(
-        WebApplicationFactory<Program> host,
-        string userName,
-        StaffRole role,
-        bool mustChangePassword = false)
-    {
-        await using var scope = host.Services.CreateAsyncScope();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var user = new PegasusIdentityUser
-        {
-            Id = Guid.NewGuid(),
-            UserName = userName,
-            IsEnabled = true,
-            MustChangePassword = mustChangePassword,
-            LockoutEnabled = false,
-            SecurityStamp = Guid.NewGuid().ToString("N"),
-            ConcurrencyStamp = Guid.NewGuid().ToString("N")
-        };
-        var created = await userManager.CreateAsync(user, Password);
-        Assert.True(created.Succeeded, string.Join(", ", created.Errors.Select(error => error.Description)));
-        Assert.True((await userManager.AddToRoleAsync(user, role switch
-        {
-            StaffRole.Administrator => StaffRoleNames.Administrator,
-            StaffRole.Engineer => StaffRoleNames.Engineer,
-            _ => StaffRoleNames.User
-        })).Succeeded);
-        return user.Id;
-    }
-
-    private static async Task AdministerAsync<TService>(
-        WebApplicationFactory<Program> host,
-        Func<TService, Task> command)
-        where TService : notnull
-    {
-        await using var scope = host.Services.CreateAsyncScope();
-        await command(scope.ServiceProvider.GetRequiredService<TService>());
-    }
-
-    private static async Task<long> VersionAsync(WebApplicationFactory<Program> host, Guid staffId)
-    {
-        await using var scope = host.Services.CreateAsyncScope();
-        await using var context = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
-            .CreateDbContextAsync();
-        return await context.Users.AsNoTracking()
-            .Where(user => user.Id == staffId)
-            .Select(user => user.Version)
-            .SingleAsync();
-    }
-
-    // The member of staff's own sign-in to Pegasus, in the browser.
-    private static async Task SignInAsync(HttpClient browser, string userName)
-    {
-        using var signInPage = await browser.GetAsync("/Account/SignIn");
-        Assert.Equal(HttpStatusCode.OK, signInPage.StatusCode);
-        using var signedIn = await browser.PostAsync(
-            "/Account/SignIn",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = CaseWebTestSupport.AntiforgeryValue(
-                    await signInPage.Content.ReadAsStringAsync()),
-                ["UserName"] = userName,
-                ["Password"] = Password,
-                ["ReturnUrl"] = "/"
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
-        Assert.Contains(
-            signedIn.Headers.GetValues("Set-Cookie"),
-            value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// The whole sign-in as the application runs it: the page, Sign in, and
-    /// the code exchanged with its verifier. Answers the token response.
-    /// </summary>
-    private static async Task<JsonDocument> SignInFromDesktopAsync(HttpClient browser, HttpClient desktop)
-    {
-        var redirectUri = LoopbackRedirectUri(DesktopPorts[0]);
-        var (verifier, challenge) = Pkce();
-        using var page = await browser.GetAsync(AuthorizeUrl(challenge, redirectUri));
-        var html = await page.Content.ReadAsStringAsync();
-        Assert.True(page.StatusCode == HttpStatusCode.OK, $"{(int)page.StatusCode}: {html}");
-        using var approved = await browser.PostAsync(AuthorizeHandlerUrl("Accept"), SignInForm(html));
-        Assert.True(
-            approved.StatusCode == HttpStatusCode.Redirect,
-            $"{(int)approved.StatusCode}: {await approved.Content.ReadAsStringAsync()}");
-        using var exchanged = await desktop.PostAsync(
-            AutomationMcp.TokenEndpointPath,
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "authorization_code",
-                ["code"] = ParseQuery(approved.Headers.Location!)["code"]!,
-                ["code_verifier"] = verifier,
-                ["redirect_uri"] = redirectUri,
-                ["client_id"] = AutomationMcp.DesktopClientId
-            }));
-        var body = await exchanged.Content.ReadAsStringAsync();
-        Assert.True(exchanged.IsSuccessStatusCode, body);
-        return JsonDocument.Parse(body);
-    }
-
-    private static Task<HttpResponseMessage> RefreshAsync(HttpClient desktop, string refreshToken) =>
-        desktop.PostAsync(
-            AutomationMcp.TokenEndpointPath,
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "refresh_token",
-                ["refresh_token"] = refreshToken,
-                ["client_id"] = AutomationMcp.DesktopClientId
-            }));
 }

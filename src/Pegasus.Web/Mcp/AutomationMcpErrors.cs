@@ -27,8 +27,10 @@ internal static class AutomationMcpErrors
     public const int MaximumDocumentBytes = Pegasus.Core.Documents.DocumentUploadLimits.MaximumContentBytes;
 
     public static async Task<TResult> ExecuteAsync<TResult>(
+        AutomationActorContext context,
         Func<Task<TResult>> action)
     {
+        ArgumentNullException.ThrowIfNull(context);
         try
         {
             return await action();
@@ -37,10 +39,13 @@ internal static class AutomationMcpErrors
         {
             throw;
         }
-        catch (StaffAuthorizationException)
+        catch (StaffAuthorizationException exception)
         {
-            throw new McpException(
-                "The Automation actor is not authorized for this action.");
+            // A member of staff is refused in Core's own sentence, which names
+            // no actor; the Automation Actor in the one that names it.
+            throw new McpException(context.IsStaff
+                ? exception.Message
+                : "The Automation actor is not authorized for this action.");
         }
         catch (CaseEditLeaseExpiredException exception)
         {

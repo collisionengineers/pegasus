@@ -681,6 +681,29 @@ static Task AppendAutomationDeniedSecurityEventAsync(
             CancellationToken.None);
     }
 
+    // A token that names a member of staff is never the Automation client's
+    // (ADR-0092): a call it made that the transport refused is recorded under
+    // that person, with the desktop reason the Automation activity read does
+    // not count.
+    if (!tokenEndpoint
+        && claimedSubject is { Length: > 0 }
+        && DesktopPrincipal.IsDesktop(context.User))
+    {
+        var desktopEvent = new SecurityEvent(
+            Guid.NewGuid(),
+            SecurityEventType.Token,
+            SecurityEventOutcome.Denied,
+            claimedSubject,
+            occurredAtUtc,
+            context.TraceIdentifier,
+            AutomationMcp.DesktopAccessDenied);
+        return writer.AppendAsync(
+            Guid.TryParse(claimedSubject, out _)
+                ? desktopEvent.By(ActorKind.Staff, claimedSubject)
+                : desktopEvent,
+            CancellationToken.None);
+    }
+
     var securityEvent = new SecurityEvent(
         Guid.NewGuid(),
         SecurityEventType.Token,

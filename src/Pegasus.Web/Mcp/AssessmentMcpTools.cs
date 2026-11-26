@@ -328,7 +328,7 @@ internal sealed class AssessmentMcpTools(
                                     recorded?.Rate,
                                     regionalUplift ?? recorded?.RegionalUplift ?? false),
                                 lines.Select(MapLineInput).ToArray(),
-                                new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+                                new(context.EstimateRoute, null, null, null),
                                 aiJobId,
                                 existing is null && lines.All(line => line.LineId is null)
                                     ? null

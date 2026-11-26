@@ -21,6 +21,7 @@ internal static class AutomationToolScopes
     [
         (AutomationMcp.CasesScope,
         [
+            "pegasus_session_get",
             "pegasus_case_search",
             "pegasus_case_get",
             "pegasus_case_update_details",
