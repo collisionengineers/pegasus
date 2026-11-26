@@ -242,6 +242,9 @@ public sealed class MessageModel(
     /// <summary>The checked return Case: <see cref="ReturnCaseId"/> when it is the message's own Case, else null.</summary>
     public Guid? ReturnCase { get; private set; }
 
+    /// <summary>The return Case's Case/PO, for the record page's way back to it.</summary>
+    public string? ReturnCaseReference { get; private set; }
+
     /// <summary>The return Case is a Triage Case, whose Correspondence is under its Files tab.</summary>
     private bool returnCaseIsTriage;
 
@@ -524,7 +527,7 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
-        AcceptReturnCase(detail.Summary);
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
@@ -552,26 +555,78 @@ public sealed class MessageModel(
     }
 
     /// <summary>
-    /// Takes the return Case once it is the message's own Case (R1278): the
-    /// Case page that lists it. Any other id is ignored, so a write never
-    /// returns to a Case the query string names alone.
+    /// Takes the return Case once the Case page names one that lists the
+    /// message (R1278): its own Case, or the Case whose Correspondence holds
+    /// it, as a Sent item of a send made for the Case is held without being
+    /// linked. Any other id is ignored, so a write never returns to a Case the
+    /// query string names alone. Only a named Case that is not the message's
+    /// own costs a read: the Case's Correspondence, as its page lists it.
     /// </summary>
-    private void AcceptReturnCase(RetainedMailSummary summary)
+    private async Task AcceptReturnCaseAsync(
+        ActionActor actor,
+        RetainedMailSummary summary,
+        CancellationToken cancellationToken)
     {
-        if (ReturnCase is null
-            && ReturnCaseId is { } candidate
-            && candidate != Guid.Empty
-            && candidate == summary.CaseId)
+        if (ReturnCase is not null || ReturnCaseId is not { } candidate || candidate == Guid.Empty)
+        {
+            return;
+        }
+        if (candidate == summary.CaseId)
         {
             ReturnCase = candidate;
+            ReturnCaseReference = summary.CaseReference;
             returnCaseIsTriage = summary.IsTriageCase;
+            return;
+        }
+        if (await CorrespondenceListsAsync(actor, candidate, summary.Id, cancellationToken) is { } listing)
+        {
+            ReturnCase = candidate;
+            ReturnCaseReference = listing.Reference;
+            returnCaseIsTriage = listing.IsTriage;
         }
     }
 
     /// <summary>
-    /// <see cref="AcceptReturnCase"/> for a write that has not read the
-    /// message: it is read only when a return Case is named, and before the
-    /// write, so an Unlink still returns to the Case it unlinked from.
+    /// Whether <paramref name="caseId"/>'s Correspondence lists the message,
+    /// read as the Case page reads it: the Files section's list for a Case, the
+    /// Triage record's for a Triage Case. The Case's reference and kind when
+    /// it lists it; null when it does not (or the Case cannot be read).
+    /// </summary>
+    private async Task<(string Reference, bool IsTriage)?> CorrespondenceListsAsync(
+        ActionActor actor,
+        Guid caseId,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // The documents are not read: only the Correspondence is wanted.
+            var files = await HttpContext.RequestServices.GetRequiredService<IGetCaseFilesSection>()
+                .ExecuteAsync(
+                    new GetCaseSectionQuery(caseId, actor, Documents: Array.Empty<Pegasus.Core.Documents.CaseDocument>()),
+                    cancellationToken);
+            if (files is not null)
+            {
+                return files.CorrespondenceEmails.Any(email => email.RetainedMessageId == messageId)
+                    ? (files.Frame.Summary.Reference, false)
+                    : null;
+            }
+            var triage = await getTriage.ExecuteAsync(new(caseId, actor), cancellationToken);
+            return triage is not null && triage.Correspondence.Any(email => email.RetainedMessageId == messageId)
+                ? (triage.Record.Reference, true)
+                : null;
+        }
+        catch (Exception exception) when (exception is ArgumentException or KeyNotFoundException or StaffAuthorizationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="AcceptReturnCaseAsync(ActionActor, RetainedMailSummary, CancellationToken)"/>
+    /// for a write that has not read the message: it is read only when a
+    /// return Case is named, and before the write, so an Unlink still returns
+    /// to the Case it unlinked from.
     /// </summary>
     private async Task AcceptReturnCaseAsync(ActionActor actor, Guid id, CancellationToken cancellationToken)
     {
@@ -591,7 +646,7 @@ public sealed class MessageModel(
         }
         if (detail is not null)
         {
-            AcceptReturnCase(detail.Summary);
+            await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         }
     }
 
@@ -1432,7 +1487,7 @@ public sealed class MessageModel(
             {
                 return NotFound();
             }
-            AcceptReturnCase(detail.Summary);
+            await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
 
             await openCaseQuery.ExecuteAsync(
                 new(caseId, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey, id, null, null),
@@ -1628,7 +1683,7 @@ public sealed class MessageModel(
         conversationRows = null;
         // The record page keeps the Case it was reached from, so its way back
         // and the next write return there.
-        AcceptReturnCase(detail.Summary);
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
         await LoadOutcomeAsync(actor, cancellationToken);
@@ -1681,7 +1736,7 @@ public sealed class MessageModel(
         if (detail is null)
             return NotFound();
         Detail = detail;
-        AcceptReturnCase(detail.Summary);
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
 
         // The durable send boundary owns idempotency: a same-key replay
         // returns its operation, and a fresh key is a further reply.
@@ -2480,10 +2535,10 @@ public sealed class MessageModel(
         }
     }
 
-    // Opened from a Case page the message was in no Inbox list, so nothing is
-    // stated (R1278), whether or not the Case named is the message's own.
+    // Opened from the Case page that lists it, the message was in no Inbox
+    // list, so nothing is stated (R1278). Run after the return Case is taken.
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
-        ReturnCaseId is null
+        ReturnCase is null
         && (ListDismissed != (detail.Summary.DismissedAtUtc is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox

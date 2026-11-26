@@ -27,7 +27,7 @@
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@returnCaseId"
                asp-route-section="@Model.ReturnCaseSection" asp-fragment="@Model.ReturnCaseFragment">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
-                <span>@OperatorLabels.Upload.BackToCase(summary.CaseReference ?? string.Empty)</span>
+                <span>@OperatorLabels.Upload.BackToCase(Model.ReturnCaseReference ?? string.Empty)</span>
             </a>
         }
         else
