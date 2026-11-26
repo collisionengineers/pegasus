@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 /// assessment caller tests. Token, HTTP, seed, and lease helpers live here
 /// once so each tranche file stays a set of facts.
 /// </summary>
-internal static class AutomationMcpTestSupport
+internal static partial class AutomationMcpTestSupport
 {
     public const string ClientId = "pegasus-automation";
     public const string ClientSecret = "integration-test-automation-secret-0123456789";
@@ -45,6 +46,110 @@ internal static class AutomationMcpTestSupport
             builder.UseSetting("AutomationMcp:RedirectUris", ConnectorRedirectUri);
             builder.UseSetting("AutomationMcp:RegistrationCacheSeconds", "0");
         });
+
+    // The staff cookies (identity, antiforgery) are Secure, so the browser
+    // half of an authorization-code flow talks to the test host over https
+    // like the case web tests do; the connector half uses the same origin so
+    // tokens issued and validated by the local server share one issuer.
+    public static HttpClient CreateBrowser(WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+    public static HttpClient CreateConnector(WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+    public static (string Verifier, string Challenge) Pkce()
+    {
+        var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
+        var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+        return (verifier, challenge);
+    }
+
+    private static string Base64Url(byte[] bytes) =>
+        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    public static Dictionary<string, string?> ParseQuery(Uri uri)
+    {
+        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = pair.IndexOf('=');
+            var key = Uri.UnescapeDataString(separator < 0 ? pair : pair[..separator]);
+            values[key] = separator < 0 ? string.Empty : Uri.UnescapeDataString(pair[(separator + 1)..]);
+        }
+
+        return values;
+    }
+
+    /// <summary>
+    /// Re-posts exactly what the page rendered between two markers: the
+    /// echoed OAuth parameters, the operation key, the antiforgery token and
+    /// any scope tick boxes, every one as rendered (ticked) unless the test
+    /// unticks some.
+    /// </summary>
+    public static FormUrlEncodedContent RenderedForm(
+        string html,
+        string startMarker,
+        string endMarker,
+        IReadOnlyCollection<string>? tickedScopes = null)
+    {
+        var start = html.IndexOf(startMarker, StringComparison.Ordinal);
+        var end = start < 0 ? -1 : html.IndexOf(endMarker, start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, $"The form marked {startMarker} was not found.");
+        var panel = html[start..end];
+        var fields = new List<KeyValuePair<string, string>>();
+        foreach (Match input in InputTag().Matches(panel))
+        {
+            var tag = input.Value;
+            var hidden = tag.Contains("type=\"hidden\"", StringComparison.Ordinal);
+            var tickBox = tag.Contains("type=\"checkbox\"", StringComparison.Ordinal);
+            if (!hidden && !tickBox)
+            {
+                continue;
+            }
+
+            var name = NameAttribute().Match(tag);
+            var value = ValueAttribute().Match(tag);
+            if (!name.Success || !value.Success)
+            {
+                continue;
+            }
+
+            var decodedValue = WebUtility.HtmlDecode(value.Groups["v"].Value);
+            if (tickBox)
+            {
+                Assert.Contains(" checked", tag, StringComparison.Ordinal);
+                if (tickedScopes is not null && !tickedScopes.Contains(decodedValue, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+            }
+
+            fields.Add(new(WebUtility.HtmlDecode(name.Groups["v"].Value), decodedValue));
+        }
+
+        Assert.Contains(fields, field => field.Key == "__RequestVerificationToken");
+        Assert.Contains(fields, field => field.Key == "OperationKey");
+        return new FormUrlEncodedContent(fields);
+    }
+
+    [GeneratedRegex("<input[^>]*>")]
+    private static partial Regex InputTag();
+
+    [GeneratedRegex(@"\sname=""(?<v>[^""]+)""")]
+    private static partial Regex NameAttribute();
+
+    [GeneratedRegex(@"\svalue=""(?<v>[^""]*)""")]
+    private static partial Regex ValueAttribute();
 
     public static async Task<string> RequestTokenAsync(HttpClient client, string scope)
     {

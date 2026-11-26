@@ -50,6 +50,75 @@ public sealed class AutomationMcpOptionsTests
             AutomationMcpOptions.TryCreate(Configuration(values)));
     }
 
+    /// <summary>R1297: with no redirect URI configured, sign-in from Pegasus Desktop is not offered.</summary>
+    [Fact]
+    public void DesktopSignInIsOffWithoutItsRedirectUris()
+    {
+        var options = AutomationMcpOptions.TryCreate(Configuration(ProductionConfiguration()));
+
+        Assert.NotNull(options);
+        Assert.Empty(options.DesktopRedirectUris);
+        Assert.False(options.DesktopSignInEnabled);
+    }
+
+    [Fact]
+    public void DesktopRedirectUrisAreLoopbackAddressesWithOrWithoutAPort()
+    {
+        var values = ProductionConfiguration();
+        values["AutomationMcp:DesktopRedirectUris"] =
+            "http://127.0.0.1/callback; http://[::1]:51793/callback,http://127.0.0.1:62031/callback";
+
+        var options = AutomationMcpOptions.TryCreate(Configuration(values));
+
+        Assert.NotNull(options);
+        Assert.True(options.DesktopSignInEnabled);
+        Assert.Equal(
+            new[] { "http://127.0.0.1/callback", "http://[::1]:51793/callback", "http://127.0.0.1:62031/callback" },
+            options.DesktopRedirectUris.Select(uri => uri.OriginalString).ToArray());
+        // The connector's own redirect URIs are a separate setting.
+        Assert.Empty(options.RedirectUris);
+        Assert.False(options.ConnectorAuthorizationEnabled);
+    }
+
+    [Theory]
+    [InlineData("http://localhost/callback")]
+    [InlineData("https://127.0.0.1/callback")]
+    [InlineData("http://192.168.0.10/callback")]
+    [InlineData("http://pegasus.example/callback")]
+    [InlineData("http://user@127.0.0.1/callback")]
+    [InlineData("http://127.0.0.1/callback#fragment")]
+    [InlineData("pegasus-desktop://callback")]
+    [InlineData("/callback")]
+    public void DesktopRedirectUrisRejectAnythingButHttpOnALoopbackAddress(string redirectUri)
+    {
+        var values = ProductionConfiguration();
+        values["AutomationMcp:DesktopRedirectUris"] = "http://127.0.0.1/callback;" + redirectUri;
+
+        Assert.Throws<InvalidOperationException>(() =>
+            AutomationMcpOptions.TryCreate(Configuration(values)));
+    }
+
+    [Fact]
+    public void TheAutomationClientCannotTakePegasusDesktopsClientId()
+    {
+        var values = ProductionConfiguration();
+        values["AutomationMcp:ClientId"] = AutomationMcp.DesktopClientId;
+
+        Assert.Throws<InvalidOperationException>(() =>
+            AutomationMcpOptions.TryCreate(Configuration(values)));
+    }
+
+    private static Dictionary<string, string?> ProductionConfiguration()
+    {
+        var values = BaseConfiguration();
+        values["AutomationMcp:KeyVaultUri"] = "https://pegasus.vault.azure.net/";
+        values["AutomationMcp:SigningCertificateSecretUris:0"] =
+            "https://pegasus.vault.azure.net/secrets/oauth-signing/11111111111111111111111111111111";
+        values["AutomationMcp:EncryptionCertificateSecretUris:0"] =
+            "https://pegasus.vault.azure.net/secrets/oauth-encryption/22222222222222222222222222222222";
+        return values;
+    }
+
     private static Dictionary<string, string?> BaseConfiguration() => new(StringComparer.Ordinal)
     {
         [AutomationMcp.FeatureFlag] = "true",

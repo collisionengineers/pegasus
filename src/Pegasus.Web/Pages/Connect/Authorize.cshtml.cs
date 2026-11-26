@@ -1,10 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Administration;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -12,17 +13,24 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 namespace Pegasus.Web.Pages.Connect;
 
 /// <summary>
-/// The Administrator consent step of the authorization-code flow for external
-/// MCP connectors. OpenIddict has already validated the request (client,
-/// exact redirect URI, PKCE challenge, scopes) before this page runs. A signed
-/// in Administrator with the manage-automation-clients right sees who is
-/// asking and for which scopes, each with a tick box ticked by default;
-/// approving issues a code for the Automation Actor principal — never for the
-/// staff member — holding the ticked scopes (ADR-0087), and the decision is
-/// permanent history. Denying, or approving with no scope ticked, returns
-/// <c>access_denied</c> to the connector.
+/// The staff step of the authorization-code flow. OpenIddict has already
+/// validated the request (client, redirect URI, PKCE challenge, scopes) before
+/// this page runs, and the page branches on the client it names.
+/// <para>
+/// For the Automation client it is the Administrator consent for an external
+/// MCP connector, open only to the manage-automation-clients right: the
+/// Administrator sees who is asking and for which scopes, each with a tick
+/// box ticked by default; approving issues a code for the Automation Actor
+/// principal — never for the staff member — holding the ticked scopes
+/// (ADR-0087), and the decision is permanent history. Denying, or approving
+/// with no scope ticked, returns <c>access_denied</c> to the connector.
+/// </para>
+/// <para>
+/// For Pegasus Desktop's client it is the sign-in any enabled member of staff
+/// may make (ADR-0092, R1297): the page names them, and Sign in issues a code
+/// for their own account, so what the application then does is theirs.
+/// </para>
 /// </summary>
-[Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presentation.IShellFreeGet
 {
     internal static readonly IReadOnlyDictionary<string, string> ScopeDescriptions =
@@ -36,6 +44,12 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
             [AutomationMcp.JobsScope] = "List, create, take, progress, complete, fail, release, cancel and confirm AI jobs.",
             [AutomationMcp.SendScope] = "Send a generated report to the Principal; send e-mail: chaser, reply, forward and the Triage reply; send a photo link by e-mail or text."
         };
+
+    /// <summary>The request is Pegasus Desktop's sign-in, not a connector's consent.</summary>
+    public bool IsDesktopSignIn { get; private set; }
+
+    /// <summary>The account Pegasus Desktop would act as: the name the shell shows.</summary>
+    public string SignedInAs { get; private set; } = string.Empty;
 
     public string ClientDisplayName { get; private set; } = string.Empty;
 
@@ -58,13 +72,29 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
 
     public async Task<IActionResult> OnGetAsync(
         [FromServices] AutomationClientRegistry? registry,
+        [FromServices] EfStaffAccountQueries staffAccounts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (IsDesktopRequest(registry))
+        {
+            if (await ReadDesktopAccountAsync(actor, staffAccounts, cancellationToken) is null)
+            {
+                return Forbid();
+            }
+
+            IsDesktopSignIn = true;
+            SignedInAs = User.Identity?.Name ?? string.Empty;
+            RequestParameters = EchoedParameters(OpenIddictRequest());
+            return Page();
+        }
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageAutomationClients))
+        {
+            return Forbid();
+        }
         if (registry is null)
         {
             return NotFound();
@@ -82,23 +112,27 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         RequestedAccess = GrantedScopes(request, status)
             .Select(scope => new KeyValuePair<string, string>(scope, ScopeDescriptions.GetValueOrDefault(scope, scope)))
             .ToArray();
-        RequestParameters = request.GetParameters()
-            .Where(parameter => !string.Equals(parameter.Key, "__RequestVerificationToken", StringComparison.Ordinal)
-                && !string.Equals(parameter.Key, nameof(OperationKey), StringComparison.Ordinal))
-            .Select(parameter => new KeyValuePair<string, string>(parameter.Key, (string?)parameter.Value ?? string.Empty))
-            .ToArray();
+        RequestParameters = EchoedParameters(request);
         return Page();
     }
 
     public async Task<IActionResult> OnPostAcceptAsync(
         [FromServices] AutomationClientRegistry? registry,
+        [FromServices] EfStaffAccountQueries staffAccounts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (IsDesktopRequest(registry))
+        {
+            return await AcceptDesktopSignInAsync(registry, staffAccounts, actor, cancellationToken);
+        }
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageAutomationClients))
+        {
+            return Forbid();
+        }
         if (registry is null)
         {
             return NotFound();
@@ -163,7 +197,21 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         {
             return Forbid();
         }
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        if (IsDesktopRequest(registry))
+        {
+            await registry.RecordDesktopSignInAsync(
+                actor,
+                $"refused:{Guid.NewGuid():N}",
+                RedirectUri(OpenIddictRequest()),
+                approved: false,
+                IsOperationKeyValid(OperationKey) ? OperationKey : NewOperationKey(),
+                cancellationToken);
+            return Refuse(Errors.AccessDenied, "The sign-in was refused.");
+        }
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageAutomationClients))
+        {
+            return Forbid();
+        }
         if (registry is null)
         {
             return NotFound();
@@ -191,6 +239,85 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
             cancellationToken);
         return Refuse(Errors.AccessDenied, "The Administrator refused the connection.");
     }
+
+    /// <summary>
+    /// Sign in on the Pegasus Desktop page: the decision is recorded under the
+    /// member of staff's name, and the code is issued for their own account,
+    /// carrying the security stamp it has now, every scope and
+    /// <c>offline_access</c>. What a call may then do is decided by their own
+    /// rights, not by a consent (ADR-0092).
+    /// </summary>
+    private async Task<IActionResult> AcceptDesktopSignInAsync(
+        AutomationClientRegistry registry,
+        EfStaffAccountQueries staffAccounts,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (!IsOperationKeyValid(OperationKey))
+        {
+            return Refuse(Errors.InvalidRequest, "The consent form has expired. Retry the connection.");
+        }
+        if (await ReadDesktopAccountAsync(actor, staffAccounts, cancellationToken) is not { } account)
+        {
+            return Forbid();
+        }
+
+        var grantId = DesktopPrincipal.NewGrantId();
+        await registry.RecordDesktopSignInAsync(
+            actor,
+            grantId,
+            RedirectUri(OpenIddictRequest()),
+            approved: true,
+            OperationKey,
+            cancellationToken);
+        return SignIn(
+            DesktopPrincipal.Create(
+                account.StaffId,
+                account.SecurityStamp,
+                grantId,
+                [.. AutomationMcp.Scopes, Scopes.OfflineAccess]),
+            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
+    /// <summary>
+    /// Whether the validated request names Pegasus Desktop's client in a
+    /// deployment that offers its sign-in.
+    /// </summary>
+    private bool IsDesktopRequest([NotNullWhen(true)] AutomationClientRegistry? registry) =>
+        registry is not null
+        && registry.IsDesktop(HttpContext.GetOpenIddictServerRequest()?.ClientId);
+
+    /// <summary>
+    /// The signed-in member of staff's account as the token check will read
+    /// it, or null when it could not sign in to Pegasus now: missing,
+    /// disabled, holding no staff role or waiting on a password change.
+    /// </summary>
+    private static async Task<(Guid StaffId, string SecurityStamp)?> ReadDesktopAccountAsync(
+        ActionActor actor,
+        EfStaffAccountQueries staffAccounts,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(actor.SubjectId, out var staffId))
+        {
+            return null;
+        }
+
+        var account = await staffAccounts.GetAccountReadAsync(staffId, cancellationToken);
+        if (account is not { IsEnabled: true, MustChangePassword: false, Role: not null }
+            || string.IsNullOrEmpty(account.SecurityStamp))
+        {
+            return null;
+        }
+
+        return (staffId, account.SecurityStamp);
+    }
+
+    private static KeyValuePair<string, string>[] EchoedParameters(OpenIddictRequest request) =>
+        request.GetParameters()
+            .Where(parameter => !string.Equals(parameter.Key, "__RequestVerificationToken", StringComparison.Ordinal)
+                && !string.Equals(parameter.Key, nameof(OperationKey), StringComparison.Ordinal))
+            .Select(parameter => new KeyValuePair<string, string>(parameter.Key, (string?)parameter.Value ?? string.Empty))
+            .ToArray();
 
     private OpenIddictRequest OpenIddictRequest() =>
         HttpContext.GetOpenIddictServerRequest()

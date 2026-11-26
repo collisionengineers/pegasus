@@ -659,6 +659,28 @@ static Task AppendAutomationDeniedSecurityEventAsync(
     var occurredAtUtc = context.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
     var claimedSubject = context.User.FindFirst(
         System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    // A token request Pegasus Desktop's client made is not the Automation
+    // client's: its refusal (a sign-in that has ended, most often) is recorded
+    // under the desktop client's own reason, which the Automation activity
+    // read does not count (ADR-0092).
+    if (tokenEndpoint
+        && string.Equals(
+            Microsoft.AspNetCore.OpenIddictServerAspNetCoreHelpers.GetOpenIddictServerRequest(context)?.ClientId,
+            AutomationMcp.DesktopClientId,
+            StringComparison.Ordinal))
+    {
+        return writer.AppendAsync(
+            new SecurityEvent(
+                Guid.NewGuid(),
+                SecurityEventType.Token,
+                SecurityEventOutcome.Denied,
+                AutomationMcp.DesktopClientId,
+                occurredAtUtc,
+                context.TraceIdentifier,
+                AutomationMcp.DesktopTokenRejected),
+            CancellationToken.None);
+    }
+
     var securityEvent = new SecurityEvent(
         Guid.NewGuid(),
         SecurityEventType.Token,
@@ -1272,9 +1294,10 @@ if (automationMcpOptions is not null)
         if ((isTokenEndpoint && HttpMethods.IsPost(context.Request.Method))
             || isAuthorizationEndpoint)
         {
-            // Seed/reconcile the single Automation client registration before
-            // OpenIddict validates the caller (token) or the connector's
-            // authorization request against it.
+            // Seed/reconcile the single Automation client registration, and
+            // Pegasus Desktop's where it is configured, before OpenIddict
+            // validates the caller (token) or the authorization request
+            // against it.
             await context.RequestServices
                 .GetRequiredService<AutomationClientRegistry>()
                 .EnsureRegisteredAsync(context.RequestAborted);
@@ -1302,7 +1325,7 @@ if (automationMcpOptions is not null)
                 or StatusCodes.Status403Forbidden
             : status is StatusCodes.Status401Unauthorized
                 or StatusCodes.Status403Forbidden;
-        if (isDenied && !context.Items.ContainsKey(AutomationMcp.ClientDisabledRecordedItem))
+        if (isDenied && !context.Items.ContainsKey(AutomationMcp.RefusalRecordedItem))
         {
             await AppendAutomationDeniedSecurityEventAsync(context, isTokenEndpoint);
         }
