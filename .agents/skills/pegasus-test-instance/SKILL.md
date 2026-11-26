@@ -329,13 +329,16 @@ or a fresh production copy). Say which before the swap; the swap is on the
 operator's word.
 
 Ports and the public origin come from the manifest; `--initialize-development`
-migrates the existing database forward and keeps its data. Status prints
-`SourceSha`; the instance is current when it equals `git rev-parse origin/dev`
-or the named head. The release preflight refuses a candidate the instance is
+migrates the existing database forward and keeps its data. On this host
+Initialize also rebuilds the classifier agent (section 8) whenever its folder's
+tree changed since the last build, and says which (#2206). Status prints
+`SourceSha` and `ClassifierBuild`; the instance is current when `SourceSha`
+equals `git rev-parse origin/dev` or the named head and `ClassifierBuild` reads
+`current`. The release preflight refuses a candidate the instance is
 not serving (R684), so the instance is back on `dev`'s tip before a release.
 Its `Version` reads `0.0.0-dev`, as in every build that is not a release
 (R686); the SHA is its identity. Whoever walks the instance is told which
-head it serves.
+head it serves and whether the classifier is built from it.
 
 ## 7. Rehearse a release on a copy of production
 

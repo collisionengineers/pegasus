@@ -245,6 +245,34 @@ try {
         }
     }
 
+    # The hosted test instance's classifier timer runs this checkout's ignored
+    # dist/, so on its host the classifier is rebuilt whenever its folder
+    # changed (#2206). Elsewhere nothing runs the classifier locally.
+    if (Test-PegasusOnTestInstanceHost) {
+        $classifierRoot = Get-PegasusClassifierRoot -RepositoryRoot $repositoryRoot
+        $classifierBuild = Get-PegasusClassifierBuildState `
+            -ClassifierRoot $classifierRoot `
+            -SourceTree (Get-PegasusClassifierSourceTree -Git $git -RepositoryRoot $repositoryRoot)
+        if ($classifierBuild.State -eq 'current') {
+            Write-Host "Classifier build current (tree $($classifierBuild.SourceTree))."
+        }
+        else {
+            Invoke-RequiredCommand `
+                -Command $npm `
+                -Arguments @('ci', '--prefix', $classifierRoot) `
+                -Description 'Classifier npm restoration'
+            Invoke-RequiredCommand `
+                -Command $npm `
+                -Arguments @('run', 'build', '--prefix', $classifierRoot) `
+                -Description 'Classifier build'
+            Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
+            [System.IO.File]::WriteAllText(
+                (Get-PegasusClassifierBuildStampPath -ClassifierRoot $classifierRoot),
+                $classifierBuild.SourceTree)
+            Write-Host "Classifier rebuilt for tree $($classifierBuild.SourceTree) (was $($classifierBuild.State))."
+        }
+    }
+
     & (Join-Path $PSScriptRoot 'Invoke-Doctor.ps1') -Profile Offline
 
     Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
