@@ -717,7 +717,9 @@ public sealed class MessageModel(
             rows.Add(Row(
                 message.Id is { } id ? id.ToString("D") : $"quoted-{++quoted}",
                 message.Direction,
-                isOpened ? openedName : message.SenderDisplayName,
+                // A staff forward's row names its original sender where the forwarded
+                // header gave a name (R1275): the record itself knows only the address.
+                isOpened ? openedName ?? message.SenderDisplayName : message.SenderDisplayName,
                 isOpened ? openedAddress : message.SenderAddress,
                 // The opened message's line is the record's own, as it always read.
                 isOpened
