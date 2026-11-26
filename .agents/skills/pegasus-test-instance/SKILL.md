@@ -81,12 +81,11 @@ together, with a ruling.
 
 | Step | Needs | Why |
 | --- | --- | --- |
-| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads twelve Key Vault secrets from `pegasusprodkv252ow37g` (names printed first) |
+| `New-LocalLiveSettings.ps1 -Approve` | the operator's `az` sign-in and their word | reads six Key Vault secrets from `pegasusprodkv252ow37g`, seven with `-IncludeProblemReports` (names printed first) |
 | Graph identity | a Microsoft 365 administrator (the operator) | the existing `CollisionSpike Graph Intake` registration and scope `CollisionSpike-Intake-Prod`; adds the one role it lacks (`Application Mail.Send`) and the secret; recorded in operations |
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
 | OCR role assignment, once | the operator; approved 11 November 2026 (R931) | `Cognitive Services User` on production's Document Intelligence resource `pegasus-prod-ocr-252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write OCR needs; recorded in operations |
 | `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R785) |
-| Seeding the Brego session (section 2) | the operator's word, and a blob read role on `pegcustody252ow37gij` for their `az` account | reads production's `authentication-ring/brego-session.json` (R933) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
 | Serving a branch or pull request | the operator names it | the instance leaves `dev`'s tip (R695, section 6) |
@@ -126,9 +125,13 @@ pwsh ./scripts/New-LocalLiveSettings.ps1 -BoxHoldingFolderId <id> -Administrator
 The first run prints the secret names and stops; the second, after the
 operator's word, writes `artifacts/local-development/local.settings.env`
 (mode 600) with live DVLA/DVSA, Box and Glass's on, the Glass's, Cazana and Brego
-guide valuations on production's accounts (R709) and password sign-in on.
-A file written before R709 gains them by re-running the script with
-`-Approve`, which rewrites it, so the hand-appended lines below go back in.
+guide valuations on (R709) and password sign-in on. The file carries no
+integration login: the instance's Glass's, Cazana, Brego and Experian logins
+are entered on its own Administration > Integrations page and kept in its
+database (R1288), and a production copy keeps them (section 7). A file
+written before then still holds `Glass__ValuationAccount__*`,
+`Cazana__CompanionAccount__*` and `Brego__ValuationAccount__*` lines: delete
+them, as `Start` refuses the `Cazana__` and `Brego__` ones.
 Then append by hand, in the same file:
 
 ```text
@@ -147,30 +150,12 @@ Graph__ChangeNotificationUrl=https://<host>.<tailnet>.ts.net:8443/hooks/microsof
 Graph__ChangeNotificationClientState=<at most 128 characters the operator chooses, not production's>
 ```
 
-Brego's session lives in the run's Azurite account, at
-`authentication-ring/brego-session.json`, as production's lives in custody
-storage (R933). Seed it once per run with production's cookie, so the instance
-never signs in through Brego's device-approval challenge. That challenge
-e-mails a verify-browser code, and a second session could sign production out.
-Never verify such a code for the instance. From 26 November 2026 (R1288) the
-instance keeps the Brego account and its sign-in in its own database with the
-other integration logins; the blob below is read once, by the start-up import,
-while the Brego login is not yet set there. Once the run is started:
-
-```bash
-manifest=artifacts/local-development/<run>/run-manifest.json
-azurite="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFeqCnf2w+X8m0y0V3O52SxG9uM91m0YF/XwoK+WkKzQAE3WZcX0Dne6ZaZR7sCMZ8DlQ==;BlobEndpoint=$(jq -r .endpoints.azuriteBlob "$manifest")"
-seed=$(mktemp -d)
-az storage blob download --account-name pegcustody252ow37gij -c authentication-ring \
-  -n brego-session.json -f "$seed/brego-session.json" --auth-mode login
-az storage container create -n authentication-ring --connection-string "$azurite"
-az storage blob upload -c authentication-ring -n brego-session.json \
-  -f "$seed/brego-session.json" --overwrite --connection-string "$azurite"
-rm -r "$seed"
-```
-
-The first Brego press after a Web start then shows no `device-approval` call
-in `web-*.stdout.log`. Record no cookie value.
+Brego is linked on the same Integrations page (R1290), which keeps the
+account's sign-in in the instance's database, so a Web start reuses it
+instead of signing in again. Brego keeps one web session per account: the
+instance is linked on its own page and production's sign-in is watched, and
+a result that they end each other's session goes to the operator before a
+release (R1292).
 
 For photo capture, when the operator turns it on there, also append:
 

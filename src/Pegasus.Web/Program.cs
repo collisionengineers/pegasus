@@ -116,9 +116,6 @@ var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
 QueueClient? intakeWorkQueue = null;
-// Where Brego's sign-in was kept before R1288: read once by the settings
-// import, which goes with it in the next release.
-BlobClient? bregoSessionBlob = null;
 TokenCredential? automationMcpCredential = null;
 // The Web's managed identity in Production, for the photo link text send.
 TokenCredential? textMessageCredential = null;
@@ -247,9 +244,6 @@ if (productionProfile)
         .PersistKeysToAzureBlobStorage(
             new Uri(custodyServiceUri, "authentication-ring/keys.xml"),
             credential);
-    bregoSessionBlob = new BlobClient(
-        new Uri(custodyServiceUri, "authentication-ring/brego-session.json"),
-        credential);
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
@@ -315,16 +309,6 @@ else
                 queueConnectionString,
                 "transient-intake",
                 new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05)));
-    }
-    if (liveGuideValuation)
-    {
-        // Where the test instance kept its Brego session before R1288, in the
-        // run's Azurite account (R933): read once by the settings import.
-        bregoSessionBlob = new BlobClient(
-            queueConnectionString,
-            "authentication-ring",
-            "brego-session.json",
-            new BlobClientOptions(BlobClientOptions.ServiceVersion.V2025_11_05));
     }
 }
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
@@ -1081,15 +1065,6 @@ if (initializeDevelopment)
     await DevelopmentOfflineInitialization.InitializeAsync(scope.ServiceProvider);
     Console.WriteLine("DevelopmentOffline database, local test identity, and roles initialized.");
     return;
-}
-// The one-time import of the integrations' logins from the settings that held
-// them before R1288; it goes, with those settings, in the next release. An EF
-// migration bundle or design-time host never reaches this line: the EF tools
-// stop the entry point when the host is built.
-if (productionProfile || liveGuideValuation || liveExperian)
-{
-    await IntegrationLoginSettingsImport.RunAsync(app.Services, app.Configuration, bregoSessionBlob);
-    startupTimeline.Mark("integration login settings import");
 }
 
 

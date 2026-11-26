@@ -78,8 +78,9 @@ built. Neither the credentials nor the JWT ever reaches a URL or log.
 Amended 26 November 2026 (R1288): the account is no longer deployment
 configuration. It is held in the database, protected with the Web host's key
 ring, and replaced by an Administrator
-([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings are
-read once by that release's import and removed in the next.
+([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings were
+read once by that release's import and are removed in the release after it,
+so nothing references their Key Vault secrets (#2177, #2163).
 
 **The month is a date.** Cazana values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and
@@ -120,6 +121,9 @@ setting's key instead.
 - Creating `cazana-companion-email` and `cazana-companion-password` in Key
   Vault with secret-scoped grants to the Web identity, setting the two azd
   variables, and retiring `cazana-api-key` after cutover are release steps.
+  Amended 26 November 2026 (R1288): no longer; the login is entered on
+  Administration > Integrations
+  ([ADR-0091](0091-integration-logins-in-the-database.md)).
 - Hosts that do not run the Production profile compose no Cazana provider.
 
 ## Links

@@ -51,8 +51,9 @@ repair estimate keeps each Engineer's own account; ADR-0043 is unchanged.
 Amended 26 November 2026 (R1288): the account is no longer deployment
 configuration. It is held in the database, protected with the Web host's key
 ring, and replaced by an Administrator
-([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings are
-read once by that release's import and removed in the next.
+([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings were
+read once by that release's import and are removed in the release after it,
+so nothing references their Key Vault secrets (#2177, #2163).
 
 **The valuation follows the portal.** One Get valuation signs in, values the
 Case's accepted registration and its accepted mileage in whole miles for the
@@ -103,7 +104,9 @@ unsaved edit and its Save are untouched.
   report; the figures and the stock-list entry stand.
 - The secrets and their grants are release steps: Bicep carries the references,
   the repository forbids a vault-wide grant, and no CI check proves a grant.
-  The pre-provision check refuses an empty or malformed secret URI.
+  The pre-provision check refuses an empty or malformed secret URI. Amended 26
+  November 2026 (R1288): no longer; the login is entered on Administration >
+  Integrations ([ADR-0091](0091-integration-logins-in-the-database.md)).
 - The other four guide sources stay unconnected until each has its own
   adapter. Corrected 26 November 2026: Cazana
   ([ADR-0079](0079-cazana-companion-account-and-companion-report.md)), Brego

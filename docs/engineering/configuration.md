@@ -131,12 +131,9 @@ The Worker reads none.
 
 The settings that held them until R1288 (`Glass:ValuationAccount:*`,
 `Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`,
-`Experian:HistoryAccount:*` and `Experian:CapAccount:*`, Key Vault references
-in Production) are no longer required at start-up. The release that moves the
-logins reads them once, with Brego's stored sign-in from
-`authentication-ring/brego-session.json`, to fill each login not yet set, and
-never over one that is; the next release removes the settings and their
-secrets (#2177, #2163).
+`Experian:HistoryAccount:*` and `Experian:CapAccount:*`) are removed, and
+nothing reads their Key Vault secrets or Brego's old
+`authentication-ring/brego-session.json` (#2177, #2163).
 
 ## Glass's valuation
 
@@ -181,10 +178,10 @@ Each act signs in with its own account only; neither reads the other's. Each
 account is an [integration login](#integration-logins): a client id, a client
 secret, a username and a password.
 
-| Purpose | Settings until R1288 | Key Vault secrets until R1288 | Production user | UAT user (test instance) |
-|---|---|---|---|---|
-| Run Experian check (condition records) | `Experian:HistoryAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-history-client-id`, `-client-secret`, `-username`, `-password` | `pattersonaapi` | `pattersonaapiuat` |
-| CAP's Get valuation (CAP valuations, R1201) | `Experian:CapAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-cap-client-id`, `-client-secret`, `-username`, `-password` | `merceraapi` | `merceraapiuat` |
+| Purpose | Production user | UAT user (test instance) |
+|---|---|---|
+| Run Experian check (condition records) | `pattersonaapi` | `pattersonaapiuat` |
+| CAP's Get valuation (CAP valuations, R1201) | `merceraapi` | `merceraapiuat` |
 
 `Experian:BaseUri` and `Experian:TokenUri`, Experian's API root and OAuth2
 token endpoint, are shared by both accounts: production uses
@@ -194,8 +191,7 @@ token endpoint, are shared by both accounts: production uses
 are Production required settings (R749): the Web host checks at start-up that
 each is present, and stops naming the key when one is not (R1252). They are
 plain settings (`Experian__BaseUri`, `Experian__TokenUri`); the Worker
-receives neither. The accounts' eight settings stopped being required on 26
-November 2026 (R1288). `DevelopmentOffline` composes no
+receives neither. `DevelopmentOffline` composes no
 Experian unless `Features:LiveExperian` is set, so its Vehicle history area
 says Experian is not connected and its CAP card says the source is
 unavailable; the hosted test instance sets it, with both UAT accounts as its

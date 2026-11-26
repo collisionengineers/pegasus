@@ -2,8 +2,10 @@
     .SYNOPSIS
     Writes the ignored local live-integration settings file for a hosted local
     Pegasus run: real DVLA/DVSA, real Box custody under the test root, real
-    Glass's, and the Glass's, Cazana and Brego guide valuations on production's
-    accounts (R709), with the secrets read from the production Key Vault.
+    Glass's, and the Glass's, Cazana and Brego guide valuations (R709), with the
+    secrets read from the production Key Vault. The guide valuations sign in
+    with the logins the run's own database holds, entered on its
+    Administration > Integrations page (R1288); this file carries none.
 
     .DESCRIPTION
     Nothing is read until -Approve is given; without it the script prints the
@@ -71,13 +73,6 @@ $secretNames = [ordered]@{
     Dvsa__ClientId = 'dvsa-client-id'
     Dvsa__ClientSecret = 'dvsa-client-secret'
     Dvsa__ApiKey = 'dvsa-api-key'
-    # Production's guide valuation accounts (R709).
-    Glass__ValuationAccount__Username = 'glass-valuation-username'
-    Glass__ValuationAccount__Password = 'glass-valuation-password'
-    Cazana__CompanionAccount__Email = 'cazana-companion-email'
-    Cazana__CompanionAccount__Password = 'cazana-companion-password'
-    Brego__ValuationAccount__Email = 'brego-valuation-email'
-    Brego__ValuationAccount__Password = 'brego-valuation-password'
 }
 if ($IncludeProblemReports) {
     $secretNames['GitHub__ProblemReports__Token'] = 'github-problem-report-token'

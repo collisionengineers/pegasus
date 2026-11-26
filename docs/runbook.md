@@ -345,7 +345,7 @@ what each row proves is owned by the
 The file is `artifacts/local-development/local.settings.env`: `KEY=VALUE`
 lines with double-underscore keys, `#` comments, mode `0600` on Linux. `Start`
 reads it on every attempt, splits it by host prefix (Web: `Features__`,
-`Box__`, `Glass__`, `Cazana__`, `Brego__`, `Experian__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
+`Box__`, `Glass__`, `Experian__`, `Graph__`, `GitHub__`, `DevelopmentOffline__`,
 `AutomationMcp__`; Worker: `Features__`, `Box__`, `Dvla__`, `Dvsa__`,
 `Graph__`), refuses any key the run owns itself (`Runtime__Profile`, the
 connection string, URLs, storage, `Features__LocalIntake`,
@@ -1049,22 +1049,8 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
 | `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the staff member to. Defaults to `https://repairestimate.autovistagroup.com/`. |
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
-| `GLASS_VALUATION_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-username`, the Glass's valuation account name ([ADR-0060](adr/0060-glass-valuation-account-and-valuation-report.md)). No default. |
-| `GLASS_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `glass-valuation-password`, that account's password. No default. |
-| `CAZANA_COMPANION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-email`, the Cazana Companion account e-mail ([ADR-0079](adr/0079-cazana-companion-account-and-companion-report.md)). No default. |
-| `CAZANA_COMPANION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `cazana-companion-password`, that account's password. No default. |
-| `BREGO_VALUATION_EMAIL_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-email`, the Brego valuation account e-mail ([ADR-0084](adr/0084-brego-valuation-account-and-valuation-report.md)). No default. |
-| `BREGO_VALUATION_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `brego-valuation-password`, that account's password. No default. |
 | `EXPERIAN_BASE_URI` | Experian Automotive API root, HTTPS on an `experian.com` host, as Experian supplies it with the credentials ([ADR-0089](adr/0089-experian-vehicle-history-check.md)). No default. |
 | `EXPERIAN_TOKEN_URI` | Experian's OAuth2 token endpoint, supplied with the same. No default. |
-| `EXPERIAN_HISTORY_CLIENT_ID_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-client-id`, the client ID of the Experian account Run Experian check signs in with (condition records, R1215). Becomes `Experian__HistoryAccount__ClientId`. No default. |
-| `EXPERIAN_HISTORY_CLIENT_SECRET_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-client-secret`, that account's client secret. No default. |
-| `EXPERIAN_HISTORY_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-username`, that account's user name. No default. |
-| `EXPERIAN_HISTORY_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-history-password`, that account's password. No default. |
-| `EXPERIAN_CAP_CLIENT_ID_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-client-id`, the client ID of the Experian account CAP's Get valuation signs in with (CAP valuations, R1207, R1215). Becomes `Experian__CapAccount__ClientId`. No default. |
-| `EXPERIAN_CAP_CLIENT_SECRET_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-client-secret`, that account's client secret. No default. |
-| `EXPERIAN_CAP_USERNAME_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-username`, that account's user name. No default. |
-| `EXPERIAN_CAP_PASSWORD_SECRET_URI` | Exact versioned Key Vault secret URI of `experian-cap-password`, that account's password. No default. |
 | `PEGASUS_PHOTO_LINK_TEXT_FROM` | SMS-enabled UK mobile number in E.164, bought by hand in the portal on the `pegasus-prod-acs-` Communication Services resource; the Web App sends photo-link texts from it. Empty (the default) leaves texting unavailable. |
 | `ANTHROPIC_API_KEY_SECRET_URI` | Exact versioned Key Vault secret URI of the Anthropic API key the classifier agent uses. The classifier identity reads it, and the Automation MCP client secret, through grants at each secret's scope. No default. |
 | `PEGASUS_CLASSIFIER_ACTIVATION` | `approved` creates the classifier Function App (`infra/modules/classifier.bicep`); anything else leaves it absent. Defaults to `disabled`. |
@@ -1099,12 +1085,7 @@ The Glass's valuation, Cazana Companion, Brego and two Experian accounts are
 integration logins held in the database, which an Administrator replaces on
 Administration > Integrations (26 November 2026, R1288,
 [ADR-0091](adr/0091-integration-logins-in-the-database.md)); none is a
-required setting. Their Key Vault secrets (`glass-valuation-username`,
-`-password`, `cazana-companion-email`, `-password`, `brego-valuation-email`,
-and `experian-history-client-id`, `-client-secret`, `-username` and
-`-password` with the same four under `experian-cap-`) and the Web App's
-references to them stay deployed for one release, whose start-up imports each
-login not yet set from them; the next release removes them (#2177, #2163).
+deployment input or a setting.
 Each staff member's own Glass's account name and password, used for the
 repair estimate, are entered by an Administrator on that staff account's
 Glass's page and are held protected per staff account, never in deployment

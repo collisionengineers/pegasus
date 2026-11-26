@@ -467,7 +467,7 @@ try {
         'Box__RootFolderId=425169015650',
         'Dvla__ApiKey=key=with=equals',
         'Glass__RepairProfileId=4063',
-        'Brego__ValuationAccount__Email=valuer@example.test',
+        'Experian__BaseUri=https://sandbox-uk-api.experian.com/ukci/automotive',
         'Graph__TenantId=858cf5b3-aa0a-47a6-9b40-4851fd0afa94',
         'DevelopmentOffline__AdministratorPassword=p#ss=word',
         'GitHub__ProblemReports__Token=')
@@ -492,11 +492,11 @@ try {
     $worker = Split-PegasusLocalSettings -Settings $settings -HostKind Worker
     if ($web.Contains('Dvla__ApiKey') -or $web.Contains('DocumentIntelligence__Endpoint') -or -not $web.Contains('Glass__RepairProfileId') -or -not $web.Contains('Graph__TenantId') -or
         -not $web.Contains('DevelopmentOffline__AdministratorPassword') -or -not $web.Contains('Box__ConfigJson') -or
-        -not $web.Contains('Brego__ValuationAccount__Email')) {
-        throw 'The Web split must carry Features, Box, Glass, Cazana, Brego, Experian, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
+        -not $web.Contains('Experian__BaseUri')) {
+        throw 'The Web split must carry Features, Box, Glass, Experian, Graph, GitHub, DevelopmentOffline and AutomationMcp keys only.'
     }
     if ($worker.Contains('Glass__RepairProfileId') -or $worker.Contains('DevelopmentOffline__AdministratorPassword') -or
-        $worker.Contains('Brego__ValuationAccount__Email') -or
+        $worker.Contains('Experian__BaseUri') -or
         -not $worker.Contains('Dvla__ApiKey') -or -not $worker.Contains('Box__ConfigJson') -or -not $worker.Contains('Features__LiveVehicleLookup') -or
         -not $worker.Contains('Graph__TenantId') -or -not $worker.Contains('DocumentIntelligence__Endpoint')) {
         throw 'The Worker split must carry Features, Box, Dvla, Dvsa, Graph and DocumentIntelligence keys only.'

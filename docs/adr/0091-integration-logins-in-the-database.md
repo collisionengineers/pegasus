@@ -80,7 +80,9 @@ from Key Vault directly 183 to 405 ms. A Get valuation press takes 0.76 s
   row is empty from its settings, once, never over a stored login and never
   from an unresolved Key Vault reference; Brego's sign-in comes from its blob.
   The import, the settings, their Key Vault secrets and the blob go in the
-  next release (#2177, #2163).
+  next release (#2177, #2163). Amended for the release after 26 November
+  2026: the import and the settings are removed, and nothing reads the
+  secrets or the blob.
 - **The addresses stay settings.** `Experian:BaseUri`, `Experian:TokenUri`
   and the Glass's repair-estimate origins are not secrets.
 

@@ -86,38 +86,10 @@ param glassMarketValueAssessorBaseUri string
 param glassEstimatorBaseUri string
 @description('Numeric MVA repair-estimate profile id a new Glass estimate is started against. Account configuration; no default.')
 param glassRepairProfileId string
-@description('Versioned Key Vault secret URI containing the Glass valuation account user name (ADR-0060).')
-param glassValuationUsernameSecretUri string
-@description('Versioned Key Vault secret URI containing the Glass valuation account password (ADR-0060).')
-param glassValuationPasswordSecretUri string
-@description('Versioned Key Vault secret URI containing the Cazana Companion account e-mail (ADR-0079).')
-param cazanaCompanionEmailSecretUri string
-@description('Versioned Key Vault secret URI containing the Cazana Companion account password (ADR-0079).')
-param cazanaCompanionPasswordSecretUri string
-@description('Versioned Key Vault secret URI containing the Brego valuation account e-mail (ADR-0084).')
-param bregoValuationEmailSecretUri string
-@description('Versioned Key Vault secret URI containing the Brego valuation account password (ADR-0084).')
-param bregoValuationPasswordSecretUri string
 @description('Experian Automotive API root, for example https://sandbox-uk-api.experian.com/ukci/automotive (ADR-0089).')
 param experianBaseUri string
 @description('Experian OAuth2 token endpoint, for example https://sandbox-uk-api.experian.com/oauth2/v1/token (ADR-0089).')
 param experianTokenUri string
-@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account client ID (ADR-0089, R1215).')
-param experianHistoryClientIdSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account client secret (ADR-0089, R1215).')
-param experianHistoryClientSecretSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account user name (ADR-0089, R1215).')
-param experianHistoryUsernameSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian vehicle history (condition records) account password (ADR-0089, R1215).')
-param experianHistoryPasswordSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian CAP valuations account client ID (ADR-0089, R1215).')
-param experianCapClientIdSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian CAP valuations account client secret (ADR-0089, R1215).')
-param experianCapClientSecretSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian CAP valuations account user name (ADR-0089, R1215).')
-param experianCapUsernameSecretUri string
-@description('Versioned Key Vault secret URI containing the Experian CAP valuations account password (ADR-0089, R1215).')
-param experianCapPasswordSecretUri string
 @description('SMS-enabled UK mobile number in E.164 bought on the Communication Services resource by hand; empty leaves photo-link texting unavailable.')
 param photoLinkTextFrom string = ''
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
@@ -171,22 +143,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     glassMarketValueAssessorBaseUri: glassMarketValueAssessorBaseUri
     glassEstimatorBaseUri: glassEstimatorBaseUri
     glassRepairProfileId: glassRepairProfileId
-    glassValuationUsernameSecretUri: glassValuationUsernameSecretUri
-    glassValuationPasswordSecretUri: glassValuationPasswordSecretUri
-    cazanaCompanionEmailSecretUri: cazanaCompanionEmailSecretUri
-    cazanaCompanionPasswordSecretUri: cazanaCompanionPasswordSecretUri
-    bregoValuationEmailSecretUri: bregoValuationEmailSecretUri
-    bregoValuationPasswordSecretUri: bregoValuationPasswordSecretUri
     experianBaseUri: experianBaseUri
     experianTokenUri: experianTokenUri
-    experianHistoryClientIdSecretUri: experianHistoryClientIdSecretUri
-    experianHistoryClientSecretSecretUri: experianHistoryClientSecretSecretUri
-    experianHistoryUsernameSecretUri: experianHistoryUsernameSecretUri
-    experianHistoryPasswordSecretUri: experianHistoryPasswordSecretUri
-    experianCapClientIdSecretUri: experianCapClientIdSecretUri
-    experianCapClientSecretSecretUri: experianCapClientSecretSecretUri
-    experianCapUsernameSecretUri: experianCapUsernameSecretUri
-    experianCapPasswordSecretUri: experianCapPasswordSecretUri
     photoLinkTextFrom: photoLinkTextFrom
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
