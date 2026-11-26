@@ -406,6 +406,12 @@ November 2026; [R1289](../rulings.md)). It holds:
   **Confirm code**, only while a sign-in waits for one. The link, the code and
   the password are never shown back. These controls are absent until the
   account's e-mail is saved, and where the host does not carry the sign-in.
+  Where the host can read the account's mailbox, **Refresh login**, above
+  them, signs the account in from Brego's e-mail in one press, and saving the
+  e-mail without a password does the same; Send sign-in link, the pasted link
+  and the typed code remain as the fallback (operator, 26 November 2026;
+  [R1294](../rulings.md)). Refresh login is absent where this host's
+  composition cannot read the mailbox.
 
 ### Service health
 

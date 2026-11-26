@@ -137,6 +137,32 @@ public sealed class BregoGuideValuationProviderTests
         }
         """;
 
+    internal const string MailToken = "synthetic-mailed-link-token-8841";
+    internal const string MailRefreshToken = "synthetic-mailed-refresh-token-2207";
+    internal const string MailCode = "604217";
+
+    // The link as Brego e-mails it to the account, HTML-decoded (R1294).
+    internal static readonly string MailedLink =
+        $"https://www.brego.ai/login?client=collision-engineers#magic-link={MailToken}&email={Uri.EscapeDataString(Email)}";
+
+    internal static readonly string MailCustomChallengeJson = $$$"""
+        {"ChallengeName":"CUSTOM_CHALLENGE","Session":"synthetic-mail-session","ChallengeParameters":{"USERNAME":"{{{CognitoUsername}}}"}}
+        """;
+
+    internal const string MailLinkSentJson =
+        """{"ChallengeName":"CUSTOM_CHALLENGE","Session":"synthetic-mail-session-2","ChallengeParameters":{"step":"MAGIC_LINK_SENT"}}""";
+
+    internal static readonly string MailLinkTokensJson = $$$"""
+        {
+          "AuthenticationResult": {
+            "AccessToken": "{{{AccessToken}}}",
+            "IdToken": "{{{IdToken}}}",
+            "RefreshToken": "{{{MailRefreshToken}}}",
+            "ExpiresIn": 3600
+          }
+        }
+        """;
+
     internal static readonly string PasswordTokensJson = $$$"""
         {
           "AuthenticationResult": {
@@ -652,6 +678,161 @@ public sealed class BregoGuideValuationProviderTests
         Assert.DoesNotContain(harness.Requests, request => request.Uri.AbsolutePath == "/login/api/brego/v1/sessions");
     }
 
+    /// <summary>
+    /// R1295: a press whose refresh token Cognito refuses, on an account with
+    /// no password, signs in again from Brego's e-mail once and values.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedRefreshTokenIsRepairedOnceFromBregosEmailAndTheValuationAnswers()
+    {
+        var login = new InMemoryBregoLogin(Email, PersistedCookie, RefreshToken);
+        var mail = new FakeBregoMailReader { Link = MailedLink };
+        var harness = Harness.Create(
+            request => HasTarget(request, RefreshTarget)
+                ? Json(HttpStatusCode.BadRequest, """{"__type":"NotAuthorizedException","message":"Refresh Token has been revoked"}""")
+                : null,
+            login: login,
+            mail: mail);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        Assert.Single(harness.Requests, request => IsLinkRequest(request.Body));
+        var redeemed = Assert.Single(
+            harness.Requests,
+            request => request.Body?.Contains("\"action\":\"redeem\"", StringComparison.Ordinal) == true);
+        Assert.Contains(MailToken, redeemed.Body!, StringComparison.Ordinal);
+        Assert.Equal(1, login.Restores);
+        Assert.Equal(0, login.Saves);
+        Assert.Equal(MailRefreshToken, login.StoredRefreshToken);
+        Assert.Equal(BregoSessionCookie, login.Cookie);
+        AssertNoMailSecretsLogged(harness);
+    }
+
+    [Fact]
+    public async Task ADeviceBregoWantsACodeForIsApprovedWithTheCodeFromBregosEmail()
+    {
+        var login = new InMemoryBregoLogin(Email, null, RefreshToken);
+        var mail = new FakeBregoMailReader { Code = MailCode };
+        var approved = false;
+        var harness = Harness.Create(
+            request =>
+            {
+                var path = request.RequestUri!.AbsolutePath;
+                if (path == "/login/api/brego/users/me/device-approval/challenge")
+                {
+                    return Json(HttpStatusCode.OK, approved ? DeviceApprovedJson : """{"status":"challenge_required"}""");
+                }
+
+                if (path == "/login/api/brego/users/me/device-approval/verify")
+                {
+                    approved = true;
+                    return Json(HttpStatusCode.OK, "{}");
+                }
+
+                return null;
+            },
+            login: login,
+            mail: mail);
+
+        var quote = await harness.Provider.GetAsync(Request("AB12CDE", April), default);
+
+        Assert.Equal(14250m, quote.RetailValue);
+        var verified = Assert.Single(
+            harness.Requests,
+            request => request.Uri.AbsolutePath == "/login/api/brego/users/me/device-approval/verify");
+        using (var body = JsonDocument.Parse(verified.Body!))
+        {
+            Assert.Equal(MailCode, body.RootElement.GetProperty("code").GetString());
+        }
+
+        Assert.DoesNotContain(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.Equal(1, login.Restores);
+        Assert.Equal(RefreshToken, login.StoredRefreshToken);
+        Assert.Equal(BregoSessionCookie, login.Cookie);
+        AssertNoMailSecretsLogged(harness);
+    }
+
+    [Fact]
+    public async Task TwoPressesThatFindTheSignInGoneAskBregoForOneLink()
+    {
+        var login = new InMemoryBregoLogin(Email, null, null);
+        var mail = new FakeBregoMailReader { Link = MailedLink };
+        var harness = Harness.Create(login: login, mail: mail);
+
+        var quotes = await Task.WhenAll(
+            harness.Provider.GetAsync(Request("AB12CDE", April), default),
+            harness.Provider.GetAsync(Request("AB12CDE", April), default));
+
+        Assert.All(quotes, quote => Assert.Equal(14250m, quote.RetailValue));
+        Assert.Single(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.Equal(1, login.Restores);
+    }
+
+    [Theory]
+    [InlineData("no sign-in")]
+    [InlineData("refused")]
+    [InlineData("code")]
+    public async Task WhereTheMailboxCannotBeReadNothingIsAskedOfBregoAndTheStageIsAsBefore(string row)
+    {
+        var mail = new FakeBregoMailReader { Readable = false, Link = MailedLink, Code = MailCode };
+        var harness = row switch
+        {
+            "no sign-in" => Harness.Create(login: new InMemoryBregoLogin(Email, null, null), mail: mail),
+            "refused" => Harness.Create(
+                request => HasTarget(request, RefreshTarget)
+                    ? Json(HttpStatusCode.BadRequest, """{"__type":"NotAuthorizedException","message":"Invalid Refresh Token"}""")
+                    : null,
+                mail: mail),
+            _ => Harness.Create(
+                request => request.RequestUri!.AbsolutePath == "/login/api/brego/users/me/device-approval/challenge"
+                    ? Json(HttpStatusCode.OK, """{"status":"challenge_required"}""")
+                    : null,
+                mail: mail),
+        };
+
+        await AssertUnavailableAsync(
+            harness,
+            row switch
+            {
+                "no sign-in" => "brego.valuation.unreadable stage=sign_in refresh_token=absent",
+                "refused" => "brego.valuation.forbidden stage=cognito_refresh status=400 error=NotAuthorizedException; Invalid Refresh Token",
+                _ => "brego.valuation.device_approval stage=device_approval device=challenge_required",
+            });
+        Assert.DoesNotContain(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.DoesNotContain(harness.Requests, request => request.Uri.AbsolutePath.EndsWith("/verify", StringComparison.Ordinal));
+        Assert.Equal(0, mail.LinkReads);
+        Assert.Equal(0, mail.CodeReads);
+    }
+
+    [Fact]
+    public async Task ALinkThatNeverArrivesIsUnavailableAtMailLinkAndKeepsNothing()
+    {
+        var login = new InMemoryBregoLogin(Email, null, null);
+        var mail = new FakeBregoMailReader();
+        var harness = Harness.Create(login: login, mail: mail);
+
+        await AssertUnavailableAsync(harness, "brego.valuation.unreadable stage=mail_link mail=not_arrived");
+
+        Assert.Single(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.InRange(mail.LinkReads, 2, 16);
+        Assert.Equal(0, login.Restores);
+        Assert.Equal(0, login.Saves);
+        Assert.Null(login.StoredRefreshToken);
+    }
+
+    private static bool IsLinkRequest(string? body) =>
+        body?.Contains("\"action\":\"request\"", StringComparison.Ordinal) == true;
+
+    private static void AssertNoMailSecretsLogged(Harness harness) =>
+        Assert.DoesNotContain(harness.Logger.Messages, message =>
+            message.Contains(MailToken, StringComparison.Ordinal)
+            || message.Contains(MailCode, StringComparison.Ordinal)
+            || message.Contains(MailRefreshToken, StringComparison.Ordinal)
+            || message.Contains(RefreshToken, StringComparison.Ordinal)
+            || message.Contains(AccessToken, StringComparison.Ordinal)
+            || message.Contains(BregoSessionCookie, StringComparison.Ordinal));
+
     [Theory]
     [InlineData("2031-02", "2031-02-28", "2031-02")]
     [InlineData("2028-02", "2028-02-29", "2028-02")]
@@ -916,7 +1097,8 @@ public sealed class BregoGuideValuationProviderTests
         Assert.Equal(ValuationSource.Brego, source.Source);
         Assert.IsType<Pegasus.Infrastructure.Persistence.EfIntegrationLoginStore>(
             provider.GetRequiredService<IBregoSessionStore>());
-        Assert.IsType<BregoAccountLink>(provider.GetRequiredService<IBregoAccountLink>());
+        var link = Assert.IsType<BregoAccountLink>(provider.GetRequiredService<IBregoAccountLink>());
+        Assert.False(link.ReadsSignInMail);
     }
 
     internal static string LookupJson(string vin = Vin) => $$$"""
@@ -957,7 +1139,7 @@ public sealed class BregoGuideValuationProviderTests
         }
         """;
 
-    internal static HttpResponseMessage DefaultAnswer(HttpRequestMessage request)
+    internal static HttpResponseMessage DefaultAnswer(HttpRequestMessage request, string? body = null)
     {
         var path = request.RequestUri!.AbsolutePath;
         if (path == "/login/api/getAuthorizer")
@@ -976,7 +1158,19 @@ public sealed class BregoGuideValuationProviderTests
 
             if (HasTarget(request, InitiateAuthTarget))
             {
-                return Json(HttpStatusCode.OK, SrpChallengeJson);
+                return Json(
+                    HttpStatusCode.OK,
+                    body?.Contains("CUSTOM_AUTH", StringComparison.Ordinal) == true ? MailCustomChallengeJson : SrpChallengeJson);
+            }
+
+            if (HasTarget(request, RespondTarget) && body?.Contains("\"action\":\"request\"", StringComparison.Ordinal) == true)
+            {
+                return Json(HttpStatusCode.OK, MailLinkSentJson);
+            }
+
+            if (HasTarget(request, RespondTarget) && body?.Contains("\"action\":\"redeem\"", StringComparison.Ordinal) == true)
+            {
+                return Json(HttpStatusCode.OK, MailLinkTokensJson);
             }
 
             return HasTarget(request, RespondTarget)
@@ -1065,11 +1259,16 @@ public sealed class BregoGuideValuationProviderTests
             Func<CancellationToken, Task<BregoValuationAccount>>? account = null,
             TimeProvider? timeProvider = null,
             InMemoryBregoLogin? login = null,
-            bool withoutStore = false)
+            bool withoutStore = false,
+            FakeBregoMailReader? mail = null)
         {
             // By default the account is linked: its refresh token is stored
             // and no session cookie has been minted yet.
             login ??= new InMemoryBregoLogin(Email, null, RefreshToken);
+            // A press that waits for Brego's e-mail polls on the clock, so a
+            // harness that reads mail steps its clock instead of waiting.
+            var clock = timeProvider
+                ?? (mail is null ? (TimeProvider)new CazanaGuideValuationProviderTests.FixedClock(Now) : new SteppingClock(Now));
             var requests = new List<CazanaGuideValuationProviderTests.RecordedRequest>();
             var logger = new CapturingLogger();
             return new(
@@ -1077,23 +1276,30 @@ public sealed class BregoGuideValuationProviderTests
                     new ScriptedClientFactory(new CazanaGuideValuationProviderTests.Answering(async request =>
                     {
                         var body = request.Content is null ? null : await request.Content.ReadAsStringAsync();
-                        requests.Add(new(
-                            request.Method,
-                            request.RequestUri!,
-                            request.Headers.Authorization?.ToString(),
-                            request.Headers.ToDictionary(header => header.Key, header => header.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
-                            body));
+                        lock (requests)
+                        {
+                            requests.Add(new(
+                                request.Method,
+                                request.RequestUri!,
+                                request.Headers.Authorization?.ToString(),
+                                request.Headers.ToDictionary(header => header.Key, header => header.Value.ToArray(), StringComparer.OrdinalIgnoreCase),
+                                body));
+                        }
+
                         if (overrideRequest?.Invoke(request) is { } overridden)
                         {
                             return overridden;
                         }
 
-                        return DefaultAnswer(request);
+                        return DefaultAnswer(request, body);
                     })),
                     account ?? (cancellationToken => login.ReadAsync(cancellationToken)),
-                    timeProvider ?? new CazanaGuideValuationProviderTests.FixedClock(Now),
+                    clock,
                     logger,
-                    withoutStore ? null : login),
+                    withoutStore ? null : login)
+                {
+                    MailSignIn = mail is null ? null : new BregoMailSignIn(mail, clock)
+                },
                 logger,
                 requests);
         }
@@ -1169,6 +1375,23 @@ public sealed class BregoGuideValuationProviderTests
             Task.FromResult(BregoValuationAccount.Create(
                 TestIntegrationLogins.Brego(Email, StoredRefreshToken, Cookie, Generation, Password)));
 
+        public int Restores { get; private set; }
+
+        /// <summary>As the store does: under the next generation, as a link is.</summary>
+        public Task<bool> TryStoreRestoredSignInAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken)
+        {
+            if (generation != Generation)
+            {
+                return Task.FromResult(false);
+            }
+
+            Cookie = signIn.BregoSessionCookie;
+            StoredRefreshToken = signIn.RefreshToken;
+            Generation++;
+            Restores++;
+            return Task.FromResult(true);
+        }
+
         public Task<bool> TrySaveAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken)
         {
             if (generation != Generation)
@@ -1180,6 +1403,116 @@ public sealed class BregoGuideValuationProviderTests
             StoredRefreshToken = signIn.RefreshToken;
             Saves++;
             return Task.FromResult(true);
+        }
+    }
+
+    /// <summary>
+    /// A clock whose timers fire at once and move it on by their due time, so
+    /// a poll that waits two seconds at a time takes no real time.
+    /// </summary>
+    internal sealed class SteppingClock(DateTimeOffset start) : TimeProvider
+    {
+        private readonly Lock guard = new();
+        private DateTimeOffset now = start;
+
+        public DateTimeOffset Now
+        {
+            get
+            {
+                lock (guard)
+                {
+                    return now;
+                }
+            }
+
+            set
+            {
+                lock (guard)
+                {
+                    now = value;
+                }
+            }
+        }
+
+        public override DateTimeOffset GetUtcNow() => Now;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            if (dueTime != Timeout.InfiniteTimeSpan)
+            {
+                lock (guard)
+                {
+                    now += dueTime;
+                }
+
+                ThreadPool.QueueUserWorkItem(_ => callback(state));
+            }
+
+            return new FiredTimer();
+        }
+
+        private sealed class FiredTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => false;
+
+            public void Dispose()
+            {
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// The account's mailbox as the sign-in mail reader sees it (R1294): the
+    /// link and the code arrive on the given read, or never when unset.
+    /// </summary>
+    internal sealed class FakeBregoMailReader : IBregoSignInMailReader
+    {
+        public bool Readable { get; set; } = true;
+
+        public string? Link { get; set; }
+
+        public string? Code { get; set; }
+
+        public int ArrivesOnRead { get; set; } = 2;
+
+        public int CanReads { get; private set; }
+
+        public int LinkReads { get; private set; }
+
+        public int CodeReads { get; private set; }
+
+        public List<DateTimeOffset> Since { get; } = [];
+
+        public Task<bool> CanReadAsync(string mailboxAddress, CancellationToken cancellationToken)
+        {
+            CanReads++;
+            return Task.FromResult(Readable);
+        }
+
+        public Task<string?> ReadLinkAsync(string mailboxAddress, DateTimeOffset sinceUtc, CancellationToken cancellationToken)
+        {
+            if (!Readable)
+            {
+                throw new BregoSignInMailUnreadableException();
+            }
+
+            Since.Add(sinceUtc);
+            LinkReads++;
+            return Task.FromResult(LinkReads >= ArrivesOnRead ? Link : null);
+        }
+
+        public Task<string?> ReadCodeAsync(string mailboxAddress, DateTimeOffset sinceUtc, CancellationToken cancellationToken)
+        {
+            if (!Readable)
+            {
+                throw new BregoSignInMailUnreadableException();
+            }
+
+            Since.Add(sinceUtc);
+            CodeReads++;
+            return Task.FromResult(CodeReads >= ArrivesOnRead ? Code : null);
         }
     }
 }

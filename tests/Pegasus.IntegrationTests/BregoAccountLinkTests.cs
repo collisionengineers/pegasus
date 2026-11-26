@@ -498,6 +498,172 @@ public sealed class BregoAccountLinkTests
             default));
     }
 
+    /// <summary>
+    /// Refresh login (R1294): Brego is asked for a link, the link is read from
+    /// the account's mailbox and redeemed, and the account is linked with one
+    /// history row. A stale version is refused before the mailbox or Brego.
+    /// </summary>
+    [Fact]
+    public async Task RefreshLoginReadsTheLinkFromBregosEmailAndLinksTheAccount()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader { Link = Link };
+        var harness = new Harness(database, mail);
+        await SaveAccountAsync(harness);
+        Assert.True(harness.Link.ReadsSignInMail);
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+            harness.Link.RefreshAsync(Administrator, 0, "stale", default));
+        Assert.Empty(harness.Requests);
+        Assert.Equal(0, mail.CanReads);
+
+        var step = await harness.Link.RefreshAsync(Administrator, 1, "refresh", default);
+
+        Assert.Equal(BregoLinkStep.Linked, step);
+        Assert.Single(harness.Requests, request => IsLinkRequest(request.Body));
+        var redeemed = Assert.Single(harness.Requests, request => IsRedemption(request.Body));
+        Assert.Contains(LinkToken, redeemed.Body!, StringComparison.Ordinal);
+        Assert.InRange(mail.LinkReads, 2, 16);
+        Assert.All(mail.Since, since => Assert.True(since <= BregoGuideValuationProviderTests.Now));
+        var stored = await harness.Store.ReadAsync(IntegrationLogin.Brego, default);
+        Assert.NotNull(stored);
+        Assert.Equal(2, stored.Generation);
+        Assert.Equal(LinkRefreshToken, stored.RefreshToken);
+        Assert.Equal(BregoSessionCookie, stored.SessionCookie);
+        Assert.Equal(2, await VersionAsync(harness));
+        Assert.Single(
+            (await HistoryAsync(database)).Split('\n'),
+            line => line.StartsWith("integration_login_linked|", StringComparison.Ordinal));
+        await AssertNoSecretsAsync(database, harness);
+    }
+
+    [Theory]
+    [InlineData("no reader")]
+    [InlineData("unreadable")]
+    public async Task RefreshLoginOnAHostThatCannotReadTheMailboxAsksNothingOfBrego(string row)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = row == "no reader" ? null : new FakeBregoMailReader { Readable = false, Link = Link };
+        var harness = new Harness(database, mail);
+        await SaveAccountAsync(harness);
+
+        var refused = await Assert.ThrowsAsync<BregoLinkRefusedException>(() =>
+            harness.Link.RefreshAsync(Administrator, 1, "refresh", default));
+
+        Assert.Equal(mail is not null, harness.Link.ReadsSignInMail);
+        Assert.Equal(BregoLinkRefusal.MailUnreadable, refused.Refusal);
+        Assert.Empty(harness.Requests);
+        Assert.Equal(1, await VersionAsync(harness));
+    }
+
+    [Fact]
+    public async Task ALinkThatDoesNotArriveIsMailNotArrivedAndStoresNothing()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader();
+        var harness = new Harness(database, mail);
+        await SaveAccountAsync(harness);
+
+        var refused = await Assert.ThrowsAsync<BregoLinkRefusedException>(() =>
+            harness.Link.RefreshAsync(Administrator, 1, "refresh", default));
+
+        Assert.Equal(BregoLinkRefusal.MailNotArrived, refused.Refusal);
+        Assert.Single(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.DoesNotContain(harness.Requests, request => IsRedemption(request.Body));
+        Assert.InRange(mail.LinkReads, 2, 16);
+        Assert.Equal(1, await VersionAsync(harness));
+        Assert.Null((await harness.Store.ReadAsync(IntegrationLogin.Brego, default))!.RefreshToken);
+    }
+
+    [Fact]
+    public async Task RefreshLoginEntersTheCodeFromBregosEmailAndKeepsNothingWaiting()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader { Link = Link, Code = Code };
+        var harness = new Harness(database, mail) { DeviceApproved = false };
+        await SaveAccountAsync(harness);
+
+        var step = await harness.Link.RefreshAsync(Administrator, 1, "refresh", default);
+
+        Assert.Equal(BregoLinkStep.Linked, step);
+        var verified = Assert.Single(harness.Requests, request => request.Uri.AbsolutePath == VerifyPath);
+        using (var body = JsonDocument.Parse(verified.Body!))
+        {
+            Assert.Equal(Code, body.RootElement.GetProperty("code").GetString());
+        }
+
+        Assert.Null(await harness.Link.ReadPendingAsync(Administrator, default));
+        Assert.Equal("", await PendingColumnAsync(database));
+        Assert.Equal(2, await VersionAsync(harness));
+        Assert.Equal(LinkRefreshToken, (await harness.Store.ReadAsync(IntegrationLogin.Brego, default))!.RefreshToken);
+        await AssertNoSecretsAsync(database, harness);
+    }
+
+    [Fact]
+    public async Task ACodeThatDoesNotArriveLeavesTheSignInWaitingForIt()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader { Link = Link };
+        var harness = new Harness(database, mail) { DeviceApproved = false };
+        await SaveAccountAsync(harness);
+
+        var step = await harness.Link.RefreshAsync(Administrator, 1, "refresh", default);
+
+        Assert.Equal(BregoLinkStep.CodeSent, step);
+        Assert.InRange(mail.CodeReads, 2, 16);
+        Assert.NotNull(await harness.Link.ReadPendingAsync(Administrator, default));
+        Assert.Equal(2, await VersionAsync(harness));
+        var stored = await harness.Store.ReadAsync(IntegrationLogin.Brego, default);
+        Assert.NotNull(stored);
+        Assert.Equal(1, stored.Generation);
+        Assert.Null(stored.RefreshToken);
+        await AssertNoSecretsAsync(database, harness);
+    }
+
+    [Fact]
+    public async Task RefreshLoginWithASavedPasswordAsksForNoLink()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader { Link = Link };
+        var harness = new Harness(database, mail);
+        await SaveAccountAsync(harness, Password);
+
+        var step = await harness.Link.RefreshAsync(Administrator, 1, "refresh", default);
+
+        Assert.Equal(BregoLinkStep.Linked, step);
+        Assert.DoesNotContain(harness.Requests, request => IsLinkRequest(request.Body));
+        Assert.Contains(harness.Requests, request => request.Body?.Contains("USER_SRP_AUTH", StringComparison.Ordinal) == true);
+        Assert.Equal(0, mail.LinkReads);
+        Assert.Equal(PasswordRefreshToken, (await harness.Store.ReadAsync(IntegrationLogin.Brego, default))!.RefreshToken);
+        await AssertNoSecretsAsync(database, harness);
+    }
+
+    [Theory]
+    [InlineData("link")]
+    [InlineData("password")]
+    public async Task ALinkOrPasswordSignInReadsTheCodeFromBregosEmail(string row)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var mail = new FakeBregoMailReader { Code = Code };
+        var harness = new Harness(database, mail) { DeviceApproved = false };
+        await SaveAccountAsync(harness, row == "password" ? Password : null);
+
+        var step = row == "password"
+            ? await harness.Link.SignInWithPasswordAsync(Administrator, 1, "password", default)
+            : await harness.Link.LinkAsync(Administrator, Link, 1, "link", default);
+
+        Assert.Equal(BregoLinkStep.Linked, step);
+        Assert.Contains(harness.Requests, request => request.Uri.AbsolutePath == VerifyPath);
+        Assert.Null(await harness.Link.ReadPendingAsync(Administrator, default));
+        Assert.Equal(2, await VersionAsync(harness));
+        await AssertNoSecretsAsync(database, harness);
+    }
+
+    private static bool IsLinkRequest(string? body) =>
+        body?.Contains("\"action\":\"request\"", StringComparison.Ordinal) == true;
+
+    private static bool IsRedemption(string? body) =>
+        body?.Contains("\"action\":\"redeem\"", StringComparison.Ordinal) == true;
+
     private static async Task SaveAccountAsync(Harness harness, string? password = null)
     {
         var values = new Dictionary<IntegrationLoginField, string> { [IntegrationLoginField.Email] = Email };
@@ -574,9 +740,9 @@ public sealed class BregoAccountLinkTests
     /// </summary>
     private sealed class Harness
     {
-        public Harness(LocalDbTestDatabase database)
+        public Harness(LocalDbTestDatabase database, FakeBregoMailReader? mail = null)
         {
-            var clock = new DelegateClock(() => Now);
+            var clock = Clock;
             using var scope = database.CreateAsyncScope();
             Store = new EfIntegrationLoginStore(
                 scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
@@ -586,8 +752,12 @@ public sealed class BregoAccountLinkTests
                 new ScriptedClientFactory(new CazanaGuideValuationProviderTests.Answering(AnswerAsync)),
                 Store,
                 clock,
-                Logger);
+                Logger,
+                mail is null ? null : new BregoMailSignIn(mail, clock));
         }
+
+        /// <summary>The clock a poll for Brego's e-mail steps instead of waiting.</summary>
+        public SteppingClock Clock { get; } = new(BregoGuideValuationProviderTests.Now);
 
         public EfIntegrationLoginStore Store { get; }
 
@@ -597,7 +767,11 @@ public sealed class BregoAccountLinkTests
 
         public List<CazanaGuideValuationProviderTests.RecordedRequest> Requests { get; } = [];
 
-        public DateTimeOffset Now { get; set; } = BregoGuideValuationProviderTests.Now;
+        public DateTimeOffset Now
+        {
+            get => Clock.Now;
+            set => Clock.Now = value;
+        }
 
         public bool DeviceApproved { get; set; } = true;
 
@@ -668,10 +842,5 @@ public sealed class BregoAccountLinkTests
         public void Log<TState>(
             LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
             Messages.Add(formatter(state, exception));
-    }
-
-    private sealed class DelegateClock(Func<DateTimeOffset> now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now();
     }
 }

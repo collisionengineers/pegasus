@@ -844,6 +844,11 @@ public static partial class OperatorLabels
         public const string BregoNoLinkWaiting = "No link is waiting for a code. Send a new sign-in link.";
         public const string BregoUnreachable = "Brego could not be reached. Try again.";
 
+        // Signing in from Brego's own e-mail (operator, 26 November 2026; R1294, R1295).
+        public const string RefreshBregoLogin = "Refresh login";
+        public const string BregoMailNotArrived = "Brego's e-mail did not arrive. Try again.";
+        public const string BregoMailUnreadable = "Brego's e-mail could not be read. Try again.";
+
         /// <summary>The notice after Send sign-in link, naming the account's address.</summary>
         public static string BregoLinkSent(string email) =>
             $"Brego e-mailed a sign-in link to {email}. It expires 15 minutes later.";
@@ -868,6 +873,8 @@ public static partial class OperatorLabels
             BregoLinkRefusal.CodeRefused => BregoCodeRefused,
             BregoLinkRefusal.NoLinkWaiting => BregoNoLinkWaiting,
             BregoLinkRefusal.Unreachable => BregoUnreachable,
+            BregoLinkRefusal.MailNotArrived => BregoMailNotArrived,
+            BregoLinkRefusal.MailUnreadable => BregoMailUnreadable,
             _ => NotAccepted
         };
     }

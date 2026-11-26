@@ -27,6 +27,12 @@ public sealed class EfIntegrationLoginStore(
     IDataProtectionProvider dataProtection,
     TimeProvider timeProvider) : IIntegrationLoginAdministration, IBregoSessionStore
 {
+    /// <summary>
+    /// The system recorder a sign-in Pegasus restored by itself from Brego's
+    /// e-mail is attributed to (R1295).
+    /// </summary>
+    public const string BregoSignInRecorder = "brego-sign-in";
+
     private const string ProtectionPurpose = "Pegasus.IntegrationLogin.v1";
     private const string PendingPurpose = "pending";
     private const string AggregateType = "integration_login";
@@ -269,21 +275,85 @@ public sealed class EfIntegrationLoginStore(
         RequireAdministrator(actor);
         ArgumentNullException.ThrowIfNull(signIn);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        await StoreBregoSignInAsync(
+            actor,
+            expectedVersion,
+            expectedGeneration: null,
+            signIn,
+            operationKey.Trim(),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// A sign-in Pegasus restored by itself from Brego's e-mail (R1295), stored
+    /// by the same path as an Administrator's, by the system recorder
+    /// <see cref="BregoSignInRecorder"/>. Best effort, as a renewal is.
+    /// </summary>
+    public async Task<bool> TryStoreRestoredSignInAsync(
+        long generation,
+        BregoStoredSignIn signIn,
+        CancellationToken cancellationToken)
+    {
+        if (signIn is null || string.IsNullOrWhiteSpace(signIn.RefreshToken))
+        {
+            return false;
+        }
+
+        try
+        {
+            return await StoreBregoSignInAsync(
+                ActionActor.Automation(BregoSignInRecorder),
+                expectedVersion: null,
+                generation,
+                signIn,
+                Guid.NewGuid().ToString("N"),
+                cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Stores a finished Brego sign-in under the login's next generation. An
+    /// Administrator's is held to the version the page read (a stale one
+    /// throws); the system recorder's to the generation it signed in under (a
+    /// moved one stores nothing).
+    /// </summary>
+    private async Task<bool> StoreBregoSignInAsync(
+        ActionActor actor,
+        long? expectedVersion,
+        long? expectedGeneration,
+        BregoStoredSignIn signIn,
+        string correlationId,
+        CancellationToken cancellationToken)
+    {
         var id = RowId(IntegrationLogin.Brego);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
         await LockAsync(context, id, cancellationToken);
         var entity = await context.IntegrationLogins
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if ((entity?.Version ?? 0) != expectedVersion)
+        if (expectedVersion is { } version && (entity?.Version ?? 0) != version)
         {
             throw new DbUpdateConcurrencyException();
+        }
+
+        if (expectedGeneration is { } generation && entity?.Generation != generation)
+        {
+            return false;
         }
 
         if (entity is null
             || entity.ProtectedLogin.Length == 0
             || TryReadPayload(IntegrationLogin.Brego, entity) is not { } stored)
         {
+            if (expectedVersion is null)
+            {
+                return false;
+            }
+
             throw new BregoLinkRefusedException(BregoLinkRefusal.NoAccount);
         }
 
@@ -304,9 +374,10 @@ public sealed class EfIntegrationLoginStore(
         entity.Generation++;
         entity.Version++;
         Write(IntegrationLogin.Brego, entity, payload, actor.SubjectId);
-        AddHistory(context, actor, entity, "integration_login_linked", before, operationKey.Trim());
+        AddHistory(context, actor, entity, "integration_login_linked", before, correlationId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return true;
     }
 
     /// <summary>

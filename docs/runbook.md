@@ -1122,9 +1122,23 @@ unavailable, with a `brego.valuation.` line in the Web log at
 `stage=sign_in` (nothing stored) or `stage=cognito_refresh` (Brego refused the
 stored sign-in).
 
-It is done on Administration > Integrations, at the Brego valuation account,
-with someone at the account's mailbox. No Azure sign-in or storage role is
-needed.
+It is done on Administration > Integrations, at the Brego valuation account.
+No Azure sign-in or storage role is needed.
+
+Refresh login first (R1294). Pegasus signs in with the saved password, or asks
+Brego for a sign-in link and reads it from the account's own mailbox, and
+enters the six-digit code Brego e-mails when it asks to approve Pegasus's
+device; it waits up to 30 seconds for each e-mail. "Brego's e-mail did not
+arrive" means the link was sent but not seen in time: try again, or paste the
+link from the mailbox (step 2 below). If the code does not arrive, the page
+asks for it (step 3).
+
+"Brego's e-mail could not be read" means the host's Graph identity has no
+Exchange access to the account's mailbox, and nothing was asked of Brego. That
+access is an Exchange change the operator approves, not a Pegasus setting; the
+test instance's Graph registration has it, production's Web identity does not
+until that change is made. Until then use the fallback, with someone at the
+account's mailbox:
 
 1. Send sign-in link: Brego e-mails a link that expires 15 minutes later.
 2. Link account: paste the whole link from the e-mail. A link for another
@@ -1133,23 +1147,30 @@ needed.
    for it: Confirm code. The sign-in waits for the code until the sign-in's
    access token expires; after that, send a new link.
 
-The next Get valuation uses the new sign-in; no restart is needed.
+The next Get valuation uses the new sign-in; no restart is needed. Where the
+mailbox can be read, a Get valuation that finds the sign-in gone, or Brego
+asking for a code, signs in again from Brego's e-mail by itself, once per
+press (R1295); a failed attempt shows as `stage=mail_link` (the link did not
+arrive) or `stage=mail_code` (the code did not arrive or was refused) in the
+Web log, and a repaired one as an `integration_login_linked` history row by
+`brego-sign-in`.
 
 With a Brego password saved, Pegasus signs in with it by itself whenever it
 holds no usable sign-in: saving the account with a password signs in at once,
 and a host whose stored sign-in is refused signs in with the password at the
 next Get valuation. The link stays for an account without a password. A
 refused password shows as `stage=password` in the Web log; a device Brego
-wants a code for as `stage=device_approval`, and the code is then entered on
-the page (save the password again, or link the account, to have Brego send
-one).
+wants a code for as `stage=device_approval` where the mailbox cannot be read,
+and the code is then entered on the page (Refresh login, save the password
+again, or link the account, to have Brego send one).
 
 Brego keeps one web session for an account, so production and the test
 instance, each linked on its own page with the same account, may end each
 other's session; what happens with two separately linked hosts is being
 checked (R1292). A browser sign-in to Brego with the same account can end a
 host's session too. The host then mints a new one itself while its device
-stays approved; when Brego asks for a code instead, link the account again.
+stays approved; when Brego asks for a code instead, the host reads it from the
+mailbox where it can, and otherwise Refresh login or link the account again.
 
 ## Monitoring and diagnosis
 

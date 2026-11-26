@@ -22,6 +22,17 @@ public interface IBregoSessionStore
     /// replaced since (its generation moved) or the store could not be written.
     /// </summary>
     Task<bool> TrySaveAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores a sign-in Pegasus restored by itself from Brego's e-mail
+    /// (R1295) while the account is still at <paramref name="generation"/>,
+    /// as an Administrator's link is stored: under the next generation, with
+    /// any sign-in waiting for a code dropped and one
+    /// <c>integration_login_linked</c> history row, by the system recorder
+    /// <c>brego-sign-in</c>. Best effort: <see langword="false"/> when the
+    /// account moved since or the store could not be written.
+    /// </summary>
+    Task<bool> TryStoreRestoredSignInAsync(long generation, BregoStoredSignIn signIn, CancellationToken cancellationToken);
 }
 
 /// <summary>

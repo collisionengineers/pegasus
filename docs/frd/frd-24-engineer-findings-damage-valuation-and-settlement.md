@@ -314,7 +314,11 @@ report's text names the Case registration, and fills the work's VIN when the
 work holds none. When Brego holds no data for the registration, its card shows
 an info notice instead,
 `Brego cannot value this vehicle: it holds no data for its registration.`;
-whatever else stops a Brego valuation, the card shows its notice.
+whatever else stops a Brego valuation, the card shows its notice. A Get
+valuation that finds Brego's sign-in gone, or Brego asking to approve the
+browser, signs in again by itself where the account's mailbox can be read,
+once per press, and then values; otherwise the card shows its notice as
+before (26 November 2026, [R1295](../rulings.md)).
 Each connected source is asked once per Case and guide month at the Case's
 accepted registration and mileage (operator, 10 November 2026,
 [R900](../rulings.md)), whoever presses Get valuation, so a repeated press

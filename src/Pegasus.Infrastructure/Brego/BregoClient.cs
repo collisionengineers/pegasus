@@ -86,14 +86,18 @@ internal sealed class BregoClient(HttpClient http)
     /// Administrator links the account, or signs it in with its password, on
     /// the Integrations page (ADR-0084, R1290). The session carries forward
     /// the refresh token Cognito answers with, or the one supplied when
-    /// Cognito does not rotate it.
+    /// Cognito does not rotate it. When Brego answers that the device needs
+    /// approval, <paramref name="approveDevice"/> may approve it with the code
+    /// Brego e-mails (R1295); without it, or when it answers false, the
+    /// sign-in fails at <c>device_approval</c>.
     /// </summary>
     public async Task<BregoSession> SignInAsync(
         string email,
         string refreshToken,
         TimeProvider timeProvider,
         CancellationToken cancellationToken,
-        string? existingBregoSessionCookie = null)
+        string? existingBregoSessionCookie = null,
+        Func<BregoTokens, CancellationToken, Task<bool>>? approveDevice = null)
     {
         var pool = await ResolvePoolAsync(email, cancellationToken);
         BregoTokens tokens;
@@ -134,7 +138,8 @@ internal sealed class BregoClient(HttpClient http)
                 ReusedSessionCookie: true);
         }
 
-        if (!await IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken))
+        if (!await IsDeviceApprovedAsync(tokens.AccessToken, cancellationToken)
+            && (approveDevice is null || !await approveDevice(tokens, cancellationToken)))
         {
             throw new BregoFailure("device_approval", null, "device=challenge_required");
         }
