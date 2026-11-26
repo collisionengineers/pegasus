@@ -25,6 +25,22 @@
                 <span class="quiet">@OperatorLabels.Inbox.NoCase</span>
             }
         </span>
+        @if (Model.Outcome is { } outcome)
+        {
+            @* The message's outcome, said once beside its Case (v54 D12). *@
+            <span class="mail-outcome" data-mail-outcome="@outcome.Label">
+                <partial name="Shared/_StatusChip" model="@outcome.Label"
+                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = outcome.Tone }' />
+                @if (outcome.Reason is { } outcomeReason)
+                {
+                    <span class="mail-outcome-reason">@outcomeReason</span>
+                }
+                @if (outcome.Href is { } outcomeHref)
+                {
+                    <a class="mono" href="@outcomeHref">@(outcome.LinkText ?? outcome.Label)</a>
+                }
+            </span>
+        }
         <span class="mail-context-sep" aria-hidden="true">·</span>
         <span>@OperatorLabels.Inbox.Type <strong data-context-type>@typeLabel</strong></span>
         @if (query is { IsOpen: true })

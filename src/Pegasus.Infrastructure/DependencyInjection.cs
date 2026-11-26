@@ -233,7 +233,7 @@ public static class DependencyInjection
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ICloseUnidentified, CloseUnidentified>();
         services.AddScoped<ReopenUnidentified>();
-        services.AddScoped<IGetRetainedMailAttachmentOutcomes, GetRetainedMailAttachmentOutcomes>();
+        services.AddScoped<IGetRetainedMailOutcome, GetRetainedMailOutcome>();
         services.AddScoped<IPreCaseImagePreparationStore, EfPreCaseImagePreparationStore>();
         services.AddScoped<PreCaseImagePreparations>();
         services.AddScoped<IGetPreCaseImagePreparations>(provider => provider.GetRequiredService<PreCaseImagePreparations>());

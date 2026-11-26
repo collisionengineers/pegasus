@@ -426,6 +426,32 @@ public static partial class OperatorLabels
         /// <summary>"1 attachment", "3 attachments": a list row's count.</summary>
         public static string AttachmentCount(int count) => Counted(count, "attachment");
 
+        // A conversation message's direction in the message dialog's stack (v54 D2, D3).
+        public const string Received = "Received";
+        public const string Sent = "Sent";
+        public const string Quoted = "Quoted";
+
+        public static string Direction(Pegasus.Core.Intake.RetainedMailDirection direction) => direction switch
+        {
+            Pegasus.Core.Intake.RetainedMailDirection.Sent => Sent,
+            Pegasus.Core.Intake.RetainedMailDirection.Quoted => Quoted,
+            _ => Received
+        };
+
+        // A message file's Type on its row in the dialog (v54 D10).
+        public const string Pdf = "PDF";
+        public const string Image = "Image";
+        public const string Word = "Word";
+
+        /// <summary>A file's Type by how it is shown; null for a kind that has no Type word.</summary>
+        public static string? FileType(Pegasus.Core.Documents.CaseDocumentPreviewKind kind) => kind switch
+        {
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => Pdf,
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => Image,
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.WordAsPdf => Word,
+            _ => null
+        };
+
         /// <summary>
         /// The ledger row's Type chip tone (v42 H): navy for a New instruction,
         /// amber for a Triage request, neutral for a Cancellation or a

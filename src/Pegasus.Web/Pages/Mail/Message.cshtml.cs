@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Actors;
@@ -56,30 +57,64 @@ public sealed class MessageModel(
     IMarkCaseQueryDone markCaseQueryDone,
     DismissRetainedMail dismissRetainedMail,
     RestoreRetainedMail restoreRetainedMail,
-    IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
+    IGetRetainedMailOutcome messageOutcome,
     GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     ILogger<MessageModel> logger) : StaffPageModel
 {
     /// <summary>
-    /// One attachment's outcome in operator words (message planning, 13 September):
-    /// Case created, Unidentified, Vehicle images, Could not be read (with the reason
-    /// and its Unidentified item) or Processing failed. Nothing links to a receipt.
+    /// The message's outcome in operator words (message planning, 13 September):
+    /// Case created, Linked to Case, Unidentified, Vehicle images, Could not be
+    /// read (with the reason) or Processing failed. Said once, as a chip beside
+    /// the Case in the head (v54 D12); it links only to an Image Intake or
+    /// Unidentified record, because the Case is linked beside it.
     /// </summary>
-    public sealed record AttachmentOutcome(
+    public sealed record MailOutcome(
         string Label,
         string Tone,
         string? Href = null,
         string? LinkText = null,
         string? Reason = null);
 
-    /// <summary>An attachment row: the retained attachment, its outcome and the viewer address of its retained file.</summary>
-    public sealed record AttachmentRow(
-        RetainedMailAttachment Attachment,
-        AttachmentOutcome Outcome,
-        string? ViewerHref);
+    /// <summary>The head's outcome chip; null where there is nothing to state beyond what Type says.</summary>
+    public MailOutcome? Outcome { get; private set; }
 
-    public IReadOnlyList<AttachmentRow> AttachmentRows { get; private set; } = [];
+    /// <summary>One file of a conversation message: its Type word, its glyph and where it opens, if anywhere.</summary>
+    public sealed record ConversationFile(
+        RetainedMailAttachment Attachment,
+        string? TypeLabel,
+        string Glyph,
+        string? OpenHref);
+
+    /// <summary>
+    /// One message of the dialog's stack (v54 D1 to D4): who sent it, its
+    /// direction, its recipients line, its time, its text and its files.
+    /// </summary>
+    /// <param name="Key">The message's id, or <c>quoted-N</c> for a quoted message Pegasus does not keep.</param>
+    /// <param name="DirectionCode">received, sent or quoted.</param>
+    /// <param name="TimeAttribute">The <c>datetime</c> value of its time; null where the time is the header's own text or absent.</param>
+    /// <param name="Body">The presented text; null when it has none.</param>
+    public sealed record ConversationRow(
+        string Key,
+        string DirectionCode,
+        string DirectionLabel,
+        string Who,
+        string? Address,
+        IReadOnlyList<string> RouteParts,
+        string? TimeAttribute,
+        string? TimeText,
+        string Excerpt,
+        MailBodyPresentation.Presented? Body,
+        IReadOnlyList<ConversationFile> Files,
+        bool IsOpened);
+
+    private IReadOnlyList<ConversationRow>? conversationRows;
+
+    /// <summary>
+    /// The conversation, oldest first, as the dialog stacks it. A message read
+    /// without its conversation is one row of its own.
+    /// </summary>
+    public IReadOnlyList<ConversationRow> ConversationRows => conversationRows ??= BuildConversationRows();
 
     /// <summary>The list this message was opened from was the Dismissed scope.</summary>
     public bool ListDismissed { get; private set; }
@@ -130,9 +165,6 @@ public sealed class MessageModel(
     public bool OldestFirst { get; private set; }
 
     private bool NoCaseFoundFilter { get; set; }
-
-    [BindProperty(SupportsGet = true, Name = "section")]
-    public string? Section { get; set; }
 
     [BindProperty]
     public int ExpectedClassificationVersion { get; set; }
@@ -364,6 +396,12 @@ public sealed class MessageModel(
 
     public bool CanCorrespond => CanForward || CanReply;
 
+    /// <summary>
+    /// The dialog draws only its composer: the subject alone in its head, and
+    /// neither the context bar nor the conversation.
+    /// </summary>
+    public bool DialogComposing => InDialog && CanCorrespond && CorrespondenceMode is not null;
+
     public bool CanForward => StaffMailAvailable && CorrespondenceMailbox is not null;
 
     public bool CanReply => StaffMailAvailable && ReplyAnswer.CanSend && StaffMailReplyRecipients.Reply(Detail).To.Length > 0;
@@ -415,7 +453,10 @@ public sealed class MessageModel(
         RetainedMailDetail? detail;
         try
         {
-            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+            // The dialog's composer stands alone, so only a read that draws
+            // the record reads the conversation it stacks.
+            detail = await getRetainedMail.ExecuteAsync(
+                actor, id, SearchTerm, withConversation: !(inDialog && CorrespondenceMode is not null), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -434,7 +475,6 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         if (StaffMailAvailable)
         {
@@ -447,6 +487,10 @@ public sealed class MessageModel(
         else
         {
             CorrespondenceMode = null;
+        }
+        if (!DialogComposing)
+        {
+            await LoadOutcomeAsync(actor, cancellationToken);
         }
         if (inDialog)
         {
@@ -503,23 +547,164 @@ public sealed class MessageModel(
         return Partial("Shared/_MessageContent", this);
     }
 
-    /// <summary>The route line under a message's subject: its forwarder and its To and Cc recipients.</summary>
-    public static IReadOnlyList<string> RouteParts(RetainedMailDetail detail)
+    /// <summary>A message's recipients line: its forwarder and its To and Cc recipients.</summary>
+    public static IReadOnlyList<string> RouteParts(RetainedMailDetail detail) =>
+        RouteParts(IndexModel.ForwarderLine(detail.Summary), detail.ToAddresses, detail.CcAddresses);
+
+    private static List<string> RouteParts(
+        string? forwarder,
+        IReadOnlyList<string> toAddresses,
+        IReadOnlyList<string> ccAddresses)
     {
         var parts = new List<string>();
-        if (IndexModel.ForwarderLine(detail.Summary) is { } forwarder)
+        if (!string.IsNullOrWhiteSpace(forwarder))
         {
             parts.Add($"Forwarded by {forwarder}");
         }
-        if (detail.ToAddresses.Count > 0)
+        if (toAddresses.Count > 0)
         {
-            parts.Add($"To {string.Join(", ", detail.ToAddresses)}");
+            parts.Add($"To {string.Join(", ", toAddresses)}");
         }
-        if (detail.CcAddresses.Count > 0)
+        if (ccAddresses.Count > 0)
         {
-            parts.Add($"Cc {string.Join(", ", detail.CcAddresses)}");
+            parts.Add($"Cc {string.Join(", ", ccAddresses)}");
         }
         return parts;
+    }
+
+    /// <summary>The longest a folded message's one line of text runs before it is cut.</summary>
+    private const int ExcerptLength = 120;
+
+    private const string SenderNotRecorded = "Sender not recorded";
+
+    private List<ConversationRow> BuildConversationRows()
+    {
+        var summary = Detail.Summary;
+        var openedId = summary.Id;
+        // The opened message names its sender as the record always has: the
+        // proven original sender of a staff forward, whose forwarder is on
+        // its recipients line.
+        var openedName = IndexModel.ForwarderLine(summary) is null ? summary.SenderDisplayName : null;
+        var openedAddress = summary.EffectiveSenderAddress ?? summary.SenderAddress;
+        if (Detail.Conversation is not { Count: > 0 } conversation)
+        {
+            return
+            [
+                Row(
+                    openedId.ToString("D"),
+                    Detail.Folder == MailFolderScope.Sent ? RetainedMailDirection.Sent : RetainedMailDirection.Received,
+                    openedName,
+                    openedAddress,
+                    RouteParts(Detail),
+                    summary.ReceivedAtUtc,
+                    quotedSentLocal: null,
+                    quotedSentText: null,
+                    Detail.BodyPlainText,
+                    Detail.Attachments,
+                    summary.IntakeReceiptId,
+                    isOpened: true)
+            ];
+        }
+
+        var rows = new List<ConversationRow>(conversation.Count);
+        var quoted = 0;
+        foreach (var message in conversation)
+        {
+            var isOpened = message.Id == openedId;
+            rows.Add(Row(
+                message.Id is { } id ? id.ToString("D") : $"quoted-{++quoted}",
+                message.Direction,
+                isOpened ? openedName : message.SenderDisplayName,
+                isOpened ? openedAddress : message.SenderAddress,
+                // The opened message's line is the record's own, as it always read.
+                isOpened
+                    ? RouteParts(Detail)
+                    : RouteParts(message.ForwardedByAddress, message.ToAddresses, message.CcAddresses),
+                message.ReceivedAtUtc,
+                message.QuotedSentLocal,
+                message.QuotedSentText,
+                message.Text,
+                // A quoted message has no files of its own.
+                message.Direction == RetainedMailDirection.Quoted ? [] : message.Attachments,
+                message.IntakeReceiptId,
+                isOpened));
+        }
+        return rows;
+    }
+
+    private static ConversationRow Row(
+        string key,
+        RetainedMailDirection direction,
+        string? senderDisplayName,
+        string? senderAddress,
+        IReadOnlyList<string> routeParts,
+        DateTimeOffset? receivedAtUtc,
+        DateTime? quotedSentLocal,
+        string? quotedSentText,
+        string? text,
+        IReadOnlyList<RetainedMailAttachment> attachments,
+        Guid? intakeReceiptId,
+        bool isOpened)
+    {
+        var name = string.IsNullOrWhiteSpace(senderDisplayName) ? null : senderDisplayName.Trim();
+        var address = string.IsNullOrWhiteSpace(senderAddress) ? null : senderAddress.Trim();
+        var (timeAttribute, timeText) = (receivedAtUtc, quotedSentLocal) switch
+        {
+            ({ } received, _) => (received.ToString("O", CultureInfo.InvariantCulture), OperatorLabels.OfficeTime(received)),
+            // A quoted header's time is the wall-clock time it wrote, in no zone.
+            (null, { } local) => (
+                local.ToString("yyyy-MM-dd'T'HH:mm", CultureInfo.InvariantCulture),
+                local.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)),
+            _ => ((string?)null, string.IsNullOrWhiteSpace(quotedSentText) ? null : quotedSentText.Trim())
+        };
+        return new(
+            key,
+            direction switch
+            {
+                RetainedMailDirection.Sent => "sent",
+                RetainedMailDirection.Quoted => "quoted",
+                _ => "received"
+            },
+            OperatorLabels.Inbox.Direction(direction),
+            name ?? address ?? SenderNotRecorded,
+            address,
+            routeParts,
+            timeAttribute,
+            timeText,
+            Excerpt(text),
+            string.IsNullOrWhiteSpace(text) ? null : MailBodyPresentation.Present(text),
+            attachments.Select(attachment => ConversationFileOf(attachment, intakeReceiptId)).ToArray(),
+            isOpened);
+    }
+
+    private static ConversationFile ConversationFileOf(RetainedMailAttachment attachment, Guid? intakeReceiptId)
+    {
+        var kind = Pegasus.Core.Documents.CaseDocumentPreviews.KindOf(attachment.MediaType, attachment.FileName);
+        return new(
+            attachment,
+            OperatorLabels.Inbox.FileType(kind),
+            kind switch
+            {
+                Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => "icon-file-text",
+                Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => "icon-file-image",
+                _ => "icon-file"
+            },
+            intakeReceiptId is { } receiptId && attachment.IntakeAssetId is { } assetId
+                ? $"/Received/{receiptId:D}/Asset/{assetId:D}"
+                : null);
+    }
+
+    /// <summary>A folded message's one line: its text with the whitespace collapsed, cut near <see cref="ExcerptLength"/>.</summary>
+    private static string Excerpt(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+        var collapsed = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return collapsed.Length <= ExcerptLength
+            ? collapsed
+            : string.Concat(collapsed.AsSpan(0, ExcerptLength).TrimEnd(), "…");
     }
 
     /// <summary>
@@ -585,54 +770,47 @@ public sealed class MessageModel(
         return InDialog ? LandOnInbox(next, null, null) : LandOnRecord(id);
     }
 
-    private async Task LoadAttachmentOutcomesAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>
+    /// The message's one outcome, decided by Core from its receipt (the one
+    /// the record already read is passed, to spare a second read). A message
+    /// with no receipt has nothing to state beyond its Type, and neither has
+    /// one whose receipt reached no destination of its own.
+    /// </summary>
+    private async Task LoadOutcomeAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (ActiveSection != "attachments" || Detail.Attachments.Count == 0)
+        if (Detail.Summary.IntakeReceiptId is null)
         {
+            Outcome = null;
             return;
         }
 
         var receipt = AssociationReceipt;
-        var assets = receipt?.AssetRecords ?? [];
-        // Core decides each attachment's own outcome (Case, Unidentified, Vehicle
-        // images, Could not be read, Processing failed) from its receipt and assets.
-        var outcomes = receipt is null
-            ? []
-            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, receipt, cancellationToken);
-        AttachmentRows = Detail.Attachments
-            .Select(attachment =>
-            {
-                var asset = attachment.IntakeAssetId is { } assetId
-                    ? assets.SingleOrDefault(item => item.Id == assetId)
-                    : null;
-                var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
-                return new AttachmentRow(
-                    attachment,
-                    Describe(outcome, receipt),
-                    receipt is not null && asset is not null
-                        ? $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"
-                        : null);
-            })
-            .ToArray();
+        var outcome = receipt is null
+            ? null
+            : await messageOutcome.ExecuteAsync(actor, receipt.Id, receipt, cancellationToken);
+        Outcome = outcome is { Kind: AttachmentOutcomeKind.NoDestination }
+            ? null
+            : Describe(outcome, receipt);
     }
 
-    /// <summary>One attachment's outcome in operator words, with the record it opens.</summary>
-    private AttachmentOutcome Describe(RetainedMailAttachmentOutcome? outcome, IntakeReceipt? receipt)
+    /// <summary>The message's outcome in operator words, with the Image Intake or Unidentified record it opens.</summary>
+    private MailOutcome Describe(RetainedMailOutcome? outcome, IntakeReceipt? receipt)
     {
         if (outcome is null)
         {
             return new("Not yet processed", "neutral");
         }
 
+        // The Case is linked beside the chip, so the chip itself links nowhere.
         var href = outcome.Record is { } record
             ? record.Kind switch
             {
-                AttachmentOutcomeRecordKind.Case => $"/Cases/{record.Id:D}",
                 AttachmentOutcomeRecordKind.ImageIntake => $"/VehicleImages/{record.Id:D}",
-                _ => $"/Unidentified/{record.Id:D}"
+                AttachmentOutcomeRecordKind.Unidentified => $"/Unidentified/{record.Id:D}",
+                _ => null
             }
             : null;
-        var linkText = outcome.Record?.Reference;
+        var linkText = href is null ? null : outcome.Record?.Reference;
         return outcome.Kind switch
         {
             AttachmentOutcomeKind.CaseCreated => new("Case created", "green", href, linkText),
@@ -1376,7 +1554,8 @@ public sealed class MessageModel(
         RetainedMailDetail? detail;
         try
         {
-            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+            // The record page draws the conversation, whatever else it shows.
+            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, withConversation: true, cancellationToken);
         }
         catch (ArgumentException)
         {
@@ -1387,9 +1566,10 @@ public sealed class MessageModel(
             return NotFound();
         }
         Detail = detail;
+        conversationRows = null;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
+        await LoadOutcomeAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         // A refused send read the message's latest operation earlier in this
         // request, and it has written none since.
@@ -2285,14 +2465,6 @@ public sealed class MessageModel(
             modelState.AddModelError(nameof(CorrectionReason), OperatorLabels.Inbox.CorrectionReasonRequired);
         }
     }
-
-    /// <summary>The record's tabs: Message, Attachments and Thread. The Case folded into Decision on Message (v41 I9).</summary>
-    public string ActiveSection => Section switch
-    {
-        "attachments" => "attachments",
-        "thread" => "thread",
-        _ => "message"
-    };
 
     public string? FolderRouteValue => IndexModel.ListFolderCode(ListFolder, ListDismissed);
 

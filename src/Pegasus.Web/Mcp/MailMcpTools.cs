@@ -87,7 +87,8 @@ internal sealed record MailToolThreadEntry(
     string? SenderDisplayName,
     string? SenderAddress,
     string? Subject,
-    DateTimeOffset ReceivedAtUtc);
+    DateTimeOffset ReceivedAtUtc,
+    string Folder);
 
 internal sealed record MailToolDetail(
     MailToolSummary Summary,
@@ -378,7 +379,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one retained message: recipients, body text and its fresh text (what the sender wrote, without the history quoted beneath it), attachment names, thread, the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
+    [Description("Gets one retained message: recipients, body text and its fresh text (what the sender wrote, without the history quoted beneath it), attachment names, thread (the mailbox's kept messages of the conversation, sent and received, each with its folder), the versioned classification decision (its category code, or none while Unclassified) with its permanent correction history, the correction options, and the intake version with whether the message can be linked to a Case, or, once linked, whether its linked Case can be changed and the linked Case's version (the Case workflow version, or the Triage version for a Triage Case) that pegasus_mail_link_case unlink and change check. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
         [Description(MessageIdDescription)] Guid messageId,
         CancellationToken cancellationToken = default)
@@ -863,7 +864,8 @@ internal sealed class MailMcpTools(
                 item.SenderDisplayName,
                 item.SenderAddress,
                 item.Subject,
-                item.ReceivedAtUtc)).ToArray(),
+                item.ReceivedAtUtc,
+                MailListCodes.FolderCode(item.Folder))).ToArray(),
             detail.ClassificationOutcome?.ToString(),
             detail.RouteDisposition?.ToString(),
             detail.Classification is { } dossier ? Map(dossier) : null,

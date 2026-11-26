@@ -47,8 +47,9 @@ No Case Found when not, each a neutral chip; the message dialog's context
 bar and the first option of its Type select read the same (operator,
 30 October 2026, R559, R571). A row click opens `#mailMessageDialog`.
 
-The message dialog is full width. A context bar under the route line shows
-Case, Type and Query. The settings menu (cog, `#icon-settings`) holds, in
+The message dialog is full width. A context bar under the subject shows
+Case, Type and Query, with the message's outcome as one chip beside the Case
+(operator, 25 November 2026, R1275). The settings menu (cog, `#icon-settings`) holds, in
 order, Case (the Case, or None, with Link to Case, Change or Unlink beside
 it), Type (one select), Query (Open query or Mark query done), Change case
 (Place on Hold and Close case, only when the linked Case allows that act) and
@@ -108,8 +109,9 @@ folder, category and search filters stay visible and are kept when the operator
 returns from a message or a Case. A fresh visit resets to the default
 all-Inboxes view; there is no cross-session preference.
 
-The message record's Attachments tab states each attachment's own outcome
-([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
+The message dialog states the message's outcome once, beside its Case in
+the head, and no attachment carries one (operator, 25 November 2026, R1275;
+[FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 There is no `View in Outlook`. The in-app message, attachment and thread
 view was accepted as enough, so there is no Outlook navigation, action or
@@ -121,22 +123,48 @@ The message is the one reader, and it is a dialog over the Inbox (v41 items
 I2, I4 and I17, signed off 19 October 2026,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 The list has no quick preview. The dialog has one head: the subject, with
-From, To and received beneath, and Previous message and Next message at the
+the context bar beneath, and Previous message and Next message at the
 right beside Close, so the list can be read without closing it. Then come the
-tabs Message, Attachments and Thread, and the message beside Decision, and a
-foot. Opening, reading and moving between messages never changes
-classification, association, read state, Case state or custody.
+conversation and a foot. Opening, reading and moving between messages never
+changes classification, association, read state, Case state or custody.
+
+The conversation is one column with no tabs (operator, 25 November 2026,
+R1273 to R1275,
+[v54 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v54-email-dialogue/v54_planning/current/v54-notes.md)).
+It lists every retained message of the conversation, oldest first, each
+marked Received or Sent. The opened message is unfolded and marked. Every
+other message is one line (its sender, its direction, its first words, its
+attachment count and its time) and unfolds in place, with no request and
+without script. An unfolded message shows who it was sent to, its text in the
+sender's own paragraphs, and its attachments beneath it as rows of name, type
+(PDF, Image or Word) and size. A staff forward's row names its original
+sender, and the member of staff who forwarded it sits with the recipients.
+
+A message quoted inside an e-mail's text is not left in that text. One
+Pegasus also retains is not repeated. One it does not retain is a row of its
+own, marked Quoted, which opens as text. It is taken as retained when its
+sender and the opening of its text match a retained message of the
+conversation, and it keeps the place it has in the e-mail, whether or not its
+date can be read (R1280). Four shapes of quoted header are recognised:
+Outlook's From, Sent, To and Subject block, `Original Message`, `On ...
+wrote:` and Gmail's forwarded marker. Any other shape stays in the text as
+written.
+
+The dialog is 880px wide and 700px tall, or the height of the window less
+40px where that is smaller, whatever it shows. Only its body scrolls.
 
 Opening a message keeps the list's filter and position. The record shows the
-full retained message, its attachments and a chronological thread, and
+full retained message, its attachments and its conversation, and
 states the current classification, processing outcome and Case
 association before any action is offered. When a message opened a Triage
 and is linked to no Case, its Decision shows that Triage as its Case with
 Open Triage (operator ruling, 15 October 2026) and still offers Link to Case.
 
-The thread shows only retained messages in the same approved mailbox and
-folder scope. A matching thread identity never fetches or reveals other
-messages.
+The conversation shows only retained messages of the same approved mailbox,
+in any of its folders, so what Pegasus sent from that mailbox sits with what
+it received (operator, 25 November 2026, R1275). A matching thread identity
+never fetches or reveals other messages, and a reply sent from another
+approved mailbox is not joined.
 
 Until a retained message has yielded its original effective sender, the
 Inbox shows a neutral Processing state. It never shows the forwarding desk

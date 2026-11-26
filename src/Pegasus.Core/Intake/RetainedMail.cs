@@ -157,18 +157,57 @@ public sealed record RetainedMailAttachment(
     bool IsSearchable = false,
     Guid? IntakeAssetId = null);
 
+/// <summary>
+/// One kept message of the conversation, in the same mailbox and from any of
+/// its folders: <paramref name="Folder"/> tells a Sent message from a received one.
+/// </summary>
 public sealed record RetainedMailThreadEntry(
     Guid Id,
     string? SenderDisplayName,
     string? SenderAddress,
     string? Subject,
-    DateTimeOffset ReceivedAtUtc);
+    DateTimeOffset ReceivedAtUtc,
+    MailFolderScope Folder);
+
+/// <summary>Where a message of the conversation came from.</summary>
+public enum RetainedMailDirection
+{
+    Received,
+    Sent,
+    Quoted
+}
+
+/// <summary>
+/// One message of the conversation the dialogue stacks: a kept message, or one
+/// quoted inside a kept message that Pegasus does not keep (<paramref name="Id"/> null).
+/// </summary>
+/// <param name="SenderAddress">For a staff forward, the original sender's address.</param>
+/// <param name="ForwardedByAddress">The forwarding member of staff's address; null otherwise.</param>
+/// <param name="ReceivedAtUtc">When a kept message was received; null for a quoted one.</param>
+/// <param name="QuotedSentLocal">A quoted message's sent time where its header can be read, in no zone.</param>
+/// <param name="QuotedSentText">A quoted message's sent date as its header wrote it.</param>
+/// <param name="Text">That sender's own words, without the quoted history or a header block.</param>
+public sealed record RetainedMailConversationMessage(
+    Guid? Id,
+    RetainedMailDirection Direction,
+    string? SenderDisplayName,
+    string? SenderAddress,
+    string? ForwardedByAddress,
+    IReadOnlyList<string> ToAddresses,
+    IReadOnlyList<string> CcAddresses,
+    DateTimeOffset? ReceivedAtUtc,
+    DateTime? QuotedSentLocal,
+    string? QuotedSentText,
+    string Text,
+    IReadOnlyList<RetainedMailAttachment> Attachments,
+    Guid? IntakeReceiptId);
 
 /// <summary>
 /// One retained message in full. <paramref name="BodyPlainText"/> is the cleaned
 /// whole body; <paramref name="FreshBodyPlainText"/> is what its sender wrote,
 /// without the history quoted beneath it
-/// (<see cref="StaffForwardBodyCleaner.FreshBody"/>).
+/// (<see cref="StaffForwardBodyCleaner.FreshBody"/>). <paramref name="Conversation"/>
+/// is the whole conversation, oldest first, when it was asked for; null when not.
 /// </summary>
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
@@ -185,7 +224,8 @@ public sealed record RetainedMailDetail(
     string? InternetMessageId,
     string? ConversationId,
     MailClassificationDossier? Classification = null,
-    string? FreshBodyPlainText = null);
+    string? FreshBodyPlainText = null,
+    IReadOnlyList<RetainedMailConversationMessage>? Conversation = null);
 
 /// <summary>
 /// What the Inbox preview pane renders of one message: its summary, the
@@ -514,10 +554,16 @@ public interface IRetainedMailQueries
         IReadOnlyList<MailWorkspaceScope> scopes,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// One retained message in full. With <paramref name="withConversation"/> the
+    /// detail also carries the whole conversation the dialogue stacks; without it
+    /// the conversation is not read.
+    /// </summary>
     Task<RetainedMailDetail?> GetAsync(
         Guid id,
         CancellationToken cancellationToken,
-        string? searchTerm = null);
+        string? searchTerm = null,
+        bool withConversation = false);
 
     /// <summary>
     /// The preview pane's read: the attachments, the classification decision and
@@ -771,12 +817,20 @@ public sealed class GetRetainedMail(
         ActionActor actor,
         Guid messageId,
         CancellationToken cancellationToken = default)
-        => await ExecuteAsync(actor, messageId, searchTerm: null, cancellationToken);
+        => await ExecuteAsync(actor, messageId, searchTerm: null, withConversation: false, cancellationToken);
 
     public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
         Guid messageId,
         string? searchTerm,
+        CancellationToken cancellationToken = default)
+        => await ExecuteAsync(actor, messageId, searchTerm, withConversation: false, cancellationToken);
+
+    public async Task<RetainedMailDetail?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        string? searchTerm,
+        bool withConversation,
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -793,7 +847,8 @@ public sealed class GetRetainedMail(
         var detail = await queries.GetAsync(
             messageId,
             cancellationToken,
-            normalizedSearchTerm);
+            normalizedSearchTerm,
+            withConversation);
         return await CompleteAsync(detail, cancellationToken);
     }
 

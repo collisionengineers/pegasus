@@ -1700,6 +1700,139 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         Assert.Equal("instructions message", detail.Thread[0].Subject);
     }
 
+    /// <summary>
+    /// The thread's scope is the mailbox, not the folder: the mailbox's Sent
+    /// message of the conversation is in it beside the mail it answers, and
+    /// each entry names its folder.
+    /// </summary>
+    [Fact]
+    public async Task AThreadHoldsTheMailboxsSentMessagesOfTheConversation()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var received = Message("thread-received", subject: "Inspection");
+        await RetainAsync(database, received);
+        await RetainAsync(database, SentReply("thread-sent", "Booked for Thursday."));
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, received), CancellationToken.None));
+
+        Assert.Collection(
+            detail.Thread,
+            first =>
+            {
+                Assert.Equal("Inspection", first.Subject);
+                Assert.Equal(MailFolderScope.Inbox, first.Folder);
+            },
+            second =>
+            {
+                Assert.Equal("RE: Inspection", second.Subject);
+                Assert.Equal(MailFolderScope.Sent, second.Folder);
+            });
+        Assert.Null(detail.Conversation);
+    }
+
+    /// <summary>
+    /// Asked for, the conversation holds the received and the sent message
+    /// oldest first, each with its own words and its attachments; the
+    /// received message the reply quotes is not repeated.
+    /// </summary>
+    [Fact]
+    public async Task TheConversationHoldsReceivedAndSentMessagesOldestFirst()
+    {
+        var database = await shared.FreshAsync();
+        await SeedPollStateAsync(database);
+        var received = Message(
+            "conversation-received",
+            subject: "Inspection",
+            bodyPlainText: "Please inspect AB12CDE on Thursday.");
+        await RetainAsync(database, received);
+        var sent = SentReply("conversation-sent", "Booked for Thursday.");
+        await RetainAsync(database, sent);
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        await SeedConversationReceiptAsync(database, received, receiptId, assetId, "Please inspect AB12CDE on Thursday.");
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(
+                await RetainedIdAsync(database, received),
+                CancellationToken.None,
+                withConversation: true));
+
+        Assert.Equal(2, detail.Thread.Count);
+        var receivedId = await RetainedIdAsync(database, received);
+        var sentId = await RetainedIdAsync(database, sent);
+        Assert.Collection(
+            Assert.IsAssignableFrom<IReadOnlyList<RetainedMailConversationMessage>>(detail.Conversation),
+            first =>
+            {
+                Assert.Equal(receivedId, first.Id);
+                Assert.Equal(RetainedMailDirection.Received, first.Direction);
+                Assert.Equal("sender@example.invalid", first.SenderAddress);
+                Assert.Equal("A Sender", first.SenderDisplayName);
+                Assert.Equal((DateTimeOffset?)ReceivedAtUtc, first.ReceivedAtUtc);
+                Assert.Equal("Please inspect AB12CDE on Thursday.", first.Text);
+                Assert.Equal(receiptId, first.IntakeReceiptId);
+                var attachment = Assert.Single(first.Attachments);
+                Assert.Equal("estimate.pdf", attachment.FileName);
+                Assert.True(attachment.IsSearchable);
+                Assert.Equal(assetId, attachment.IntakeAssetId);
+            },
+            second =>
+            {
+                Assert.Equal(sentId, second.Id);
+                Assert.Equal(RetainedMailDirection.Sent, second.Direction);
+                Assert.Equal(MailboxAddress, second.SenderAddress);
+                Assert.Equal("Booked for Thursday.", second.Text);
+                Assert.Null(second.IntakeReceiptId);
+                var attachment = Assert.Single(second.Attachments);
+                Assert.Equal("estimate.pdf", attachment.FileName);
+                Assert.Null(attachment.IntakeAssetId);
+            });
+    }
+
+    /// <summary>
+    /// The conversation is read in a fixed number of statements: six members
+    /// send no more than three. The first read warms whatever the read keeps.
+    /// </summary>
+    [Fact]
+    public async Task TheConversationReadSendsNoMoreStatementsForMoreMembers()
+    {
+        var statements = new SqlStatementCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(statements));
+        await SeedPollStateAsync(database);
+        for (var member = 0; member < 3; member++)
+        {
+            await AddConversationMemberAsync(database, member);
+        }
+
+        var openedId = await database.ScalarAsync<Guid>(
+            "SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = 'growth-0';");
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        await queries.GetAsync(openedId, CancellationToken.None, withConversation: true);
+
+        statements.Reset();
+        var three = await queries.GetAsync(openedId, CancellationToken.None, withConversation: true);
+        var threeStatements = statements.Count;
+        for (var member = 3; member < 6; member++)
+        {
+            await AddConversationMemberAsync(database, member);
+        }
+
+        statements.Reset();
+        var six = await queries.GetAsync(openedId, CancellationToken.None, withConversation: true);
+
+        Assert.Equal(3, three?.Conversation?.Count);
+        Assert.Equal(6, six?.Conversation?.Count);
+        Assert.Equal(threeStatements, statements.Count);
+    }
+
     [Fact]
     public async Task PagingIsStableAndComplete()
     {
@@ -2432,6 +2565,68 @@ public sealed class RetainedMailPersistenceTests(RetainedMailDatabase shared)
         LocalDbTestDatabase database,
         RetainedMailboxMessage message) => database.ScalarAsync<Guid>(
             $"SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = '{message.ImmutableMessageId}';");
+
+    /// <summary>A reply the mailbox sent in the test conversation, quoting the received instruction.</summary>
+    private static RetainedMailboxMessage SentReply(string immutableMessageId, string text) => Message(
+        immutableMessageId,
+        subject: "RE: Inspection",
+        receivedAtUtc: ReceivedAtUtc.AddHours(1),
+        senderAddress: MailboxAddress,
+        senderDisplayName: null,
+        internetMessageIdentity: $"<{immutableMessageId}@pegasus.invalid>",
+        bodyPlainText: text + "\n\n"
+            + "From: A Sender <sender@example.invalid>\n"
+            + "Sent: 08 July 2031 09:10\n"
+            + "To: intake@collisionengineers.co.uk\n"
+            + "Subject: Inspection\n\n"
+            + "Please inspect AB12CDE on Thursday.") with
+    {
+        Folder = MailFolderScope.Sent
+    };
+
+    /// <summary>One received member of the conversation, with its receipt, body text and attachment.</summary>
+    private static async Task AddConversationMemberAsync(LocalDbTestDatabase database, int member)
+    {
+        var text = $"Member {member} of the conversation.";
+        var message = Message(
+            $"growth-{member}",
+            receivedAtUtc: ReceivedAtUtc.AddMinutes(member),
+            bodyPlainText: text);
+        await RetainAsync(database, message);
+        await SeedConversationReceiptAsync(database, message, Guid.NewGuid(), Guid.NewGuid(), text);
+    }
+
+    /// <summary>
+    /// The mailbox receipt of a retained message: its body search text and its
+    /// one attachment, read and kept as an asset.
+    /// </summary>
+    private static async Task SeedConversationReceiptAsync(
+        LocalDbTestDatabase database,
+        RetainedMailboxMessage message,
+        Guid receiptId,
+        Guid assetId,
+        string bodyText)
+    {
+        await using var context = await database.CreateContextAsync();
+        var receipt = Receipt(receiptId, message.ExternalReceiptToken);
+        receipt.SourceChannel = "mailbox";
+        receipt.Assets.Add(AttachmentAsset(assetId, receipt.Id, "message, attachment 1", "estimate.pdf", 2048, "A"));
+        receipt.SearchDocuments.AddRange(
+        [
+            new IntakeSearchDocumentEntity
+            {
+                Id = Guid.NewGuid(),
+                IntakeReceiptId = receipt.Id,
+                IntakeReceipt = receipt,
+                Ordinal = 0,
+                SourceLabel = "message body",
+                Text = bodyText
+            },
+            SearchDocument(receipt, 1, "message, attachment 1", "estimate.pdf", "Estimate text.", 0)
+        ]);
+        context.IntakeReceipts.Add(receipt);
+        await context.SaveChangesAsync();
+    }
 
     private static IntakeAssetEntity AttachmentAsset(
         Guid id,
