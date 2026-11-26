@@ -12,7 +12,7 @@ namespace Pegasus.Web.Authentication;
 
 /// <summary>
 /// The staff cookie's check on every request. It reads the account through
-/// <see cref="StaffAccountReads"/> and accepts the cookie only while its
+/// <see cref="EfStaffAccountQueries.GetAccountReadAsync"/> and accepts the cookie only while its
 /// security stamp is the account's current stamp, the session is inside its
 /// absolute lifetime and the account is enabled. It never rebuilds the
 /// principal: every change to a staff account's roles, claims, enabled state
@@ -56,7 +56,8 @@ internal static class StaffPrincipalValidator
         var stampClaimType = services.GetRequiredService<IOptions<IdentityOptions>>()
             .Value.ClaimsIdentity.SecurityStampClaimType;
         var user = Guid.TryParse(userManager.GetUserId(principal), out var userId)
-            ? await ReadAccountAsync(services, userManager, userId)
+            ? await services.GetRequiredService<EfStaffAccountQueries>()
+                .GetAccountReadAsync(userId, CancellationToken.None)
             : null;
         if (user is null || !StampMatches(user.SecurityStamp, principal.FindFirstValue(stampClaimType)))
         {
@@ -89,25 +90,12 @@ internal static class StaffPrincipalValidator
         return null;
     }
 
-    private static Task<StaffAccountRead?> ReadAccountAsync(
-        IServiceProvider services,
-        UserManager<PegasusIdentityUser> userManager,
-        Guid userId) =>
-        services.GetRequiredService<StaffAccountReads>().GetOrReadAsync(
-            userId,
-            async _ =>
-            {
-                var user = await userManager.FindByIdAsync(userId.ToString());
-                if (user is null)
-                {
-                    return null;
-                }
-
-                return new StaffAccountRead(user.SecurityStamp, user.IsEnabled, user.MustChangePassword);
-            },
-            CancellationToken.None);
-
-    private static bool StampMatches(string? current, string? presented) =>
+    /// <summary>
+    /// Whether a presented security stamp is the account's current one. The
+    /// Pegasus Desktop token check asks the same question of the stamp its
+    /// token carries (ADR-0092).
+    /// </summary>
+    public static bool StampMatches(string? current, string? presented) =>
         !string.IsNullOrEmpty(current)
         && presented is not null
         && CryptographicOperations.FixedTimeEquals(
