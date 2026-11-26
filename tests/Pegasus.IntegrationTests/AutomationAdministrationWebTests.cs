@@ -478,8 +478,8 @@ public sealed partial class AutomationAdministrationWebTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             Assert.False(await scope.ServiceProvider
-                .GetRequiredService<Pegasus.Core.Assessment.IAutomaticGuideValuationControl>()
-                .IsEnabledAsync(CancellationToken.None));
+                .GetRequiredService<Pegasus.Core.Assessment.IAutomaticRequestControl>()
+                .IsEnabledAsync(Pegasus.Core.Assessment.AutomaticRequestKind.GlassesValuation, CancellationToken.None));
             Assert.True(await scope.ServiceProvider
                 .GetRequiredService<ISendToAiControl>()
                 .IsEnabledAsync(CancellationToken.None));

@@ -897,10 +897,11 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     Pegasus.Core.Assessment.IFetchGuideValuation,
     Pegasus.Core.Assessment.FetchGuideValuation>();
-// A Case's one automatic Glass's valuation, recorded at its creation (R545,
-// R546), is run here, where the valuation account is, beside Get valuation.
-builder.Services.AddScoped<Pegasus.Core.Assessment.RunAutomaticGuideValuation>();
-builder.Services.AddHostedService<Pegasus.Web.Background.AutomaticGuideValuationService>();
+// A Case's automatic requests, recorded at its creation (R545, R546, R1286),
+// are run here, where the valuation and Experian accounts are, beside Get
+// valuation and Run Experian check.
+builder.Services.AddScoped<Pegasus.Core.Assessment.RunAutomaticRequest>();
+builder.Services.AddHostedService<Pegasus.Web.Background.AutomaticRequestService>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 builder.Services.AddScoped<Pegasus.Web.Intake.StaffIntakeActions>();
 if (developmentOfflineProfile)

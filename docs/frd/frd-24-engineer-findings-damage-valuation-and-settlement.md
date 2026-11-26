@@ -269,6 +269,13 @@ the request: a vehicle Glass's cannot value or a provider that cannot answer
 records nothing and shows no notice. A Case that is closed, or whose current
 work already holds a Glass's card, is not asked. Any later valuation is Get
 valuation. It never chooses the card as the basis.
+Brego, Cazana and CAP each have the same automatic request behind a switch of
+their own (operator, 26 November 2026, [R1286](../rulings.md)): each new Case
+has one automatic valuation request per source whose switch is on, Glass's
+among them, recorded at its creation and run as the Glass's request is, for
+that source and as that source's own recorder. The Brego, Cazana and CAP
+switches are off until turned on ([R1287](../rulings.md)); a Case created
+while one is off has no request of that source, then or later.
 Cazana's Get valuation signs in with the Cazana Companion account, runs one
 metered Companion lookup for the Case's accepted registration at its accepted
 mileage, and fills the card with Cazana's retail and trade (`remarket`;
@@ -312,9 +319,10 @@ costs nothing. A later month counts as the current month it is valued in, and
 so does every ask of CAP ([R1203](../rulings.md)).
 Only an answer with figures uses the ask: a source that cannot answer or
 cannot value the vehicle may be asked again. A corrected accepted
-registration or mileage allows each source and month one more ask. The
-automatic Glass's request is that month's Glass's ask, and it is settled
-unasked when Glass's has already answered. Get valuation stays on the card;
+registration or mileage allows each source and month one more ask. Each
+source's automatic request is that month's ask of that source, and it is
+settled unasked when the source has already answered
+([R1286](../rulings.md)). Get valuation stays on the card;
 a press for a month already answered asks nothing and the card says
 `{Source} has already been asked for this Case.`
 CAP's Get valuation asks Experian, on the API of the vehicle history check

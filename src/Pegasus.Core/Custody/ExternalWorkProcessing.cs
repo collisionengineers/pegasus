@@ -19,6 +19,21 @@ public static class ExternalWorkKinds
     /// creation and run by the Web host, which holds the valuation account.
     /// </summary>
     public const string GuideValuation = "guide_valuation";
+
+    /// <summary>A Case's one automatic Brego valuation request (R1286), run as Glass's is.</summary>
+    public const string BregoGuideValuation = "guide_valuation_brego";
+
+    /// <summary>A Case's one automatic Cazana valuation request (R1286), run as Glass's is.</summary>
+    public const string CazanaGuideValuation = "guide_valuation_cazana";
+
+    /// <summary>A Case's one automatic CAP valuation request (R1286), run as Glass's is.</summary>
+    public const string CapGuideValuation = "guide_valuation_cap";
+
+    /// <summary>
+    /// A Case's one automatic Experian vehicle history check (R1286), run by
+    /// the Web host as the valuations are.
+    /// </summary>
+    public const string VehicleHistoryCheck = "vehicle_history_check";
 }
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);

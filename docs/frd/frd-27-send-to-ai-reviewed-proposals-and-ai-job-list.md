@@ -196,7 +196,9 @@ Automatic Glass's valuation switch
 R546, 29 October 2026), and one Save. Turning Send to AI off refuses new AI
 jobs at once. A Save that leaves a switch as it was writes no history for it.
 Each change is attributed and kept in permanent history. An absent switch
-record means on.
+record means on, except for the automatic Brego, Cazana and CAP valuation and
+Experian check switches added on 26 November 2026, for which it means off
+([R1287](../rulings.md)).
 
 There is no connector address, timeout or token: no Send to AI request is
 pushed to a channel.

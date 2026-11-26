@@ -295,6 +295,27 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.NotNull(archived.Archive);
     }
 
+    /// <summary>
+    /// The automatic requests settle themselves on a closed Case (R545,
+    /// R1286), so one still waiting, the Experian check among them, never
+    /// holds up the Case's archive.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveIsNotHeldByAWaitingAutomaticRequest()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var request = await PrepareArchiveRequestAsync(harness, "automatic-requests");
+        foreach (var kind in EfAutomaticRequestStore.WorkKinds)
+        {
+            _ = await harness.AddExternalWorkAsync(harness.TaskCaseId, "pending", kind);
+        }
+
+        var archived = await harness.ArchiveCase.ExecuteAsync(request, default);
+
+        Assert.NotNull(archived.Archive);
+        Assert.Contains(ExternalWorkKinds.VehicleHistoryCheck, EfAutomaticRequestStore.WorkKinds);
+    }
+
     [Fact]
     public async Task ArchiveFailsClosedForAnUnknownExternalWorkKindEvenWhenCompleted()
     {

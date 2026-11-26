@@ -2254,12 +2254,12 @@ public sealed partial class EfCaseWorkflowStore(
                         || (item.Kind == ExternalWorkKinds.VehicleLookup
                             && item.State != "completed"
                             && item.State != "failed")
-                        // The automatic Glass's valuation settles itself on a
-                        // closed Case and never holds up its archive.
+                        // The automatic requests settle themselves on a closed
+                        // Case and never hold up its archive.
                         || (item.Kind != ExternalWorkKinds.CreateCaseCustody
                             && item.Kind != ExternalWorkKinds.CreateAuditReferenceCustody
                             && item.Kind != ExternalWorkKinds.VehicleLookup
-                            && item.Kind != ExternalWorkKinds.GuideValuation)),
+                            && !EfAutomaticRequestStore.WorkKinds.Contains(item.Kind))),
                 cancellationToken);
         return new(isCustodyConfirmed, hasBlockingExternalWork);
     }
