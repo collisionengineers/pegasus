@@ -163,12 +163,14 @@ the sender's servers load, and pictures embedded in the e-mail are part of
 the view, so there is no separate picture address.
 
 Each attachment row offers **View** and **Download** (operator, 25 November
-2026, R1275, which replaces R950 for mail attachments). View draws a PDF or an
-image in the viewer over the dialog, before the message has a Case as after:
-the shared evidence viewer on the Inbox and on a Triage Case, the Case's own
-viewer on a Case. A Word document has View wherever Box holds the file, as a
-PDF rendering of it (R949, R1280), and reads **Preview unavailable**
-otherwise; so does any other file the viewer cannot draw. Download gives the
+2026, R1275, which replaces R950 for mail attachments). View draws a PDF or a
+JPEG, PNG or WebP image in the viewer over the dialog, before the message has
+a Case as after: the shared evidence viewer on the Inbox and on a Triage Case,
+the Case's own viewer on a Case. A Word document has View wherever Box holds
+the file, as a PDF rendering of it (R949, R1280), and reads **Preview
+unavailable** otherwise; so does any other file the viewer cannot draw, and any other image
+type, since an attachment's type is the one its sender declared and only those
+three are served from Pegasus's address as themselves. Download gives the
 retained file. Previous and Next in the viewer move among that message's
 attachments and pass over one that cannot be shown. Escape closes an open
 file first, then the dialog. No attachment carries an outcome or a note of

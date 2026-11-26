@@ -13,8 +13,8 @@ namespace Pegasus.Web.Pages.Intake;
 /// render inline for the evidence viewer; every other type is a forced
 /// download, so retained SVG, HTML or scripts can never execute from this
 /// origin. Asked with <c>inline=true</c>, as an e-mail's View asks (R1275),
-/// an image or a PDF the viewer draws is inline too; anything else is still
-/// the download.
+/// a PDF is inline too; anything else, another image type included, is
+/// still the download.
 /// </summary>
 /// <remarks>
 /// An inline answer is kept by the browser only when the address names its
@@ -89,18 +89,15 @@ public sealed partial class AssetModel(
             // Keep the intake route at the same safe raster boundary used by
             // report rendering. SVG is an image media type but can execute
             // active content when navigated from this origin.
-            if (!mediaType.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-                && !mediaType.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)
-                && !mediaType.MediaType.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
+            if (!CaseDocumentPreviews.IsInlineIntakeImage(mediaType.MediaType))
             {
-                // The viewer's own request (R1275): what it draws as a file
-                // of its own -- an image other than SVG, or a PDF, an
-                // octet-stream one known by its name included -- is shown,
-                // a PDF as application/pdf. SVG, video, Word and anything
-                // unknown stay the download.
+                // The viewer's own request (R1275): a PDF, an octet-stream
+                // one known by its name included, is shown as
+                // application/pdf. The admitted images are served above; any
+                // other image type, SVG, video, Word and anything unknown
+                // stay the download, because the type is the sender's.
                 var kind = CaseDocumentPreviews.KindOf(asset.ContentType, asset.FileName);
-                if (inline && !wantsTile
-                    && kind is CaseDocumentPreviewKind.Image or CaseDocumentPreviewKind.Pdf)
+                if (inline && !wantsTile && kind is CaseDocumentPreviewKind.Pdf)
                 {
                     if (IntakeImageAddress.NamesContent(v, asset.Sha256))
                     {
