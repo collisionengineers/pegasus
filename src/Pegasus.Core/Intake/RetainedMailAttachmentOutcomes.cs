@@ -155,10 +155,19 @@ public sealed class GetRetainedMailOutcome(
             return null;
         }
 
+        // A receipt that was read and has reached a Case states that Case
+        // whatever else it produced (the policy's order), so its image record
+        // and Unidentified item are read only where it has not.
+        var reachedCase = receipt.CurrentCaseId is not null
+            && receipt.Decision is not (IntakeDecision.Unsupported or IntakeDecision.OcrRequired);
         var messageFacts = new AttachmentOutcomeFacts(
             receipt,
-            await ImageRecordAsync(imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken)),
-            await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken),
+            reachedCase
+                ? null
+                : await ImageRecordAsync(imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken)),
+            reachedCase
+                ? null
+                : await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken),
             MemberCouldNotBeRead: false);
         var (kind, record, reason) = RetainedMailAttachmentOutcomePolicy.Decide(messageFacts);
         return new(kind, record, reason);
