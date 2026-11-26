@@ -114,6 +114,12 @@ does for `Features:LocalIntake`.
 
 `Features:AutomationMcp` with `AutomationMcp:UseDevelopmentKeys` and
 `Features:PrincipalApi` already compose offline and need no further switch.
+`AutomationMcp:DesktopRedirectUris` offers sign-in from Pegasus Desktop
+([ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md), R1297): one or
+more `http` addresses on a loopback IP address, comma or semicolon separated,
+such as `http://127.0.0.1/callback`. Without it there is no Pegasus Desktop
+client. No deployment definition sets it, so production offers no such
+sign-in.
 The lifecycle passes these settings to the hosts from the ignored local
 settings file described in the [runbook](../runbook.md#local-live-integration-run);
 no tracked file carries them.

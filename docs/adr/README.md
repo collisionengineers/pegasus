@@ -49,7 +49,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | accepted | ADR-0044, ADR-0068 (separate Sent-evidence activation) | — |
 | [ADR-0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | accepted | — | RPT-01, RPT-02, RPT-03, RPT-04, RPT-05, INT-10, INT-11, INT-12 |
 | [ADR-0026](superseded/0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | superseded | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
-| [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041, ADR-0087 (consent per scope) | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
+| [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041, ADR-0087 (consent per scope), ADR-0092 (per-staff tokens, for Pegasus Desktop) | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0028](superseded/0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
 | [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted; expired at cutover, 2 November 2026 (R603) | ADR-0046 (partial) | — |
@@ -114,6 +114,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0089](0089-experian-vehicle-history-check.md) | Experian vehicle history check | accepted | — | EXT-20, EXT-07, EXT-13 |
 | [ADR-0090](0090-public-photo-capture-surface.md) | Public photo capture surface | accepted | — | EXT-21, INT-34 |
 | [ADR-0091](0091-integration-logins-in-the-database.md) | Integration logins in the database | accepted | — | EXT-07, EXT-13, EXT-20 |
+| [ADR-0092](0092-staff-sign-in-for-pegasus-desktop.md) | Staff sign-in for Pegasus Desktop | accepted | — | ACC-01, ACC-03, MCP-01 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
