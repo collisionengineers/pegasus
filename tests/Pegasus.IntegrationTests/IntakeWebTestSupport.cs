@@ -319,7 +319,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         CaseWebTestSupport.Substitute<IListCaseEstimates>(services, reads);
         CaseWebTestSupport.Substitute<ILabourRateCardStore>(services, reads);
         CaseWebTestSupport.Substitute<IUnroadworthyReasonBankStore>(services, reads);
-        CaseWebTestSupport.Substitute<IPrincipalSalvageMatrixQueries>(services, reads);
         CaseWebTestSupport.Substitute<ICaseReportSnapshotSource>(services, reads);
         CaseWebTestSupport.Substitute<ICaseReportGenerationStore>(services, reads);
         CaseWebTestSupport.Substitute<ISendToAiControl>(services, reads);

@@ -238,8 +238,11 @@ and a sender that is both a direct identity and an intermediary fails closed
 made from an intermediary's mail takes that Claim Source, unless its
 instruction names another
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration);
-operator, 12 November 2026, [R1014](../rulings.md), [R1017](../rulings.md)). An
-accepted sender on its own classifies and allocates nothing.
+operator, 12 November 2026, [R1014](../rulings.md), [R1017](../rulings.md)).
+When neither gives one, the Case takes the one Claim Source linked to its
+Principal that the instruction's text names, and its Repairer the same way
+(operator, 25 November 2026, [R1264](../rulings.md)). An accepted sender on
+its own classifies and allocates nothing.
 
 **One document.** A profile is chosen from its signals within one physical
 current document, not assembled across attachments. Separate reports cannot

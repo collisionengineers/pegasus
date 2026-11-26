@@ -63,11 +63,10 @@ public sealed class CaseReportDeliveryTests
     public void AddressingFollowsThePrincipalsRules()
     {
         var addressing = AddressedByPlan(Facts(
-            PrincipalReportSendingRules.Default with
-            {
-                SendTo = ["handler@principal.example"],
-                Cc = ["copy@principal.example"]
-            },
+            Every([
+                new(ReportSendingActionKind.SendTo, ["handler@principal.example"]),
+                new(ReportSendingActionKind.Cc, ["copy@principal.example"])
+            ]),
             Instruction(cc: ["a@insurer.example"])));
 
         Assert.Equal("handler@principal.example", Assert.Single(addressing.To).Address);
@@ -79,7 +78,7 @@ public sealed class CaseReportDeliveryTests
     public void AddressingRepliesToTheOriginalSenderAndNeverCopiesThemAgain()
     {
         var addressing = AddressedByPlan(Facts(
-            PrincipalReportSendingRules.Default with { Cc = ["Instructor@Insurer.example"] }));
+            Every([new(ReportSendingActionKind.Cc, ["Instructor@Insurer.example"])])));
 
         Assert.Equal(Instructor, Assert.Single(addressing.To).Address);
         Assert.Empty(addressing.Cc);
@@ -125,7 +124,7 @@ public sealed class CaseReportDeliveryTests
     public void TheSuggestedReviewIsThePlansToAndCc()
     {
         var plan = ReportDispatchPolicy.Plan(
-            Facts(PrincipalReportSendingRules.Default with { Cc = ["copy@principal.example"] },
+            Facts(Every([new(ReportSendingActionKind.Cc, ["copy@principal.example"])]),
                 Instruction(cc: ["a@insurer.example"])),
             GeneratedAtUtc);
 
@@ -191,10 +190,7 @@ public sealed class CaseReportDeliveryTests
     public void AttachChoiceAddsTheRequiredCompanionsAndRefusesAMissingOne()
     {
         var plan = ReportDispatchPolicy.Plan(
-            Facts(PrincipalReportSendingRules.Default with
-            {
-                Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true }
-            }),
+            Facts(Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.VehicleImagesDocument)])),
             GeneratedAtUtc);
         CaseReportArtifactKind[] confirmed =
             [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack, CaseReportArtifactKind.FeeNote];
@@ -781,7 +777,7 @@ public sealed class CaseReportDeliveryTests
     public async Task ANeverCcAddressStaffTypedIsNotSentTo()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with { NeverCc = ["never@insurer.example"] });
+        var facts = Facts(Every([new(ReportSendingActionKind.NeverCc, ["never@insurer.example"])]));
 
         await Use(new FixedGenerations(Generation()), send, facts: facts).ExecuteAsync(
             Request(facts) with
@@ -805,25 +801,19 @@ public sealed class CaseReportDeliveryTests
     [Fact]
     public async Task ARuleTheCaseCannotMeetAddsNothingAndOneItMeetsAddsItsCopy()
     {
-        var rules = PrincipalReportSendingRules.Default with
-        {
-            Rules =
-            [
-                new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.Mentions, ["Luton"])],
-                    new(["luton@rule.example"], []))
-            ]
-        };
+        var rules = Every(
+            [],
+            [new([[new(ReportSendingFact.ClaimSource, [LutonSourceId.ToString("D")])]], [new(ReportSendingActionKind.Cc, ["luton@rule.example"])])]);
         var unset = new RecordingSend();
-        var noText = Facts(rules);
+        var noSource = Facts(rules);
 
-        await Use(new FixedGenerations(Generation()), unset, facts: noText)
-            .ExecuteAsync(Request(noText), CancellationToken.None);
+        await Use(new FixedGenerations(Generation()), unset, facts: noSource)
+            .ExecuteAsync(Request(noSource), CancellationToken.None);
 
         Assert.Empty(Assert.Single(unset.Commands).Mail.Cc);
 
         var met = new RecordingSend();
-        var mentioned = Facts(rules) with { InstructionText = "Inspection at the Luton depot" };
+        var mentioned = Facts(rules) with { ClaimSourceId = LutonSourceId };
 
         await Use(new FixedGenerations(Generation()), met, facts: mentioned)
             .ExecuteAsync(Request(mentioned), CancellationToken.None);
@@ -835,7 +825,7 @@ public sealed class CaseReportDeliveryTests
     public async Task SendRefusesAFormDrawnFromOtherRules()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with { Hold = "Wait." });
+        var facts = Facts(Every([new(ReportSendingActionKind.Hold, Text: "Wait.")]));
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => Use(
                 new FixedGenerations(Generation()), send, facts: facts)
@@ -849,15 +839,8 @@ public sealed class CaseReportDeliveryTests
     public async Task ARulesStopNeedsAReasonAndTheSendRecordsTheOverride()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Rules =
-            [
-                new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.Outcome, ["repairable"])],
-                    new([], [], Stop: "Do not send yet."))
-            ]
-        }) with { Outcome = "repairable" };
+        var facts = Facts(Every([], [WhenRepairable([new(ReportSendingActionKind.Stop, Text: "Do not send yet.")])]))
+            with { Outcome = "repairable" };
         var sendReport = Use(new FixedGenerations(Generation()), send, facts: facts);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -891,16 +874,10 @@ public sealed class CaseReportDeliveryTests
     public async Task EveryHoldMustBeTickedBeforeTheReportIsSent()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Hold = "Authorise the garage.",
-            Rules =
-            [
-                new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.Outcome, ["repairable"])],
-                    new([], [], Hold: "Check the WhatsApp group."))
-            ]
-        }) with { Outcome = "repairable" };
+        var facts = Facts(Every(
+            [new(ReportSendingActionKind.Hold, Text: "Authorise the garage.")],
+            [WhenRepairable([new(ReportSendingActionKind.Hold, Text: "Check the WhatsApp group.")])]))
+            with { Outcome = "repairable" };
         var sendReport = Use(new FixedGenerations(Generation()), send, facts: facts);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
@@ -921,17 +898,13 @@ public sealed class CaseReportDeliveryTests
     public async Task TheSendRecordsWhatStaffStillOweAfterSending()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Reminders = ["Send the WhatsApp."],
-            GarageFigures = true,
-            Rules =
+        var facts = Facts(Every(
+            [new(ReportSendingActionKind.Task, Text: "Send the WhatsApp.")],
             [
-                new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.Outcome, ["repairable"])],
-                    new([], [], Remind: "Tell Andy."))
-            ]
-        }) with { Outcome = "repairable" };
+                WhenRepairable([new(ReportSendingActionKind.Task, Text: "Tell Andy.")]),
+                WhenRepairable([new(ReportSendingActionKind.Task, Text: ReportDispatchPolicy.GarageFiguresTask)])
+            ]))
+            with { Outcome = "repairable" };
 
         await Use(new FixedGenerations(Generation()), send, facts: facts).ExecuteAsync(
             Request(facts), CancellationToken.None);
@@ -1151,10 +1124,7 @@ public sealed class CaseReportDeliveryTests
             CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote,
             CaseReportArtifactKind.RepairSpecification);
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { FigureBreakdown = true }
-        });
+        var facts = Facts(Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.FigureBreakdown)]));
 
         await Use(new FixedGenerations(generation), send, facts: facts).ExecuteAsync(
             Request(facts) with { Attach = [CaseReportArtifactKind.AssessmentReport] },
@@ -1169,10 +1139,7 @@ public sealed class CaseReportDeliveryTests
     public async Task SendRefusesARequiredCompanionThatIsNotGenerated()
     {
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true }
-        });
+        var facts = Facts(Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.VehicleImagesDocument)]));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => Use(
                 new FixedGenerations(Generation()), send, facts: facts)
@@ -1195,10 +1162,7 @@ public sealed class CaseReportDeliveryTests
     {
         var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { Audatex = true }
-        }) with
+        var facts = Facts(Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)])) with
         {
             FiledEstimates = [new(AudatexEstimate, "Audatex"), new(OtherEstimate, "Glass's")]
         };
@@ -1225,10 +1189,7 @@ public sealed class CaseReportDeliveryTests
         var stem = AudatexEstimate.FileName[..^".pdf".Length];
         var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
         var send = new RecordingSend();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { Audatex = true }
-        }) with
+        var facts = Facts(Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)])) with
         {
             FiledEstimates = [new(AudatexEstimate, "Audatex")]
         };
@@ -1268,15 +1229,11 @@ public sealed class CaseReportDeliveryTests
             OccurrenceId = Guid.NewGuid(),
             Attachment = ExternalEstimate.Attachment with { DocumentId = Guid.NewGuid(), VersionId = Guid.NewGuid(), FileName = "second.pdf" }
         };
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with
-            {
-                Audatex = true,
-                OfferExternalEstimates = true,
-                OfferRepairInvoices = true
-            }
-        }) with
+        var facts = Facts(Every([
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferRepairInvoices)
+        ])) with
         {
             FiledEstimates = [new(AudatexEstimate, "Audatex")],
             OfferableFiles = [ExternalEstimate, unticked, RepairInvoice]
@@ -1316,10 +1273,10 @@ public sealed class CaseReportDeliveryTests
     public async Task SendRefusesAnOfferedFileThePlanDoesNotOffer()
     {
         var generation = Generation(CaseReportArtifactKind.AssessmentReport);
-        var rules = PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { Estimate = true, OfferExternalEstimates = true }
-        };
+        var rules = Every([
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates)
+        ]);
         var facts = Facts(rules) with
         {
             FiledEstimates = [new(OtherEstimate, "Glass's")],
@@ -1343,8 +1300,8 @@ public sealed class CaseReportDeliveryTests
             Assert.Empty(send.Commands);
         }
 
-        // With the Principal's tick off, the file once offered is refused too.
-        var offOnly = facts with { Rules = rules with { Attach = rules.Attach with { OfferExternalEstimates = false } } };
+        // Without the Principal's Offer action, the file once offered is refused too.
+        var offOnly = facts with { Rules = Every([new(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate)]) };
         var offSend = new RecordingSend();
         await Assert.ThrowsAsync<StaffMailAttachmentSelectionException>(
             () => Use(new FixedGenerations(generation), offSend, facts: offOnly).ExecuteAsync(
@@ -1367,15 +1324,11 @@ public sealed class CaseReportDeliveryTests
     {
         var generation = Generation(CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote);
         var estimateOccurrence = Guid.NewGuid();
-        var facts = Facts(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with
-            {
-                Audatex = true,
-                OfferExternalEstimates = true,
-                OfferRepairInvoices = true
-            }
-        }) with
+        var facts = Facts(Every([
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferRepairInvoices)
+        ])) with
         {
             FiledEstimates = [new(AudatexEstimate, "Audatex", estimateOccurrence)],
             OfferableFiles = [ExternalEstimate, RepairInvoice]
@@ -1755,19 +1708,25 @@ public sealed class CaseReportDeliveryTests
         actor ?? Staff(), CaseId, GenerationId, 1, [ReportAttachment]);
 
     /// <summary>
-    /// Rules with a Principal hold and a Stop that holds on the repairable
+    /// Rules with an every-Case hold and a Stop that holds on the repairable
     /// outcome.
     /// </summary>
-    private static ReportDispatchFacts DecidingFacts() => Facts(PrincipalReportSendingRules.Default with
-    {
-        Hold = "Authorise the garage.",
-        Rules =
-        [
-            new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.Outcome, ["repairable"])],
-                new([], [], Stop: "Do not send yet."))
-        ]
-    }) with { Outcome = "repairable" };
+    private static ReportDispatchFacts DecidingFacts() => Facts(Every(
+        [new(ReportSendingActionKind.Hold, Text: "Authorise the garage.")],
+        [WhenRepairable([new(ReportSendingActionKind.Stop, Text: "Do not send yet.")])]))
+        with { Outcome = "repairable" };
+
+    private static readonly Guid LutonSourceId = Guid.Parse("00000000-0000-4000-8000-0000000000b1");
+
+    /// <summary>The default every-Case actions and then <paramref name="more"/>, with <paramref name="rules"/>.</summary>
+    private static PrincipalReportSendingRules Every(
+        IReadOnlyList<ReportSendingAction> more,
+        IReadOnlyList<ReportSendingRule>? rules = null) =>
+        new([.. PrincipalReportSendingRules.Default.EveryCase, .. more], rules ?? []);
+
+    /// <summary>A rule "If Outcome is Repairable, then …".</summary>
+    private static ReportSendingRule WhenRepairable(IReadOnlyList<ReportSendingAction> then) =>
+        new([[new(ReportSendingFact.Outcome, ["repairable"])]], then);
 
     private static ReportDispatchFacts Facts(
         PrincipalReportSendingRules? rules = null,

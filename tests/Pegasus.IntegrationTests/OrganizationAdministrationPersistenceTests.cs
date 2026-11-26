@@ -3,7 +3,6 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Address;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -42,7 +41,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             Administrator,
             operationKey,
             "Confirm contact-owned report settings",
-            205.00m,
+            false,
             contactVersion,
             new PrincipalReportNames(null, null, " {REG}_{CASE REF}_AUDIT ", null),
             " GB 123 4567 89 ",
@@ -54,13 +53,14 @@ public sealed class OrganizationAdministrationPersistenceTests
         var updated = await update.ExecuteAsync(
             Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
         Assert.Equal(principal.Version + 1, updated.Version);
-        Assert.Equal(205.00m, updated.DefaultFee);
-        // The report names are saved with the fee, trimmed (R740).
+        // Report images is saved with the report settings (R1267).
+        Assert.False(updated.ReportImages);
+        // The report names are saved with them, trimmed (R740).
         Assert.Equal(new PrincipalReportNames(null, null, "{REG}_{CASE REF}_AUDIT", null), updated.ReportNames);
         Assert.Equal("{REG}_{CASE REF}_AUDIT", await (await factory.DatabaseAsync).ScalarAsync<string>(
             $"SELECT AuditReportNameFirst FROM Principals WHERE Id = '{principal.Id:D}';"));
-        Assert.Equal(205.00m, await (await factory.DatabaseAsync).ScalarAsync<decimal>(
-            $"SELECT DefaultFee FROM Principals WHERE Id = '{principal.Id:D}';"));
+        Assert.False(await (await factory.DatabaseAsync).ScalarAsync<bool>(
+            $"SELECT ReportImages FROM Principals WHERE Id = '{principal.Id:D}';"));
         // The fee note VAT number is saved with them, trimmed and as typed (R1006, R1007).
         Assert.Equal("GB 123 4567 89", updated.FeeNoteVatNumber);
         Assert.Equal("GB 123 4567 89", await (await factory.DatabaseAsync).ScalarAsync<string>(
@@ -105,24 +105,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .SingleAsync();
         var update = services.GetRequiredService<IUpdatePrincipalReportSending>();
         var getPrincipal = services.GetRequiredService<IGetPrincipal>();
-        var rules = PrincipalReportSendingRules.Default with
-        {
-            SendFromMailbox = "engineers@collisionengineers.co.uk",
-            SendTo = ["to@example.com"],
-            Cc = ["cc@example.com"],
-            Attach = new(FeeNoteSeparate: false, Estimate: true),
-            Hold = "Check first.",
-            Rules =
-            [
-                new(
-                    ReportSendingRuleMatch.Any,
-                    [
-                        new(ReportSendingConditionKind.Outcome, ["repairable"]),
-                        new(ReportSendingConditionKind.Mentions, ["Luton"])
-                    ],
-                    new(["rule@example.com"], [], Stop: "Stop."))
-            ]
-        };
+        var rules = Rules("Check first.");
 
         UpdatePrincipalReportSendingRequest Request(
             long principalVersion, long contactVersion, string operationKey, PrincipalReportSendingRules value) => new(
@@ -153,26 +136,43 @@ public sealed class OrganizationAdministrationPersistenceTests
                 "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:report-sending:first' AND EventKind = 'principal_report_sending_updated';"));
         var after = await getPrincipal.ExecuteAsync(Administrator, principal.Id, default);
         Assert.Equal(rules, after!.Principal.ReportSending);
+        // Stored in the built shape, enums by name (R1267).
         Assert.Equal(
             "Check first.",
             await (await factory.DatabaseAsync).ScalarAsync<string>(
-                $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.hold') FROM Principals WHERE Id = '{principal.Id:D}';"));
+                $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.everyCase[4].text') FROM Principals WHERE Id = '{principal.Id:D}';"));
+        Assert.Equal(
+            "Sender",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                $"SELECT JSON_VALUE(ReportSendingRulesJson, '$.rules[0].if[1][0].fact') FROM Principals WHERE Id = '{principal.Id:D}';"));
+        // The history and the receipt write the rules' enums by name too, so
+        // the record reads as the stored rules do.
+        var historyAfter = await (await factory.DatabaseAsync).ScalarAsync<string>(
+            "SELECT AfterJson FROM ActionHistory WHERE CorrelationId = 'principal:report-sending:first' AND EventKind = 'principal_report_sending_updated';");
+        Assert.Contains("\"kind\":\"SendTo\"", historyAfter, StringComparison.Ordinal);
+        Assert.Contains("\"fact\":\"Outcome\"", historyAfter, StringComparison.Ordinal);
+        Assert.Contains("\"file\":\"Estimate\"", historyAfter, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"kind\":\"Stop\"",
+            await (await factory.DatabaseAsync).ScalarAsync<string>(
+                "SELECT ResultJson FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:report-sending:first';"),
+            StringComparison.Ordinal);
 
         var conflict = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             update.ExecuteAsync(
-                Request(principal.Version, principal.ContactVersion, "principal:report-sending:first", rules with { Hold = "Different." }),
+                Request(principal.Version, principal.ContactVersion, "principal:report-sending:first", Rules("Different.")),
                 default));
         Assert.Equal(OrganizationAdministrationError.OperationConflict, conflict.Error);
 
         var staleContact = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             update.ExecuteAsync(
-                Request(updated.Version, principal.ContactVersion, "principal:report-sending:stale-contact", rules with { Hold = "Other." }),
+                Request(updated.Version, principal.ContactVersion, "principal:report-sending:stale-contact", Rules("Other.")),
                 default));
         Assert.Equal(OrganizationAdministrationError.StaleVersion, staleContact.Error);
 
         var stalePrincipal = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             update.ExecuteAsync(
-                Request(principal.Version, principal.ContactVersion + 1, "principal:report-sending:stale-principal", rules with { Hold = "Other." }),
+                Request(principal.Version, principal.ContactVersion + 1, "principal:report-sending:stale-principal", Rules("Other.")),
                 default));
         Assert.Equal(OrganizationAdministrationError.StaleVersion, stalePrincipal.Error);
 
@@ -183,9 +183,147 @@ public sealed class OrganizationAdministrationPersistenceTests
 
         var refused = await Assert.ThrowsAsync<ReportSendingRulesException>(() =>
             update.ExecuteAsync(
-                Request(updated.Version, principal.ContactVersion + 2, "principal:report-sending:refused", rules with { Cc = ["not an address"] }),
+                Request(updated.Version, principal.ContactVersion + 2, "principal:report-sending:refused",
+                    rules with { EveryCase = [new(ReportSendingActionKind.Cc, Addresses: NotAnAddress)] }),
                 default));
         Assert.Equal(ReportSendingRulesRule.InvalidAddress, refused.Rule);
+        Assert.Null(refused.RuleIndex);
+    }
+
+    private static readonly string[] NotAnAddress = ["not an address"];
+
+    /// <summary>
+    /// Every-Case actions with a Hold of <paramref name="hold"/>, and one rule
+    /// of two groups: Outcome is Repairable, or Sender is not the Principal's
+    /// own address.
+    /// </summary>
+    private static PrincipalReportSendingRules Rules(string hold) => new(
+        [
+            new(ReportSendingActionKind.SendTo, Addresses: ["to@example.com"]),
+            new(ReportSendingActionKind.Cc, Addresses: ["cc@example.com"]),
+            new(ReportSendingActionKind.ReplyAll),
+            new(ReportSendingActionKind.Attach, File: ReportSendingFile.Estimate),
+            new(ReportSendingActionKind.Hold, Text: hold)
+        ],
+        [
+            new(
+                [
+                    [new(ReportSendingFact.Outcome, ["repairable"])],
+                    [new(ReportSendingFact.Sender, ["principal@example.com"], Not: true)]
+                ],
+                [
+                    new(ReportSendingActionKind.Cc, Addresses: ["rule@example.com"]),
+                    new(ReportSendingActionKind.Stop, Text: "Stop.")
+                ])
+        ]);
+
+    /// <summary>
+    /// A Principal contact's save carries its Case defaults (operator, 25
+    /// November 2026; R1266, R1267): the fee, the default inspection location
+    /// and the Send from mailbox are written to the current Principal, its
+    /// version and the contact's both move, and the save's history records
+    /// them. Image Based Assessment clears the location, a physical address
+    /// may have none, and an existing Principal must post a fee.
+    /// </summary>
+    [Fact]
+    public async Task APrincipalContactSaveWritesItsCaseDefaults()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contacts = services.GetRequiredService<IContactDirectoryAdministration>();
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var principal = await context.Principals.AsNoTracking()
+            .Where(item => item.Code == QdosPrincipal.Code)
+            .Select(item => new { item.Id, item.Version, item.OrganizationId })
+            .SingleAsync();
+        var contact = await context.Organizations.AsNoTracking()
+            .SingleAsync(item => item.Id == principal.OrganizationId);
+
+        SaveContactRequest Save(
+            long version,
+            string operationKey,
+            CaseInspectionMode mode,
+            decimal? fee,
+            string? label,
+            string? address,
+            string? postcode,
+            string? sendFrom) => new(
+            Administrator, contact.Id, version, contact.Name, contact.Email, contact.Telephone, contact.Address,
+            contact.Postcode, contact.Active, ContactRole.Principal, QdosPrincipal.Code, mode, [], operationKey,
+            contact.NotesOnEveryCase, fee, label, address, postcode, sendFrom);
+        Task<PrincipalEntity> StoredAsync() => context.Principals.AsNoTracking().SingleAsync(item => item.Id == principal.Id);
+
+        var saved = await contacts.SaveAsync(
+            Save(contact.Version, "contact:case-defaults:physical", CaseInspectionMode.PhysicalAddress,
+                212.50m, " Yard ", " 1 Directory Way ", " DW1 2EF ", " engineers@collisionengineers.co.uk "),
+            default);
+
+        Assert.Equal(contact.Version + 1, saved.Version);
+        Assert.Equal(212.50m, saved.DefaultFee);
+        Assert.Equal("Yard", saved.DefaultInspectionLocationLabel);
+        Assert.Equal("1 Directory Way", saved.DefaultInspectionAddress);
+        Assert.Equal("DW1 2EF", saved.DefaultInspectionPostcode);
+        Assert.Equal("engineers@collisionengineers.co.uk", saved.SendFromMailbox);
+        var stored = await StoredAsync();
+        Assert.Equal(principal.Version + 1, stored.Version);
+        Assert.Equal(212.50m, stored.DefaultFee);
+        Assert.Equal(
+            ("Yard", "1 Directory Way", "DW1 2EF", "manual"),
+            (stored.DefaultInspectionLocationLabel, stored.DefaultInspectionAddress, stored.DefaultInspectionPostcode, stored.DefaultInspectionSourceKind));
+        Assert.Null(stored.DefaultInspectionSourceRecordId);
+        Assert.Null(stored.DefaultInspectionSourceVersion);
+        Assert.Equal("engineers@collisionengineers.co.uk", stored.SendFromMailbox);
+        var history = await (await factory.DatabaseAsync).ScalarAsync<string>(
+            "SELECT AfterJson FROM ActionHistory WHERE CorrelationId = 'contact:case-defaults:physical' AND EventKind = 'contact_saved';");
+        Assert.Contains("\"defaultFee\":212.5", history, StringComparison.Ordinal);
+        Assert.Contains("\"defaultInspectionAddress\":\"1 Directory Way\"", history, StringComparison.Ordinal);
+        Assert.Contains("\"sendFromMailbox\":\"engineers@collisionengineers.co.uk\"", history, StringComparison.Ordinal);
+
+        // Saved again unchanged, neither version moves.
+        var unchanged = await contacts.SaveAsync(
+            Save(saved.Version, "contact:case-defaults:unchanged", CaseInspectionMode.PhysicalAddress,
+                212.50m, "Yard", "1 Directory Way", "DW1 2EF", "engineers@collisionengineers.co.uk"),
+            default);
+        Assert.Equal(saved.Version, unchanged.Version);
+        Assert.Equal(stored.Version, (await StoredAsync()).Version);
+
+        // Image Based Assessment clears the location; Send from may be cleared.
+        var imageBased = await contacts.SaveAsync(
+            Save(unchanged.Version, "contact:case-defaults:iba", CaseInspectionMode.ImageBasedAssessment,
+                212.50m, "Yard", "1 Directory Way", "DW1 2EF", null),
+            default);
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, imageBased.PrincipalInspectionMode);
+        Assert.Null(imageBased.DefaultInspectionAddress);
+        var cleared = await StoredAsync();
+        Assert.Equal(stored.Version + 1, cleared.Version);
+        Assert.Equal(PrincipalInspectionModePolicy.ImageBasedAssessmentCode, cleared.InspectionMode);
+        Assert.Equal(
+            ((string?)null, (string?)null, (string?)null, (string?)null, (string?)null),
+            (cleared.DefaultInspectionLocationLabel, cleared.DefaultInspectionAddress, cleared.DefaultInspectionPostcode,
+                cleared.DefaultInspectionSourceKind, cleared.SendFromMailbox));
+
+        // A physical address may have no location, but a label needs one.
+        var noLocation = await contacts.SaveAsync(
+            Save(imageBased.Version, "contact:case-defaults:no-location", CaseInspectionMode.PhysicalAddress,
+                212.50m, null, null, null, null),
+            default);
+        Assert.Equal(CaseInspectionMode.PhysicalAddress, noLocation.PrincipalInspectionMode);
+        Assert.Null(noLocation.DefaultInspectionAddress);
+        var labelOnly = await Assert.ThrowsAsync<ArgumentException>(() => contacts.SaveAsync(
+            Save(noLocation.Version, "contact:case-defaults:label-only", CaseInspectionMode.PhysicalAddress,
+                212.50m, "Yard", null, null, null),
+            default));
+        Assert.Equal(nameof(SaveContactRequest.DefaultInspectionAddress), labelOnly.ParamName);
+
+        // An existing Principal must post a fee.
+        var noFee = await Assert.ThrowsAsync<ArgumentException>(() => contacts.SaveAsync(
+            Save(noLocation.Version, "contact:case-defaults:no-fee", CaseInspectionMode.PhysicalAddress,
+                null, null, null, null, null),
+            default));
+        Assert.Equal(nameof(SaveContactRequest.DefaultFee), noFee.ParamName);
+        Assert.Equal(212.50m, (await StoredAsync()).DefaultFee);
     }
 
     /// <summary>
@@ -261,27 +399,17 @@ public sealed class OrganizationAdministrationPersistenceTests
                 .SetProperty(item => item.FeeNoteVatNumber, "GB 123 4567 89")
                 .SetProperty(item => item.AuditWorkflow, PrincipalAuditWorkflowPolicy.GarageAuthorisationAndInvoiceCode)
                 .SetProperty(item => item.PrincipalInvoice, PrincipalInvoicePolicy.UlaInvoiceCode)
-                .SetProperty(item => item.InvoicePaymentTerms, "30 days"));
+                .SetProperty(item => item.InvoicePaymentTerms, "30 days")
+                .SetProperty(item => item.SendFromMailbox, "engineers@collisionengineers.co.uk")
+                .SetProperty(item => item.ReportImages, false)
+                .SetProperty(item => item.DefaultInspectionLocationLabel, "Directory Web Caller Yard")
+                .SetProperty(item => item.DefaultInspectionAddress, "1 Directory Way, DW1 2EF")
+                .SetProperty(item => item.DefaultInspectionPostcode, "DW1 2EF")
+                .SetProperty(item => item.DefaultInspectionSourceKind, "manual"));
         var initialContactVersion = await seedContext.Organizations.AsNoTracking()
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
             .SingleAsync();
-        var configuredLocation = await scope.ServiceProvider
-            .GetRequiredService<IUpdatePrincipalDefaultInspectionLocation>()
-            .ExecuteAsync(new(
-                Administrator, predecessor.Id, predecessor.Version,
-                "principal:default-location:replacement",
-                InspectionAddressEvidenceKind.PhysicalAddress,
-                "Directory Web Caller Yard", "1 Directory Way, DW1 2EF", "DW1 2EF",
-                "manual", null, null,
-                initialContactVersion), default);
-        var salvageMatrix = SalvageMatrix.Normalize([new("N", 0.01m, 9999999.99m, 20m)]);
-        var configuredMatrix = await scope.ServiceProvider
-            .GetRequiredService<IUpdatePrincipalSalvageMatrix>()
-            .ExecuteAsync(new(
-                predecessor.Id, configuredLocation.Version, Administrator,
-                "principal:salvage-matrix:replacement", salvageMatrix,
-                initialContactVersion + 1), default);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await (await factory.DatabaseAsync).ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -300,7 +428,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';");
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
-            configuredMatrix.Version,
+            predecessor.Version,
             "QDOSNEXT",
             Administrator,
             "principal:replace:qdos",
@@ -323,21 +451,22 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(predecessorDetails.Name, successorDetails.Name);
         Assert.Equal(persistedPredecessor.OrganizationId, persistedSuccessor.OrganizationId);
         Assert.Equal(
-            (configuredLocation.DefaultInspectionLocationLabel,
-                configuredLocation.DefaultInspectionAddress,
-                configuredLocation.DefaultInspectionPostcode,
-                configuredLocation.DefaultInspectionSourceKind,
-                configuredLocation.DefaultInspectionSourceRecordId,
-                configuredLocation.DefaultInspectionSourceVersion),
+            ("Directory Web Caller Yard",
+                "1 Directory Way, DW1 2EF",
+                "DW1 2EF",
+                "manual",
+                (Guid?)null,
+                (long?)null),
             (persistedSuccessor.DefaultInspectionLocationLabel,
                 persistedSuccessor.DefaultInspectionAddress,
                 persistedSuccessor.DefaultInspectionPostcode,
                 persistedSuccessor.DefaultInspectionSourceKind,
                 persistedSuccessor.DefaultInspectionSourceRecordId,
                 persistedSuccessor.DefaultInspectionSourceVersion));
-        Assert.Equal(salvageMatrix, persistedSuccessor.SalvageMatrix);
-        Assert.Equal(salvageMatrix, persistedPredecessor.SalvageMatrix);
         Assert.Equal(210.00m, persistedSuccessor.DefaultFee);
+        // And starts on its predecessor's Send from and Report images (R1267).
+        Assert.Equal("engineers@collisionengineers.co.uk", persistedSuccessor.SendFromMailbox);
+        Assert.False(persistedSuccessor.ReportImages);
         // A successor code is named as its predecessor was (R740).
         Assert.Equal("{REG} Initial", persistedSuccessor.ReportNames.InspectionFirst);
         // And prints the fee note VAT number its predecessor did (R1006).
@@ -346,13 +475,6 @@ public sealed class OrganizationAdministrationPersistenceTests
         Assert.Equal(AuditWorkflowKind.GarageAuthorisationAndInvoice, persistedSuccessor.AuditWorkflow);
         Assert.Equal(PrincipalInvoiceKind.UlaInvoice, persistedSuccessor.PrincipalInvoice);
         Assert.Equal("30 days", persistedSuccessor.InvoicePaymentTerms);
-        var caseMatrices = scope.ServiceProvider.GetRequiredService<IPrincipalSalvageMatrixQueries>();
-        Assert.Equal(salvageMatrix, await caseMatrices.GetForCaseAsync(accepted.Identity.CaseId, default));
-        Assert.Null(await caseMatrices.GetForCaseAsync(Guid.NewGuid(), default));
-        Assert.Equal(
-            1,
-            await (await factory.DatabaseAsync).ScalarAsync<int>(
-                "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:salvage-matrix:replacement' AND EventKind = 'principal_salvage_matrix_updated';"));
         Assert.False(persistedPredecessor.IsActive);
         Assert.Equal(successor.Id, persistedPredecessor.SuccessorId);
         Assert.Equal("QDOS", persistedPredecessor.Code);
@@ -376,7 +498,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             await (await factory.DatabaseAsync).ScalarAsync<int>(
                 "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:replace:qdos';"));
         Assert.Equal(
-            initialContactVersion + 3,
+            initialContactVersion + 1,
             await (await factory.DatabaseAsync).ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';"));
 

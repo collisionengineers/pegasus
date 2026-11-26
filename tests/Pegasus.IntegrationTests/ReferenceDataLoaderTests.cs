@@ -105,6 +105,15 @@ public sealed class ReferenceDataLoaderTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var administrator = await SeedStaffAsync(database, StaffRole.Administrator, enabled: true);
         var live = await SaveContactAsync(database, NewContact(ContactRole.Principal, "Loader Live Principal", "RDLL"));
+        // The Principal's own Case defaults, which the reference files do not
+        // carry: the load keeps them (R1266, R1267).
+        live = await SaveContactAsync(database, NewContact(ContactRole.Principal, "Loader Live Principal", "RDLL") with
+        {
+            OrganizationId = live.OrganizationId,
+            ExpectedVersion = live.Version,
+            DefaultFee = 215.50m,
+            SendFromMailbox = "desk@collisionengineers.example"
+        });
         using var root = new LoadRoot();
         var data = root.Write(
             PrincipalRow(
@@ -126,6 +135,8 @@ public sealed class ReferenceDataLoaderTests
         Assert.NotNull(updated);
         Assert.Equal(CaseInspectionMode.ImageBasedAssessment, updated.PrincipalInspectionMode);
         Assert.Equal("desk@loader.example.invalid", updated.Email);
+        Assert.Equal(215.50m, updated.DefaultFee);
+        Assert.Equal("desk@collisionengineers.example", updated.SendFromMailbox);
 
         // The Principal R15 loads inactive is created inactive and linked like any other.
         var inactive = await GetContactAsync(database, ReferenceFiles.OrganizationId("principal", "P0002"));

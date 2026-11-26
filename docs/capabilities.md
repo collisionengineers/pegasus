@@ -106,7 +106,6 @@ exclusion.
 | UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, unrelated damage, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
-| ENG-05 | Principal salvage matrix fills the Case salvage value | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | AI-11 | Market Research AI job completed outside Pegasus | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | RPT-06 | Fee note preview on the Report section | [Report-draft entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
 | DOC-01 | Automatic Box case-folder creation using the Case/PO name | [Requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody) |
@@ -201,8 +200,8 @@ exclusion.
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage (deferred) | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
-| RPT-08 | Principal report sending rules edited on the Contact: recipients, mailbox, attachments, holds, stops, reminders and file name | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
-| RPT-09 | Report delivery follows the Principal's sending rules in one step: reply in the instruction thread, rules read from the Case's facts with no questions (R1023), holds, stop with override, required companions, filed estimates by format, after-send list | [Report sending rules](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules) |
+| RPT-08 | Principal report sending rules edited on the Contact: an On every Case list of actions and ordered If … Then … rules (is / is not conditions, groups joined by or) for recipients, attachments, holds, stops and Case tasks; Send from on the Contact tab | [Contacts administration](frd/frd-04-parties-accounts-and-access.md#contacts-administration) |
+| RPT-09 | Report delivery follows the Principal's sending rules in one step: reply in the instruction thread, rules read from the Case's facts with no questions (R1023), holds, stop with override, required companions, filed estimates by format, Case tasks created when Report sent is recorded | [Report sending rules](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |
@@ -273,3 +272,4 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | 2026-10-12, operator decision ([ADR-0069](adr/0069-one-flat-mail-category.md)) |
 | MAIL-13 | Outlook category by allowlisted identifier | 2026-10-14, operator decision |
 | AI-07 | AI Assessor as a staff-selected Engineer option | 2026-10-15, operator decision |
+| ENG-05 | Principal salvage matrix that filled the Case salvage value | 2026-11-25, operator decision ([R1263](rulings.md)) |

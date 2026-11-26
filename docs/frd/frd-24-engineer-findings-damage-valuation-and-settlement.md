@@ -1,6 +1,6 @@
 # FRD-24: Engineer findings, damage, valuation and settlement
 
-> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-05, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-04, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -476,28 +476,13 @@ whose empty option is Not recorded (operator, 9 October 2026); the select
 stays the posted control, so a browser without script picks the same value
 from it. Salvage value carries a slider reading the share of the Engineer's
 Value, with 5, 10, 15, 20 and 25 % snaps: the amount and the share are one
-fact and the last touch wins. While the outcome is not a total loss the
-salvage rows are absent and a "Salvage · Not applicable" line stands in their
-place. The agreed contract sum, labour hours (read-only, from the Current
+fact and the last touch wins. No Principal setting fills it: the salvage
+matrix is gone (operator, 25 November 2026; R1263). While the outcome is not
+a total loss the salvage rows are absent and a "Salvage · Not applicable" line
+stands in their place. The agreed contract sum, labour hours (read-only, from the Current
 repair spec), storage per day and the recovery charge also stand on it; there
 is no figures strip, no Costs, hire & delays sub-panel, no Salvage sub-panel
 and no computed repair reserve (operator, 9 October 2026).
-
-**The salvage matrix (operator, 29 September 2026).** When the Case's
-Principal has a salvage matrix
-([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-the matrix fills the Salvage value while the Case edits. Once the outcome is
-Total loss, a category is chosen and the Engineer's Value is known, the
-value is the Engineer's Value times the percentage of the category's band
-that holds it, to the penny, with a half penny rounding away from zero. A
-change of outcome, category or Engineer's Value fills it again. When no
-figure applies any more (N/A, no Engineer's Value, a value in a gap between
-bands) a figure the matrix filled is cleared. A figure the Engineer sets by
-typing, the slider or a snap is their own and the matrix leaves it;
-emptying the value hands it back. A saved value equal to the matrix's figure
-counts as the matrix's. Opening the edit fills nothing. The Save records the
-value as it records a typed one, with no separate provenance. A Principal
-without a matrix changes nothing.
 
 **The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording into
 the reason, joined to what is already there with "and", and may save the typed
@@ -590,10 +575,7 @@ staying the Engineer's own while Retail and Trade still follow the card, the
 preview and the Save recording one figure, and a research result filed while
 a staff member holds the edit lease. Web tests cover the guide cards in both
 modes, the chosen card's Selected word, no Retail or Trade box, and the
-calculation standing once below every card. Core tests cover the
-salvage matrix's rules, band lookup, rounding and when a value follows the
-matrix. Web tests cover
-the salvage matrix handed to the Case only while it edits. Integration tests
+calculation standing once below every card. Integration tests
 cover Glass's Get valuation against the scripted provider — its figures, month,
 mileage and stock save, every failure answering the notice and a vehicle
 too old to value answering its own sentence — and its report
@@ -615,7 +597,7 @@ Brego and Cazana evidence is a separate tier
 
 ## Links
 
-- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-05`, `EXT-07`, `EXT-10`,
+- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-04`, `EXT-07`, `EXT-10`,
   `EXT-13` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),

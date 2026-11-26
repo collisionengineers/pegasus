@@ -4,9 +4,10 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// The Repairer a received item establishes for the Case made from it, and
-/// the instruction field that named it.
+/// the instruction field that named it; <paramref name="Field"/> is null when
+/// the instruction's text named it instead (R1264).
 /// </summary>
-public sealed record EstablishedRepairer(ContactChoice Repairer, InstructionReviewField Field);
+public sealed record EstablishedRepairer(ContactChoice Repairer, InstructionReviewField? Field);
 
 /// <summary>
 /// The Repairer a received item has established: the one owner of that answer
@@ -14,8 +15,11 @@ public sealed record EstablishedRepairer(ContactChoice Repairer, InstructionRevi
 /// 2026; R1025, R1027). It is the rule <see cref="EstablishedIntakeClaimSource"/>
 /// applies to an instruction's claim source: the repairer the instruction
 /// names is the Case's when that name is an active Repairer's, ignoring
-/// capitals. Two or more matches, or none, establish nothing, and a name that
-/// is not a Repairer never becomes one.
+/// capitals. Otherwise the instruction's text: the one active Repairer linked
+/// to the Case's Principal that its subject, body or attachment text names,
+/// ignoring capitals and spaces (operator, 25 November 2026; R1264). Two or
+/// more matches, or none, establish nothing, and a name that is not a
+/// Repairer never becomes one.
 /// </summary>
 public static class EstablishedIntakeRepairer
 {
@@ -39,22 +43,31 @@ public static class EstablishedIntakeRepairer
     }
 
     /// <param name="fields">The item's instruction review fields.</param>
-    /// <param name="activeRepairers">Every active Repairer.</param>
+    /// <param name="activeRepairers">Every active Repairer, with its linked Principals.</param>
+    /// <param name="casePrincipalCode">The Principal the Case is made for.</param>
+    /// <param name="instructionText">The instruction's subject, body and attachment text, or null.</param>
     public static EstablishedRepairer? For(
         IEnumerable<InstructionReviewField> fields,
-        IReadOnlyList<ContactChoice> activeRepairers)
+        IReadOnlyList<ContactChoice> activeRepairers,
+        string? casePrincipalCode = null,
+        string? instructionText = null)
     {
         ArgumentNullException.ThrowIfNull(activeRepairers);
-        if (NamedIn(fields) is not { } field)
+        if (NamedIn(fields) is { } field)
         {
-            return null;
+            var name = field.SuggestedValue!.Trim();
+            var named = activeRepairers
+                .Where(repairer => string.Equals(repairer.Name.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToArray();
+            if (named.Length == 1)
+            {
+                return new(named[0], field);
+            }
         }
 
-        var name = field.SuggestedValue!.Trim();
-        var named = activeRepairers
-            .Where(repairer => string.Equals(repairer.Name.Trim(), name, StringComparison.OrdinalIgnoreCase))
-            .Take(2)
-            .ToArray();
-        return named.Length == 1 ? new(named[0], field) : null;
+        return NamedInText.LinkedContact(instructionText, casePrincipalCode, activeRepairers) is { } mentioned
+            ? new(mentioned, null)
+            : null;
     }
 }

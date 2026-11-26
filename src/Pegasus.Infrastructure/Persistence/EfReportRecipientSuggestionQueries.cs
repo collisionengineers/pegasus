@@ -75,9 +75,8 @@ public sealed class EfReportRecipientSuggestionQueries(
 
         // The instruction the Case was opened from. A message in a polled
         // mailbox is replied to; an uploaded e-mail sits in no mailbox, so it
-        // gives its text and nothing to reply from.
+        // gives nothing to reply from.
         ReportInstructionMessage? instruction = null;
-        string? instructionText = null;
         if (!string.IsNullOrEmpty(row.ReceiptToken))
         {
             var retained = await context.RetainedMailboxMessages.AsNoTracking()
@@ -98,36 +97,30 @@ public sealed class EfReportRecipientSuggestionQueries(
                     message.BodyPlainText
                 })
                 .FirstOrDefaultAsync(cancellationToken);
-            if (retained is not null)
+            if (retained is not null && row.ReceiptChannel == "mailbox" && retained.MailboxId is { } mailboxId)
             {
-                var text = string.Join('\n', new[] { retained.Subject, retained.BodyPlainText }
-                    .Where(part => !string.IsNullOrWhiteSpace(part)));
-                instructionText = text.Length == 0 ? null : text;
-                if (row.ReceiptChannel == "mailbox" && retained.MailboxId is { } mailboxId)
-                {
-                    // A staff forward held in instructions@ is answered as
-                    // though the original had arrived directly, so its Cc is
-                    // the original's own, less the mailbox that forwarded it
-                    // (operator, 3 November 2026; R651, R652, R653).
-                    var cc = StaffMailAnswer.OriginalSender(
-                            retained.MailboxAddress, retained.SenderAddress, row.EffectiveSender) is null
-                        ? JsonSerializer.Deserialize<string[]>(retained.CcAddressesJson, RetainedJsonOptions) ?? []
-                        : StaffForwardBodyCleaner.ForwardedRecipients(retained.BodyPlainText ?? string.Empty).Cc
-                            .Where(address => !string.Equals(
-                                address, retained.SenderAddress?.Trim(), StringComparison.OrdinalIgnoreCase))
-                            .ToArray();
-                    instruction = new ReportInstructionMessage(
-                        retained.Id,
-                        mailboxId,
-                        retained.MailboxAddress,
-                        retained.ImmutableMessageId,
-                        retained.InternetMessageIdentity,
-                        retained.ConversationIdentity,
-                        row.EffectiveSender,
-                        cc,
-                        retained.Subject,
-                        retained.SenderAddress);
-                }
+                // A staff forward held in instructions@ is answered as
+                // though the original had arrived directly, so its Cc is
+                // the original's own, less the mailbox that forwarded it
+                // (operator, 3 November 2026; R651, R652, R653).
+                var cc = StaffMailAnswer.OriginalSender(
+                        retained.MailboxAddress, retained.SenderAddress, row.EffectiveSender) is null
+                    ? JsonSerializer.Deserialize<string[]>(retained.CcAddressesJson, RetainedJsonOptions) ?? []
+                    : StaffForwardBodyCleaner.ForwardedRecipients(retained.BodyPlainText ?? string.Empty).Cc
+                        .Where(address => !string.Equals(
+                            address, retained.SenderAddress?.Trim(), StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                instruction = new ReportInstructionMessage(
+                    retained.Id,
+                    mailboxId,
+                    retained.MailboxAddress,
+                    retained.ImmutableMessageId,
+                    retained.InternetMessageIdentity,
+                    retained.ConversationIdentity,
+                    row.EffectiveSender,
+                    cc,
+                    retained.Subject,
+                    retained.SenderAddress);
             }
         }
 
@@ -149,23 +142,28 @@ public sealed class EfReportRecipientSuggestionQueries(
             .FirstOrDefaultAsync(cancellationToken);
 
         // "Previous job" is read only when a rule names it.
-        var previousJob = rules.Rules.Any(rule => rule.If.Any(condition => condition.Kind == ReportSendingConditionKind.PreviousJob))
+        var previousJob = rules.Names(ReportSendingFact.PreviousJob)
             && CaseRegistration.Normalize(registration) is { } vehicle
             && await PreviousJobAsync(context, caseId, row.PrincipalId, vehicle, cancellationToken);
 
         // The Case's External estimates and Repair invoices are read only
-        // when the Principal's Offer ticks, or a rule's override, can offer
-        // them (R1151).
-        var offers = rules.Attach.OfferExternalEstimates
-            || rules.Attach.OfferRepairInvoices
-            || rules.Rules.Any(rule => rule.Then.Attach is { OfferExternalEstimates: true } or { OfferRepairInvoices: true });
+        // when an action can offer them (R1151).
+        var offers = rules.MayAttach(ReportSendingFile.OfferExternalEstimates)
+            || rules.MayAttach(ReportSendingFile.OfferRepairInvoices);
         IReadOnlyList<OfferedCaseFile> offerable = offers
             ? await EfFiledEstimateAttachmentQueries.ReadOfferableAsync(context, caseId, cancellationToken)
             : [];
 
-        // The names of the contacts the Case chose, for the rule labels.
+        // The names of the contacts the Case chose and the rules name, for the
+        // rule labels.
         var contactIds = new[] { claimSourceId, repairerId }
             .OfType<Guid>()
+            .Concat(rules.Rules
+                .SelectMany(rule => rule.If.SelectMany(group => group))
+                .Where(condition => condition.Fact is ReportSendingFact.ClaimSource or ReportSendingFact.Repairer)
+                .SelectMany(condition => condition.Values)
+                .Select(value => Guid.TryParse(value, out var id) ? id : Guid.Empty)
+                .Where(id => id != Guid.Empty))
             .Distinct()
             .ToArray();
         var names = contactIds.Length == 0
@@ -194,7 +192,7 @@ public sealed class EfReportRecipientSuggestionQueries(
                 row.AuditReportNameFirst,
                 row.AuditReportNameResend),
             ReportWork = workKind,
-            InstructionText = instructionText,
+            ContactNames = names,
             FiledEstimates = await EfFiledEstimateAttachmentQueries.ReadAsync(context, caseId, cancellationToken),
             OfferableFiles = offerable,
             PreviousJob = previousJob

@@ -31,7 +31,14 @@ internal static class LoadRunner
 
             try
             {
-                var saved = await ports.ContactWriter.SaveAsync(ToRequest(write, settings.Actor, links), cancellationToken);
+                // The reference files carry no Principal Case defaults, so an
+                // existing Principal keeps its own: its default fee is required
+                // on every save, and a save without the rest would clear them
+                // (R1266, R1267).
+                var current = !write.Create && ReferenceFiles.RoleOf(write.Kind) == ContactRole.Principal
+                    ? await ports.Contacts.GetAsync(settings.Actor, write.OrganizationId, cancellationToken)
+                    : null;
+                var saved = await ports.ContactWriter.SaveAsync(ToRequest(write, settings.Actor, links, current), cancellationToken);
                 if (write.Create && write.Fields.PrincipalCode is { } code)
                 {
                     idsByCode[code] = saved.OwnPrincipalIds![0];
@@ -105,7 +112,7 @@ internal static class LoadRunner
         }
     }
 
-    private static SaveContactRequest ToRequest(ContactWrite write, ActionActor actor, Guid[] links) => new(
+    private static SaveContactRequest ToRequest(ContactWrite write, ActionActor actor, Guid[] links, ContactDirectoryRecord? current) => new(
         actor,
         write.OrganizationId,
         write.ExpectedVersion,
@@ -122,7 +129,12 @@ internal static class LoadRunner
             : CaseInspectionMode.PhysicalAddress,
         links,
         write.OperationKey,
-        write.Fields.NotesOnEveryCase);
+        write.Fields.NotesOnEveryCase,
+        current?.DefaultFee,
+        current?.DefaultInspectionLocationLabel,
+        current?.DefaultInspectionAddress,
+        current?.DefaultInspectionPostcode,
+        current?.SendFromMailbox);
 
     private static bool TryResolve(IReadOnlyList<string> codes, Dictionary<string, Guid> idsByCode, out Guid[] ids)
     {

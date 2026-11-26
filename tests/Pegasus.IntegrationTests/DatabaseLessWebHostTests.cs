@@ -129,8 +129,6 @@ public sealed class DatabaseLessWebHostTests
                 await services.GetRequiredService<ILabourRateCardStore>().ListAsync(none)),
             ("unroadworthy reason bank", async services =>
                 await services.GetRequiredService<IUnroadworthyReasonBankStore>().ListAsync(none)),
-            ("salvage matrix", async services =>
-                await services.GetRequiredService<IPrincipalSalvageMatrixQueries>().GetForCaseAsync(caseId, none)),
             ("report inputs", async services => await services.GetRequiredService<ICaseReportSnapshotSource>()
                 .GetAsync(caseId, administrator, work, null, none)),
             ("current report", async services => await services.GetRequiredService<ICaseReportGenerationStore>()

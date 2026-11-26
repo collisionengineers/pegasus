@@ -120,3 +120,164 @@ public sealed class ContactNotesOnEveryCaseTests
         OperationKey: "notes-policy-test",
         NotesOnEveryCase: notes);
 }
+
+/// <summary>
+/// A Principal contact's Save carries the Principal's Case defaults (operator,
+/// 25 November 2026; R1266, R1267): the default fee, the default inspection
+/// location for a physical address, and the Send from mailbox. No other
+/// contact type takes them.
+/// </summary>
+public sealed class ContactPrincipalCaseDefaultsTests
+{
+    private static readonly ActionActor Administrator =
+        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+    [Fact]
+    public void APrincipalKeepsItsCaseDefaultsTrimmed()
+    {
+        var normalized = ContactDirectoryPolicy.Normalize(Principal() with
+        {
+            DefaultFee = 215.50m,
+            DefaultInspectionLocationLabel = "  Yard  ",
+            DefaultInspectionAddress = "  1 Test Street  ",
+            DefaultInspectionPostcode = "  TE1 1ST  ",
+            SendFromMailbox = " engineers@collisionengineers.co.uk "
+        });
+
+        Assert.Equal(215.50m, normalized.DefaultFee);
+        Assert.Equal("Yard", normalized.DefaultInspectionLocationLabel);
+        Assert.Equal("1 Test Street", normalized.DefaultInspectionAddress);
+        Assert.Equal("TE1 1ST", normalized.DefaultInspectionPostcode);
+        Assert.Equal("engineers@collisionengineers.co.uk", normalized.SendFromMailbox);
+    }
+
+    [Fact]
+    public void APhysicalAddressMayHaveNoDefaultLocationAndABlankSendFromIsNone()
+    {
+        var normalized = ContactDirectoryPolicy.Normalize(Principal() with
+        {
+            DefaultInspectionLocationLabel = " ",
+            DefaultInspectionAddress = "",
+            DefaultInspectionPostcode = null,
+            SendFromMailbox = "  "
+        });
+
+        Assert.Null(normalized.DefaultInspectionLocationLabel);
+        Assert.Null(normalized.DefaultInspectionAddress);
+        Assert.Null(normalized.DefaultInspectionPostcode);
+        Assert.Null(normalized.SendFromMailbox);
+    }
+
+    [Fact]
+    public void ImageBasedAssessmentClearsTheDefaultLocation()
+    {
+        var normalized = ContactDirectoryPolicy.Normalize(Principal() with
+        {
+            PrincipalInspectionMode = CaseInspectionMode.ImageBasedAssessment,
+            DefaultInspectionLocationLabel = "Yard",
+            DefaultInspectionAddress = "1 Test Street",
+            DefaultInspectionPostcode = "TE1 1ST"
+        });
+
+        Assert.Equal(CaseInspectionMode.ImageBasedAssessment, normalized.PrincipalInspectionMode);
+        Assert.Null(normalized.DefaultInspectionLocationLabel);
+        Assert.Null(normalized.DefaultInspectionAddress);
+        Assert.Null(normalized.DefaultInspectionPostcode);
+    }
+
+    [Theory]
+    [InlineData("label", "Yard", null)]
+    [InlineData("postcode", null, "TE1 1ST")]
+    public void ALabelOrPostcodeWithoutAnAddressIsRefused(string row, string? label, string? postcode)
+    {
+        Assert.NotEmpty(row);
+        var error = Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(Principal() with
+        {
+            DefaultInspectionLocationLabel = label,
+            DefaultInspectionPostcode = postcode
+        }));
+
+        Assert.Equal(nameof(SaveContactRequest.DefaultInspectionAddress), error.ParamName);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("180.005")]
+    public void ADefaultFeeTheAgreedFeeWouldRefuseIsRefused(string fee)
+    {
+        var request = Principal() with { DefaultFee = decimal.Parse(fee, System.Globalization.CultureInfo.InvariantCulture) };
+
+        var error = Assert.ThrowsAny<ArgumentException>(() => ContactDirectoryPolicy.Normalize(request));
+        Assert.Equal(nameof(SaveContactRequest.DefaultFee), error.ParamName);
+        Assert.ThrowsAny<ArgumentException>(() => ContactDirectoryPolicy.PrincipalDefaultFee(request, creatingPrincipal: true));
+    }
+
+    [Theory]
+    [InlineData("not an address")]
+    [InlineData("a@")]
+    public void AnInvalidSendFromIsRefused(string address)
+    {
+        var error = Assert.Throws<ArgumentException>(() =>
+            ContactDirectoryPolicy.Normalize(Principal() with { SendFromMailbox = address }));
+
+        Assert.Equal(nameof(SaveContactRequest.SendFromMailbox), error.ParamName);
+    }
+
+    [Theory]
+    [InlineData("fee")]
+    [InlineData("label")]
+    [InlineData("address")]
+    [InlineData("postcode")]
+    [InlineData("send from")]
+    public void AnotherContactTypeTakesNoPrincipalCaseDefault(string field)
+    {
+        var repairer = Principal() with { Role = ContactRole.Repairer, PrincipalCode = null };
+        var request = field switch
+        {
+            "fee" => repairer with { DefaultFee = 180m },
+            "label" => repairer with { DefaultInspectionLocationLabel = "Yard" },
+            "address" => repairer with { DefaultInspectionAddress = "1 Test Street" },
+            "postcode" => repairer with { DefaultInspectionPostcode = "TE1 1ST" },
+            _ => repairer with { SendFromMailbox = "engineers@collisionengineers.co.uk" }
+        };
+
+        Assert.Throws<ArgumentException>(() => ContactDirectoryPolicy.Normalize(request));
+        // With none of them the same contact saves.
+        Assert.Null(ContactDirectoryPolicy.Normalize(repairer).DefaultFee);
+    }
+
+    /// <summary>
+    /// A new Principal that posts no fee takes the standard one (the New
+    /// Principal dialog posts none); an existing Principal must post one.
+    /// </summary>
+    [Fact]
+    public void TheFeeASaveWritesIsThePostedOneOrForANewPrincipalTheStandard()
+    {
+        Assert.Equal(215m, ContactDirectoryPolicy.PrincipalDefaultFee(Principal() with { DefaultFee = 215m }, creatingPrincipal: false));
+        Assert.Equal(215m, ContactDirectoryPolicy.PrincipalDefaultFee(Principal() with { DefaultFee = 215m }, creatingPrincipal: true));
+        Assert.Equal(
+            PrincipalDefaultFeePolicy.Standard,
+            ContactDirectoryPolicy.PrincipalDefaultFee(Principal(), creatingPrincipal: true));
+
+        var error = Assert.Throws<ArgumentException>(() =>
+            ContactDirectoryPolicy.PrincipalDefaultFee(Principal(), creatingPrincipal: false));
+        Assert.Equal(nameof(SaveContactRequest.DefaultFee), error.ParamName);
+    }
+
+    private static SaveContactRequest Principal() => new(
+        Administrator,
+        Guid.NewGuid(),
+        ExpectedVersion: 0,
+        Name: "Acme Claims",
+        Email: null,
+        Telephone: null,
+        Address: null,
+        Postcode: null,
+        Active: true,
+        Role: ContactRole.Principal,
+        PrincipalCode: "ACME",
+        PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
+        LinkedPrincipalIds: [],
+        OperationKey: "case-defaults-test");
+}

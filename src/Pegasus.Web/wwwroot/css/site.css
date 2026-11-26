@@ -505,9 +505,57 @@ tbody tr:hover{background:#f3f6f7}
 /* A fieldset that keeps its grouping and loses the browser frame (v41 A4, A11, A18);
    --label gives its legend the field-label look. */
 .fieldset-plain{min-width:0;margin:0;padding:0;border:0}
-.fieldset-plain--label>legend{padding:0;margin-bottom:6px;font-size:11px;font-weight:780;color:#45433f}
-[data-report-sending-editor] [data-rs-add]{align-self:flex-start}
+.fieldset-plain--label>legend,.contact-subsection>legend{padding:0;margin-bottom:6px;font-size:11px;font-weight:780;color:#45433f}
 .contact-section{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+/* The Contact tab is one form in headed sections (v55 item B); the first
+   section opens the form, so it has no rule above it. The default inspection
+   location is a framed group inside Cases. */
+.contact-editor>.contact-section:first-of-type{margin-top:0;padding-top:0;border-top:0}
+.contact-subsection{min-width:0;margin:0;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.contact-subsection>legend{padding:0 6px;margin-bottom:0}
+/* Sending rules (v55): On every Case as one list, then the numbered rules,
+   each an If line and a Then line. */
+.sending-block+.sending-block{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.sending-block-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}
+.sending-block-head h3{margin:0;font-size:13px;font-weight:700}
+.every-case-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.every-case-list li{display:grid;grid-template-columns:170px minmax(0,1fr);gap:12px;align-items:baseline;min-height:var(--row);padding:9px 12px;border-top:1px solid var(--line)}
+.every-case-list li:first-child{border-top:0}
+.every-case-values{display:flex;flex-wrap:wrap;gap:5px;min-width:0;overflow-wrap:anywhere}
+.rule-verb,.rule-fact{font-weight:650}
+.rule-quote{color:var(--ink)}
+.rule-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.rule-card{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
+.rule-number{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:var(--surface-3);font-size:11px;font-weight:700}
+.rule-card-body{display:grid;gap:7px;min-width:0}
+.rule-line{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:baseline;margin:0}
+.rule-keyword{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--quiet)}
+.rule-words{display:flex;flex-wrap:wrap;gap:5px 7px;align-items:center;min-width:0}
+.rule-condition,.rule-then-item{display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center}
+.rule-then-item:not(:last-child)::after{content:"·";margin-left:3px;color:var(--quiet)}
+.rule-pill{display:inline-flex;align-items:center;min-height:22px;padding:1px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);font-size:12px;overflow-wrap:anywhere}
+.rule-pill.mono{font-size:11.5px}
+.rule-not{color:var(--danger);font-weight:700}
+.rule-join{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--navy)}
+.rule-join--or{color:var(--amber)}
+.rule-bracket{display:inline-flex;flex-wrap:wrap;gap:5px 7px;align-items:center;padding:3px 7px;border:1px dashed var(--line-strong);border-radius:var(--radius)}
+.rule-card-controls,.rule-card-move{display:flex;gap:2px;align-items:center}
+/* The rule dialog (v55 section 3): 860px; a condition row is fact 190px,
+   is / is not 96px, value the rest, remove 32px; the rows stack under 900px. */
+.dialog.dialog--rule{width:min(100%,860px)}
+.rule-fieldset{margin:0;padding:0;border:0;min-width:0;display:grid;gap:8px}
+.rule-fieldset>legend{padding:0;margin:0 0 2px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--quiet)}
+.rule-group-card{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
+.rule-row{display:grid;grid-template-columns:190px 96px minmax(0,1fr) 32px;gap:8px;align-items:start}
+.rule-row--action{grid-template-columns:190px minmax(0,1fr) 32px}
+.rule-row select[multiple]{padding:2px 0;min-height:0}
+.rule-row .field-hint{margin:4px 0 0}
+.rule-value{display:grid;gap:8px;min-width:0}
+.rule-no-value{min-height:var(--control);display:flex;align-items:center;color:var(--quiet)}
+.rule-picks{display:flex;flex-wrap:wrap;gap:2px 14px;min-height:var(--control);align-items:center}
+.rule-or-divider{display:flex;align-items:center;gap:10px;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber)}
+.rule-or-divider::before,.rule-or-divider::after{content:"";flex:1;border-top:1px solid var(--line)}
+@media(max-width:900px){.every-case-list li{grid-template-columns:minmax(0,1fr);gap:2px}.rule-card{grid-template-columns:28px minmax(0,1fr)}.rule-card-controls{grid-column:2}.rule-row,.rule-row--action{grid-template-columns:minmax(0,1fr)}}
 .contact-section>legend{float:left;width:100%}
 .contact-section h3{margin-bottom:12px}
 .contact-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 16px}

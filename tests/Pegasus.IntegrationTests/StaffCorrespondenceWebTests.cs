@@ -385,14 +385,13 @@ public sealed class StaffCorrespondenceWebTests
     private static async Task SetSendFromAsync(
         IntakeWebApplicationFactory factory, Guid caseId, string address)
     {
-        var json = EfOrganizationAdministration.ToReportSendingJson(
-            Pegasus.Core.Reports.PrincipalReportSendingRules.Default with { SendFromMailbox = address });
+        // Send from is the Principal's own setting since 25 November 2026 (R1267).
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE Principals SET ReportSendingRulesJson = {json} WHERE Id = (SELECT PrincipalId FROM Cases WHERE Id = {caseId})");
+            $"UPDATE Principals SET SendFromMailbox = {address} WHERE Id = (SELECT PrincipalId FROM Cases WHERE Id = {caseId})");
     }
 
     /// <summary>A failed retained reply names its reason in operator words.</summary>

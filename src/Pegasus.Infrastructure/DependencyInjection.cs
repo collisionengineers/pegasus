@@ -352,7 +352,6 @@ public static class DependencyInjection
         services.AddScoped<ICaseInstructionEmailQueries, EfCaseInstructionEmailQueries>();
         services.AddScoped<ResolveCaseMailSender>();
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
-        services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
@@ -372,7 +371,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
-        services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(
             provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
@@ -399,7 +397,6 @@ public static class DependencyInjection
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
-        services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
         services.AddScoped<IUpdatePrincipalReportSending, UpdatePrincipalReportSending>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
