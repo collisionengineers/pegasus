@@ -187,7 +187,23 @@ internal sealed class SendToAiControlEntity
 {
     public const string SingletonId = "send-to-ai";
     public const string AutomaticGuideValuationId = "automatic-guide-valuation";
+    public const string AutomaticBregoValuationId = "automatic-guide-valuation-brego";
+    public const string AutomaticCazanaValuationId = "automatic-guide-valuation-cazana";
+    public const string AutomaticCapValuationId = "automatic-guide-valuation-cap";
+    public const string AutomaticVehicleHistoryCheckId = "automatic-vehicle-history-check";
     public const string CaseReferenceSuffixId = "case-reference-suffix";
+
+    /// <summary>
+    /// The state a switch with no row is in: on for Send to AI, the automatic
+    /// Glass's valuation and the Case/PO suffix; off for the four automatic
+    /// switches added on 26 November 2026, each ask being paid or metered
+    /// (R1287). No row is seeded for any of them.
+    /// </summary>
+    public static bool DefaultEnabled(string id) => id is not (
+        AutomaticBregoValuationId
+        or AutomaticCazanaValuationId
+        or AutomaticCapValuationId
+        or AutomaticVehicleHistoryCheckId);
 
     public required string Id { get; set; }
     public bool Enabled { get; set; }

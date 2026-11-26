@@ -2158,7 +2158,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
     /// <summary>
     /// R545 and R546 (29 October 2026): Case acceptance records the Case's one
     /// automatic Glass's valuation request beside its vehicle lookup while the
-    /// Administrator's switch is on, which it is until turned off. The card is
+    /// Administrator's switch is on, which it is until turned off; the four
+    /// switches added on 26 November 2026 are off until turned on (R1287), so a
+    /// fresh database records Glass's request alone. The card is
     /// system work (FRD-14): it advances the version and leaves the editor's
     /// lease standing, and a work that holds a Glass's card takes no second
     /// one. The request is asked once and then settled; with the switch off,
@@ -2171,11 +2173,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("automatic-valuation-accept-case");
         var caseId = outcome.Identity.CaseId;
-        var store = new EfAutomaticGuideValuationStore(harness.Factory);
+        var store = new EfAutomaticRequestStore(harness.Factory);
         var now = harness.Clock.GetUtcNow();
 
         var request = Assert.Single(await store.ListDueAutomaticAsync(now, 10, CancellationToken.None));
         Assert.Equal(caseId, request.CaseId);
+        Assert.Equal(AutomaticRequestKind.GlassesValuation, request.Kind);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == request.WorkItemId);
@@ -2186,9 +2189,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
 
         // An Engineer editing the Case holds the request back.
         var lease = await harness.AcquireLeaseAsync(caseId, 0, harness.EngineerActor, "automatic-valuation-lease");
-        var target = await store.ReadAutomaticTargetAsync(caseId, ValuationSource.Glasses, CancellationToken.None);
-        Assert.True(AutomaticGuideValuationPolicy.IsNeeded(target!));
-        Assert.True(AutomaticGuideValuationPolicy.Waits(target!, hasVehicleFacts: true, now));
+        var target = await store.ReadAutomaticTargetAsync(
+            caseId, AutomaticRequestKind.GlassesValuation, CancellationToken.None);
+        Assert.True(AutomaticRequestPolicy.IsNeeded(target!));
+        Assert.True(AutomaticRequestPolicy.Waits(
+            AutomaticRequestKind.GlassesValuation, target!, hasVehicleFacts: true, now));
+        // A newly accepted Case's state accepts an assessment save.
+        Assert.True(target!.AcceptsAssessment);
 
         var card = new ValuationDetails(
             ValuationSource.Glasses,
@@ -2198,7 +2205,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             17717m,
             15600m,
             new DateOnly(2031, 5, 1));
-        var actor = AutomaticGuideValuationPolicy.Actor;
+        var actor = AutomaticRequestPolicy.Actor(AutomaticRequestKind.GlassesValuation);
         Assert.True(await store.BeginAutomaticAsync(request.WorkItemId, now, CancellationToken.None));
         Assert.False(await store.BeginAutomaticAsync(request.WorkItemId, now, CancellationToken.None));
         Assert.True(await store.RecordAutomaticAsync(
@@ -2206,7 +2213,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
         Assert.False(await store.RecordAutomaticAsync(
             caseId, actor, "automatic-valuation:again", card, now, CancellationToken.None));
         await store.CompleteAutomaticAsync(
-            request.WorkItemId, AutomaticGuideValuationOutcome.Recorded, now, CancellationToken.None);
+            request.WorkItemId, AutomaticRequestOutcome.Recorded, now, CancellationToken.None);
         Assert.Empty(await store.ListDueAutomaticAsync(now, 10, CancellationToken.None));
 
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -2216,7 +2223,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             Assert.Equal(17717m, recorded.RetailValue);
             Assert.Equal(15600m, recorded.TradeValue);
             Assert.Null(recorded.Mileage);
-            Assert.Equal(AutomaticGuideValuationPolicy.ActorId, recorded.RecordedBy);
+            Assert.Equal(AutomaticRequestPolicy.GlassesActorId, recorded.RecordedBy);
             var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
             Assert.Equal(lease.Version + 1, workflow.Version);
             Assert.Equal(harness.EngineerActor.SubjectId, workflow.EditLeaseHolder);
@@ -2231,9 +2238,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             Assert.Equal(1, work.AttemptCount);
         }
 
-        IAutomaticGuideValuationControl control = new EfSendToAiControlStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
-        Assert.True(await control.IsEnabledAsync(CancellationToken.None));
+        IAutomaticRequestControl control = new EfSendToAiControlStore(harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
+        Assert.True(await control.IsEnabledAsync(AutomaticRequestKind.GlassesValuation, CancellationToken.None));
         await control.SetEnabledAsync(
+            AutomaticRequestKind.GlassesValuation,
             false,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
             reason: null,
@@ -2241,10 +2249,118 @@ public sealed partial class AssessmentPersistenceIntegrationTests(AssessmentData
             CancellationToken.None);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
-            await EfAutomaticGuideValuationStore.EnqueueForCaseAsync(
+            await EfAutomaticRequestStore.EnqueueForCaseAsync(
                 context, Guid.NewGuid(), caseEntity: null, now, CancellationToken.None);
             Assert.Empty(context.ChangeTracker.Entries<ExternalWorkItemEntity>());
         }
+    }
+
+    /// <summary>
+    /// R1286 and R1287 (26 November 2026): Brego, Cazana, CAP and the Experian
+    /// vehicle history check each have a switch, off until turned on. With all
+    /// five on, creation records one request of each kind under its own
+    /// operation key, reading every switch in one statement, and the Worker's
+    /// dispatch takes none of them.
+    /// </summary>
+    [Fact]
+    public async Task EverySwitchOnRecordsOneRequestOfEachKindAtCreation()
+    {
+        // A database of its own: it turns every automatic switch on.
+        var counter = new SqlStatementCounter();
+        await using var harness = await Harness.CreateAsync(counter);
+        IAutomaticRequestControl control = new EfSendToAiControlStore(
+            harness.Factory, harness.Clock, new MemoryCache(new MemoryCacheOptions()));
+        var initial = await control.ReadAsync(CancellationToken.None);
+        foreach (var kind in Enum.GetValues<AutomaticRequestKind>())
+        {
+            Assert.Equal(kind == AutomaticRequestKind.GlassesValuation, initial[kind]);
+        }
+
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var switchKeys = Enum.GetValues<AutomaticRequestKind>()
+            .Select(kind => $"automatic-switch-on-{kind}")
+            .ToList();
+        foreach (var kind in Enum.GetValues<AutomaticRequestKind>())
+        {
+            await control.SetEnabledAsync(
+                kind, true, administrator, reason: null, $"automatic-switch-on-{kind}", CancellationToken.None);
+        }
+
+        Assert.All(await control.ReadAsync(CancellationToken.None), item => Assert.True(item.Value));
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var history = await context.ActionHistory.AsNoTracking()
+                .Where(item => switchKeys.Contains(item.CorrelationId))
+                .Select(item => new { item.CorrelationId, item.EventKind, item.Outcome })
+                .ToListAsync();
+            Assert.Equal(5, history.Count);
+            var glass = Assert.Single(history, item => item.CorrelationId == "automatic-switch-on-GlassesValuation");
+            Assert.Equal("automatic_guide_valuation_enabled", glass.EventKind);
+            Assert.Equal("Unchanged", glass.Outcome);
+            var check = Assert.Single(history, item => item.CorrelationId == "automatic-switch-on-VehicleHistoryCheck");
+            Assert.Equal("automatic_vehicle_history_check_enabled", check.EventKind);
+            Assert.Equal("Succeeded", check.Outcome);
+        }
+
+        var outcome = await harness.AcceptAsync("automatic-requests-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [Pegasus.Core.Custody.ExternalWorkKinds.GuideValuation] = $"guide-valuation:auto:{caseId:N}",
+            [Pegasus.Core.Custody.ExternalWorkKinds.BregoGuideValuation] = $"guide-valuation:auto:brego:{caseId:N}",
+            [Pegasus.Core.Custody.ExternalWorkKinds.CazanaGuideValuation] = $"guide-valuation:auto:cazana:{caseId:N}",
+            [Pegasus.Core.Custody.ExternalWorkKinds.CapGuideValuation] = $"guide-valuation:auto:cap:{caseId:N}",
+            [Pegasus.Core.Custody.ExternalWorkKinds.VehicleHistoryCheck] = $"vehicle-history-check:auto:{caseId:N}",
+        };
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var items = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == caseId && EfAutomaticRequestStore.WorkKinds.Contains(item.Kind))
+                .Select(item => new { item.Kind, item.OperationKey, item.State })
+                .ToListAsync();
+            Assert.Equal(
+                expected.Keys.Order(StringComparer.Ordinal),
+                items.Select(item => item.Kind).Order(StringComparer.Ordinal));
+            Assert.All(items, item =>
+            {
+                Assert.Equal(expected[item.Kind], item.OperationKey);
+                Assert.Equal("pending", item.State);
+            });
+        }
+
+        var now = harness.Clock.GetUtcNow();
+        var due = await new EfAutomaticRequestStore(harness.Factory)
+            .ListDueAutomaticAsync(now, 10, CancellationToken.None);
+        Assert.Equal(
+            Enum.GetValues<AutomaticRequestKind>().Order(),
+            due.Select(request => request.Kind).Order());
+        Assert.All(due, request => Assert.Equal(caseId, request.CaseId));
+
+        // Every switch is read in one statement, as one switch was before.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            counter.Reset();
+            await EfAutomaticRequestStore.EnqueueForCaseAsync(
+                context, Guid.NewGuid(), caseEntity: null, now, CancellationToken.None);
+            Assert.True(
+                counter.Count <= 1,
+                $"Recording the automatic requests sent {counter.Count} statements; at most 1 is allowed.");
+            Assert.Equal(5, context.ChangeTracker.Entries<ExternalWorkItemEntity>().Count());
+        }
+
+        // The Worker's dispatch takes no automatic request: with every other
+        // item settled, it finds nothing, however late it looks.
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.ExternalWorkItems
+                .Where(item => !EfAutomaticRequestStore.WorkKinds.Contains(item.Kind))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.State, ExternalWorkStatePersistence.Completed)
+                    .SetProperty(item => item.CompletedAtUtc, now));
+        }
+
+        Assert.Null(await new EfExternalWorkStore(harness.Factory, harness.Clock).ClaimDispatchAsync(
+            now.AddDays(1), TimeSpan.FromMinutes(5), CancellationToken.None));
     }
 
     [Fact]

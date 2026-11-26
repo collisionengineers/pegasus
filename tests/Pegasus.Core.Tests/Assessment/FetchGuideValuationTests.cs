@@ -341,12 +341,12 @@ public sealed class FetchGuideValuationTests
         var caseData = new RecordingCaseData(Valued(caseId, "KY12CAB", 69000));
         await Fetch([provider], caseData, new RecordingSchedule(), new RecordingVins(), ledger)
             .ExecuteAsync(Request(ValuationSource.Glasses) with { CaseId = caseId, GuideMonth = new DateOnly(2031, 5, 1) }, default);
-        var store = new AutomaticStore(Open());
+        var store = new RecordingAutomaticStore(Open());
 
         var outcome = await Automatic(provider, caseData, store, ledger: ledger)
-            .ExecuteAsync(new(WorkItem, caseId), default);
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.NotNeeded, outcome);
+        Assert.Equal(AutomaticRequestOutcome.NotNeeded, outcome);
         Assert.Equal(1, provider.Calls);
         Assert.Empty(store.Recorded);
     }
@@ -363,20 +363,22 @@ public sealed class FetchGuideValuationTests
     {
         var caseId = Guid.NewGuid();
         var schedule = new RecordingSchedule();
-        var store = new AutomaticStore(Open());
+        var store = new RecordingAutomaticStore(Open());
         var run = Automatic(
             new AnsweringProvider(ValuationSource.Glasses, new StubReport("glass-stock:1")),
             new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
             store,
             schedule: schedule);
 
-        var outcome = await run.ExecuteAsync(new(WorkItem, caseId), default);
+        var outcome = await run.ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.Recorded, outcome);
+        Assert.Equal(AutomaticRequestOutcome.Recorded, outcome);
         Assert.Equal(["begin", "record", "complete:Recorded"], store.Steps);
         var (actor, card) = Assert.Single(store.Recorded);
-        Assert.Same(AutomaticGuideValuationPolicy.Actor, actor);
+        Assert.Same(AutomaticRequestPolicy.Actor(AutomaticRequestKind.GlassesValuation), actor);
         Assert.Equal(ActorKind.Automation, actor.Kind);
+        // Existing rows and history carry the Glass's recorder's identifier.
+        Assert.Equal("glass-valuation", actor.SubjectId);
         Assert.Equal(ValuationSource.Glasses, card.Source);
         Assert.Equal(new DateOnly(2031, 5, 1), card.GuideMonth);
         Assert.Equal(new DateOnly(2031, 5, 14), card.Date);
@@ -400,22 +402,37 @@ public sealed class FetchGuideValuationTests
     {
         var caseId = Guid.NewGuid();
         var provider = new CountingProvider();
-        var store = new AutomaticStore(reason == "lease" ? Open() with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) } : Open());
+        var store = new RecordingAutomaticStore(reason == "lease" ? Open() with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) } : Open());
         var registration = reason == "registration" ? " " : "KY12CAB";
 
         var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, registration, 69000)), store)
-            .ExecuteAsync(new(WorkItem, caseId), default);
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.Waiting, outcome);
+        Assert.Equal(AutomaticRequestOutcome.Waiting, outcome);
         Assert.Equal(0, provider.Calls);
-        Assert.Equal([$"defer:{Now + AutomaticGuideValuationPolicy.Wait:O}"], store.Steps);
+        Assert.Equal([$"defer:{Now + AutomaticRequestPolicy.Wait:O}"], store.Steps);
     }
 
     /// <summary>A lapsed lease is nobody's, so it does not hold the request.</summary>
     [Fact]
     public void ALapsedLeaseDoesNotHoldTheAutomaticRequest() =>
-        Assert.False(AutomaticGuideValuationPolicy.Waits(
-            Open() with { EditLeaseExpiresAtUtc = Now.AddSeconds(-1) }, hasVehicleFacts: true, Now));
+        Assert.False(AutomaticRequestPolicy.Waits(
+            AutomaticRequestKind.GlassesValuation,
+            Open() with { EditLeaseExpiresAtUtc = Now.AddSeconds(-1) },
+            hasVehicleFacts: true,
+            Now));
+
+    /// <summary>
+    /// A valuation does not wait for a state that accepts an assessment save:
+    /// as Glass's does today, it records on a Held Case.
+    /// </summary>
+    [Fact]
+    public void AValuationDoesNotWaitForAWritableAssessment() =>
+        Assert.False(AutomaticRequestPolicy.Waits(
+            AutomaticRequestKind.GlassesValuation,
+            Open() with { AcceptsAssessment = false },
+            hasVehicleFacts: true,
+            Now));
 
     /// <summary>
     /// A request is settled unasked when the switch is off (R546), when this
@@ -423,18 +440,18 @@ public sealed class FetchGuideValuationTests
     /// work already holds a Glass's card.
     /// </summary>
     [Theory]
-    [InlineData("off", AutomaticGuideValuationOutcome.SwitchedOff)]
-    [InlineData("offline", AutomaticGuideValuationOutcome.Unavailable)]
-    [InlineData("closed", AutomaticGuideValuationOutcome.NotNeeded)]
-    [InlineData("card", AutomaticGuideValuationOutcome.NotNeeded)]
-    public async Task AnAutomaticRequestIsSettledUnasked(string reason, AutomaticGuideValuationOutcome expected)
+    [InlineData("off", AutomaticRequestOutcome.SwitchedOff)]
+    [InlineData("offline", AutomaticRequestOutcome.Unavailable)]
+    [InlineData("closed", AutomaticRequestOutcome.NotNeeded)]
+    [InlineData("card", AutomaticRequestOutcome.NotNeeded)]
+    public async Task AnAutomaticRequestIsSettledUnasked(string reason, AutomaticRequestOutcome expected)
     {
         var caseId = Guid.NewGuid();
         var provider = new CountingProvider();
-        var store = new AutomaticStore(reason switch
+        var store = new RecordingAutomaticStore(reason switch
         {
             "closed" => Open() with { IsOpen = false },
-            "card" => Open() with { HoldsSourceCard = true },
+            "card" => Open() with { HoldsAnswer = true },
             _ => Open(),
         });
         IGuideValuationProvider connected = reason == "offline" ? new StubProvider(ValuationSource.Brego) : provider;
@@ -444,11 +461,72 @@ public sealed class FetchGuideValuationTests
                 new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
                 store,
                 enabled: reason != "off")
-            .ExecuteAsync(new(WorkItem, caseId), default);
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
         Assert.Equal(expected, outcome);
         Assert.Equal(0, provider.Calls);
         Assert.Equal([$"complete:{expected}"], store.Steps);
+    }
+
+    /// <summary>
+    /// Every kind's request is settled unasked while its switch is off (R546,
+    /// R1286): a request is made only while its switch is on.
+    /// </summary>
+    [Theory]
+    [InlineData("glass", AutomaticRequestKind.GlassesValuation)]
+    [InlineData("brego", AutomaticRequestKind.BregoValuation)]
+    [InlineData("cazana", AutomaticRequestKind.CazanaValuation)]
+    [InlineData("cap", AutomaticRequestKind.CapValuation)]
+    [InlineData("history", AutomaticRequestKind.VehicleHistoryCheck)]
+    public async Task SwitchedOffSettlesUnasked(string row, AutomaticRequestKind kind)
+    {
+        Assert.False(string.IsNullOrWhiteSpace(row));
+        var caseId = Guid.NewGuid();
+        var provider = new CountingProvider(source: AutomaticRequestPolicy.Source(kind) ?? ValuationSource.Glasses);
+        var store = new RecordingAutomaticStore(Open());
+
+        var outcome = await Automatic(
+                provider,
+                new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
+                store,
+                enabled: false)
+            .ExecuteAsync(new(WorkItem, caseId, kind), default);
+
+        Assert.Equal(AutomaticRequestOutcome.SwitchedOff, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(store.TargetsRead);
+        Assert.Equal(["complete:SwitchedOff"], store.Steps);
+    }
+
+    /// <summary>
+    /// Brego, Cazana and CAP are asked as Glass's is (R1286): the source's card
+    /// for the current month, made as the source's own Automation recorder.
+    /// </summary>
+    [Theory]
+    [InlineData("brego", AutomaticRequestKind.BregoValuation, ValuationSource.Brego, "brego-valuation")]
+    [InlineData("cazana", AutomaticRequestKind.CazanaValuation, ValuationSource.Cazana, "cazana-valuation")]
+    [InlineData("cap", AutomaticRequestKind.CapValuation, ValuationSource.Cap, "cap-valuation")]
+    public async Task AnotherSourcesRequestRecordsItsOwnCard(
+        string row, AutomaticRequestKind kind, ValuationSource source, string actorId)
+    {
+        Assert.False(string.IsNullOrWhiteSpace(row));
+        var caseId = Guid.NewGuid();
+        var store = new RecordingAutomaticStore(Open());
+
+        var outcome = await Automatic(
+                new AnsweringProvider(source, null),
+                new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)),
+                store)
+            .ExecuteAsync(new(WorkItem, caseId, kind), default);
+
+        Assert.Equal(AutomaticRequestOutcome.Recorded, outcome);
+        Assert.Equal([kind], store.TargetsRead);
+        var (actor, card) = Assert.Single(store.Recorded);
+        Assert.Same(AutomaticRequestPolicy.Actor(kind), actor);
+        Assert.Equal(ActorKind.Automation, actor.Kind);
+        Assert.Equal(actorId, actor.SubjectId);
+        Assert.Equal(source, card.Source);
+        Assert.Equal(new DateOnly(2031, 5, 1), card.GuideMonth);
     }
 
     /// <summary>
@@ -457,19 +535,19 @@ public sealed class FetchGuideValuationTests
     /// any later valuation is staff-started (R545).
     /// </summary>
     [Theory]
-    [InlineData("age", AutomaticGuideValuationOutcome.NotValued)]
-    [InlineData("down", AutomaticGuideValuationOutcome.Unavailable)]
+    [InlineData("age", AutomaticRequestOutcome.NotValued)]
+    [InlineData("down", AutomaticRequestOutcome.Unavailable)]
     public async Task AnAutomaticRequestGlassCannotAnswerIsSettledOnce(
-        string answer, AutomaticGuideValuationOutcome expected)
+        string answer, AutomaticRequestOutcome expected)
     {
         var caseId = Guid.NewGuid();
-        var store = new AutomaticStore(Open());
+        var store = new RecordingAutomaticStore(Open());
         var provider = new CountingProvider(answer == "age"
             ? new GuideValuationNotValuedException(ValuationSource.Glasses, GuideValuationNotValuedReason.VehicleAge)
             : new GuideValuationProviderUnavailableException(ValuationSource.Glasses));
 
         var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
-            .ExecuteAsync(new(WorkItem, caseId), default);
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
         Assert.Equal(expected, outcome);
         Assert.Equal(1, provider.Calls);
@@ -483,12 +561,12 @@ public sealed class FetchGuideValuationTests
     {
         var caseId = Guid.NewGuid();
         var provider = new CountingProvider();
-        var store = new AutomaticStore(Open(), begins: false);
+        var store = new RecordingAutomaticStore(Open(), begins: false);
 
         var outcome = await Automatic(provider, new RecordingCaseData(Valued(caseId, "KY12CAB", 69000)), store)
-            .ExecuteAsync(new(WorkItem, caseId), default);
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.GlassesValuation), default);
 
-        Assert.Equal(AutomaticGuideValuationOutcome.NotRecorded, outcome);
+        Assert.Equal(AutomaticRequestOutcome.NotRecorded, outcome);
         Assert.Equal(0, provider.Calls);
         Assert.Equal(["begin"], store.Steps);
     }
@@ -497,22 +575,21 @@ public sealed class FetchGuideValuationTests
 
     private static readonly Guid WorkItem = Guid.NewGuid();
 
-    private static AutomaticGuideValuationTarget Open() =>
-        new(IsOpen: true, HoldsSourceCard: false, EditLeaseExpiresAtUtc: null);
+    private static AutomaticRequestTarget Open() => AutomaticRequestDoubles.Open();
 
-    private static RunAutomaticGuideValuation Automatic(
+    private static RunAutomaticRequest Automatic(
         IGuideValuationProvider provider,
         RecordingCaseData caseData,
-        AutomaticStore store,
+        RecordingAutomaticStore store,
         bool enabled = true,
         RecordingSchedule? schedule = null,
         MemoryLedger? ledger = null) =>
-        new(
+        AutomaticRequestDoubles.Runner(
             Fetch([provider], caseData, schedule ?? new RecordingSchedule(), new RecordingVins(), ledger),
             caseData,
             store,
-            new FixedSwitch(enabled),
-            new FixedClock(Now));
+            Now,
+            enabled);
 
     private static FetchGuideValuation Fetch(
         IEnumerable<IGuideValuationProvider> providers,
@@ -593,66 +670,6 @@ public sealed class FetchGuideValuationTests
                 ? Task.FromResult(new GuideValuationQuote(17717m, 15600m, request.GuideMonth, request.Mileage))
                 : Task.FromException<GuideValuationQuote>(failure);
         }
-    }
-
-    private sealed class AutomaticStore(AutomaticGuideValuationTarget target, bool begins = true)
-        : IAutomaticGuideValuationStore
-    {
-        public List<string> Steps { get; } = [];
-
-        public List<(ActionActor Actor, ValuationDetails Card)> Recorded { get; } = [];
-
-        public Task<IReadOnlyList<AutomaticGuideValuationRequest>> ListDueAutomaticAsync(
-            DateTimeOffset nowUtc, int maximumItems, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AutomaticGuideValuationTarget?> ReadAutomaticTargetAsync(
-            Guid caseId, ValuationSource source, CancellationToken cancellationToken) =>
-            Task.FromResult<AutomaticGuideValuationTarget?>(target);
-
-        public Task DeferAutomaticAsync(Guid workItemId, DateTimeOffset dueAtUtc, CancellationToken cancellationToken)
-        {
-            Steps.Add($"defer:{dueAtUtc:O}");
-            return Task.CompletedTask;
-        }
-
-        public Task<bool> BeginAutomaticAsync(Guid workItemId, DateTimeOffset nowUtc, CancellationToken cancellationToken)
-        {
-            Steps.Add("begin");
-            return Task.FromResult(begins);
-        }
-
-        public Task CompleteAutomaticAsync(
-            Guid workItemId,
-            AutomaticGuideValuationOutcome outcome,
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken)
-        {
-            Steps.Add($"complete:{outcome}");
-            return Task.CompletedTask;
-        }
-
-        public Task<bool> RecordAutomaticAsync(
-            Guid caseId,
-            ActionActor actor,
-            string operationKey,
-            ValuationDetails card,
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken)
-        {
-            Steps.Add("record");
-            Recorded.Add((actor, card));
-            return Task.FromResult(true);
-        }
-    }
-
-    private sealed class FixedSwitch(bool on) : IAutomaticGuideValuationControl
-    {
-        public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(on);
-
-        public Task<bool> SetEnabledAsync(
-            bool enabled, ActionActor actor, string? reason, string operationKey, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 
     /// <summary>The ledger's contract in memory: one row per key, Asking or Answered.</summary>

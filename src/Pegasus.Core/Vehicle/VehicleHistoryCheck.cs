@@ -240,6 +240,17 @@ public sealed class RunVehicleHistoryCheck(
     /// <summary>Whether a provider is connected, so the page offers the check only where it can run.</summary>
     public bool IsConnected => _provider is not null;
 
+    /// <summary>
+    /// The current work's accepted registration, the one the check checks:
+    /// confirmed, else the intake fact; never a suggestion. Null or blank when
+    /// the work has none, so there is nothing to check.
+    /// </summary>
+    public static string? AcceptedRegistration(CaseDataProjection data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        return (data.Vehicle.Registration.Confirmed ?? data.Vehicle.Registration.Fact)?.Value;
+    }
+
     public async Task<VehicleHistoryCheckOutcome> ExecuteAsync(
         RunVehicleHistoryCheckRequest request,
         CancellationToken cancellationToken)
@@ -261,8 +272,7 @@ public sealed class RunVehicleHistoryCheck(
         var provider = _provider ?? throw new VehicleHistoryCheckUnavailableException();
         var data = await _caseData.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        var accepted = (data.Vehicle.Registration.Confirmed ?? data.Vehicle.Registration.Fact)?.Value;
-        if (!string.Equals(accepted, registration, StringComparison.Ordinal))
+        if (!string.Equals(AcceptedRegistration(data), registration, StringComparison.Ordinal))
         {
             throw new AcceptedVehicleRegistrationConflictException(request.CaseId);
         }

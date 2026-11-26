@@ -213,7 +213,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 // The startup warm-up reads in the background; a test host
                 // skips it so its own command counts stay exact.
                 ["Startup:Warmup"] = "false",
-                // Nor does it run the automatic valuation pass in the background.
+                // Nor does it run the automatic request pass in the background.
                 ["Valuation:AutomaticPassInterval"] = "00:00:00",
             };
 

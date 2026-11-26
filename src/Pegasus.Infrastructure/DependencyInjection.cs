@@ -595,7 +595,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfValuationStore>());
         services.AddScoped<IAppliedValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
-        services.AddScoped<IAutomaticGuideValuationStore, EfAutomaticGuideValuationStore>();
+        services.AddScoped<IAutomaticRequestStore, EfAutomaticRequestStore>();
         services.AddScoped<IGuideValuationFetchLedger, EfGuideValuationFetchLedger>();
         services.AddScoped<EfValuationPresetStore>();
         services.AddScoped<IValuationPresetStore>(provider =>
@@ -619,7 +619,7 @@ public static class DependencyInjection
         // not connected.
         services.AddScoped<RunVehicleHistoryCheck>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
-        services.AddScoped<IAutomaticGuideValuationControl, EfSendToAiControlStore>();
+        services.AddScoped<IAutomaticRequestControl, EfSendToAiControlStore>();
         services.AddScoped<Pegasus.Core.Cases.ICaseReferenceSuffixControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
