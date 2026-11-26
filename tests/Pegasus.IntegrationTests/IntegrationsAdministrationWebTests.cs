@@ -141,7 +141,9 @@ public sealed partial class IntegrationsAdministrationWebTests
 
             var dialog = DialogTag(html, login);
             Assert.Contains("hidden=\"hidden\"", dialog, StringComparison.Ordinal);
-            Assert.DoesNotContain("data-dialog-open-on-load", dialog, StringComparison.Ordinal);
+            // Razor writes a data- attribute even for a null value, as an empty
+            // one; only "true" opens a dialog on load.
+            Assert.DoesNotContain("data-dialog-open-on-load=\"true\"", dialog, StringComparison.Ordinal);
         }
 
         foreach (var header in ColumnHeaders)
