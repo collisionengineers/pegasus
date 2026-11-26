@@ -107,7 +107,8 @@ internal sealed class DatabaseLessCaseReads :
     /// The claim sources the schema seeds, in the store's name order: slots
     /// 01 to 0b from the SOP seeds of 12, 13 and 17 October 2026, and slots
     /// 0e to 19, the introducers Oakwood's instructions name, each linked to
-    /// OAK (migration ContactsFollowQuickReference, R1030).
+    /// OAK (migration ContactsFollowQuickReference, R1030), and slot 1b, Easy
+    /// Claim, linked to RJS (migration EasyClaimIsAnRjsClaimSource, R1302).
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
@@ -117,6 +118,7 @@ internal sealed class DatabaseLessCaseReads :
         SeededClaimSource("00000000-0000-4000-8000-00000000f001", "Car 2 Go"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f003", "CarClaims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f006", "Easdons"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f01b", "Easy Claim") with { LinkedPrincipalCodes = ["RJS"] },
         OakIntroducer("00000000-0000-4000-8000-00000000f011", "Ecs Accident Repair Ltd"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f004", "Expert Claims"),
         OakIntroducer("00000000-0000-4000-8000-00000000f012", "Glasgow Smart Repair"),

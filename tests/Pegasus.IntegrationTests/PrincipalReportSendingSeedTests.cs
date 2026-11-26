@@ -903,4 +903,41 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
         Assert.Equal(linkCount, await links.CountAsync());
     }
+
+    /// <summary>
+    /// Easy Claim (operator, 26 November 2026; R1302): one active Claim
+    /// Source with its name and nothing else, linked to RJS and no other
+    /// Principal, and RJS's sending rules do not copy it. The seed met again
+    /// changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task EasyClaimIsAClaimSourceLinkedToRjsOnly()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+
+        var easyClaim = organizations[Guid.Parse(EasyClaimIsAnRjsClaimSource.ClaimSourceId)];
+        Assert.Equal("Easy Claim", easyClaim.Name);
+        Assert.Equal("claim_source", easyClaim.Role);
+        Assert.True(easyClaim.Active);
+        Assert.Null(easyClaim.Address);
+        Assert.Null(easyClaim.Postcode);
+        Assert.Null(easyClaim.Email);
+        Assert.Null(easyClaim.Telephone);
+        Assert.Null(easyClaim.NotesOnEveryCase);
+        Assert.Single(organizations.Values, item => item.Role == "claim_source" && item.NormalizedName == "EASY CLAIM");
+        var rjs = principals["RJS"].Principal;
+        Assert.DoesNotContain(
+            easyClaim.Id.ToString("D"), rjs.ReportSendingRulesJson, StringComparison.OrdinalIgnoreCase);
+
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var links = context.Set<ContactPrincipalLinkEntity>().AsNoTracking();
+        Assert.Equal(rjs.Id, (await links.SingleAsync(link => link.OrganizationId == easyClaim.Id)).PrincipalId);
+        var linkCount = await links.CountAsync();
+
+        await context.Database.ExecuteSqlRawAsync(EasyClaimIsAnRjsClaimSource.SeedSql);
+        Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
+        Assert.Equal(linkCount, await links.CountAsync());
+    }
 }
