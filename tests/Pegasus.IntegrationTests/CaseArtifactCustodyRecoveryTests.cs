@@ -2726,6 +2726,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash,
             Stream content, long contentLength, DateTimeOffset firstSeenAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken)
         {
             ReadCount++;
@@ -2843,6 +2845,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
             return new(storageKey, contentHash, contentLength, firstSeenAtUtc,
                 StagedArtifactDisposition.Pending, string.Empty);
         }
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult(values.TryGetValue(storageKey, out var content)
                 ? (ReadOnlyMemory<byte>?)content
@@ -2940,6 +2944,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
             return new(storageKey, contentHash, contentLength, firstSeenAtUtc,
                 StagedArtifactDisposition.Pending, string.Empty);
         }
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(null);

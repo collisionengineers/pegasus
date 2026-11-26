@@ -122,7 +122,27 @@
                         }
                     </summary>
                     <div class="mail-msg-main">
-                        @if (row.RouteParts.Count > 0)
+                        @if (row.AsSentId is not null)
+                        {
+                            @* The recipients line shares its line with the small switch between
+                               as sent and plain text (v54 D5; R1277, R1280). It stays hidden until
+                               the script has shown the message as sent; its title names the view it
+                               switches to. *@
+                            <div class="mail-msg-meta">
+                                @if (row.RouteParts.Count > 0)
+                                {
+                                    <p class="mail-to">@string.Join(" · ", row.RouteParts)</p>
+                                }
+                                <button type="button" class="icon-button mail-format" data-mail-format
+                                        aria-label="@OperatorLabels.Inbox.PlainText" aria-pressed="false"
+                                        title="@OperatorLabels.Inbox.PlainText"
+                                        data-mail-format-plain="@OperatorLabels.Inbox.PlainText"
+                                        data-mail-format-as-sent="@OperatorLabels.Inbox.AsSent" hidden>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-text")" /></svg>
+                                </button>
+                            </div>
+                        }
+                        else if (row.RouteParts.Count > 0)
                         {
                             <p class="mail-to">@string.Join(" · ", row.RouteParts)</p>
                         }
@@ -150,6 +170,15 @@
                                 }
                             }
                         </div>
+                        @if (row.AsSentId is { } asSentId)
+                        {
+                            @* The message as sent (v54 D5 to D8): the script frames it here and
+                               hides the plain text above once it shows; without script, or where
+                               it cannot be shown, the plain text stays. *@
+                            <div class="mail-sent" data-mail-sent
+                                 data-mail-sent-src="@(Url.Page("/Mail/AsSent", new { id = asSentId, v = row.AsSentVersion }))"
+                                 data-mail-sent-title="@OperatorLabels.Inbox.AsSent" hidden></div>
+                        }
                         @if (row.Files.Count > 0)
                         {
                             @* One message's files are one set (v54 D10, D11; R1275, R1280):

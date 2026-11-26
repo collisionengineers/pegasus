@@ -67,6 +67,8 @@ public static class MailboxMessageIdentity
 /// in hand exactly once, at poll time. <c>BodyPlainText</c> is retained with the
 /// rest: the alternative is re-reading the artifact on every view, which on a
 /// workstation with no Worker running means the viewer is blank.
+/// <c>HasHtmlBody</c> is whether the original has an HTML part, so it can be
+/// shown as it was sent; null where the MIME could not be read.
 /// </remarks>
 public sealed record RetainedMailboxMessageMetadata(
     string FolderIdentity,
@@ -81,7 +83,8 @@ public sealed record RetainedMailboxMessageMetadata(
     string? Subject,
     string? BodyPlainText,
     IReadOnlyList<RetainedMailboxAttachment> Attachments,
-    bool IsRead);
+    bool IsRead,
+    bool? HasHtmlBody = null);
 
 public sealed record ApprovedInboxMessage(
     string ImmutableMessageId,

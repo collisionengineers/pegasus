@@ -192,6 +192,8 @@ public enum RetainedMailDirection
 /// <param name="QuotedSentLocal">A quoted message's sent time where its header can be read, in no zone.</param>
 /// <param name="QuotedSentText">A quoted message's sent date as its header wrote it.</param>
 /// <param name="Text">That sender's own words, without the quoted history or a header block.</param>
+/// <param name="OffersAsSent">Whether the dialogue offers the message as it was sent (R1277, R1279).</param>
+/// <param name="AsSentVersion">The kept original's content hash when it offers it; null when not or not known.</param>
 public sealed record RetainedMailConversationMessage(
     Guid? Id,
     RetainedMailDirection Direction,
@@ -205,7 +207,9 @@ public sealed record RetainedMailConversationMessage(
     string? QuotedSentText,
     string Text,
     IReadOnlyList<RetainedMailAttachment> Attachments,
-    Guid? IntakeReceiptId);
+    Guid? IntakeReceiptId,
+    bool OffersAsSent = false,
+    string? AsSentVersion = null);
 
 /// <summary>
 /// One retained message in full. <paramref name="BodyPlainText"/> is the cleaned
@@ -604,6 +608,14 @@ public interface IRetainedMailQueries
         Guid id,
         CancellationToken cancellationToken) =>
         (await GetAsync(id, cancellationToken))?.Summary.IntakeReceiptId;
+
+    /// <summary>
+    /// What is known of a kept message's original (<see cref="GetMailAsSent"/>),
+    /// without loading its body; null when the message is not kept.
+    /// </summary>
+    Task<RetainedMailOriginal?> GetOriginalAsync(
+        Guid id,
+        CancellationToken cancellationToken);
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);

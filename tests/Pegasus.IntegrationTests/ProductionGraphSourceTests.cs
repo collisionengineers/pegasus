@@ -1333,7 +1333,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
 
         var error = await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
             new(DefaultMailboxId, DefaultMailboxAddress, DefaultSentFolderId, null, "lease",
@@ -1358,7 +1359,8 @@ public sealed class ProductionGraphSourceTests
                     """{"value":[{"id":"immutable-sent","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"conversation","internetMessageId":"<sent@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}"""));
         var options = Options();
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
         var lease = new ApprovedSentPollLease(
             "mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
             approvedMailboxId, 3, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero));
@@ -1392,7 +1394,8 @@ public sealed class ProductionGraphSourceTests
         });
         var options = Options();
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
 
         var page = await source.ReadAsync(
             new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
@@ -1403,6 +1406,60 @@ public sealed class ProductionGraphSourceTests
         Assert.False(page.HasMore);
         Assert.Equal(0, mimeReads);
         Assert.Contains("deltatoken", page.NextCursor, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A discovered Sent item's original is kept under its content hash, so it
+    /// can be shown as it was sent, and the row records that it has HTML (R1279).
+    /// </summary>
+    [Fact]
+    public async Task SentDeltaKeepsEachDiscoveredItemsOriginalUnderItsHash()
+    {
+        const string mime = "Message-Id: <kept@example.test>\r\nFrom: desk@example.test\r\nContent-Type: multipart/alternative; boundary=alt\r\n\r\n--alt\r\nContent-Type: text/plain\r\n\r\nBody\r\n--alt\r\nContent-Type: text/html\r\n\r\n<p>Body</p>\r\n--alt--\r\n";
+        var handler = new DelegateHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK, mime, "message/rfc822")
+                : Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-sent","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"conversation","internetMessageId":"<kept@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}"""));
+        var originals = new KeptOriginals();
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            originals);
+
+        var page = await source.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        var bytes = Encoding.ASCII.GetBytes(mime);
+        var hash = Convert.ToHexString(SHA256.HashData(bytes));
+        Assert.Equal(hash, item.SourceSha256);
+        Assert.Equal(bytes, Assert.Single(originals.Kept, kept => kept.Key == hash).Value);
+        Assert.True(item.RetainedMetadata!.HasHtmlBody);
+    }
+
+    /// <summary>A Sent item whose original cannot be kept is still reported; only the formatted view is lost.</summary>
+    [Fact]
+    public async Task SentDeltaReportsAnItemWhoseOriginalCannotBeKept()
+    {
+        var handler = new DelegateHandler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal)
+                ? Response(HttpStatusCode.OK, "Message-Id: <unkept@example.test>\r\nContent-Type: text/plain\r\n\r\nBody", "message/rfc822")
+                : Response(HttpStatusCode.OK,
+                    """{"value":[{"id":"immutable-sent","parentFolderId":"sent-items","sentDateTime":"2026-09-06T10:00:00Z","conversationId":"conversation","internetMessageId":"<unkept@example.test>"}],"@odata.deltaLink":"https://graph.microsoft.com/v1.0/users/mailbox-id/mailFolders/sent-items/messages/delta?$deltatoken=final"}"""));
+        var source = new GraphApprovedSentSource(
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new KeptOriginals(fails: true));
+
+        var page = await source.ReadAsync(
+            new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
+                Guid.NewGuid(), 2, new DateTimeOffset(2026, 9, 6, 9, 0, 0, TimeSpan.Zero)),
+            10, CancellationToken.None);
+
+        var item = Assert.Single(page.Items);
+        Assert.Equal(ApprovedSentItemObservationKind.Discovered, item.ObservationKind);
+        Assert.NotNull(item.Provenance);
     }
 
     [Fact]
@@ -1442,7 +1499,8 @@ public sealed class ProductionGraphSourceTests
             return Response(HttpStatusCode.OK, Mime(id), "message/rfc822");
         });
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
 
         var page = await source.ReadAsync(
             new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
@@ -1489,7 +1547,8 @@ public sealed class ProductionGraphSourceTests
                 : Response(HttpStatusCode.OK, "Message-Id: <m@example.test>\r\n\r\nBody", "message/rfc822");
         });
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
 
         await Assert.ThrowsAsync<ApprovedSentSourceThrottledException>(() => source.ReadAsync(
             new("mailbox-id", DefaultMailboxAddress, "sent-items", null, "lease",
@@ -1518,7 +1577,8 @@ public sealed class ProductionGraphSourceTests
             return Response(HttpStatusCode.OK, "Message-Id: <m@example.test>\r\n\r\nBody", "message/rfc822");
         });
         var source = new GraphApprovedSentSource(
-            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)));
+            new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler)),
+            new KeptOriginals());
         using var cancellation = new CancellationTokenSource();
 
         var read = source.ReadAsync(
@@ -1583,7 +1643,7 @@ public sealed class ProductionGraphSourceTests
         });
         var client = new GraphMailClient(new FixedCredential(), Options().BaseUri, new HttpClient(handler));
         var inbox = new GraphApprovedInboxSource(client, new NoQuarantineStore());
-        var sent = new GraphApprovedSentSource(client);
+        var sent = new GraphApprovedSentSource(client, new KeptOriginals());
 
         var inboxRead = inbox.ReadAsync(
             Lease(DefaultMailboxId, DefaultMailboxAddress, DefaultInboxFolderId, null, "lease"),
@@ -2264,6 +2324,40 @@ public sealed class ProductionGraphSourceTests
             IntakeQuarantineArtifact artifact,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("The source does not verify what it retained.");
+    }
+
+    /// <summary>
+    /// The originals the Sent source keeps, by content hash; with
+    /// <paramref name="fails"/> every store fails.
+    /// </summary>
+    private sealed class KeptOriginals(bool fails = false) : IIntakeArtifactStore
+    {
+        public System.Collections.Concurrent.ConcurrentDictionary<string, byte[]> Kept { get; } = new(StringComparer.Ordinal);
+
+        public Task<string> StoreAsync(
+            string contentHash,
+            ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken)
+        {
+            if (fails)
+            {
+                throw new IOException("The artifact store could not write.");
+            }
+
+            Kept[contentHash] = content.ToArray();
+            return Task.FromResult($"sha256/{contentHash[..2]}/{contentHash}");
+        }
+
+        public Task<StagedArtifactInventoryItem> StageAsync(
+            Guid stagedReceiptId, string contentHash, Stream content, long contentLength,
+            DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The Sent source does not stage.");
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("The Sent source does not read.");
+
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult(Kept.TryGetValue(contentHash, out var content) ? (ReadOnlyMemory<byte>?)content : null);
     }
 
     /// <summary>

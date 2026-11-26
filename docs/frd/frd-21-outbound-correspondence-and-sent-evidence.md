@@ -401,6 +401,14 @@ correspondence was sent, with the subject
 until that Sent item exists. A send that Graph refuses leaves no evidence and
 shows as a failure on the composer, never as sent.
 
+The poll also keeps each Sent item's original bytes, in the store intake
+keeps received originals in and under the same content address, so the
+message dialog can show it as it was sent (operator, 26 November 2026,
+R1279; [FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)).
+A Sent item retained before that has no kept original and shows as plain
+text. The original is not filed to Box, and failing to keep it never fails
+the poll.
+
 **No Flag, no Delete control. Two moves to Deleted Items.** There is no flag
 control, no delete control and no staff action that moves a chosen message to
 Deleted Items, on any surface. Two things move mail there and neither is a

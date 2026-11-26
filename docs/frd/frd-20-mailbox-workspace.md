@@ -141,6 +141,27 @@ sender's own paragraphs, and its attachments beneath it as rows of name, type
 (PDF, Image or Word) and size. A staff forward's row names its original
 sender, and the member of staff who forwarded it sits with the recipients.
 
+A message opens as it was sent, with its formatting, wherever it has any and
+its retained original can be read (operator, 26 November 2026, R1277,
+R1280). A small icon button on the message switches that message to plain
+text and back: it is named **Plain text**, is pressed while plain text shows,
+and its tooltip names the view it switches to (**Plain text** or **As
+sent**). Plain text is exactly what intake read. A message has no switch and
+shows as plain text where it has no formatting, where its original cannot be
+read yet, where it is a Sent item retained before originals were kept
+(R1279), and where it is a quoted message.
+
+The formatted view is made from the retained original at each view and is
+not stored; the browser keeps it. It shows the sender's own words: it is cut
+at the first quoted message, and for a staff forward it is the forwarded
+message. Where that cut cannot be found the whole e-mail shows as sent. The
+earlier messages are the same folded rows in both views. It is drawn in a
+frame of its own that runs no script, submits no form and loads nothing but
+pictures: anything else the e-mail carries (scripts, forms, frames, embedded
+objects, refreshes) is removed first. Its links open a new tab. Pictures on
+the sender's servers load, and pictures embedded in the e-mail are part of
+the view, so there is no separate picture address.
+
 Each attachment row offers **View** and **Download** (operator, 25 November
 2026, R1275, which replaces R950 for mail attachments). View draws a PDF or an
 image in the viewer over the dialog, before the message has a Case as after:

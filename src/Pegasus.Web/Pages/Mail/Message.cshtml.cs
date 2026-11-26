@@ -58,6 +58,7 @@ public sealed class MessageModel(
     DismissRetainedMail dismissRetainedMail,
     RestoreRetainedMail restoreRetainedMail,
     IGetRetainedMailOutcome messageOutcome,
+    IRenderMailAsSent asSentRenderer,
     GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
     ILogger<MessageModel> logger) : StaffPageModel
@@ -106,6 +107,8 @@ public sealed class MessageModel(
     /// <param name="DirectionCode">received, sent or quoted.</param>
     /// <param name="TimeAttribute">The <c>datetime</c> value of its time; null where the time is the header's own text or absent.</param>
     /// <param name="Body">The presented text; null when it has none.</param>
+    /// <param name="AsSentId">The kept message whose view as sent the row offers (v54 D5, D6); null when it offers none.</param>
+    /// <param name="AsSentVersion">The kept original's version, which names the view's address; null when not known.</param>
     public sealed record ConversationRow(
         string Key,
         string DirectionCode,
@@ -118,7 +121,9 @@ public sealed class MessageModel(
         string Excerpt,
         MailBodyPresentation.Presented? Body,
         IReadOnlyList<ConversationFile> Files,
-        bool IsOpened);
+        bool IsOpened,
+        Guid? AsSentId = null,
+        string? AsSentVersion = null);
 
     private IReadOnlyList<ConversationRow>? conversationRows;
 
@@ -742,7 +747,16 @@ public sealed class MessageModel(
                 // A quoted message has no files of its own.
                 message.Direction == RetainedMailDirection.Quoted ? [] : message.Attachments,
                 message.IntakeReceiptId,
-                isOpened));
+                isOpened) with
+            {
+                // Only a kept message offers its view as sent (v54 D5, D6).
+                AsSentId = message.OffersAsSent ? message.Id : null,
+                // The address names the original and the rules it was rendered by, so a
+                // browser's kept copy is never one made under older rules.
+                AsSentVersion = message.OffersAsSent && !string.IsNullOrWhiteSpace(message.AsSentVersion)
+                    ? GetMailAsSent.VersionOf(message.AsSentVersion, asSentRenderer.Version)
+                    : null
+            });
         }
         return rows;
     }

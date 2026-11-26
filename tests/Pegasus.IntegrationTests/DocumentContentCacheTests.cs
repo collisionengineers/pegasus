@@ -3162,6 +3162,9 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult(copies.TryGetValue(storageKey, out var bytes) ? (ReadOnlyMemory<byte>?)bytes : null);
     }

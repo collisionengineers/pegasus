@@ -11,7 +11,8 @@ namespace Pegasus.Infrastructure.Intake;
 /// the subject and inert body text, one sender split into address and display
 /// name, recipients and reply-to targets as addresses rather than a rendered
 /// string, attachments with their decoded length, and the message and thread
-/// identities.
+/// identities. <see cref="HasHtmlBody"/> says whether the message whose text
+/// <see cref="Body"/> carries has an HTML part, so it can be shown as sent.
 /// </remarks>
 public sealed record LocalEmailDisplay(
     string Subject,
@@ -24,7 +25,8 @@ public sealed record LocalEmailDisplay(
     IReadOnlyList<RetainedMailboxAttachment>? Attachments = null,
     string? MessageIdentity = null,
     string? ThreadIdentity = null,
-    IReadOnlyList<string>? InReplyToIdentities = null);
+    IReadOnlyList<string>? InReplyToIdentities = null,
+    bool HasHtmlBody = false);
 
 /// <summary>
 /// Reads only decoded message display data. It never renders HTML or resolves resources.
@@ -50,37 +52,20 @@ public static partial class LocalEmailDisplayReader
         IReadOnlyDictionary<MimeEntity, long>? decodedLengths = null)
     {
         ArgumentNullException.ThrowIfNull(message);
-        var body = message.TextBody;
-        if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
+        var body = BodyText(message);
+        var textSource = message;
+        var (shown, isAttachedOriginal) = ShownMessage(message);
+        if (isAttachedOriginal)
         {
-            body = HtmlMailText.ToText(message.HtmlBody);
-        }
-
-        // A staff forward that carries the provider's original as an attached
-        // message/rfc822 part: surface that original's body as the focus rather
-        // than the forwarder's wrapper, which is often only a blank line and the
-        // Collision Engineers signature.
-        var attachedOriginal = FindAttachedOriginal(message);
-        // Only treat an attached message/rfc822 as a forward to surface when the
-        // subject marks it as a forward, so an email that merely attaches a prior
-        // .eml as evidence keeps its own top-level body.
-        var isStaffForward = attachedOriginal is not null && IsForwardSubject(message.Subject);
-        if (isStaffForward && attachedOriginal is not null)
-        {
-            var originalBody = attachedOriginal.TextBody;
-            if (string.IsNullOrWhiteSpace(originalBody)
-                && !string.IsNullOrWhiteSpace(attachedOriginal.HtmlBody))
-            {
-                originalBody = HtmlMailText.ToText(attachedOriginal.HtmlBody);
-            }
-
+            var originalBody = BodyText(shown);
             if (!string.IsNullOrWhiteSpace(originalBody))
             {
                 body = originalBody;
+                textSource = shown;
             }
         }
 
-        body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isStaffForward);
+        body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isAttachedOriginal);
 
         var sender = message.From.Mailboxes.FirstOrDefault();
         var hasReplyToHeader = message.Headers.Contains(HeaderId.ReplyTo);
@@ -99,7 +84,38 @@ public static partial class LocalEmailDisplayReader
             // The conversation this message belongs to, as the MIME can express it:
             // the root of its References chain, or itself where it starts one.
             NullIfBlank(message.References.FirstOrDefault()) ?? NullIfBlank(message.MessageId),
-            ReplyIdentities(message));
+            ReplyIdentities(message),
+            !string.IsNullOrWhiteSpace(textSource.HtmlBody));
+    }
+
+    /// <summary>
+    /// The message a reader is shown. A staff forward that carries the
+    /// provider's original as an attached message/rfc822 part shows that
+    /// original rather than the forwarder's wrapper, which is often only a
+    /// blank line and the Collision Engineers signature. Only a subject that
+    /// marks the message as a forward makes the attached message the one
+    /// shown, so an e-mail that merely attaches a prior .eml as evidence keeps
+    /// its own top-level message.
+    /// </summary>
+    internal static (MimeMessage Message, bool IsAttachedOriginal) ShownMessage(MimeMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        var attachedOriginal = FindAttachedOriginal(message);
+        return attachedOriginal is not null && IsForwardSubject(message.Subject)
+            ? (attachedOriginal, true)
+            : (message, false);
+    }
+
+    /// <summary>The message's text, or the inert text of its HTML when it has no text part.</summary>
+    private static string? BodyText(MimeMessage message)
+    {
+        var text = message.TextBody;
+        if (string.IsNullOrWhiteSpace(text) && !string.IsNullOrWhiteSpace(message.HtmlBody))
+        {
+            text = HtmlMailText.ToText(message.HtmlBody);
+        }
+
+        return text;
     }
 
     /// <summary>
