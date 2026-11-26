@@ -21,18 +21,30 @@
     </div>
     <div class="page-actions">
         <partial name="Shared/_MessageDecision" model="Model" view-data="@(new ViewDataDictionary(ViewData) { { "MailSettingsPart", "menu" } })" />
-        @* Back pins the message it leaves, so the list returns to it. *@
-        <a class="btn" asp-page="/Mail/Index"
-           asp-route-mailbox="@Model.MailboxFilter"
-           asp-route-folder="@Model.FolderRouteValue"
-           asp-route-search="@Model.SearchTerm"
-           asp-route-queue="@Model.QueueFilter"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-           asp-route-pageNumber="@Model.PageRouteValue"
-           asp-route-selected="@summary.Id">
-            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
-            <span>Back to Inbox</span>
-        </a>
+        @if (Model.ReturnCase is { } returnCaseId)
+        {
+            @* Reached from a Case page (R1278), the way back is that Case, at the list it was opened from. *@
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@returnCaseId"
+               asp-route-section="@Model.ReturnCaseSection" asp-fragment="@Model.ReturnCaseFragment">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                <span>@OperatorLabels.Upload.BackToCase(Model.ReturnCaseReference ?? string.Empty)</span>
+            </a>
+        }
+        else
+        {
+            @* Back pins the message it leaves, so the list returns to it. *@
+            <a class="btn" asp-page="/Mail/Index"
+               asp-route-mailbox="@Model.MailboxFilter"
+               asp-route-folder="@Model.FolderRouteValue"
+               asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter"
+               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+               asp-route-pageNumber="@Model.PageRouteValue"
+               asp-route-selected="@summary.Id">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-arrow-right")" /></svg>
+                <span>Back to Inbox</span>
+            </a>
+        }
     </div>
 </header>
 

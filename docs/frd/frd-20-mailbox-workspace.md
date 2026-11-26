@@ -87,11 +87,12 @@ Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
 for a new tab and for no script (operator, 16 October 2026, R159 (c),
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Every other in-app link to a message (the Case's message dialog and its
-Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
-Intake, Create case, the Logs drawer and notifications) opens the Inbox with
-that message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws
-the dialog's head (operator, 30 October 2026, R560).
+A Case's own messages (its Correspondence rows, its Queries rows and a
+query's Reply) open the dialog over the Case (operator, 26 November 2026,
+R1278). Every other in-app link to a message (Unidentified, Image Intake,
+Create case, the Logs drawer and notifications) opens the Inbox with that
+message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws the
+dialog's head (operator, 30 October 2026, R560).
 Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor
@@ -252,14 +253,19 @@ the exact message and the list context it came from.
 
 Each Case workspace shows its linked received and Sent items as one
 chronological history, newest first by default with an oldest-first option.
-A row opens its message over the Case, read-only: no
-classification, association, read-state, Case-state or custody change. Reply,
-Reply all and Forward appear there where the record offers them and open the
-composer in the Inbox's message dialog with that Case chosen
+A row opens the message dialog over the Case: the same dialog the Inbox
+opens, with everything it offers there, and not a second one (operator,
+26 November 2026, R1278). Opening and reading still change nothing. An act
+taken in it (a reply, Dismiss, a change of Type, Link, Change or Unlink)
+leaves the operator on the Case, at the section the message was opened from,
+and Previous message and Next message walk that section's messages. Reply,
+Reply all and Forward open the composer in place with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
-The full message record is one link away for every other action
-([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing
-stays in this mailbox workspace.
+While the Case is being edited on that page, the dialog does not offer Link,
+Change or Unlink for that Case (R1280). A refused act is shown on the
+message's own page, as it is from the Inbox, and the way back from there is
+to the Case ([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox
+browsing stays in this mailbox workspace.
 
 ### Dismiss
 

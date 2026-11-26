@@ -25,17 +25,17 @@
         @* The photo-link composer opens over the Case (v51 M; R948). *@
         <link rel="stylesheet" href="~/css/photo-capture.css" asp-append-version="true" />
     }
+    @* The Inbox's own e-mail dialog opens over the Case (R1278). *@
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    @* The e-mail dialog's Case / PO pickers, on both kinds of Case. *@
+    <script src="~/js/case-picker.js" asp-append-version="true"></script>
     @if (Model.TriageCase is null)
     {
         <script src="~/js/case-workspace.js" asp-append-version="true"></script>
         <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
-    }
-    else
-    {
-        <script src="~/js/case-picker.js" asp-append-version="true"></script>
     }
 }
 
@@ -52,9 +52,11 @@
 }
 
 @* A Triage Case is a Case with its own lifecycle and workspace. *@
-@if (Model.TriageCase is not null)
+@if (Model.TriageCase is { } triageCase)
 {
     <partial name="Cases/Shared/_TriageCase" model="Model" />
+    @* The Inbox's own e-mail dialog opens here, over the Triage Case, from its Correspondence (R1278). *@
+    <div data-mail-dialog-root data-mail-return-case="@triageCase.Record.CaseId"></div>
     return;
 }
 
@@ -186,3 +188,7 @@
 
 <div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="@(new Pegasus.Web.Pages.Cases.CaseViewerView(Model.CurrentWorkflow!.CaseId, false, Model.CanSnapshotVideos))" /></div>
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
+@* The Inbox's own e-mail dialog opens here, over the Case, from its
+   Correspondence and its Queries (R1278). It sits outside the record and its
+   dialogs, so the Case's own form handling leaves its forms alone. *@
+<div data-mail-dialog-root data-mail-return-case="@summary.CaseId"></div>

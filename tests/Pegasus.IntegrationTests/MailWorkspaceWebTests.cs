@@ -115,69 +115,6 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The record's Content handler is the Case Correspondence dialog's body:
-    /// the message's head, text and attachment names as a fragment, read the
-    /// way the record reads it, with nothing to act on and nothing changed.
-    /// </summary>
-    [Fact]
-    public async Task MessageContentIsAReadOnlyFragmentOfTheRecord()
-    {
-        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var messageId = Assert.Single(await SeedAsync(
-            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        bool readBefore;
-        int classificationHistoryBefore;
-        int associationHistoryBefore;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            readBefore = await context.RetainedMailboxMessages
-                .Where(item => item.Id == messageId)
-                .Select(item => item.IsRead)
-                .SingleAsync();
-            classificationHistoryBefore = await context.IntakeMailClassificationHistory.CountAsync();
-            associationHistoryBefore = await context.IntakeMutationHistory.CountAsync();
-        }
-
-        using var response = await client.GetAsync($"/Inbox/{messageId:D}?handler=Content");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        var fragment = await response.Content.ReadAsStringAsync();
-        Assert.Contains("data-message-content", fragment, StringComparison.Ordinal);
-        Assert.Contains("From A Sender", fragment, StringComparison.Ordinal);
-        Assert.Contains("To intake@collisionengineers.co.uk", fragment, StringComparison.Ordinal);
-        Assert.Contains("Please inspect the vehicle at the address supplied.", fragment, StringComparison.Ordinal);
-        Assert.Contains("<li>estimate.pdf</li>", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<form", fragment, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", fragment, StringComparison.OrdinalIgnoreCase);
-
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            Assert.Equal(readBefore, await context.RetainedMailboxMessages
-                .Where(item => item.Id == messageId)
-                .Select(item => item.IsRead)
-                .SingleAsync());
-            Assert.Equal(classificationHistoryBefore, await context.IntakeMailClassificationHistory.CountAsync());
-            Assert.Equal(associationHistoryBefore, await context.IntakeMutationHistory.CountAsync());
-        }
-
-        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}?handler=Content");
-        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        using var rolelessRequest = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"/Inbox/{messageId:D}?handler=Content");
-        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
-        using var roleless = await client.SendAsync(rolelessRequest);
-        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
-    }
-
-    /// <summary>
     /// C08: the workspace contract says mailbox/folder/search/queue/unread/
     /// sort/page are URL and retained-query state only — opening, filtering or
     /// changing the unread scope never reaches Outlook or writes
@@ -2792,6 +2729,101 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// R1278: a Sent item is in a Case's Correspondence without being linked
+    /// to it, as the Sent item of a send made for the Case. Opened from that
+    /// Case, the dialog carries the Case back on its forms, states no Inbox
+    /// scope, and its Dismiss lands on the Case's Correspondence.
+    /// </summary>
+    [Fact]
+    public async Task ASentItemInACasesCorrespondenceReturnsToTheCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        _ = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = (await AcceptReceiptAsync(
+            factory, await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"))).Identity.CaseId;
+        await SeedSentMessageAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, "We can inspect the vehicle on Thursday at ten.");
+        var sentId = await MessageIdAsync(factory, FirstMailboxId, SentMessageIdentity);
+        await SeedCorrespondenceSendAsync(factory, caseId, FirstMailboxId, SentMessageIdentity);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        // The Case's Correspondence lists the Sent item.
+        var casePage = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-mail-row=\"{sentId:D}\"", casePage, StringComparison.OrdinalIgnoreCase);
+
+        var dialog = await GetHtmlAsync(
+            client, $"/Inbox/{sentId:D}?handler=Dialog&returnCase={caseId:D}&returnSection=files");
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.", dialog, StringComparison.Ordinal);
+        var form = Regex.Match(
+            dialog,
+            "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
+        var action = FormAction(form);
+        Assert.Contains("dialog=true", action, StringComparison.Ordinal);
+        Assert.Contains($"returnCase={caseId:D}", action, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("returnSection=files", action, StringComparison.Ordinal);
+
+        using var dismiss = await client.PostAsync(
+            action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(dialog, "__RequestVerificationToken"),
+                ["operationKey"] = FormInput(form, "operationKey"),
+                ["next"] = string.Empty
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+        var location = dismiss.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.StartsWith($"/Cases/{caseId:D}?", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        Assert.EndsWith("#case-files-correspondence", location, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// R1278 C6: opened from the Case it is linked to while the member of
+    /// staff holds that Case's edit lease, the dialog offers neither Change nor
+    /// Unlink for it; with no lease held it offers Unlink.
+    /// </summary>
+    [Fact]
+    public async Task WhileTheCaseIsEditedItsDialogOffersNoChangeOrUnlink()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = (await AcceptReceiptAsync(
+            factory, await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"))).Identity.CaseId;
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromCase = $"/Inbox/{messageId:D}?handler=Dialog&returnCase={caseId:D}&returnSection=files";
+
+        var reading = await GetHtmlAsync(client, fromCase);
+        Assert.Contains("data-dialog-open=\"unlinkCaseDialog\"", reading, StringComparison.Ordinal);
+
+        // The signed-in Administrator takes the Case's edit lease, as Edit does.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(caseId, CancellationToken.None);
+            _ = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new ClaimCaseEditLeaseRequest(
+                    caseId,
+                    workflow!.Version,
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    $"dialog-edit-lease:{caseId:N}"),
+                CancellationToken.None);
+        }
+
+        var editing = await GetHtmlAsync(client, fromCase);
+        Assert.DoesNotContain("data-dialog-open=\"unlinkCaseDialog\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"changeLinkedCaseDialog\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"unlinkCaseDialog\"", editing, StringComparison.Ordinal);
+        // The Inbox's own dialog is not the Case page's edit session.
+        Assert.Contains(
+            "data-dialog-open=\"unlinkCaseDialog\"",
+            await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Register images (v41 I17): the offer sits in the record's foot and its dialog
     /// posts from the record. The message's image-only receipt becomes a
     /// vehicle-images record under the registration staff give.
@@ -2988,8 +3020,8 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// The sender's paragraphs (v54 D9): a blank line starts a paragraph and a
-    /// single line break stays a line break inside it, in the dialog and in
-    /// the Case's Correspondence dialog alike.
+    /// single line break stays a line break inside it, in the dialog, which
+    /// the Case page opens too (R1278).
     /// </summary>
     [Fact]
     public async Task ABlankLineStartsAParagraphAndASingleLineBreakStaysInIt()
@@ -3007,9 +3039,6 @@ public sealed class MailWorkspaceWebTests
         var text = Between(dialog, "data-mail-text", "</div>");
         Assert.Matches(TwoLineParagraph, text);
         Assert.Matches(@"<p>\s*Good morning,\s*</p>", text);
-
-        var content = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Content");
-        Assert.Matches(TwoLineParagraph, content);
     }
 
     /// <summary>One paragraph of two lines: one <c>p</c> holding a <c>br</c>.</summary>
@@ -3546,6 +3575,52 @@ public sealed class MailWorkspaceWebTests
                 NowUtc,
                 MailFolderScope.Sent),
             CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A send made for the Case that its Sent item <paramref name="immutableMessageId"/>
+    /// in <paramref name="mailboxId"/> was observed for, so the Case's
+    /// Correspondence lists that Sent item.
+    /// </summary>
+    private static async Task SeedCorrespondenceSendAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        string mailboxId,
+        string immutableMessageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var operationId = Guid.NewGuid();
+        context.Set<StaffMailSendOperationEntity>().Add(new()
+        {
+            Id = operationId,
+            ActorKind = ActorKind.Staff,
+            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            MailboxId = TestMailboxId.From(mailboxId),
+            MailboxGeneration = 1,
+            OperationKey = $"case-correspondence-{operationId:N}",
+            PayloadHash = new string('d', 64),
+            Purpose = Pegasus.Core.Operations.StaffMailPurpose.GeneralCorrespondence,
+            ContextId = caseId,
+            ContextVersion = 1,
+            ComposeMode = Pegasus.Core.Operations.StaffMailComposeMode.New,
+            RecipientsJson = "[]",
+            Subject = "Inspection",
+            Body = "We can inspect the vehicle on Thursday at ten.",
+            AttachmentsJson = "[]",
+            State = Pegasus.Core.Operations.StaffMailState.Sent,
+            AttemptStage = Pegasus.Core.Operations.StaffMailAttemptStage.ObserveSent,
+            CorrelationMarker = $"marker-{operationId:N}",
+            CreatedAtUtc = NowUtc.AddMinutes(-32),
+            RequestedAtUtc = NowUtc.AddMinutes(-32),
+            ObservedSentImmutableMessageId = immutableMessageId,
+            ProviderSentAtUtc = NowUtc.AddMinutes(-31),
+            ObservedSentAtUtc = NowUtc.AddMinutes(-30),
+            Version = 3,
+            ConcurrencyToken = Guid.NewGuid()
+        });
+        await context.SaveChangesAsync();
     }
 
     private static Task StoreForwardedRouteAsync(

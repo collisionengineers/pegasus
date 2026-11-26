@@ -1,6 +1,8 @@
 @*
     Queries: every query raised on the Case, open ones first, then the Done
-    ones. A mail query's Subject opens the message. Assigned to is the compact
+    ones. A mail query's Subject opens the Inbox's own e-mail dialog over the
+    Case, and its Reply opens it on the composer; Previous and Next walk the
+    mail queries' rows (R1278). Assigned to is the compact
     assignee control; Take assigns the viewer. Row actions are Reply and Mark
     done, Mark done, or Reopen. No edit lease.
 *@
@@ -36,7 +38,7 @@
         @if (queries.Count > 0)
         {
             <div class="table-wrap">
-                <table class="table table--compact" data-queries-table>
+                <table class="table table--compact" data-mail-list="queries" data-queries-table>
                     <thead>
                         <tr>
                             <th>@QueryLabels.State</th>
@@ -53,7 +55,8 @@
                         @foreach (var query in open.Concat(done))
                         {
                             var currentAssignee = query.AssigneeStaffId?.ToString("D") ?? "unassigned";
-                            <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")">
+                            @* A logged query has no message, so its row is not one the dialog walks. Razor keeps a data- attribute whose value is null, so the attribute is written whole or not at all. *@
+                            <tr data-case-query="@query.Id" data-case-query-open="@(query.IsOpen ? "true" : "false")" @(query.Message?.RetainedMessageId is { } mailRowId ? Html.Raw($"data-mail-row=\"{mailRowId:D}\"") : null)>
                                 <td><partial name="Shared/_StatusChip" model="@(query.IsOpen ? QueryLabels.Open : QueryLabels.Done)" /></td>
                                 <td><time datetime="@query.RaisedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(query.RaisedAtUtc)</time></td>
                                 <td>@query.RaisedByDisplayName</td>
@@ -63,7 +66,7 @@
                                 <td class="wrap">
                                     @if (query.Message is { } message)
                                     {
-                                        <a class="query-subject-link" asp-page="/Mail/Message" asp-route-id="@message.RetainedMessageId" data-dialog-open="case-message-@message.RetainedMessageId.ToString("N")">@(string.IsNullOrWhiteSpace(message.Subject) ? OperatorLabels.CaseWorkspace.AbsentValue : message.Subject)</a>
+                                        <a class="query-subject-link" asp-page="/Mail/Message" asp-route-id="@message.RetainedMessageId" data-mail-open>@(string.IsNullOrWhiteSpace(message.Subject) ? OperatorLabels.CaseWorkspace.AbsentValue : message.Subject)</a>
                                         <br />
                                         <span>@(message.EffectiveSenderAddress ?? message.SenderDisplayName ?? message.SenderAddress)</span>
                                     }
@@ -112,7 +115,7 @@
                                     <span class="cluster">
                                         @if (query.IsOpen && query.Message is { } row && Model.StaffMailAvailable)
                                         {
-                                            <a class="btn btn--small" asp-page="/Mail/Index" asp-route-open="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" asp-route-markQueryDone="true" data-query-reply="@row.RetainedMessageId">@OperatorLabels.StaffMail.Reply</a>
+                                            <a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" asp-route-compose="reply" asp-route-correspondenceCaseReference="@reference" asp-route-markQueryDone="true" data-query-reply="@row.RetainedMessageId" data-mail-open>@OperatorLabels.StaffMail.Reply</a>
                                         }
                                         @if (query.IsOpen)
                                         {
@@ -137,10 +140,6 @@
                     </tbody>
                 </table>
             </div>
-            @foreach (var query in queries.Where(query => query.Message is not null))
-            {
-                <partial name="Cases/Shared/_CaseMessageDialog" model="@(new Pegasus.Web.Pages.Cases.CaseMessageDialogView(query.Message!, reference))" />
-            }
         }
     </div>
 </section>
