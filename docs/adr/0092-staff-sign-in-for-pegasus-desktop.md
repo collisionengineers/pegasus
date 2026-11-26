@@ -118,9 +118,10 @@ one registered with a port matches that port only.
   the same computer could start the same sign-in; the page is what stands
   between it and a token, which is why the page always asks and never signs
   in silently, and why its answer is recorded.
-- The staff cookie's account read gains the account's role and moves to
-  `EfStaffAccountQueries.GetAccountReadAsync`, one statement kept in
-  `StaffAccountReads`, so the cookie and the token share one cached entry.
+- The staff cookie's account read moves to `StaffAccountReader` and gains the
+  account's role, one more statement each time the read is made and not on a
+  request served from `StaffAccountReads`, so the cookie and the token share
+  one cached entry.
 - A refused token request from Pegasus Desktop's client is recorded as
   `desktop_token_rejected`, not `automation_token_rejected`, so it does not
   read as Automation activity.

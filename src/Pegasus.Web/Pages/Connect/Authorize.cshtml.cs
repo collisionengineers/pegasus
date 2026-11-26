@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
-using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Administration;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -72,7 +72,6 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
 
     public async Task<IActionResult> OnGetAsync(
         [FromServices] AutomationClientRegistry? registry,
-        [FromServices] EfStaffAccountQueries staffAccounts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -81,7 +80,7 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         }
         if (IsDesktopRequest(registry))
         {
-            if (await ReadDesktopAccountAsync(actor, staffAccounts, cancellationToken) is null)
+            if (await ReadDesktopAccountAsync(actor, cancellationToken) is null)
             {
                 return Forbid();
             }
@@ -118,7 +117,6 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
 
     public async Task<IActionResult> OnPostAcceptAsync(
         [FromServices] AutomationClientRegistry? registry,
-        [FromServices] EfStaffAccountQueries staffAccounts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -127,7 +125,7 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         }
         if (IsDesktopRequest(registry))
         {
-            return await AcceptDesktopSignInAsync(registry, staffAccounts, actor, cancellationToken);
+            return await AcceptDesktopSignInAsync(registry, actor, cancellationToken);
         }
         if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ManageAutomationClients))
         {
@@ -249,7 +247,6 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
     /// </summary>
     private async Task<IActionResult> AcceptDesktopSignInAsync(
         AutomationClientRegistry registry,
-        EfStaffAccountQueries staffAccounts,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
@@ -257,7 +254,7 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
         {
             return Refuse(Errors.InvalidRequest, "The consent form has expired. Retry the connection.");
         }
-        if (await ReadDesktopAccountAsync(actor, staffAccounts, cancellationToken) is not { } account)
+        if (await ReadDesktopAccountAsync(actor, cancellationToken) is not { } account)
         {
             return Forbid();
         }
@@ -292,9 +289,8 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
     /// it, or null when it could not sign in to Pegasus now: missing,
     /// disabled, holding no staff role or waiting on a password change.
     /// </summary>
-    private static async Task<(Guid StaffId, string SecurityStamp)?> ReadDesktopAccountAsync(
+    private async Task<(Guid StaffId, string SecurityStamp)?> ReadDesktopAccountAsync(
         ActionActor actor,
-        EfStaffAccountQueries staffAccounts,
         CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(actor.SubjectId, out var staffId))
@@ -302,7 +298,8 @@ public sealed class AuthorizeModel : AdministrationPageModel, Pegasus.Web.Presen
             return null;
         }
 
-        var account = await staffAccounts.GetAccountReadAsync(staffId, cancellationToken);
+        var account = await StaffAccountReader.ReadAsync(
+            HttpContext.RequestServices, staffId, cancellationToken);
         if (account is not { IsEnabled: true, MustChangePassword: false, Role: not null }
             || string.IsNullOrEmpty(account.SecurityStamp))
         {

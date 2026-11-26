@@ -12,7 +12,7 @@ namespace Pegasus.Web.Authentication;
 
 /// <summary>
 /// The staff cookie's check on every request. It reads the account through
-/// <see cref="EfStaffAccountQueries.GetAccountReadAsync"/> and accepts the cookie only while its
+/// <see cref="StaffAccountReader"/> and accepts the cookie only while its
 /// security stamp is the account's current stamp, the session is inside its
 /// absolute lifetime and the account is enabled. It never rebuilds the
 /// principal: every change to a staff account's roles, claims, enabled state
@@ -56,8 +56,7 @@ internal static class StaffPrincipalValidator
         var stampClaimType = services.GetRequiredService<IOptions<IdentityOptions>>()
             .Value.ClaimsIdentity.SecurityStampClaimType;
         var user = Guid.TryParse(userManager.GetUserId(principal), out var userId)
-            ? await services.GetRequiredService<EfStaffAccountQueries>()
-                .GetAccountReadAsync(userId, CancellationToken.None)
+            ? await StaffAccountReader.ReadAsync(services, userId, CancellationToken.None)
             : null;
         if (user is null || !StampMatches(user.SecurityStamp, principal.FindFirstValue(stampClaimType)))
         {

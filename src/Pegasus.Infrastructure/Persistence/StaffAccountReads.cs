@@ -6,7 +6,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The account read the staff cookie check and the Pegasus Desktop token check
-/// share (<c>EfStaffAccountQueries.GetAccountReadAsync</c>), the staff display names, the eligible
+/// share (the Web's <c>StaffAccountReader</c>), the staff display names, the eligible
 /// sign-off Engineer list and each sign-off Engineer's signature, each kept in
 /// <see cref="IMemoryCache"/> through <see cref="EvictableCacheEntry"/> for
 /// <see cref="StaffSessionPolicy.AccountReadLifetime"/>. Every account writer in

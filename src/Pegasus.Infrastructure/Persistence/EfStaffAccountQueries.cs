@@ -83,58 +83,6 @@ public sealed class EfStaffAccountQueries(
     }
 
     /// <summary>
-    /// The account read every request's authority check uses: the staff cookie
-    /// on each request, and a Pegasus Desktop token when it is issued or
-    /// renewed (ADR-0092). One statement, kept by <see cref="StaffAccountReads"/>
-    /// until a write to the account evicts it, so both checks see a disable, a
-    /// role change, a password reset and a forced sign-out on the next request.
-    /// Null when the id names no account.
-    /// </summary>
-    public Task<StaffAccountRead?> GetAccountReadAsync(
-        Guid staffId,
-        CancellationToken cancellationToken) =>
-        accountReads.GetOrReadAsync(
-            staffId,
-            token => ReadAccountAsync(staffId, token),
-            cancellationToken);
-
-    private async Task<StaffAccountRead?> ReadAccountAsync(
-        Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var accounts = await (
-            from user in context.Users.AsNoTracking()
-            where user.Id == staffId
-            select new
-            {
-                user.SecurityStamp,
-                user.IsEnabled,
-                user.MustChangePassword,
-                RoleNames = (
-                    from userRole in context.UserRoles
-                    join role in context.Roles on userRole.RoleId equals role.Id
-                    where userRole.UserId == user.Id
-                    select role.Name!).ToList()
-            })
-            .ToListAsync(cancellationToken);
-        var account = accounts.SingleOrDefault();
-        if (account is null)
-        {
-            return null;
-        }
-
-        // The check never throws on an account it cannot place: one without
-        // exactly one known role reads as holding none, and is refused.
-        StaffRole? role = account.RoleNames is [var roleName]
-            && Enum.TryParse<StaffRole>(roleName, ignoreCase: false, out var parsed)
-            && Enum.IsDefined(parsed)
-                ? parsed
-                : null;
-        return new(account.SecurityStamp, account.IsEnabled, account.MustChangePassword, role);
-    }
-
-    /// <summary>
     /// One account is the batch read of one id: the summary columns and the
     /// role in one statement, under the same exactly-one-role rule.
     /// </summary>

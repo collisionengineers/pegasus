@@ -5,7 +5,6 @@ using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
-using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -34,7 +33,6 @@ internal static class AutomationTokenEndpoint
     public static async Task<IResult> ExchangeAsync(
         HttpContext httpContext,
         AutomationClientRegistry registry,
-        EfStaffAccountQueries staffAccounts,
         ISecurityEventWriter securityEvents,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
@@ -60,7 +58,6 @@ internal static class AutomationTokenEndpoint
                 ? await ExchangeDesktopAsync(
                     httpContext,
                     request.IsRefreshTokenGrantType(),
-                    staffAccounts,
                     timeProvider,
                     cancellationToken)
                 : Forbid(
@@ -133,7 +130,6 @@ internal static class AutomationTokenEndpoint
     private static async Task<IResult> ExchangeDesktopAsync(
         HttpContext httpContext,
         bool renewal,
-        EfStaffAccountQueries staffAccounts,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
@@ -149,7 +145,8 @@ internal static class AutomationTokenEndpoint
             return Forbid(Errors.InvalidGrant, "The authorization is no longer valid.");
         }
 
-        var account = await staffAccounts.GetAccountReadAsync(staffId, cancellationToken);
+        var account = await StaffAccountReader.ReadAsync(
+            httpContext.RequestServices, staffId, cancellationToken);
         var stamp = principal.GetClaim(AutomationMcp.StaffStampClaim);
         if (account is not { IsEnabled: true, MustChangePassword: false, Role: not null }
             || string.IsNullOrEmpty(stamp)
