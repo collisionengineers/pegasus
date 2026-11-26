@@ -1,7 +1,3 @@
-using System.Text.Json;
-using Azure;
-using Azure.Storage.Blobs;
-
 namespace Pegasus.Infrastructure.Brego;
 
 /// <summary>
@@ -32,58 +28,4 @@ public interface IBregoSessionStore
 public sealed record BregoStoredSignIn(string? BregoSessionCookie, string RefreshToken)
 {
     public override string ToString() => nameof(BregoStoredSignIn);
-}
-
-/// <summary>
-/// Reads the Brego sign-in the Web host kept, until R1288, in its
-/// <c>authentication-ring</c> blob container
-/// (<c>authentication-ring/brego-session.json</c>) as
-/// <c>{ "email", "bregoSession", "refreshToken" }</c>. Only the one-time
-/// settings import reads it now, and it goes with the import in the next
-/// release. Any storage or parse failure degrades to <see langword="null"/>.
-/// </summary>
-public sealed class AzureBlobBregoSessionStore(BlobClient blobClient)
-{
-    private static readonly TimeSpan IoTimeout = TimeSpan.FromSeconds(10);
-
-    public async Task<BregoStoredSignIn?> TryLoadAsync(string email, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return null;
-        }
-
-        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        bounded.CancelAfter(IoTimeout);
-        try
-        {
-            var response = await blobClient.DownloadContentAsync(bounded.Token);
-            using var document = JsonDocument.Parse(response.Value.Content.ToMemory());
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return null;
-            }
-
-            var storedEmail = BregoJson.String(document.RootElement, "email");
-            var storedCookie = BregoJson.String(document.RootElement, "bregoSession");
-            var storedRefreshToken = BregoJson.String(document.RootElement, "refreshToken");
-            if (!string.Equals(storedEmail?.Trim(), email.Trim(), StringComparison.OrdinalIgnoreCase)
-                || string.IsNullOrWhiteSpace(storedRefreshToken))
-            {
-                return null;
-            }
-
-            return new BregoStoredSignIn(
-                string.IsNullOrWhiteSpace(storedCookie) ? null : storedCookie.Trim(),
-                storedRefreshToken.Trim());
-        }
-        catch (RequestFailedException exception) when (exception.Status == 404)
-        {
-            return null;
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return null;
-        }
-    }
 }

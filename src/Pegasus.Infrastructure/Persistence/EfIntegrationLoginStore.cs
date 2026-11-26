@@ -30,7 +30,6 @@ public sealed class EfIntegrationLoginStore(
     private const string ProtectionPurpose = "Pegasus.IntegrationLogin.v1";
     private const string PendingPurpose = "pending";
     private const string AggregateType = "integration_login";
-    private const string ImportActor = "settings-import";
     private const int MaximumValueLength = 4096;
 
     private static readonly IntegrationLogin[] AllLogins = Enum.GetValues<IntegrationLogin>();
@@ -174,8 +173,8 @@ public sealed class EfIntegrationLoginStore(
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // Best effort, as the blob store was: the running host keeps its
-            // session in memory, and the next renewal writes again.
+            // Best effort: the running host keeps its session in memory, and
+            // the next renewal writes again.
             return false;
         }
     }
@@ -308,79 +307,6 @@ public sealed class EfIntegrationLoginStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
-
-    /// <summary>
-    /// The one-time import of a login from the settings that held it before
-    /// R1288; it goes, with those settings, in the next release. A login that
-    /// is already set is never overwritten, and a concurrent import that set
-    /// it first is not an error: both answer <see langword="false"/>. Brego's
-    /// stored sign-in is read only when its row is to be written.
-    /// </summary>
-    public async Task<bool> ImportAsync(
-        IntegrationLogin login,
-        IReadOnlyDictionary<IntegrationLoginField, string> values,
-        Func<CancellationToken, Task<BregoStoredSignIn?>>? readSignIn,
-        CancellationToken cancellationToken)
-    {
-        var payload = Payload(login, values);
-        var id = RowId(login);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        if (await IsSetAsync(context, id, cancellationToken))
-        {
-            return false;
-        }
-
-        if (login == IntegrationLogin.Brego
-            && readSignIn is not null
-            && await readSignIn(cancellationToken) is { } signIn
-            && !string.IsNullOrWhiteSpace(signIn.RefreshToken))
-        {
-            payload[IntegrationLoginMaterial.RefreshTokenName] = signIn.RefreshToken.Trim();
-            if (!string.IsNullOrWhiteSpace(signIn.BregoSessionCookie))
-            {
-                payload[IntegrationLoginMaterial.SessionCookieName] = signIn.BregoSessionCookie.Trim();
-            }
-        }
-
-        try
-        {
-            await using var transaction = await context.Database.BeginReadCommittedAsync(cancellationToken);
-            await LockAsync(context, id, cancellationToken);
-            var entity = await context.IntegrationLogins
-                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-            if (entity is not null && entity.ProtectedLogin.Length > 0)
-            {
-                return false;
-            }
-
-            var before = entity is null ? null : HistoryState(entity);
-            entity = NextGeneration(context, entity, id);
-            Write(login, entity, payload, ImportActor);
-            AddHistory(
-                context,
-                ActionActor.SystemWorker(ImportActor),
-                entity,
-                "integration_login_imported",
-                before,
-                Guid.NewGuid().ToString("N"));
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return true;
-        }
-        catch (DbUpdateException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Another host inserted the row first; its import stands.
-            return false;
-        }
-    }
-
-    private static Task<bool> IsSetAsync(
-        PegasusDbContext context,
-        string id,
-        CancellationToken cancellationToken) =>
-        context.IntegrationLogins
-            .AsNoTracking()
-            .AnyAsync(item => item.Id == id && item.ProtectedLogin != string.Empty, cancellationToken);
 
     /// <summary>
     /// The login's row, or the gap its first write fills, is the first lock,

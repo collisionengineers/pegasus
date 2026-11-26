@@ -334,20 +334,6 @@ if ($Mode -eq 'PreProvision') {
     # An empty or malformed secret URI still deploys, as an app setting the
     # platform can never resolve; the feature behind it then fails for ever.
     foreach ($key in @('GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
-        'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI',
-        'CAZANA_COMPANION_EMAIL_SECRET_URI',
-        'CAZANA_COMPANION_PASSWORD_SECRET_URI',
-        'BREGO_VALUATION_EMAIL_SECRET_URI',
-        'BREGO_VALUATION_PASSWORD_SECRET_URI',
-        'EXPERIAN_HISTORY_CLIENT_ID_SECRET_URI',
-        'EXPERIAN_HISTORY_CLIENT_SECRET_SECRET_URI',
-        'EXPERIAN_HISTORY_USERNAME_SECRET_URI',
-        'EXPERIAN_HISTORY_PASSWORD_SECRET_URI',
-        'EXPERIAN_CAP_CLIENT_ID_SECRET_URI',
-        'EXPERIAN_CAP_CLIENT_SECRET_SECRET_URI',
-        'EXPERIAN_CAP_USERNAME_SECRET_URI',
-        'EXPERIAN_CAP_PASSWORD_SECRET_URI',
         'ANTHROPIC_API_KEY_SECRET_URI')) {
         $secretUri = $null
         if (-not [Uri]::TryCreate([string]$environmentValues[$key], [UriKind]::Absolute, [ref]$secretUri) -or

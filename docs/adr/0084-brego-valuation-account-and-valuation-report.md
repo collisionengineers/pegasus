@@ -98,10 +98,10 @@ and delivered to the Web App as a versioned Key Vault reference
 (`BREGO_VALUATION_EMAIL_SECRET_URI`) read through its own secret-scoped grant
 to the Web identity. It is a Production required setting, read on each
 valuation rather than when the host or a Case page is built. From 23 November
-2026 ([R1231](../rulings.md)) no host reads a Brego password; the Web App's
-`Brego__ValuationAccount__Password` setting is still deployed until a later
-release removes it, because the release before this one stops at startup
-without it. Neither the refresh token nor the Cognito tokens or session
+2026 ([R1231](../rulings.md)) no host reads a Brego password from settings;
+the Web App's `Brego__ValuationAccount__Password` setting stayed deployed,
+because the release before stopped at startup without it, until the release
+after 26 November 2026 removed it with the others (#2177). Neither the refresh token nor the Cognito tokens or session
 cookies ever reach a URL or log. Amended 26 November 2026 (R1288): the
 account is no longer deployment configuration. Its e-mail address and its
 stored sign-in (the refresh token and the `brego-session` cookie) are held in
@@ -109,8 +109,9 @@ the database, protected with the Web host's key ring, and the account is
 replaced by an Administrator
 ([ADR-0091](0091-integration-logins-in-the-database.md)); a renewed refresh
 token or a new cookie is written back there, not to
-`authentication-ring/brego-session.json`. The setting and that file are read
-once by that release's import and removed in the next. A session held in
+`authentication-ring/brego-session.json`. The setting and that file were read
+once by that release's import; the setting is removed in the release after
+it, and nothing reads the file (#2177, #2163). A session held in
 memory is reused only while the account is the one it was signed in for.
 
 **The account is linked by its e-mailed sign-in link** (23 November 2026,
@@ -198,7 +199,9 @@ setting's key instead.
 - Glass's, Brego and Cazana are the connected guide sources in `Pegasus.Web`.
 - Creating `brego-valuation-email` and `brego-valuation-password` in Key Vault
   with secret-scoped grants to the Web identity and setting the two azd
-  variables are release steps.
+  variables are release steps. Amended 26 November 2026 (R1288): no longer;
+  the login is entered on Administration > Integrations
+  ([ADR-0091](0091-integration-logins-in-the-database.md)).
 - Linking the account is a person's step, at a workstation, with the account's
   mailbox open: once, and again whenever Brego ends the sign-in. Until it is
   linked every Brego valuation is unavailable (23 November 2026,
@@ -211,7 +214,8 @@ setting's key instead.
   `authentication-ring/brego-session.json`, seeded with production's cookie, so
   it never signs in through device approval ([R933](../rulings.md), 11 November 2026).
   From 26 November 2026 (R1288) it keeps them in its own database, imported
-  once from that file, and a production copy keeps the instance's own
+  once from that file (the import is removed in the release after, #2177),
+  and a production copy keeps the instance's own
   ([ADR-0091](0091-integration-logins-in-the-database.md)). With each host
   linked on its own page, the instance is linked on its own during the build
   and production's sign-in is watched; a result that they end each other's

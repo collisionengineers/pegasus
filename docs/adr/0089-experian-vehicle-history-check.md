@@ -109,8 +109,9 @@ names each account's users.
   key ring, and replaced by an Administrator
   ([ADR-0091](0091-integration-logins-in-the-database.md)); a kept token is
   used only while the account is the one it was issued to. The eight account
-  settings are read once by that release's import and removed in the next;
-  the two addresses stay settings.
+  settings were read once by that release's import and are removed in the
+  release after it, so nothing references their Key Vault secrets (#2177,
+  #2163); the two addresses stay settings.
 
 **One answer for every failure.** A refusal, a gateway 404, a malformed
 answer, the network or a missing setting all answer the approved
@@ -162,7 +163,9 @@ been a stored valuation source since the baseline.
 - The release that first ships this creates the four secrets with
   secret-scoped grants to the Web identity and sets the six azd variables.
   The production base and token addresses come from Experian with the
-  credentials.
+  credentials. Amended 26 November 2026 (R1288): only the two address
+  variables remain; the logins are entered on Administration > Integrations
+  ([ADR-0091](0091-integration-logins-in-the-database.md)).
 
 ## Links
 

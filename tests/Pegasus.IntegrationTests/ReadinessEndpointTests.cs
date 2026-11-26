@@ -364,7 +364,7 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
             ["Glass:RepairProfileId"] = "4063",
             // Experian's endpoints are settings; the integrations' logins are
-            // the database's (R1288), so a test host imports none.
+            // the database's (R1288).
             ["Experian:BaseUri"] = "https://sandbox-uk-api.experian.com/ukci/automotive",
             ["Experian:TokenUri"] = "https://sandbox-uk-api.experian.com/oauth2/v1/token",
             ["GitHub:ProblemReports:Token"] = "inert-test-token",

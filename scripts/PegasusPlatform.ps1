@@ -335,22 +335,8 @@ function Get-PegasusProvisionRequiredKeys {
         'AZURE_KEY_VAULT_NAME',
         'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
         'GITHUB_PROBLEM_REPORT_REPOSITORY',
-        'GLASS_VALUATION_USERNAME_SECRET_URI',
-        'GLASS_VALUATION_PASSWORD_SECRET_URI',
-        'CAZANA_COMPANION_EMAIL_SECRET_URI',
-        'CAZANA_COMPANION_PASSWORD_SECRET_URI',
-        'BREGO_VALUATION_EMAIL_SECRET_URI',
-        'BREGO_VALUATION_PASSWORD_SECRET_URI',
         'EXPERIAN_BASE_URI',
         'EXPERIAN_TOKEN_URI',
-        'EXPERIAN_HISTORY_CLIENT_ID_SECRET_URI',
-        'EXPERIAN_HISTORY_CLIENT_SECRET_SECRET_URI',
-        'EXPERIAN_HISTORY_USERNAME_SECRET_URI',
-        'EXPERIAN_HISTORY_PASSWORD_SECRET_URI',
-        'EXPERIAN_CAP_CLIENT_ID_SECRET_URI',
-        'EXPERIAN_CAP_CLIENT_SECRET_SECRET_URI',
-        'EXPERIAN_CAP_USERNAME_SECRET_URI',
-        'EXPERIAN_CAP_PASSWORD_SECRET_URI',
         'ANTHROPIC_API_KEY_SECRET_URI',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
@@ -1346,7 +1332,7 @@ function Get-PegasusDatabaseConnectionString {
 $script:PegasusLocalSettingsFileName = 'local.settings.env'
 
 $script:PegasusLocalSettingsHostPrefixes = @{
-    Web = @('Features__', 'Box__', 'Glass__', 'Cazana__', 'Brego__', 'Experian__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__', 'PhotoCapture__')
+    Web = @('Features__', 'Box__', 'Glass__', 'Experian__', 'Graph__', 'GitHub__', 'DevelopmentOffline__', 'AutomationMcp__', 'PhotoCapture__')
     Worker = @('Features__', 'Box__', 'Dvla__', 'Dvsa__', 'Graph__', 'DocumentIntelligence__')
 }
 
