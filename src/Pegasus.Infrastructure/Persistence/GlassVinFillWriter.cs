@@ -148,7 +148,7 @@ internal sealed partial class EfGlassVinFill(
             CaseMutationGuard.RequireOpen(workflow, actor);
             var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
             if (!await GlassVinFillWriter.ApplyAsync(
-                    context, workflow, workId, vin, $"glass-vin:{Guid.NewGuid():N}", GlassReason,
+                    context, workflow, workId, vin, $"glass-vin:{Guid.NewGuid():N}", GlassVinFillWriter.GlassReason,
                     timeProvider.GetUtcNow(), cancellationToken))
             {
                 return;
