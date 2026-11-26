@@ -412,104 +412,28 @@ internal sealed class EfRetainedMailboxMessageStore(
         var body = receipt?.BodySearchText
             ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
 
-        var attachmentDocuments = receipt is null
-            ? []
-            : await context.Set<IntakeSearchDocumentEntity>().AsNoTracking()
-                .Where(item => item.IntakeReceiptId == receipt.Id
-                    && item.AttachmentOrdinal != null)
-                .Select(item => new AttachmentDocumentRow(
-                    item.IntakeReceiptId,
-                    item.AttachmentOrdinal!.Value,
-                    item.SourceLabel,
-                    item.AttachmentFileName != null && item.Text != null))
-                .ToListAsync(cancellationToken);
-        var attachmentAssets = receipt is null
-            ? []
-            : await context.Set<IntakeAssetEntity>().AsNoTracking()
-                .Where(item => item.IntakeReceiptId == receipt.Id
-                    && item.Kind == "attachment")
-                .Select(item => new AttachmentAssetRow(
-                    item.IntakeReceiptId,
-                    item.Id,
-                    item.SourceLabel,
-                    item.CustodyStatus == ConfirmedCustody
-                        && item.BoxFileId != null
-                        && item.BoxVersionId != null
-                        && item.BoxParentFolderId != null))
-                .ToListAsync(cancellationToken);
-
-        return new(
-            summary,
-            Deserialize(entity.ToAddressesJson),
-            Deserialize(entity.CcAddressesJson),
-            entity.ReplyToAddressesJson is null
-                ? null
-                : Deserialize(entity.ReplyToAddressesJson),
-            body,
-            RetainedAttachments(entity.Attachments, attachmentDocuments, attachmentAssets),
-            thread,
-            ParseFolderScope(entity.FolderScope),
-            receipt?.Decision?.Outcome is { } classification
-                ? ParseClassificationOutcome(classification)
-                : null,
-            receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
-            entity.ImmutableMessageId,
-            entity.InternetMessageIdentity,
-            entity.ConversationIdentity,
-            await ClassificationDossierAsync(
-                context,
-                receipt?.Decision,
-                cancellationToken),
-            StaffForwardBodyCleaner.FreshBody(body, isStaffForward),
-            withConversation
-                ? await ConversationAsync(context, members ?? [entity], cancellationToken)
-                : null);
-    }
-
-    /// <summary>
-    /// The conversation the e-mail dialogue stacks, from its kept members in
-    /// this mailbox (any folder). A fixed number of statements whatever the
-    /// number of members: the members' receipts, then those receipts'
-    /// attachment search documents and attachment assets, each read once.
-    /// </summary>
-    private static async Task<IReadOnlyList<RetainedMailConversationMessage>> ConversationAsync(
-        PegasusDbContext context,
-        List<RetainedMailboxMessageEntity> members,
-        CancellationToken cancellationToken)
-    {
-        // A polled message's receipt is on the mailbox channel; an uploaded
-        // email's is on the manual-upload channel its upload was received on.
-        const string mailboxChannel = "mailbox";
-        var uploadChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
-        var uploadScope = ToCode(MailFolderScope.Upload);
-        string ChannelOf(RetainedMailboxMessageEntity member) =>
-            string.Equals(member.FolderScope, uploadScope, StringComparison.Ordinal) ? uploadChannel : mailboxChannel;
-
-        var mailboxTokens = members
-            .Where(member => ChannelOf(member) == mailboxChannel)
-            .Select(member => member.ExternalReceiptToken)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var uploadTokens = members
-            .Where(member => ChannelOf(member) == uploadChannel)
-            .Select(member => member.ExternalReceiptToken)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var receipts = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => (item.SourceChannel == mailboxChannel && mailboxTokens.Contains(item.ExternalReceiptToken))
-                || (item.SourceChannel == uploadChannel && uploadTokens.Contains(item.ExternalReceiptToken)))
-            .Select(item => new ConversationReceipt(
-                item.Id,
-                item.SourceChannel,
-                item.ExternalReceiptToken,
-                item.MailRouteDecision == null ? null : item.MailRouteDecision.EffectiveSenderAddress,
-                item.SearchDocuments
-                    .Where(document => document.AttachmentFileName == null)
-                    .Select(document => document.Text)
-                    .SingleOrDefault()))
-            .ToListAsync(cancellationToken);
-        var receiptIds = receipts.Select(item => item.Id).ToArray();
+        // One read of attachment search documents and one of attachment
+        // assets serve the opened message and, when the conversation is asked
+        // for, every other member too. The opened message's receipt is the one
+        // read above, so a conversation of one message sends nothing more.
+        var openedReceipt = receipt is null
+            ? null
+            : new ConversationReceipt(
+                receipt.Id,
+                MailboxChannel,
+                entity.ExternalReceiptToken,
+                receipt.EffectiveSenderAddress,
+                receipt.BodySearchText);
+        var conversationMembers = withConversation ? members ?? [entity] : [];
+        var conversationReceipts = await MemberReceiptsAsync(
+            context,
+            conversationMembers,
+            entity.Id,
+            openedReceipt,
+            cancellationToken);
+        Guid[] receiptIds = withConversation
+            ? [.. conversationReceipts.Select(item => item.Id)]
+            : receipt is null ? [] : [receipt.Id];
         var attachmentDocuments = receiptIds.Length == 0
             ? []
             : await context.Set<IntakeSearchDocumentEntity>().AsNoTracking()
@@ -535,27 +459,124 @@ internal sealed class EfRetainedMailboxMessageStore(
                         && item.BoxVersionId != null
                         && item.BoxParentFolderId != null))
                 .ToListAsync(cancellationToken);
+        var documentsByReceipt = attachmentDocuments.ToLookup(item => item.IntakeReceiptId);
+        var assetsByReceipt = attachmentAssets.ToLookup(item => item.IntakeReceiptId);
 
+        return new(
+            summary,
+            Deserialize(entity.ToAddressesJson),
+            Deserialize(entity.CcAddressesJson),
+            entity.ReplyToAddressesJson is null
+                ? null
+                : Deserialize(entity.ReplyToAddressesJson),
+            body,
+            receipt is null
+                ? RetainedAttachments(entity.Attachments, [], [])
+                : RetainedAttachments(
+                    entity.Attachments,
+                    [.. documentsByReceipt[receipt.Id]],
+                    [.. assetsByReceipt[receipt.Id]]),
+            thread,
+            ParseFolderScope(entity.FolderScope),
+            receipt?.Decision?.Outcome is { } classification
+                ? ParseClassificationOutcome(classification)
+                : null,
+            receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            entity.ImmutableMessageId,
+            entity.InternetMessageIdentity,
+            entity.ConversationIdentity,
+            await ClassificationDossierAsync(
+                context,
+                receipt?.Decision,
+                cancellationToken),
+            StaffForwardBodyCleaner.FreshBody(body, isStaffForward),
+            withConversation
+                ? Conversation(conversationMembers, conversationReceipts, documentsByReceipt, assetsByReceipt)
+                : null);
+    }
+
+    // A polled message's receipt is on the mailbox channel; an uploaded
+    // email's is on the manual-upload channel its upload was received on.
+    private const string MailboxChannel = "mailbox";
+
+    private static string ChannelOf(RetainedMailboxMessageEntity member) =>
+        string.Equals(member.FolderScope, ToCode(MailFolderScope.Upload), StringComparison.Ordinal)
+            ? EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)
+            : MailboxChannel;
+
+    /// <summary>
+    /// The receipts of a conversation's members: the opened message's, which
+    /// the caller already holds, and one read for every other member's. No
+    /// statement when the opened message is the only member.
+    /// </summary>
+    private static async Task<List<ConversationReceipt>> MemberReceiptsAsync(
+        PegasusDbContext context,
+        List<RetainedMailboxMessageEntity> members,
+        Guid openedId,
+        ConversationReceipt? openedReceipt,
+        CancellationToken cancellationToken)
+    {
+        List<ConversationReceipt> receipts = openedReceipt is null ? [] : [openedReceipt];
+        // The opened message is read again only where its receipt was not found
+        // on the mailbox channel (an uploaded email's is on another).
+        var unread = members
+            .Where(member => member.Id != openedId || openedReceipt is null)
+            .ToList();
+        if (unread.Count == 0)
+        {
+            return receipts;
+        }
+
+        var uploadChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        var mailboxTokens = unread
+            .Where(member => ChannelOf(member) == MailboxChannel)
+            .Select(member => member.ExternalReceiptToken)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var uploadTokens = unread
+            .Where(member => ChannelOf(member) == uploadChannel)
+            .Select(member => member.ExternalReceiptToken)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        receipts.AddRange(await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => (item.SourceChannel == MailboxChannel && mailboxTokens.Contains(item.ExternalReceiptToken))
+                || (item.SourceChannel == uploadChannel && uploadTokens.Contains(item.ExternalReceiptToken)))
+            .Select(item => new ConversationReceipt(
+                item.Id,
+                item.SourceChannel,
+                item.ExternalReceiptToken,
+                item.MailRouteDecision == null ? null : item.MailRouteDecision.EffectiveSenderAddress,
+                item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null)
+                    .Select(document => document.Text)
+                    .SingleOrDefault()))
+            .ToListAsync(cancellationToken));
+        return receipts;
+    }
+
+    /// <summary>
+    /// The conversation the e-mail dialogue stacks, from its kept members in
+    /// this mailbox (any folder) and what was read of their receipts.
+    /// </summary>
+    private static IReadOnlyList<RetainedMailConversationMessage> Conversation(
+        List<RetainedMailboxMessageEntity> members,
+        List<ConversationReceipt> receipts,
+        ILookup<Guid, AttachmentDocumentRow> documentsByReceipt,
+        ILookup<Guid, AttachmentAssetRow> assetsByReceipt)
+    {
         var receiptsByToken = receipts
             .GroupBy(item => (item.SourceChannel, item.ExternalReceiptToken))
             .ToDictionary(group => group.Key, group => group.First());
-        var documentsByReceipt = attachmentDocuments.ToLookup(item => item.IntakeReceiptId);
-        var assetsByReceipt = attachmentAssets.ToLookup(item => item.IntakeReceiptId);
         var kept = new List<KeptConversationMessage>(members.Count);
         foreach (var member in members)
         {
             var memberReceipt = receiptsByToken.GetValueOrDefault((ChannelOf(member), member.ExternalReceiptToken));
-            // The same unwrap the opened message's body gets (above).
+            // The same unwrap the opened message's body gets.
             var isStaffForward = memberReceipt?.EffectiveSenderAddress is { } effectiveSender
                 && !string.Equals(effectiveSender, member.SenderAddress, StringComparison.OrdinalIgnoreCase);
             var body = memberReceipt?.BodySearchText
                 ?? StaffForwardBodyCleaner.Clean(member.BodyPlainText ?? string.Empty, isStaffForward);
-            IReadOnlyList<AttachmentDocumentRow> memberDocuments = memberReceipt is null
-                ? []
-                : [.. documentsByReceipt[memberReceipt.Id]];
-            IReadOnlyList<AttachmentAssetRow> memberAssets = memberReceipt is null
-                ? []
-                : [.. assetsByReceipt[memberReceipt.Id]];
             kept.Add(new KeptConversationMessage(
                 member.Id,
                 ParseFolderScope(member.FolderScope) == MailFolderScope.Sent
@@ -568,7 +589,12 @@ internal sealed class EfRetainedMailboxMessageStore(
                 Deserialize(member.CcAddressesJson),
                 member.ReceivedAtUtc,
                 body,
-                RetainedAttachments(member.Attachments, memberDocuments, memberAssets),
+                memberReceipt is null
+                    ? RetainedAttachments(member.Attachments, [], [])
+                    : RetainedAttachments(
+                        member.Attachments,
+                        [.. documentsByReceipt[memberReceipt.Id]],
+                        [.. assetsByReceipt[memberReceipt.Id]]),
                 memberReceipt?.Id));
         }
 
@@ -583,8 +609,8 @@ internal sealed class EfRetainedMailboxMessageStore(
     /// </summary>
     private static RetainedMailAttachment[] RetainedAttachments(
         IEnumerable<RetainedMailboxAttachmentEntity> attachments,
-        IReadOnlyList<AttachmentDocumentRow> documents,
-        IReadOnlyList<AttachmentAssetRow> assets)
+        List<AttachmentDocumentRow> documents,
+        List<AttachmentAssetRow> assets)
     {
         var searchableOrdinals = documents.Where(item => item.IsSearchable)
             .Select(item => item.Ordinal)
