@@ -50,9 +50,10 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
-        // A new spec starts on Standard, never on Prestige/Aluminium.
-        var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 80m, 3);
-        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 95m, 1));
+        // The fixture prints £80.00/HR, the Prestige/Aluminium card's rate, so
+        // the new spec starts on that card rather than Standard (R1328).
+        var card = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 80m, 3);
+        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 75m, 1));
         store.RateCards.Add(card);
         using var baseFactory = IntakeWebApplicationFactory.WithoutDatabase();
         using var factory = Compose(baseFactory, store);
@@ -105,8 +106,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(6, estimate.Lines!.Count);
         Assert.Equal(620.20m, estimate.Lines.Single(line => line.Description == "FRONT BUMPER" && line.Type == "new_part").Price);
         // Edit Case, drop an Audatex, done: the import is the repair spec in
-        // use, priced on the Standard card, never on the document's rate.
+        // use, on the card whose rate the document prints.
         Assert.Equal(card.Id, estimate.SelectedRateCardId);
+        Assert.False(estimate.Details.RegionalUplift);
         Assert.Equal(card.Version, estimate.SelectedRateCardVersion);
         var landed = Assert.IsType<RepairSpecificationVersion>(store.InUse);
         Assert.Equal(store.LastCreatedEstimateId, landed.SpecificationId);

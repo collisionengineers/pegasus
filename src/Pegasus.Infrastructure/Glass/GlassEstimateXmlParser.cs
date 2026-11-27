@@ -131,10 +131,13 @@ public sealed record GlassEstimateExport(
 /// <c>Result</c> are returned as <see cref="ParsedEstimate.SourceTotals"/> and
 /// never reconciled against the rows: Pegasus costs the estimate from its own
 /// rows at its own rate, discounts and VAT categories. The import stores none
-/// of them. A discount, surcharge, small-material, sourcing, disposal or
-/// environmental-fee value the <c>Rate</c> or <c>Result</c> block prints as
-/// anything but zero changes no line and no total; it is noted on the first
-/// line that has room, so the staff member sees that Glass's applied it.
+/// of them. <c>Rate/LabourRate/PanelBeater</c> is returned as
+/// <see cref="ParsedEstimate.LabourRate"/> only to pick the labour-rate card a
+/// new spec starts on (R1328). A discount, surcharge, small-material,
+/// sourcing, disposal or environmental-fee value the <c>Rate</c> or
+/// <c>Result</c> block prints as anything but zero changes no line and no
+/// total; it is noted on the first line that has room, so the staff member
+/// sees that Glass's applied it.
 /// </para>
 ///
 /// <para><b>Zero positions.</b> An ERE calculation saved before any damage was
@@ -308,7 +311,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
         return new GlassEstimateExport(
             new ParsedEstimate(
                 SourceVersion(root, calculation), lines, ProviderName, RepairSpecificationSourceRoute.Glasses, totals,
-                identity.Vin),
+                identity.Vin, LabourRate: ReadPanelRate(calculation)),
             identity,
             ReadAttachment(root));
     }
@@ -585,6 +588,22 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
             Vat: Vat(inclusive),
             Gross: Money(inclusive?.Element("GrandTotal"), 0, "gross total"));
     }
+
+    /// <summary>
+    /// <c>Rate/LabourRate/PanelBeater</c>, the panel labour rate per hour, as
+    /// printed. It only picks the labour-rate card a new spec starts on
+    /// (R1328), so an absent, unreadable or non-positive rate is none and
+    /// never refuses the export.
+    /// </summary>
+    private static decimal? ReadPanelRate(XElement calculation) =>
+        decimal.TryParse(
+            Text(calculation.Element("Rate")?.Element("LabourRate")?.Element("PanelBeater")),
+            NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out var rate)
+        && rate > 0m
+            ? rate
+            : null;
 
     /// <summary>
     /// A discount, surcharge, small-material, sourcing, disposal or

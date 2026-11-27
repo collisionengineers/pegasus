@@ -4,6 +4,13 @@ namespace Pegasus.Core.Assessment;
 
 public sealed record LabourRateCard(Guid Id, string Name, decimal HourlyRate, long Version);
 
+/// <summary>
+/// The rate a new imported spec starts on: a card, with or without the
+/// regional uplift, or a Custom typed rate when no card's rate is the
+/// document's.
+/// </summary>
+public sealed record ImportedSpecificationRate(LabourRateCard? Card, bool RegionalUplift, decimal? CustomRate);
+
 public sealed class LabourRateCardConflictException(string message) : InvalidOperationException(message);
 
 public sealed record SaveLabourRateCardRequest(
@@ -34,13 +41,41 @@ public sealed class LabourRateCardAdministration(ILabourRateCardStore store)
         store.SaveAsync(Validate(request), cancellationToken);
 
     /// <summary>
-    /// The card a new repair spec starts on: Standard. A source document's
-    /// own rate never picks a card (FRD-25).
+    /// The card a repair spec started with <b>New repair spec</b> starts on:
+    /// Standard (FRD-25).
     /// </summary>
     public static LabourRateCard? ForNewSpecification(IReadOnlyList<LabourRateCard> cards)
     {
         ArgumentNullException.ThrowIfNull(cards);
         return cards.FirstOrDefault(card => card.Name == Standard);
+    }
+
+    /// <summary>
+    /// The rate an imported spec starts on, from the panel or labour rate its
+    /// document prints (FRD-25, R1328): the card whose rate it is, Standard
+    /// before Prestige/Aluminium; else the card whose rate plus the 15 %
+    /// regional uplift it is to the penny, with the uplift on; else Custom at
+    /// the printed rate. A document that prints no rate, or one no card could
+    /// hold (not above zero, beyond 999999 or finer than a penny), starts on
+    /// Standard.
+    /// </summary>
+    public static ImportedSpecificationRate ForImportedSpecification(
+        IReadOnlyList<LabourRateCard> cards, decimal? documentRate)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        if (documentRate is not { } rate || rate <= 0 || rate > 999999m || decimal.Round(rate, 2) != rate)
+            return new(ForNewSpecification(cards), RegionalUplift: false, CustomRate: null);
+        var offered = Names
+            .Select(name => cards.FirstOrDefault(card => card.Name == name))
+            .OfType<LabourRateCard>()
+            .ToArray();
+        if (offered.FirstOrDefault(card => card.HourlyRate == rate) is { } exact)
+            return new(exact, RegionalUplift: false, CustomRate: null);
+        if (offered.FirstOrDefault(card => decimal.Round(
+                card.HourlyRate * EstimateDetails.RegionalUpliftFactor, 2, MidpointRounding.AwayFromZero) == rate)
+            is { } uplifted)
+            return new(uplifted, RegionalUplift: true, CustomRate: null);
+        return new(Card: null, RegionalUplift: false, CustomRate: rate);
     }
 
     public static SaveLabourRateCardRequest Validate(SaveLabourRateCardRequest request)

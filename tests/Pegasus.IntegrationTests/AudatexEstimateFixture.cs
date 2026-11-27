@@ -26,7 +26,8 @@ internal static class AudatexEstimateFixture
     /// the assessment number as page one names the company that produced the
     /// report, and a VIN and odometer print as the vehicle details do, their
     /// values at x 159 beside the Model Specs column at x 298; a second VIN
-    /// prints as a later page's vehicle data does.
+    /// prints as a later page's vehicle data does. Each heading prints its
+    /// price per hour after its time basis unless that price is null.
     /// </summary>
     internal static byte[] Build(
         string partsSubTotal = "£620.20",
@@ -45,7 +46,9 @@ internal static class AudatexEstimateFixture
         string? header = null,
         string? vin = null,
         string? odometer = null,
-        string? secondVin = null)
+        string? secondVin = null,
+        string? labourPrice = "£80.00",
+        string? paintPrice = "£80.00")
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -92,7 +95,7 @@ internal static class AudatexEstimateFixture
         Text(20, 660, "LABOUR");
         if (labourUnitsPerHour is { } labourBasis)
         {
-            Text(291, 660, $"Time Basis {labourBasis} WU = 1 HR. Price = £80.00/HR");
+            Text(291, 660, $"Time Basis {labourBasis} WU = 1 HR.{PricePerHour(labourPrice)}");
         }
         Text(20, 648, "Number");
         Text(159, 648, "Description");
@@ -124,7 +127,7 @@ internal static class AudatexEstimateFixture
         Text(20, 580, "PAINT WORK");
         if (paintUnitsPerHour is { } paintBasis)
         {
-            Text(291, 580, $"Time Basis {paintBasis} WU = 1 HR. Price = £80.00/HR");
+            Text(291, 580, $"Time Basis {paintBasis} WU = 1 HR.{PricePerHour(paintPrice)}");
         }
         Text(20, 568, "Number");
         Text(159, 568, "Description");
@@ -203,4 +206,8 @@ internal static class AudatexEstimateFixture
 
         return builder.Build();
     }
+
+    /// <summary>A heading's " Price = £80.00/HR", or nothing when the price is null.</summary>
+    private static string PricePerHour(string? price) =>
+        price is null ? string.Empty : $" Price = {price}/HR";
 }

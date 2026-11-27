@@ -101,6 +101,8 @@ public sealed class GlassEstimateXmlParserTests
 
         Assert.Equal(8.10m, hours);
         Assert.Equal(GlassExport.PrintedLabourCost, hours * GlassExport.LabourRate);
+        // Rate/LabourRate/PanelBeater is the labour rate (R1328).
+        Assert.Equal(80.00m, result.LabourRate);
     }
 
     [Fact]
