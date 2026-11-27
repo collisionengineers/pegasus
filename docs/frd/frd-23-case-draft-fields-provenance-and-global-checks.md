@@ -167,6 +167,12 @@ Capture:
 Montreal Prestige instructions also read the vehicle registration and the
 date of incident from the e-mail subject, as QDOS does; the document's own
 values rank first (operator, 15 October 2026).
+The vehicle line's registration is read wherever the line puts it, before,
+between or after the vehicle words or on its own, and the Source Vehicle
+Description is MP's words either side of it joined with a comma; a subject
+with no `VRM:` label gives its sole current-format plate (operator, 27
+November 2026; [R1340](../rulings.md)). The claim reference stays the
+document's `Our Ref` when the subject's RA number differs ([R1339](../rulings.md)).
 
 The Case's instruction date is its Received date (operator, 24 September
 2026): the Europe/London date its instruction was received, or the date

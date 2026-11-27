@@ -894,6 +894,14 @@ internal static partial class InstructionFieldEngine
         !string.IsNullOrWhiteSpace(value)
         && UkRegistrationShapes.IsDatedShape(StripRegistrationSeparators(value));
 
+    /// <summary>
+    /// Whether a value is a current-format registration (AB12 CDE), the one
+    /// shape no make or model shares ("BMW 530E" is also a suffix shape).
+    /// </summary>
+    internal static bool IsCurrentUkRegistration(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && UkRegistrationShapes.IsCurrentShape(StripRegistrationSeparators(value));
+
     private static string StripRegistrationSeparators(string value) =>
         WhitespaceHyphenRegex().Replace(value, string.Empty).ToUpperInvariant();
 

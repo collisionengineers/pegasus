@@ -10,6 +10,11 @@ namespace Pegasus.Core.Vehicle;
 internal static partial class UkRegistrationShapes
 {
     /// <summary>
+    /// A current registration (AB12CDE).
+    /// </summary>
+    internal static bool IsCurrentShape(string value) => CurrentRegex().IsMatch(value);
+
+    /// <summary>
     /// A current (AB12CDE), prefix (A123BCD) or suffix (ABC123D) registration.
     /// </summary>
     internal static bool IsDatedShape(string value) =>

@@ -6,7 +6,7 @@ public sealed partial class MpInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
 {
     public const string Key = "mp_instruction";
-    public const int Version = 2;
+    public const int Version = 3;
     public const string SupportedPrincipalCode = "MP";
     public const string DocumentProfileKeyValue = "mp_instruction_document";
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
@@ -23,6 +23,7 @@ public sealed partial class MpInstructionExtractionPolicy
         new("VAT status", ["VAT status"], IsRequired: false, PartyRole: "claimant")
     ];
     private static readonly InstructionFieldEngine.LabelRegexCache Cache = new(Definitions);
+    private static readonly char[] DescriptionEdges = [' ', '\t', ',', '-', '–', '—'];
     public string PrincipalCode => SupportedPrincipalCode;
     public string DocumentProfileKey => DocumentProfileKeyValue;
     public int DocumentProfileVersion => 1;
@@ -53,7 +54,12 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         var header = text[..request.Index]; var body = text[request.Index..];
         foreach (Match match in ClaimantRegex().Matches(header)) yield return Label(fragment, "Our client", match.Groups["value"].Value);
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", match.Groups["value"].Value);
-        foreach (Match match in VehicleRegex().Matches(header)) { var registration = match.Groups["registration"].Value; if (IsSupportedUkRegistration(registration)) yield return Label(fragment, "Vehicle Reg", registration); yield return Label(fragment, "Vehicle description", match.Groups["vehicle"].Value); }
+        foreach (Match match in VehicleRegex().Matches(header))
+        {
+            var (registration, vehicle) = SplitVehicleLine(match.Groups["value"].Value);
+            if (registration is not null) yield return Label(fragment, "Vehicle Reg", registration);
+            if (vehicle is not null) yield return Label(fragment, "Vehicle description", vehicle);
+        }
         foreach (Match match in AccidentRegex().Matches(header)) yield return Label(fragment, "Date of Accident", match.Groups["value"].Value);
         foreach (Match match in LocationRegex().Matches(body)) yield return Label(fragment, "Vehicle inspection address", match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
@@ -64,7 +70,9 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     // The subject ("... VRM: AB12 CDE   DOA: 03/11/26") is rewritten as labelled
     // lines in one fragment appended after the document's, so a value the document
     // states wins rank-aware conflict resolution. It never selects the policy: the
-    // signature reads document text only.
+    // signature reads document text only. MP's own subjects carry no "VRM:" label
+    // ("New Instruction - GJ20 XFG - Our Ref RA6459004"), so without one a sole
+    // current-format plate in the subject is read instead (R1340).
     private static IEnumerable<IntakeContentFragment> SubjectFacts(IntakeSourceReadResult readResult)
     {
         var subject = readResult.TransportEvidence
@@ -73,6 +81,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         var lines = new List<string>();
         var registration = SubjectRegistrationRegex().Match(subject);
         if (registration.Success && IsSupportedUkRegistration(registration.Groups["value"].Value)) lines.Add($"Vehicle Reg: {registration.Groups["value"].Value}");
+        else if (SoleCurrentRegistration(subject, SubjectPlateRegex()) is { } plate) lines.Add($"Vehicle Reg: {plate.Value}");
         var accident = SubjectAccidentRegex().Match(subject);
         if (accident.Success)
         {
@@ -81,12 +90,45 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         }
         if (lines.Count > 0) yield return new(IntakeEvidenceSource.Subject, "message subject", string.Join('\n', lines));
     }
+    // MP's vehicle line puts the registration anywhere: "LV67 UDJ, Jaecoo 4 (Private Hire)",
+    // "Toyota Prius Plus – DG70 FFU – Private Hire", "Ford Freedom-SF17 CKP Hackney" or the
+    // registration alone. Separated parts are tried first: a sole current-format plate, then
+    // the first part in any UK shape (the line's original layout, "NEK 1A , Audi A6"). Otherwise
+    // only a sole current-format plate is cut out of running text, because a model such as
+    // "BMW 530E" has a suffix plate's shape. The description is MP's words either side of the
+    // registration, joined with a comma; with no registration it is the parts after the first,
+    // as before (operator, 27 November 2026; R1340).
+    private static (string? Registration, string? Vehicle) SplitVehicleLine(string value)
+    {
+        var parts = PartSeparatorRegex().Split(value).Select(part => part.Trim()).ToArray();
+        var current = Enumerable.Range(0, parts.Length).Where(index => InstructionFieldEngine.IsCurrentUkRegistration(parts[index])).ToArray();
+        var chosen = current.Length == 1 ? current[0] : IsSupportedUkRegistration(parts[0]) ? 0 : -1;
+        if (chosen >= 0) return (parts[chosen], Description(parts.Where((_, index) => index != chosen)));
+        if (SoleCurrentRegistration(value, LinePlateRegex()) is { } plate)
+            return (plate.Value, Description([value[..plate.Index], value[(plate.Index + plate.Length)..]]));
+        return (null, Description(parts.Skip(1)));
+    }
+    private static string? Description(IEnumerable<string> parts)
+    {
+        var words = parts.Select(part => part.Trim(DescriptionEdges)).Where(part => part.Length > 0).ToArray();
+        return words.Length == 0 ? null : string.Join(", ", words);
+    }
+    private static Match? SoleCurrentRegistration(string text, Regex plates)
+    {
+        var matches = plates.Matches(text).Where(match => InstructionFieldEngine.IsCurrentUkRegistration(match.Value)).ToArray();
+        return matches.Length > 0 && matches.All(match => string.Equals(InstructionFieldEngine.NormalizeRegistration(match.Value), InstructionFieldEngine.NormalizeRegistration(matches[0].Value), StringComparison.Ordinal))
+            ? matches[0]
+            : null;
+    }
     private static IntakeContentFragment Label(IntakeContentFragment origin, string label, string value) => origin with { Text = $"{label}: {WhitespaceRegex().Replace(value, " ").Trim()}" };
     private static bool IsSupportedUkRegistration(string value) => InstructionFieldEngine.IsUkRegistration(value) && Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)).Length <= 7;
     [GeneratedRegex(@"Please\s+arrange\s+to\s+inspect\s+the\s+above\s+vehicle\s+at\s+your\s+earliest\s+convenience\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)] private static partial Regex RequestRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ClaimantRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
-    [GeneratedRegex(@"(?im)^\s*Vehicle\s+Reg\s*:[ \t]*(?<registration>[^,\r\n]+)[ \t]*,[ \t]*(?<vehicle>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
+    [GeneratedRegex(@"(?im)^\s*Vehicle\s+Reg\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
+    [GeneratedRegex(@",|[–—]|\s-\s", RegexOptions.CultureInvariant, 100)] private static partial Regex PartSeparatorRegex();
+    [GeneratedRegex(@"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2} ?[A-Za-z]{3}(?![A-Za-z0-9])", RegexOptions.CultureInvariant, 100)] private static partial Regex LinePlateRegex();
+    [GeneratedRegex(@"(?<![A-Za-z0-9])[A-Z]{2}[0-9]{2} ?[A-Z]{3}(?![A-Za-z0-9])", RegexOptions.CultureInvariant, 100)] private static partial Regex SubjectPlateRegex();
     [GeneratedRegex(@"(?im)^\s*Date\s+of\s+Accident\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex AccidentRegex();
     [GeneratedRegex(@"(?ims)The\s+vehicle\s+is\s+to\s+be\s+inspected\s+at\s*:[ \t]*(?<value>.+?)(?=\n\s*Kind\s+regards)", RegexOptions.CultureInvariant, 100)] private static partial Regex LocationRegex();
     [GeneratedRegex(@"(?ims)^\s*(?:Accident\s+circumstances|Circumstances)\s*:[ \t]*(?<value>.+?)(?=\n\s*(?:The\s+vehicle|Kind\s+regards))", RegexOptions.CultureInvariant, 100)] private static partial Regex CircumstancesRegex();
