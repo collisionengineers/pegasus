@@ -178,6 +178,45 @@ internal sealed class CaseValuationEntity
 }
 
 /// <summary>
+/// One submission of market research from Pegasus Desktop (issue 2166): who
+/// sent it and when, which way it came, the month and proposed value of its
+/// card, and the research record as it was sent. A row is written once and
+/// never changed; <see cref="OperationKey"/> replays it on its Case.
+/// </summary>
+internal sealed class MarketResearchSubmissionEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public required string OperationKey { get; set; }
+    public required string InputHash { get; set; }
+    public required string SubmittedBy { get; set; }
+    public DateTimeOffset SubmittedAtUtc { get; set; }
+    public required string Review { get; set; }
+    public DateOnly GuideMonth { get; set; }
+    public decimal ProposedValue { get; set; }
+    public required string RecordJson { get; set; }
+    public Guid ValuationId { get; set; }
+
+    /// <summary>The market research request the submission completed, when one was waiting.</summary>
+    public Guid? ClosedAiJobId { get; set; }
+}
+
+/// <summary>
+/// One file of a submission, as the Case document it was filed as. A
+/// screenshot names the advert it shows.
+/// </summary>
+internal sealed class MarketResearchSubmissionFileEntity
+{
+    public Guid Id { get; set; }
+    public Guid SubmissionId { get; set; }
+    public int Position { get; set; }
+    public required string Kind { get; set; }
+    public int? AdvertNumber { get; set; }
+    public Guid OccurrenceId { get; set; }
+    public Guid VersionId { get; set; }
+}
+
+/// <summary>
 /// One Administrator switch, mirroring the Automation client kill-switch
 /// pattern: Send to AI and the automatic Glass's valuation (R546) on the
 /// Automation &amp; AI settings panel, and the temporary Case/PO suffix on

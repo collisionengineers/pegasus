@@ -248,8 +248,8 @@ internal sealed class EfCaseArtifactCustody(
         var occurrence = recorded.Occurrence!;
         // A document is filed in its own folder; the Audit's a. folder may
         // not exist yet, and reconciliation files the document once it does.
-        var auditFolder = string.Equals(document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
-        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document.CustodyFolder);
+        var auditFolder = CaseCustodyFolders.IsAudit(document);
+        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document);
         if (string.IsNullOrWhiteSpace(folderRoot))
         {
             return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
@@ -314,7 +314,7 @@ internal sealed class EfCaseArtifactCustody(
                 version,
                 occurrence,
                 pendingContentStorageKey,
-                auditFolder,
+                document,
                 capturedRoot,
                 write,
                 token),
@@ -598,6 +598,7 @@ internal sealed class EfCaseArtifactCustody(
             where other.CaseId == document.CaseId
                 && other.SeriesIdentity == document.SeriesIdentity
                 && other.CustodyFolder == document.CustodyFolder
+                && other.CustodySubfolder == document.CustodySubfolder
                 && other.Id != document.Id
                 && !item.IsLogicallyRemoved
             select item;
@@ -627,7 +628,7 @@ internal sealed class EfCaseArtifactCustody(
         DocumentVersionEntity version,
         DocumentOccurrenceEntity occurrence,
         string pendingContentStorageKey,
-        bool auditFolder,
+        CaseDocumentEntity document,
         string capturedRoot,
         DocumentContentWriteResult write,
         CancellationToken cancellationToken)
@@ -646,14 +647,15 @@ internal sealed class EfCaseArtifactCustody(
         var promotionTargetCurrent = !filing.IsAutomaticPromotion
             || await IntakePromotionTarget.IsCurrentAsync(
                 db, caseId, filing.AutomaticPromotionReceiptId!.Value, cancellationToken);
+        // The Case still keeps the document's folder where the bytes were written.
+        var caseAtRoot = db.Cases
+            .Where(caseValue => caseValue.Id == caseId)
+            .Where(CaseCustodyFolders.RootIs(document, capturedRoot));
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
                 && value.PendingContentStorageKey == pendingContentStorageKey
-                && db.Cases.Any(caseValue => caseValue.Id == caseId
-                    && (auditFolder
-                        ? caseValue.AuditCustodyRemoteId == capturedRoot
-                        : caseValue.CustodyRootRemoteId == capturedRoot))
+                && caseAtRoot.Any()
                 && promotionTargetCurrent)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(value => value.BoxFileId, write.RemoteId)
@@ -1496,9 +1498,7 @@ public sealed partial class ReconcilePendingArtifactCustody
             : NoCustodyBatch.Instance;
         foreach (var candidate in candidates)
         {
-            var auditFolder = string.Equals(
-                candidate.Document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
-            var folderRoot = CaseCustodyFolders.RootOf(candidate.Case, candidate.Document.CustodyFolder);
+            var folderRoot = CaseCustodyFolders.RootOf(candidate.Case, candidate.Document);
             if (string.IsNullOrWhiteSpace(folderRoot))
             {
                 await RecordAttemptAsync(candidate.Version.Id, RetainedOutcome, "CaseRootUnavailable");
@@ -1565,14 +1565,15 @@ public sealed partial class ReconcilePendingArtifactCustody
                     retained++;
                     continue;
                 }
+                // The Case still keeps the document's folder where the bytes were written.
+                var caseAtRoot = update.Cases
+                    .Where(caseValue => caseValue.Id == candidate.Case.Id)
+                    .Where(CaseCustodyFolders.RootIs(candidate.Document, folderRoot));
                 var changed = await update.Set<DocumentVersionEntity>()
                     .Where(value => value.Id == candidate.Version.Id
                         && value.CustodyStatus == DocumentCustodyStatus.Pending
                         && value.PendingContentStorageKey == candidate.Version.PendingContentStorageKey
-                        && update.Cases.Any(caseValue => caseValue.Id == candidate.Case.Id
-                            && (auditFolder
-                                ? caseValue.AuditCustodyRemoteId == folderRoot
-                                : caseValue.CustodyRootRemoteId == folderRoot)))
+                        && caseAtRoot.Any())
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(value => value.BoxFileId, write.RemoteId)
                         .SetProperty(value => value.BoxVersionId, write.BoxVersionId)

@@ -503,6 +503,7 @@ public sealed class LogsModel(
             or "pegasus_case_note_add"
             or "pegasus_valuation_list"
             or "pegasus_valuation_save"
+            or "pegasus_market_research_submit"
             or "pegasus_document_add"
             or "pegasus_document_download"
             or "pegasus_document_download_batch"

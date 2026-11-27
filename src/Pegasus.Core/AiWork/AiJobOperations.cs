@@ -94,6 +94,16 @@ public static class AiJobPolicy
     public static bool IsLegalMarketResearchCompletion(AiJobState effectiveState) =>
         effectiveState == AiJobState.Taken;
 
+    /// <summary>
+    /// A submission of market research from Pegasus Desktop completes the
+    /// request waiting on its Case, whether a client has taken it or not
+    /// (operator, 26 November 2026; R1308). It is the one way a queued job is
+    /// completed, and no transition a client asks for reaches it.
+    /// </summary>
+    public static bool IsAnsweredByMarketResearchSubmission(AiJobKind kind, AiJobState effectiveState) =>
+        kind == AiJobKind.MarketResearch
+        && effectiveState is AiJobState.Queued or AiJobState.Taken;
+
     public static void ValidateNew(NewAiJob job)
     {
         ArgumentNullException.ThrowIfNull(job);
@@ -736,7 +746,7 @@ public sealed class CompleteMarketResearchAiJob(
             throw new InvalidOperationException(
                 "Only the Automation Actor completes market research jobs.");
         }
-        ValuationPolicy.ValidateAutomationMarketResearch(new(
+        ValuationPolicy.ValidateMarketResearch(new(
             ValuationSource.AiMarketResearch,
             command.RecordedDate,
             command.RecordedTime,

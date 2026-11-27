@@ -23,8 +23,8 @@ internal sealed record UploadPartToolResult(
 
 /// <summary>
 /// A document too large for one tool argument, staged in parts for
-/// <c>pegasus_document_add</c> or <c>pegasus_ai_job_complete_market_research</c>
-/// (operator, 22 October 2026, R203): staging is adapter mechanics, so a
+/// <c>pegasus_document_add</c>, <c>pegasus_ai_job_complete_market_research</c>
+/// or <c>pegasus_market_research_submit</c> (operator, 22 October 2026, R203): staging is adapter mechanics, so a
 /// success writes no history row and only a refusal is appended. The upload
 /// belongs to whoever the call is made for
 /// (<see cref="AutomationActorContext.UploadOwner"/>): the Automation client,
@@ -48,7 +48,7 @@ internal sealed class DocumentUploadMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Begins staging one document of at most 10 MiB in parts for pegasus_document_add or pegasus_ai_job_complete_market_research. Declare its size and SHA-256; the result gives the uploadId, the part size and count and when the upload expires. Replaying the same operation key with the same size and SHA-256 returns the same uploadId and the parts already received.")]
+    [Description("Begins staging one document of at most 10 MiB in parts for pegasus_document_add, pegasus_ai_job_complete_market_research or pegasus_market_research_submit. Declare its size and SHA-256; the result gives the uploadId, the part size and count and when the upload expires. Replaying the same operation key with the same size and SHA-256 returns the same uploadId and the parts already received.")]
     public async Task<UploadBeginToolResult> BeginAsync(
         [Description("The whole document's size in bytes, 1 to 10485760.")] long totalBytes,
         [Description("The whole document's SHA-256, 64 hexadecimal digits.")] string sha256,
