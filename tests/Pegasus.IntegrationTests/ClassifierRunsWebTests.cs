@@ -101,7 +101,7 @@ public sealed partial class ClassifierRunsWebTests
         Assert.Contains("Failed", Row(html, failed), StringComparison.Ordinal);
         Assert.Contains("Running", Row(html, running), StringComparison.Ordinal);
         Assert.Contains("$0.25", Row(html, acted), StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.ClassifierRuns.Write, Row(html, acted), StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.ClassifierRuns.DryRun, Row(html, acted), StringComparison.Ordinal);
         // The test instance names each row's environment; the live ones are missing, and it says why.
         Assert.Contains("data-classifier-run-environment=\"Test\"", html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.ClassifierRuns.LiveOff, html, StringComparison.Ordinal);

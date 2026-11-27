@@ -82,7 +82,7 @@
                                     }
                                     @if (health.LastRun is { } last && health.LastOutcome is { } lastOutcome)
                                     {
-                                        <td><time datetime="@last.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(last.StartedAtUtc)</time></td>
+                                        <td class="nowrap"><time datetime="@last.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(last.StartedAtUtc)</time></td>
                                         <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(lastOutcome)" /></td>
                                     }
                                     else
@@ -163,7 +163,6 @@
                                         <th scope="col">@OperatorLabels.ClassifierRuns.EnvironmentHeading</th>
                                     }
                                     <th scope="col">@OperatorLabels.ClassifierRuns.OutcomeHeading</th>
-                                    <th scope="col">@OperatorLabels.ClassifierRuns.Mode</th>
                                     <th scope="col">@OperatorLabels.ClassifierRuns.Eligible</th>
                                     <th scope="col">@OperatorLabels.ClassifierRuns.Actions</th>
                                     <th scope="col">@OperatorLabels.ClassifierRuns.Cost</th>
@@ -180,8 +179,14 @@
                                     {
                                         <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(run.Environment)" /></td>
                                     }
-                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(Model.OutcomeOf(run))" /></td>
-                                    <td>@ClassifierModel.Mode(run.DryRun)</td>
+                                    <td>
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(Model.OutcomeOf(run))" />
+                                        @* A write is every run's mode but a dry run's, which says so here. *@
+                                        @if (run.DryRun)
+                                        {
+                                            <span class="logs-reason">@OperatorLabels.ClassifierRuns.DryRun</span>
+                                        }
+                                    </td>
                                     <td>@ClassifierModel.Count(run.Eligible)</td>
                                     <td>@Model.Actions(run)</td>
                                     <td class="nowrap">@ClassifierModel.Cost(run.CostUsd)</td>
@@ -231,61 +236,51 @@
                 <a class="dialog-close" href="@Model.ListUrl()" aria-label="@OperatorLabels.ClassifierRuns.Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></a>
             </div>
             <div class="dialog-body stack">
-                <dl class="logs-facts">
+                <div class="fact-grid">
                     @if (showEnvironments)
                     {
-                        <dt>@OperatorLabels.ClassifierRuns.EnvironmentHeading</dt>
-                        <dd><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(summary.Environment)" /></dd>
+                        <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.EnvironmentHeading</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(summary.Environment)" /></dd></dl>
                     }
-                    <dt>@OperatorLabels.ClassifierRuns.Started</dt>
-                    <dd><time datetime="@summary.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.StartedAtUtc)</time></dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Finished</dt>
-                    <dd>
-                        @if (summary.FinishedAtUtc is { } finished)
-                        {
-                            <time datetime="@finished.ToString("O")">@OperatorLabels.OfficeTime(finished)</time>
-                        }
-                        else
-                        {
-                            @(outcome == ClassifierRunOutcome.Running ? OperatorLabels.ClassifierRuns.StillRunning : OperatorLabels.ClassifierRuns.NotFinished)
-                        }
-                    </dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Took</dt>
-                    <dd>@ClassifierModel.Took(summary.DurationMs)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.OutcomeHeading</dt>
-                    <dd>
-                        <partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(outcome)" />
-                        @if (outcome == ClassifierRunOutcome.CutShort)
-                        {
-                            <span class="logs-reason">@OperatorLabels.ClassifierRuns.CutShortBecause(summary.RawOutcome)</span>
-                        }
-                    </dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Mode</dt>
-                    <dd>@ClassifierModel.Mode(detail.Facts.DryRun)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Eligible</dt>
-                    <dd>@ClassifierModel.Count(summary.Eligible)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.AwaitingDecision</dt>
-                    <dd>@ClassifierModel.Count(summary.AwaitingDecision)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Cost</dt>
-                    <dd>@ClassifierModel.Cost(summary.CostUsd)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.SpendingCap</dt>
-                    <dd>@OperatorLabels.ClassifierRuns.Usd(detail.Facts.MaxBudgetUsd)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Turns</dt>
-                    <dd>@ClassifierModel.Count(detail.Turns)</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Model</dt>
-                    <dd class="mono">@detail.Facts.Model</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Batch</dt>
-                    <dd>@detail.Facts.Batch</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.ScanPages</dt>
-                    <dd>@detail.Facts.ScanPages</dd>
-                    <dt>@OperatorLabels.ClassifierRuns.Version</dt>
-                    <dd class="mono">@detail.Facts.AgentVersion</dd>
+                    <dl class="fact">
+                        <dt>@OperatorLabels.ClassifierRuns.OutcomeHeading</dt>
+                        <dd>
+                            <partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(outcome)" />
+                            @if (outcome == ClassifierRunOutcome.CutShort)
+                            {
+                                <span class="logs-reason">@OperatorLabels.ClassifierRuns.CutShortBecause(summary.RawOutcome)</span>
+                            }
+                        </dd>
+                    </dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Started</dt><dd><time datetime="@summary.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.StartedAtUtc)</time></dd></dl>
+                    <dl class="fact">
+                        <dt>@OperatorLabels.ClassifierRuns.Finished</dt>
+                        <dd>
+                            @if (summary.FinishedAtUtc is { } finished)
+                            {
+                                <time datetime="@finished.ToString("O")">@OperatorLabels.OfficeTime(finished)</time>
+                            }
+                            else
+                            {
+                                @(outcome == ClassifierRunOutcome.Running ? OperatorLabels.ClassifierRuns.StillRunning : OperatorLabels.ClassifierRuns.NotFinished)
+                            }
+                        </dd>
+                    </dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Took</dt><dd>@ClassifierModel.Took(summary.DurationMs)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Mode</dt><dd>@ClassifierModel.Mode(detail.Facts.DryRun)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Eligible</dt><dd>@ClassifierModel.Count(summary.Eligible)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.AwaitingDecision</dt><dd>@ClassifierModel.Count(summary.AwaitingDecision)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Cost</dt><dd>@ClassifierModel.Cost(summary.CostUsd)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.SpendingCap</dt><dd>@OperatorLabels.ClassifierRuns.Usd(detail.Facts.MaxBudgetUsd)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Turns</dt><dd>@ClassifierModel.Count(detail.Turns)</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Model</dt><dd class="mono">@detail.Facts.Model</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Batch</dt><dd>@detail.Facts.Batch</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.ScanPages</dt><dd>@detail.Facts.ScanPages</dd></dl>
+                    <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Version</dt><dd class="mono">@detail.Facts.AgentVersion</dd></dl>
                     @if (detail.Error is { Length: > 0 } error)
                     {
-                        <dt>@OperatorLabels.ClassifierRuns.Error</dt>
-                        <dd>@error</dd>
+                        <dl class="fact"><dt>@OperatorLabels.ClassifierRuns.Error</dt><dd>@error</dd></dl>
                     }
-                </dl>
+                </div>
                 @if (ClassifierModel.Paragraphs(detail.ModelSummary) is { Count: > 0 } paragraphs)
                 {
                     <section class="panel" aria-labelledby="classifier-run-summary">

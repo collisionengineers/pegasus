@@ -481,9 +481,9 @@ instance.
   turning the order, 50 a page with Previous and Next, as Action logs pages.
   The filters are From, To, Outcome and Runs (All runs, Runs that acted).
   Each row shows when it started, its outcome as a chip (Running, Did not
-  finish, Completed, Nothing to do, Mail hidden, Cut short, Failed), its
-  mode (Write or Dry run), its e-mails, what it did as counts by act, its
-  cost and how long it took. A run with no close reads Running for 15
+  finish, Completed, Nothing to do, Mail hidden, Cut short, Failed) with
+  Dry run beneath it for a dry run, its e-mails, what it did as counts by
+  act, its cost and how long it took. A run with no close reads Running for 15
   minutes and then Did not finish.
 - **Open** shows the run in a dialog, as the Intake log opens a received
   file: its facts (started, finished, how long, outcome, mode, e-mails,
