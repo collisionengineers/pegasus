@@ -139,6 +139,8 @@ public sealed class DatabaseLessWebHostTests
                 await services.GetRequiredService<IListCaseValuations>().ExecuteAsync(caseId, work, none)),
             ("applied valuations", async services =>
                 await services.GetRequiredService<IListAppliedValuations>().ExecuteAsync(caseId, work, none)),
+            ("market research submissions", async services => await services
+                .GetRequiredService<IMarketResearchSubmissionQueries>().ListForCaseAsync(caseId, none)),
             ("valuation presets", async services =>
                 await services.GetRequiredService<IValuationPresetStore>().ListAsync(none)),
             ("claim sources", async services => await services.GetRequiredService<IContactDirectoryQueries>()

@@ -19,7 +19,8 @@ namespace Pegasus.IntegrationTests.Support;
 /// A recording-store test serves its Case from the store, so these are the
 /// reads it used to send to a restored database: no kind, preparation,
 /// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason,
-/// report, valuation, repairer, image intake or lease to resume; Send
+/// report, valuation, market research submission, repairer, image intake or
+/// lease to resume; Send
 /// to AI switched on, because no row says otherwise; and the reference rows the
 /// migrations seed (the labour-rate cards, the valuation presets, the built-in
 /// image tags and the claim sources). <c>DatabaseLessWebHostTests</c> compares
@@ -40,6 +41,7 @@ internal sealed class DatabaseLessCaseReads :
     ISendToAiControl,
     IListCaseValuations,
     IListAppliedValuations,
+    IMarketResearchSubmissionQueries,
     IValuationPresetStore,
     IContactDirectoryQueries,
     ILeaseCaseForEdit,
@@ -295,6 +297,10 @@ internal sealed class DatabaseLessCaseReads :
     Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(
         Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
+
+    Task<IReadOnlyList<StoredMarketResearchSubmission>> IMarketResearchSubmissionQueries.ListForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<StoredMarketResearchSubmission>>([]);
 
     Task<IReadOnlyList<ValuationPreset>> IValuationPresetStore.ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ValuationPresets);

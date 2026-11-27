@@ -476,7 +476,7 @@ public sealed class MarketResearchSubmissionIngressTests
     }
 
     // A Case whose Box folder is confirmed, as the Worker leaves it once it is made.
-    private static async Task<Guid> SeedCaseWithFolderAsync(
+    internal static async Task<Guid> SeedCaseWithFolderAsync(
         IntakeWebApplicationFactory factory,
         WebApplicationFactory<Program> host)
     {
@@ -486,11 +486,11 @@ public sealed class MarketResearchSubmissionIngressTests
         return caseId;
     }
 
-    private static object StagedFile(Guid uploadId, string fileName, string mediaType, string kind) =>
+    internal static object StagedFile(Guid uploadId, string fileName, string mediaType, string kind) =>
         new { uploadId, fileName, mediaType, kind };
 
     // The research record as Pegasus Desktop writes it, schema version 1.
-    private static object Record(
+    internal static object Record(
         int proposed,
         string? evidencePack,
         params (int Number, string Screenshot)[] adverts) =>
@@ -543,7 +543,7 @@ public sealed class MarketResearchSubmissionIngressTests
             evidencePack
         };
 
-    private static string Submission(
+    internal static string Submission(
         int id,
         Guid caseId,
         string operationKey,
