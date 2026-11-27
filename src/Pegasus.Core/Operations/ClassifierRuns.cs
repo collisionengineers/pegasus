@@ -708,10 +708,10 @@ public sealed class ListClassifierRuns(
     }
 
     private static ClassifierRunsView View(
-        IReadOnlyList<ClassifierRunHealth> health,
-        IReadOnlyList<ClassifierRunSummary> rows,
+        List<ClassifierRunHealth> health,
+        ClassifierRunSummary[] rows,
         ClassifierLiveRunsState live) =>
-        new(health, [.. rows.Take(ClassifierRunPolicy.PageSize)], rows.Count > ClassifierRunPolicy.PageSize, live);
+        new(health, [.. rows.Take(ClassifierRunPolicy.PageSize)], rows.Length > ClassifierRunPolicy.PageSize, live);
 
     private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left < right ? left : right;
 }

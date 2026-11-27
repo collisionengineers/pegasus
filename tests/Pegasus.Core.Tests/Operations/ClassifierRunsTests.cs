@@ -326,8 +326,8 @@ public sealed class ClassifierRunsTests
     private static ClassifierRunItem Item(ClassifierRunAction action) =>
         new(Guid.NewGuid(), action, null, null, null, null, null, Now);
 
-    private static ClassifierRunResult Result(string outcome, IReadOnlyList<ClassifierRunItem> items) =>
-        new(outcome, items.Count, 0, false, 0, 0, 0, 0, 4, 0.1m, 1000, null, null, items);
+    private static ClassifierRunResult Result(string outcome, ClassifierRunItem[] items) =>
+        new(outcome, items.Length, 0, false, 0, 0, 0, 0, 4, 0.1m, 1000, null, null, items);
 
     private static ClassifierRunSummary Run(DateTimeOffset startedAtUtc, ClassifierRunOutcome? outcome) =>
         new(

@@ -189,18 +189,18 @@ public sealed partial class ClassifierRunsWebTests
         Assert.Single(RunRow().Matches(html));
     }
 
-    private static HttpClient CreateClient(IntakeWebApplicationFactory factory, IProductionClassifierRuns? live = null) =>
+    private static HttpClient CreateClient(IntakeWebApplicationFactory factory, LiveRuns? live = null) =>
         live is null
             ? IntakeWebDriver.CreateClient(factory)
             : IntakeWebDriver.CreateClient(factory.WithWebHostBuilder(builder =>
-                builder.ConfigureTestServices(services => services.AddSingleton(live))));
+                builder.ConfigureTestServices(services => services.AddSingleton<IProductionClassifierRuns>(live))));
 
     private static async Task<Guid> SeedAsync(
         IntakeWebApplicationFactory factory,
         DateTimeOffset startedAtUtc,
         string outcome,
         decimal cost,
-        IReadOnlyList<ClassifierRunItem> items)
+        ClassifierRunItem[] items)
     {
         var runId = Guid.NewGuid();
         await WithStoreAsync(factory, async store =>
@@ -212,7 +212,7 @@ public sealed partial class ClassifierRunsWebTests
                     Facts,
                     "pegasus-automation",
                     startedAtUtc.AddMinutes(1),
-                    new(outcome, items.Count, 0, false, 0, items.Count, 0, 0, 6, cost, 60_000, null, "The run's summary.", items),
+                    new(outcome, items.Length, 0, false, 0, items.Length, 0, 0, 6, cost, 60_000, null, "The run's summary.", items),
                     ClassifierRunPolicy.OutcomeOf(outcome),
                     items.Count(item => ClassifierRunPolicy.IsAct(item.Action))),
                 CancellationToken.None);
