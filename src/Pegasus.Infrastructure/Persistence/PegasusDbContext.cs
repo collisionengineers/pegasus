@@ -79,6 +79,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseReportWordingEntity> CaseReportWordings => Set<CaseReportWordingEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
+    internal DbSet<MarketResearchSubmissionEntity> MarketResearchSubmissions => Set<MarketResearchSubmissionEntity>();
+    internal DbSet<MarketResearchSubmissionFileEntity> MarketResearchSubmissionFiles => Set<MarketResearchSubmissionFileEntity>();
     internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
     internal DbSet<PrincipalSubmissionEntity> PrincipalSubmissions => Set<PrincipalSubmissionEntity>();
     internal DbSet<LabourRateCardEntity> LabourRateCards => Set<LabourRateCardEntity>();
@@ -1330,6 +1332,10 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
     public string? AuditCustodyRemoteId { get; set; }
     public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
+
+    // The market-research subfolder of the Case's folder, once a submission
+    // from Pegasus Desktop has made it (R1238).
+    public string? MarketResearchCustodyRemoteId { get; set; }
     public List<CaseWorkEntity> Works { get; set; } = [];
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];

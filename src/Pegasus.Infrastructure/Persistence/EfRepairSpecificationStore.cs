@@ -646,7 +646,8 @@ public sealed class EfRepairSpecificationStore(
         // the import lands on a spec that was not (operator, 25 September and
         // 6 October 2026; v38 P3).
         if ((existing is null || (importedOnto && !entity.IsCurrent))
-            && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
+            && RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+                request.Actor, request.Source.Route, request.AwaitsUse))
         {
             replacedCurrent = await MakeCurrentAsync(context, workId, entity, cancellationToken);
         }

@@ -14,7 +14,8 @@ public sealed record AutomationClientStatus(
 
 /// <summary>
 /// Owns the single seeded Automation client registration and its
-/// Administrator-held kill switch. The enabled state is the presence of the
+/// Administrator-held kill switch, and Pegasus Desktop's registration, which
+/// exists only as configuration says (ADR-0092). The enabled state is the presence of the
 /// client-credentials grant permission on the OpenIddict application: while
 /// disabled the token endpoint refuses new tokens outright, and because the
 /// per-request check below is cached for seconds (not minutes) and access
@@ -30,6 +31,13 @@ public sealed class AutomationClientRegistry(
     AutomationMcpOptions options)
 {
     private static readonly TimeSpan EnsureLifetime = TimeSpan.FromHours(24);
+
+    /// <summary>The action-history area of a Pegasus Desktop sign-in decision.</summary>
+    public const string DesktopAggregateType = "pegasus_desktop";
+
+    /// <summary>The history codes of the two decisions on the Pegasus Desktop sign-in page.</summary>
+    public const string DesktopSignInEvent = "desktop_sign_in";
+    public const string DesktopSignInRefusedEvent = "desktop_sign_in_refused";
 
     private string EnabledCacheKey => $"automation-mcp:enabled:{options.ClientId}";
 
@@ -68,9 +76,41 @@ public sealed class AutomationClientRegistry(
                 cancellationToken);
         }
 
+        await EnsureDesktopRegisteredAsync(cancellationToken);
         cache.Set(EnsuredCacheKey, value: true, EnsureLifetime);
         cache.Remove(EnabledCacheKey);
     }
+
+    /// <summary>
+    /// Pegasus Desktop's registration follows configuration (R1297): with
+    /// redirect URIs configured it is created or reconciled; without them a
+    /// registration left by an earlier configuration is rewritten to permit
+    /// nothing, because the Web's database role may not delete one. With
+    /// neither, there is no such client.
+    /// </summary>
+    private async Task EnsureDesktopRegisteredAsync(CancellationToken cancellationToken)
+    {
+        var application = await applications.FindByClientIdAsync(
+            AutomationMcp.DesktopClientId,
+            cancellationToken);
+        if (application is not null)
+        {
+            await applications.UpdateAsync(application, DesktopDescriptor(), cancellationToken);
+        }
+        else if (options.DesktopSignInEnabled)
+        {
+            await applications.CreateAsync(DesktopDescriptor(), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="clientId"/> is Pegasus Desktop's client in a
+    /// deployment that offers its sign-in. The kill switch
+    /// (<see cref="IsEnabledAsync"/>) is the Automation client's alone.
+    /// </summary>
+    public bool IsDesktop(string? clientId) =>
+        options.DesktopSignInEnabled
+        && string.Equals(clientId, AutomationMcp.DesktopClientId, StringComparison.Ordinal);
 
     /// <summary>
     /// The per-request kill-switch check. Unknown client identities are
@@ -210,6 +250,84 @@ public sealed class AutomationClientRegistry(
         }
 
         return descriptor;
+    }
+
+    /// <summary>
+    /// Pegasus Desktop's client (ADR-0092): public and native, so it holds no
+    /// secret and its loopback redirect may carry any port where the
+    /// configured URI names none (RFC 8252 section 7.3). It may ask for an
+    /// authorisation code with PKCE, renew its token and revoke it, and it
+    /// holds every scope: what a call may do is decided by the member of
+    /// staff's own rights, not by a consent. Without configuration it permits
+    /// nothing.
+    /// </summary>
+    private OpenIddictApplicationDescriptor DesktopDescriptor()
+    {
+        var descriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = AutomationMcp.DesktopClientId,
+            DisplayName = AutomationMcp.DesktopClientDisplayName,
+            ClientType = OpenIddictConstants.ClientTypes.Public,
+            ApplicationType = OpenIddictConstants.ApplicationTypes.Native,
+            ConsentType = OpenIddictConstants.ConsentTypes.Explicit
+        };
+        if (!options.DesktopSignInEnabled)
+        {
+            return descriptor;
+        }
+
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Authorization);
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Token);
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Revocation);
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
+        descriptor.Permissions.Add(OpenIddictConstants.Permissions.ResponseTypes.Code);
+        descriptor.Permissions.Add(
+            OpenIddictConstants.Permissions.Prefixes.Resource + options.ResourceUri.AbsoluteUri);
+        foreach (var scope in AutomationMcp.Scopes)
+        {
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scope);
+        }
+
+        descriptor.Requirements.Add(
+            OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
+        foreach (var redirectUri in options.DesktopRedirectUris)
+        {
+            descriptor.RedirectUris.Add(redirectUri);
+        }
+
+        return descriptor;
+    }
+
+    /// <summary>
+    /// A member of staff's decision on the Pegasus Desktop sign-in page is
+    /// permanent history under their own name: the sign-in's grant and where
+    /// the application was listening, or the refusal.
+    /// </summary>
+    public Task RecordDesktopSignInAsync(
+        ActionActor actor,
+        string grantId,
+        Uri redirectUri,
+        bool approved,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
+        ArgumentNullException.ThrowIfNull(redirectUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        return actionHistory.AppendAsync(
+            new ActionHistoryEntry(
+                Guid.NewGuid(),
+                DesktopAggregateType,
+                grantId,
+                approved ? DesktopSignInEvent : DesktopSignInRefusedEvent,
+                actor,
+                timeProvider.GetUtcNow(),
+                approved ? "Succeeded" : "Denied",
+                operationKey.Trim(),
+                redirectUri.GetLeftPart(UriPartial.Authority)),
+            cancellationToken);
     }
 
     /// <summary>

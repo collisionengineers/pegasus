@@ -950,6 +950,9 @@ public static partial class OperatorLabels
         "correspondence_move_failed" => StaffMail.CaseEmailsNotMoved,
         "instruction_moved_to_deleted_items" => StaffMail.InstructionMoved,
         "instruction_move_failed" => StaffMail.InstructionNotMoved,
+        // A submission from Pegasus Desktop (operator, 26 November 2026; R1314).
+        Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.SubmittedEventType =>
+            Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.HistoryReason,
         _ => Humanise(eventType)
     };
 
@@ -1211,7 +1214,11 @@ public static partial class OperatorLabels
     public static string ActionLogArea(string area) => area switch
     {
         "ai_job" => "AI job",
-        "automation_mcp" => "Automation",
+        Pegasus.Web.Mcp.AutomationMcpAuditor.AutomationAggregateType => "Automation",
+        // The product's own name, for a sign-in decision made on its page and
+        // for what a member of staff then does from it (ADR-0092, R1304).
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType =>
+            Pegasus.Web.Mcp.AutomationMcp.DesktopClientDisplayName,
         "email_template" => EmailTemplates.ActionLogArea,
         "staff_account" => "Staff account",
         "Security" => "Security",
@@ -1224,15 +1231,21 @@ public static partial class OperatorLabels
 
     /// <summary>
     /// An Action logs row's Action: the stored event code as words, with AI
-    /// and API as the initialisms they are (v41 A13).
+    /// and API as the initialisms they are (v41 A13). A code the operator has
+    /// worded reads in those words.
     /// </summary>
-    public static string ActionLogAction(string operation) =>
-        string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
+    public static string ActionLogAction(string operation) => operation switch
+    {
+        // The two decisions on the Pegasus Desktop sign-in page, in the operator's words (R1308).
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInEvent => DesktopSignIn.SignedInAction,
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInRefusedEvent => DesktopSignIn.RefusedAction,
+        _ => string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
         {
             "ai" => "AI",
             "api" => "API",
             _ => word
-        }));
+        }))
+    };
 
     /// <summary>An Action logs row's Result, written with a capital whatever its stored spelling (v41 A13).</summary>
     public static string ActionLogResult(string result) =>

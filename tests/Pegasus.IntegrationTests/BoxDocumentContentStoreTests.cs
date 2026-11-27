@@ -443,6 +443,36 @@ public sealed class BoxDocumentContentStoreTests
             store.StoreVersionAsync(wrongCaseRoot, content, hash, default));
     }
 
+    /// <summary>
+    /// R1238: the one subfolder of a Case's folder. The store makes it in the
+    /// Case's folder, a file addressed to it is filed in it, and that file is
+    /// read back through the subfolder and not through the Case's folder.
+    /// </summary>
+    [Fact]
+    public async Task AFileFiledInTheMarketResearchSubfolderIsReadBackThroughItAndNotThroughTheCaseFolder()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("advert screenshot");
+        var hash = Sha256(content);
+
+        var subfolder = await store.EnsureCaseSubfolderAsync(CaseRootId, "market-research", default);
+        var address = Address(4, "advert-1.jpg") with { CaseRootRemoteId = subfolder };
+        var written = await store.StoreVersionAsync(address, content, hash, default);
+
+        Assert.NotEqual(CaseRootId, subfolder);
+        Assert.True(box.PathExists($"{CaseReference}/market-research/004 advert-1.jpg"));
+        Assert.False(box.PathExists($"{CaseReference}/004 advert-1.jpg"));
+        await using (var read = await store.OpenReadVersionAsync(
+            Persisted(address, written), hash, content.Length, default))
+        {
+            Assert.Equal(content, await ReadAllAsync(read));
+        }
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
+            Persisted(address, written) with { CaseRootRemoteId = CaseRootId }, hash, content.Length, default));
+    }
+
     [Fact]
     public async Task SimultaneousIdenticalStoresConvergeOnOneBoxFileAndVersion()
     {

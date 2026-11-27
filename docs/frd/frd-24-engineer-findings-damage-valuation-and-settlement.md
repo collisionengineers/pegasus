@@ -227,7 +227,9 @@ The basis is chosen by clicking anywhere on a card (or Enter or Space on
 it), and only a card with a retail value can be the basis, since the
 calculation starts from retail; there is no Basis control beside the figures
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI market research
-is automation-only.
+is never typed in Pegasus: its card is written by a research result from the
+AI job list or by a submission from Pegasus Desktop
+([Market Research requests](#market-research-requests)).
 
 Glass's, Brego, Cazana and CAP are the connected guide sources
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
@@ -371,8 +373,10 @@ September 2026). Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
-it never becomes the Engineer's Value by itself.
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
+or by market research submitted from Pegasus Desktop
+([Market Research requests](#market-research-requests)); it never becomes
+the Engineer's Value by itself.
 
 **Retail value, Trade value and Engineer's Value** are the three values the
 report prints in its Vehicle Data table. Retail value and Trade value are the
@@ -545,6 +549,59 @@ Save can adopt any figure from it. While the job runs the Researching card
 says the result is filed without ending the edit; save or refresh to see it.
 Job states and attribution are owned by
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
+
+**Market research from Pegasus Desktop** (operator, 24 and 26 November 2026;
+R1239, R1241, R1309 to R1315; issue 2166). The research and its report are
+now made in Pegasus Desktop. A member of staff signed in there with their own
+Pegasus details
+([ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)) chooses the
+comparable adverts, screenshots and comments on each, and reaches a proposed
+value; the application's own Market Research agent writes the Market
+Valuation Evidence report. The Market Research action above stays as the
+request: it puts the Case on the AI job list, which is primarily for
+automated agents (R1241), and an automated agent that takes a request files
+its result as described above (R28).
+
+By default the application shows the report to the person for accept or
+reject before anything goes to the Case (R1309). Accept files the research
+record, the advert screenshots, the Advert Evidence Pack and the report on
+the Case in one act. Reject sends nothing, and the agent writes the report
+again. A preference in the application alone lets the person file at once
+with no approval; Pegasus does not check it, and keeps with each submission
+which way it came (R1310). With no AI reachable, research may be filed
+without the report after a confirmation in the application, so a submission
+has at most one report and may have none (R1311). Pegasus has no draft state,
+no review setting and no accept or reject step of its own.
+
+One submission
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary))
+is recorded under the member of staff's name and writes, together or not at
+all:
+
+- the research record as the application sent it: the adverts with their
+  comments, the proposed value and its basis, and the search summary;
+- the report, when there is one, as Valuation Evidence in the Case's folder
+  and its Documents list, marked as written by the AI as a job's findings
+  document is (R1306, R1313);
+- the Advert Evidence Pack and the screenshots in the `market-research`
+  subfolder of the Case's Box folder, listed only in the market research
+  space and not in the Documents list (R1238, R1313;
+  [FRD-05](frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody));
+- one AI market research card for the guide month, retail only and with no
+  trade value (R185, R311, R1243), its retail value the record's proposed
+  value. It replaces an earlier research card for that month, and it is
+  written whether or not a report came with the research;
+- the Case history line "Market research submitted from Pegasus Desktop"
+  (R1314).
+
+Like a job's result it needs no Case edit lease and no Case version, moves
+no Case and never sets the Engineer's Value. It is accepted in every Case
+state except Closed, Report sent included (R1242, R1244;
+[FRD-13](frd-13-case-lifecycle-and-workflow.md)). A submission completes a
+market research request waiting on the Case
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list);
+R1312). The same submission sent again changes nothing and answers as the
+first did.
 
 ### Valuation readiness
 

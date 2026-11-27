@@ -512,6 +512,22 @@ public interface IDocumentContentStore
             expectedLength,
             cancellationToken);
     }
+
+    /// <summary>
+    /// The folder named <paramref name="name"/> inside a Case's folder, made
+    /// when it is not there yet and found when it is; its identity is the
+    /// root of every address filed in it. A store that keeps content by
+    /// version and has no folders makes nothing and names the place.
+    /// </summary>
+    Task<string> EnsureCaseSubfolderAsync(
+        string caseRootRemoteId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseRootRemoteId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return Task.FromResult($"{caseRootRemoteId}/{name}");
+    }
 }
 
 /// <summary>

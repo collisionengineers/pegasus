@@ -3,13 +3,25 @@ id: ADR-0011
 status: accepted
 date: 2026-07-30
 supersedes: [ADR-0004]
-superseded_by: []
+superseded_by: [ADR-0092]
 related_capabilities: []
 related_frd: [frd-10]
 tags: [mcp, auth]
 ---
 
 # ADR-0011: Restrict MCP to a vendor-neutral Automation Actor
+
+Amended 26 November 2026 (R1237, R1304;
+[ADR-0092](0092-staff-sign-in-for-pegasus-desktop.md)): "Ordinary staff have
+no MCP access" and "not a staff interface" no longer hold for one client,
+Pegasus Desktop. A member of staff who signs in from it reaches the same
+tools as themselves, with their own role's rights, and each action is
+recorded under their name. Every other clause stands: the Automation Actor
+is still one named actor with no Administrator authority, it never
+impersonates staff, and the tools still call the same Core use cases as Web
+and Worker callers. This is the "new accepted decision and explicit Core
+authorization contract" the last paragraph asks for: the contract is
+`StaffAuthorization`, applied to the staff actor the token resolves to.
 
 ## Context
 

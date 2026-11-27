@@ -64,6 +64,11 @@ public static class AutomationMcpExtensions
             {
                 server.SetTokenEndpointUris(AutomationMcp.TokenEndpointPath);
                 server.SetAuthorizationEndpointUris(AutomationMcp.AuthorizationEndpointPath);
+                // Pegasus Desktop ends its sign-in here (ADR-0092). OpenIddict
+                // answers revocation itself; only a client holding the
+                // endpoint's permission may call it, and the Automation client
+                // does not.
+                server.SetRevocationEndpointUris(AutomationMcp.RevocationEndpointPath);
                 server.AllowClientCredentialsFlow();
                 // External MCP connectors (for example the Claude.ai remote
                 // connector) obtain tokens by authorization code + PKCE with an
@@ -77,7 +82,9 @@ public static class AutomationMcpExtensions
                 server.RegisterResources(options.ResourceUri.AbsoluteUri);
                 server.SetAccessTokenLifetime(AutomationMcp.AccessTokenLifetime);
                 server.SetRefreshTokenLifetime(AutomationMcp.RefreshTokenLifetime);
-                // A hard cap: a connector re-consents at least fortnightly.
+                // A hard cap: a connector re-consents at least fortnightly, and
+                // a Pegasus Desktop sign-in, whose principal carries its own
+                // eight hours, ends when they are up (R1298).
                 server.DisableSlidingRefreshTokenExpiration();
                 if (options.UseDevelopmentKeys)
                 {
@@ -188,6 +195,7 @@ public static class AutomationMcpExtensions
             .WithTools<UploadGroupMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
+            .WithTools<MarketResearchMcpTools>()
             .WithTools<WorkCentreMcpTools>()
             .WithTools<PhotoCaptureMcpTools>()
             .WithTools<SendMcpTools>();
@@ -211,7 +219,8 @@ public static class AutomationMcpExtensions
 
     /// <summary>
     /// Maps the bearer-only automation surface: the token endpoint (client
-    /// credentials, authorization code, refresh), the one streamable-HTTP MCP
+    /// credentials, authorization code, refresh), the revocation endpoint's
+    /// rate limit, the one streamable-HTTP MCP
     /// endpoint at <c>/mcp</c>, whose GET and DELETE answer 405 because the
     /// transport is stateless, and the two original-bytes routes the download
     /// tools name as <c>contentUrl</c>. The Administrator consent page at
@@ -225,6 +234,14 @@ public static class AutomationMcpExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
         app.MapPost(AutomationMcp.TokenEndpointPath, AutomationTokenEndpoint.ExchangeAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
+        // OpenIddict answers a revocation request inside authentication, so
+        // this handler is never reached; the endpoint exists to put the
+        // request under the ingress rate limit, which runs before it.
+        app.MapPost(
+                AutomationMcp.RevocationEndpointPath,
+                () => Results.StatusCode(StatusCodes.Status404NotFound))
             .AllowAnonymous()
             .RequireRateLimiting(AutomationMcp.RateLimitPolicy);
         app.MapMcp(AutomationMcp.McpEndpointPath)

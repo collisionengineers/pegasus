@@ -546,9 +546,12 @@ internal sealed partial class CachedDocumentContentStore(
                     .FirstOrDefault(entry => entry.Variant == OriginalVariant
                         && entry.DocumentVersionId == documentVersion.Id),
                 // The document's own folder: the a. folder for an Audit report.
-                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
-                    ? caseEntity.AuditCustodyRemoteId
-                    : caseEntity.CustodyRootRemoteId
+                CaseRootRemoteId = CaseCustodyFolders.RootOf(
+                    document.CustodyFolder,
+                    document.CustodySubfolder,
+                    caseEntity.CustodyRootRemoteId,
+                    caseEntity.AuditCustodyRemoteId,
+                    caseEntity.MarketResearchCustodyRemoteId)
             }).SingleOrDefaultAsync(cancellationToken)
             ?? throw new FileNotFoundException("The authorized document version is unavailable.");
         return (
@@ -830,9 +833,12 @@ internal sealed partial class CachedDocumentContentStore(
             {
                 Version = documentVersion,
                 // The document's own folder: the a. folder for an Audit report.
-                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
-                    ? caseEntity.AuditCustodyRemoteId
-                    : caseEntity.CustodyRootRemoteId
+                CaseRootRemoteId = CaseCustodyFolders.RootOf(
+                    document.CustodyFolder,
+                    document.CustodySubfolder,
+                    caseEntity.CustodyRootRemoteId,
+                    caseEntity.AuditCustodyRemoteId,
+                    caseEntity.MarketResearchCustodyRemoteId)
             }).ToListAsync(cancellationToken);
         return rows.ToDictionary(
             row => row.Version.Id,

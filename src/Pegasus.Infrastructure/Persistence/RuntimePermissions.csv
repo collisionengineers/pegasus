@@ -66,6 +66,8 @@ pegasus_web_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_web_runtime_role,D,DELETE,IntakeWorkItems
 pegasus_web_runtime_role,D,DELETE,IntegrationLogins
 pegasus_web_runtime_role,D,DELETE,LabourRateCards
+pegasus_web_runtime_role,D,DELETE,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,D,DELETE,MarketResearchSubmissions
 pegasus_web_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_web_runtime_role,D,DELETE,OpenIddictAuthorizations
 pegasus_web_runtime_role,D,DELETE,OpenIddictScopes
@@ -105,6 +107,8 @@ pegasus_web_runtime_role,D,UPDATE,ImageIntakeLifecycleEvents
 pegasus_web_runtime_role,D,UPDATE,ImageTags
 pegasus_web_runtime_role,D,UPDATE,IntakeAssetTags
 pegasus_web_runtime_role,D,UPDATE,IntakeMailClassificationHistory
+pegasus_web_runtime_role,D,UPDATE,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,D,UPDATE,MarketResearchSubmissions
 pegasus_web_runtime_role,D,UPDATE,UnidentifiedHistory
 pegasus_web_runtime_role,G,DELETE,AspNetUserRoles
 pegasus_web_runtime_role,G,DELETE,AspNetUsers
@@ -192,6 +196,8 @@ pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,INSERT,IntakeWorkItems
 pegasus_web_runtime_role,G,INSERT,IntegrationLogins
 pegasus_web_runtime_role,G,INSERT,LabourRateCards
+pegasus_web_runtime_role,G,INSERT,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,G,INSERT,MarketResearchSubmissions
 pegasus_web_runtime_role,G,INSERT,OpenIddictApplications
 pegasus_web_runtime_role,G,INSERT,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,INSERT,OpenIddictTokens
@@ -308,6 +314,8 @@ pegasus_web_runtime_role,G,SELECT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,SELECT,IntakeWorkItems
 pegasus_web_runtime_role,G,SELECT,IntegrationLogins
 pegasus_web_runtime_role,G,SELECT,LabourRateCards
+pegasus_web_runtime_role,G,SELECT,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,G,SELECT,MarketResearchSubmissions
 pegasus_web_runtime_role,G,SELECT,OpenIddictApplications
 pegasus_web_runtime_role,G,SELECT,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,SELECT,OpenIddictScopes
@@ -492,6 +500,8 @@ pegasus_worker_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_worker_runtime_role,D,DELETE,IntakeWorkItems
 pegasus_worker_runtime_role,D,DELETE,IntegrationLogins
 pegasus_worker_runtime_role,D,DELETE,LabourRateCards
+pegasus_worker_runtime_role,D,DELETE,MarketResearchSubmissionFiles
+pegasus_worker_runtime_role,D,DELETE,MarketResearchSubmissions
 pegasus_worker_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_worker_runtime_role,D,DELETE,OpenIddictAuthorizations
 pegasus_worker_runtime_role,D,DELETE,OpenIddictScopes

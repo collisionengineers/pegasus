@@ -100,11 +100,11 @@ internal sealed class AiJobMcpTools(
             "pegasus_ai_job_list",
             "ai_job",
             null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AiJobKind? filter = string.IsNullOrWhiteSpace(kind) ? null : ParseKind(kind);
                 var page = await listOpen.ExecuteAsync(
-                    new(context.Actor, context.GrantId, filter, continuation, pageSize == 0 ? null : pageSize),
+                    new(context.Actor, context.Actor.SubjectId, filter, continuation, pageSize == 0 ? null : pageSize),
                     cancellationToken);
                 var next = page.NextCursor;
                 return new AiJobToolList(page.Items.Select(Map).ToArray(), next, context.TraceIdentifier);
@@ -293,7 +293,7 @@ internal sealed class AiJobMcpTools(
         var parsedAction = ParseAction(action);
         var context = await resolver.RequireAsync("pegasus_ai_job_transition", cancellationToken);
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
-        Task<AiJobToolItem> Run() => AutomationMcpErrors.ExecuteAsync(async () =>
+        Task<AiJobToolItem> Run() => AutomationMcpErrors.ExecuteAsync(context, async () =>
         {
             var id = RequireJobId(jobId);
             var job = await (parsedAction switch

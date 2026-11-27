@@ -2,7 +2,6 @@ using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Mcp;
 
@@ -24,12 +23,14 @@ internal sealed record UploadPartToolResult(
 
 /// <summary>
 /// A document too large for one tool argument, staged in parts for
-/// <c>pegasus_document_add</c> or <c>pegasus_ai_job_complete_market_research</c>
-/// (operator, 22 October 2026, R203): staging is adapter mechanics, so a
+/// <c>pegasus_document_add</c>, <c>pegasus_ai_job_complete_market_research</c>
+/// or <c>pegasus_market_research_submit</c> (operator, 22 October 2026, R203): staging is adapter mechanics, so a
 /// success writes no history row and only a refusal is appended. The upload
-/// belongs to the Automation client, not the grant, so a part staged under
-/// one grant is used under another of the same client. Results
-/// carry counters and identifiers, never content.
+/// belongs to whoever the call is made for
+/// (<see cref="AutomationActorContext.UploadOwner"/>): the Automation client,
+/// not the grant, so a part staged under one grant is used under another of
+/// the same client; or the member of staff signed in from Pegasus Desktop.
+/// Results carry counters and identifiers, never content.
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentUploadMcpTools(
@@ -47,7 +48,7 @@ internal sealed class DocumentUploadMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Begins staging one document of at most 10 MiB in parts for pegasus_document_add or pegasus_ai_job_complete_market_research. Declare its size and SHA-256; the result gives the uploadId, the part size and count and when the upload expires. Replaying the same operation key with the same size and SHA-256 returns the same uploadId and the parts already received.")]
+    [Description("Begins staging one document of at most 10 MiB in parts for pegasus_document_add, pegasus_ai_job_complete_market_research or pegasus_market_research_submit. Declare its size and SHA-256; the result gives the uploadId, the part size and count and when the upload expires. Replaying the same operation key with the same size and SHA-256 returns the same uploadId and the parts already received.")]
     public async Task<UploadBeginToolResult> BeginAsync(
         [Description("The whole document's size in bytes, 1 to 10485760.")] long totalBytes,
         [Description("The whole document's SHA-256, 64 hexadecimal digits.")] string sha256,
@@ -58,17 +59,17 @@ internal sealed class DocumentUploadMcpTools(
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         var uploadId = AutomationMcpErrors.DeriveOperationGuid(
             UploadPurpose,
-            ActionActor.Automation(context.ClientId),
+            context.UploadActor,
             key);
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_upload_begin",
             uploadId.ToString("D"),
             key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 var ticket = await uploads.ExecuteAsync(
-                    new BeginDocumentUploadRequest(uploadId, context.ClientId, totalBytes, sha256),
+                    new BeginDocumentUploadRequest(uploadId, context.UploadOwner, totalBytes, sha256),
                     cancellationToken);
                 return new UploadBeginToolResult(
                     ticket.UploadId,
@@ -104,7 +105,7 @@ internal sealed class DocumentUploadMcpTools(
             "pegasus_upload_part",
             AutomationMcpAuditor.Resource(uploadId),
             null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(uploadId, "upload identifier");
                 var content = AutomationMcpErrors.DecodeContent(
@@ -112,7 +113,7 @@ internal sealed class DocumentUploadMcpTools(
                     DocumentUploadLimits.PartBytes,
                     "The part content");
                 var receipt = await uploads.ExecuteAsync(
-                    new AppendDocumentUploadPartRequest(uploadId, context.ClientId, partNumber, content, sha256),
+                    new AppendDocumentUploadPartRequest(uploadId, context.UploadOwner, partNumber, content, sha256),
                     cancellationToken);
                 return new UploadPartToolResult(
                     receipt.UploadId,
@@ -151,7 +152,7 @@ internal sealed class DocumentUploadMcpTools(
         }
 
         AutomationMcpErrors.RequireId(staged, "upload identifier");
-        var opened = await uploads.ExecuteAsync(new OpenDocumentUploadRequest(staged, context.ClientId), cancellationToken);
+        var opened = await uploads.ExecuteAsync(new OpenDocumentUploadRequest(staged, context.UploadOwner), cancellationToken);
         return opened.Content;
     }
 }

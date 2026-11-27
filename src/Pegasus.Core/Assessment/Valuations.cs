@@ -177,7 +177,8 @@ public static class ValuationPolicy
     /// P13, 18 September 2026), including the two Get valuation can fetch
     /// (Glass's, ADR-0060; Cazana, ADR-0079): a fetched figure and a typed
     /// one are the same record. AI market research
-    /// is written only by the automation completion, so staff never record it.
+    /// is written only by a research result from the AI job list or a
+    /// submission from Pegasus Desktop, so staff never type it.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>
         source is ValuationSource.Glasses
@@ -256,7 +257,12 @@ public static class ValuationPolicy
             && incoming.TradeValue == replaced.TradeValue;
     }
 
-    public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)
+    /// <summary>
+    /// A research card, from the AI job list or from a submission by Pegasus
+    /// Desktop: AI market research carrying its retail value, and so retail
+    /// only (R185, R311, R1243).
+    /// </summary>
+    public static ValuationDetails ValidateMarketResearch(ValuationDetails details)
     {
         details = ValidateDetails(details);
         if (details.Source != ValuationSource.AiMarketResearch)

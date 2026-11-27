@@ -7,7 +7,7 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class StaffAccountReadsTests
 {
-    private static readonly StaffAccountRead Read = new("stamp", IsEnabled: true, MustChangePassword: false);
+    private static readonly StaffAccountRead Read = new("stamp", IsEnabled: true, MustChangePassword: false, StaffRole.User);
 
     private static readonly byte[] SignatureBytes = [0x89, 0x50, 0x4e, 0x47];
 

@@ -1386,6 +1386,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("case");
 
+                    b.Property<string>("CustodySubfolder")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<int>("Ordinal")
                         .HasColumnType("int");
 
@@ -1411,6 +1415,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseDocuments", null, t =>
                         {
                             t.HasCheckConstraint("CK_CaseDocuments_CustodyFolder", "[CustodyFolder] IN (N'case', N'audit')");
+
+                            t.HasCheckConstraint("CK_CaseDocuments_CustodySubfolder", "[CustodySubfolder] IS NULL OR ([CustodySubfolder] = N'market-research' AND [CustodyFolder] = N'case')");
                         });
                 });
 
@@ -1659,6 +1665,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("InstructionComplete")
                         .HasColumnType("bit");
+
+                    b.Property<string>("MarketResearchCustodyRemoteId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<Guid?>("OriginIntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
@@ -3171,7 +3181,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()
-                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' AND [EventType] <> 'correspondence_sent' AND [EventType] <> 'instruction_moved_to_deleted_items' AND [EventType] <> 'instruction_move_failed' AND [EventType] <> 'correspondence_moved_to_deleted_items' AND [EventType] <> 'correspondence_move_failed'");
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' AND [EventType] <> 'correspondence_sent' AND [EventType] <> 'instruction_moved_to_deleted_items' AND [EventType] <> 'instruction_move_failed' AND [EventType] <> 'correspondence_moved_to_deleted_items' AND [EventType] <> 'correspondence_move_failed' AND [EventType] <> 'market_research_submitted'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
@@ -5916,6 +5926,109 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("LabourRateCards", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.MarketResearchSubmissionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ClosedAiJobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("GuideMonth")
+                        .HasColumnType("date");
+
+                    b.Property<string>("InputHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("ProposedValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("RecordJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Review")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("SubmittedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SubmittedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ValuationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "OperationKey")
+                        .IsUnique();
+
+                    b.ToTable("MarketResearchSubmissions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MarketResearchSubmissions_ProposedValue", "[ProposedValue] > 0");
+
+                            t.HasCheckConstraint("CK_MarketResearchSubmissions_Review", "[Review] IN ('Accepted', 'NotReviewed')");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.MarketResearchSubmissionFileEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("AdvertNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("VersionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurrenceId")
+                        .IsUnique();
+
+                    b.HasIndex("VersionId");
+
+                    b.HasIndex("SubmissionId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("MarketResearchSubmissionFiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MarketResearchSubmissionFiles_Kind", "[Kind] IN ('Report', 'EvidencePack', 'Screenshot')");
+                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationAdministrationOperationEntity", b =>
@@ -9672,6 +9785,36 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("StagedReceipt");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.MarketResearchSubmissionEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.MarketResearchSubmissionFileEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentOccurrenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.MarketResearchSubmissionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PhotoCaptureBatchEntity", b =>

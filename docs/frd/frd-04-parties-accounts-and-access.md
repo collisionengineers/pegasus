@@ -111,6 +111,30 @@ stored as non-reversible hashes. This stays the sign-in route until a
 separately accepted identity change replaces it. Each account has exactly one
 current role.
 
+**Sign-in from Pegasus Desktop** (operator, 24 and 26 November 2026; R1237,
+R1297 to R1299;
+[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). A member of
+staff may also sign in to Pegasus from Pegasus Desktop, the Windows
+application, with the same username and password. The application opens the
+browser; the member of staff signs in to Pegasus there, and a page headed
+"Sign in to Pegasus Desktop" names their account ("Signed in as"), says
+"Pegasus Desktop will act in Pegasus as you. Everything it does is recorded
+under your name.", and offers **Sign in** and **Refuse**. The application
+never sees the password. Any enabled account may sign in, of any role; an
+account that must change its password changes it first. Either answer is a
+permanent history event under the person's name, which the Action logs read
+as "Signed in from Pegasus Desktop" and "Refused sign-in from Pegasus
+Desktop" (R1308). The sign-in is offered only
+where a deployment configures it: production does not, and there is no row
+for Pegasus Desktop on the Integrations page. A sign-in lasts 8 hours and is
+not extended by use. It ends sooner when the account is disabled, its
+password is reset, its role changes or an Administrator forces a logout, and
+when the application signs out; stopping the Automation client does not end
+it (R1307). Signed in, the member of staff may do through
+the application what they could do in Pegasus itself, recorded under their
+name (R1304); that is owned by
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop).
+
 All three stored staff roles have the same ordinary casework authority.
 Administrator additionally holds application-management authority; an
 Administrator therefore holds every Engineer ability as well as the
@@ -321,9 +345,11 @@ The Principal section of a Contact carries:
   inherits its predecessor's rules. The migration `SendingRulesAreBuilt`
   rewrote every Principal's rules to this shape (25 November 2026,
   [R1267](../rulings.md)); RJS's two "Instruction mentions" rules became
-  Claim Source is Claim Specialists and Claim Source is Accident
-  Specialists, and its "Luton" alternative waits on issue #2204
-  ([R1265](../rulings.md), [R1268](../rulings.md)). The rules were first
+  Claim Source is Claim Specialists, which copies
+  accounts@claimsspecialists.co.uk, and Claim Source is Accident
+  Specialists; "Luton" was staff's name for Claim Specialists and is dropped
+  ([R1265](../rulings.md), [R1268](../rulings.md); operator, 26 November
+  2026, [R1300](../rulings.md), [R1303](../rulings.md)). The rules were first
   imported from the SOP (the supplied
   [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml),
   which keeps its v5 name and holds version 8, 15 October 2026; operator,
@@ -363,7 +389,9 @@ Case's Principal that the instruction's text (its subject, body and the text of 
 ignored ("Car Claims" names "CarClaims") (operator, 25 November 2026; [R1264](../rulings.md)). Two or more matches, or none,
 fill nothing, and a name that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
 before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
-[R1018](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
+[R1018](../rulings.md)). RJS's instructions never name the claim source, so staff set an RJS Case's Claim Source once
+they know it; Easy Claim is a Claim Source linked to RJS, and RJS's reports do not copy it (operator, 26 November 2026;
+[R1301](../rulings.md), [R1302](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's telephone and e-mail for that Case alone. The override
@@ -441,7 +469,9 @@ change made outside it, such as direct SQL or the intake wipe, is seen within
 Document and thumbnail reads rely on that request check and do not read the
 account again. A queued report render reads its images with the authority
 the account had when the render was queued. A session is never refreshed into
-new authority: it is refused and signs in again. Delete
+new authority: it is refused and signs in again. A sign-in from Pegasus
+Desktop carries the stamp the account had when it was made, and is refused
+the same way once the stamp has moved (R1298). Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable acts at once from the Settings dialog; Delete
@@ -469,9 +499,10 @@ encrypted, shows no other stored value back, and records each change
 in permanent history, attributed to the Administrator, naming the login and
 never a value (operator, 26 November 2026; R1288,
 [ADR-0091](../adr/0091-integration-logins-in-the-database.md)). The Brego
-account is signed in on the same panel, with Send sign-in link, Link account
-and, when Brego asks for a code, Confirm code, or with its saved password
-(R1290).
+account is signed in in its Settings dialog there (R1296), with Refresh
+login where the host reads the account's mailbox (R1294), Send sign-in link,
+Link account and, when Brego asks for a code, Confirm code, or with its saved
+password (R1290).
 
 **Sign-off Engineer** is an Administrator-managed account setting available
 for any staff role: a flag, the account's qualifications and a signature
@@ -545,6 +576,9 @@ authorisation. External customers have no staff account.
 - An account cannot disable or delete itself, and the last enabled
   Administrator cannot be removed.
 - A revoked session's token is refused on its next request.
+- A sign-in from Pegasus Desktop is not renewed once the account's security
+  stamp has moved, or after its 8 hours; where the sign-in is not configured
+  there is no such client to sign in to (R1297, R1298).
 - The Principal API secret is shown once; a replay shows nothing.
 - A refusal never reveals Case or source data.
 
@@ -552,7 +586,9 @@ authorisation. External customers have no staff account.
 
 Core tests cover the role matrix, account commands, the credential lifecycle
 and the history write inside each transaction. Integration tests cover the
-Contacts and Staff accounts screens over real HTTP. Deployment and live
+Contacts and Staff accounts screens over real HTTP, and the sign-in from
+Pegasus Desktop from its page to its tokens, renewal, ending and revocation
+(`DesktopSignInTests`). Deployment and live
 acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

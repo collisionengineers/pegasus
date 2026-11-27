@@ -1,0 +1,23 @@
+@model Pegasus.Web.Pages.Connect.AuthorizeModel
+@*
+    Pegasus Desktop's sign-in (ADR-0092), in the navless card of the external
+    frame: what the application will do, who it will do it as, and the two
+    answers. The wording is the operator's (R1299). There are no scope tick
+    boxes: the application acts as the member of staff, whose own rights
+    decide what it may do. The form re-posts the validated request, as the
+    connector consent does.
+*@
+<h1>@OperatorLabels.DesktopSignIn.Title</h1>
+<p>@OperatorLabels.DesktopSignIn.Sentence</p>
+<form method="post" data-desktop-sign-in>
+    <dl class="detail-list">
+        <div><dt>@OperatorLabels.DesktopSignIn.SignedInAs</dt><dd>@Model.SignedInAs</dd></div>
+    </dl>
+    @foreach (var parameter in Model.RequestParameters)
+    {
+        <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+    }
+    <input type="hidden" asp-for="OperationKey" />
+    <button type="submit" asp-page-handler="Accept" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.SigningIn">@OperatorLabels.DesktopSignIn.SignIn</button>
+    <button type="submit" asp-page-handler="Deny" class="btn" data-busy-label="@OperatorLabels.Busy.Refusing">@OperatorLabels.DesktopSignIn.Refuse</button>
+</form>

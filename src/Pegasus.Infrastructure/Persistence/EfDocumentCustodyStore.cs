@@ -419,9 +419,11 @@ internal sealed class EfDocumentCustodyStore(
                 version.BoxFileId,
                 version.BoxVersionId,
                 document.CustodyFolder,
+                document.CustodySubfolder,
                 caseEntity.Reference,
                 caseEntity.CustodyRootRemoteId,
-                caseEntity.AuditCustodyRemoteId
+                caseEntity.AuditCustodyRemoteId,
+                caseEntity.MarketResearchCustodyRemoteId
             })
             .ToDictionaryAsync(row => row.OccurrenceId, cancellationToken);
 
@@ -448,7 +450,12 @@ internal sealed class EfDocumentCustodyStore(
                 new ManagedDocumentContentAddress(
                     query.CaseId,
                     row.Reference,
-                    CaseCustodyFolders.RootOf(row.CustodyFolder, row.CustodyRootRemoteId, row.AuditCustodyRemoteId),
+                    CaseCustodyFolders.RootOf(
+                        row.CustodyFolder,
+                        row.CustodySubfolder,
+                        row.CustodyRootRemoteId,
+                        row.AuditCustodyRemoteId,
+                        row.MarketResearchCustodyRemoteId),
                     row.OccurrenceId,
                     row.Ordinal,
                     row.DocumentId,
@@ -516,7 +523,13 @@ internal sealed class EfDocumentCustodyStore(
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == query.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
+            .Select(value => new
+            {
+                value.Reference,
+                value.CustodyRootRemoteId,
+                value.AuditCustodyRemoteId,
+                value.MarketResearchCustodyRemoteId
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (caseIdentity is null)
         {
@@ -541,6 +554,10 @@ internal sealed class EfDocumentCustodyStore(
                 Folder = context.Set<CaseDocumentEntity>()
                     .Where(document => document.Id == occurrence.DocumentId)
                     .Select(document => document.CustodyFolder)
+                    .First(),
+                Subfolder = context.Set<CaseDocumentEntity>()
+                    .Where(document => document.Id == occurrence.DocumentId)
+                    .Select(document => document.CustodySubfolder)
                     .First()
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -577,7 +594,11 @@ internal sealed class EfDocumentCustodyStore(
                 query.CaseId,
                 caseIdentity.Reference,
                 CaseCustodyFolders.RootOf(
-                    item.Folder, caseIdentity.CustodyRootRemoteId, caseIdentity.AuditCustodyRemoteId),
+                    item.Folder,
+                    item.Subfolder,
+                    caseIdentity.CustodyRootRemoteId,
+                    caseIdentity.AuditCustodyRemoteId,
+                    caseIdentity.MarketResearchCustodyRemoteId),
                 item.Occurrence,
                 item.Version),
             item.Version.Sha256,
@@ -2056,6 +2077,32 @@ internal sealed class EfDocumentCustodyStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        var staged = await StageAddAsync(
+            context, workflow, command, contentHash, now, subfolder: null, newDocumentOrdinal: null, cancellationToken);
+        return staged.Written(await contentStore.StoreVersionAsync(
+            staged.Address, command.Content, contentHash, cancellationToken));
+    }
+
+    /// <summary>
+    /// The rows of a document add, tracked and not yet saved, with the address
+    /// its bytes go to: <see cref="PrepareAddAsync"/> without the write, for a
+    /// caller that files several documents in one transaction and writes
+    /// their bytes together. Such a caller numbers its new documents itself
+    /// (<paramref name="newDocumentOrdinal"/>), since the next number is read
+    /// from what is saved. A document kept in a
+    /// <paramref name="subfolder"/> is not one of the Case's own documents,
+    /// so it is no source of the report and marks none stale.
+    /// </summary>
+    internal static async Task<StagedDocumentAdd> StageAddAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        AddCaseDocumentCommand command,
+        string contentHash,
+        DateTimeOffset now,
+        string? subfolder,
+        int? newDocumentOrdinal,
+        CancellationToken cancellationToken)
+    {
         var document = await context.Set<CaseDocumentEntity>()
             .SingleOrDefaultAsync(
                 value => value.CaseId == command.CaseId
@@ -2067,8 +2114,10 @@ internal sealed class EfDocumentCustodyStore(
             {
                 Id = Guid.NewGuid(),
                 CaseId = command.CaseId,
-                Ordinal = await NextDocumentOrdinalAsync(context, command.CaseId, cancellationToken),
-                SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
+                Ordinal = newDocumentOrdinal
+                    ?? await NextDocumentOrdinalAsync(context, command.CaseId, cancellationToken),
+                SourceOccurrenceIdentity = command.SourceOccurrenceIdentity,
+                CustodySubfolder = subfolder
             };
             context.Add(document);
         }
@@ -2110,24 +2159,40 @@ internal sealed class EfDocumentCustodyStore(
         };
         context.Add(version);
         context.Add(occurrence);
-        await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
-            context, command.CaseId, command.OperationKey, now, cancellationToken);
-        var contentWrite = await contentStore.StoreVersionAsync(
+        if (document.CustodySubfolder is null)
+        {
+            await EfCaseReportGenerationStore.SourceDocumentChangedAsync(
+                context, command.CaseId, command.OperationKey, now, cancellationToken);
+        }
+
+        return new(
+            occurrence,
+            version,
             Address(
                 command.CaseId,
                 workflow.Case.Reference,
-                CaseCustodyFolders.RootOf(workflow.Case, document.CustodyFolder),
+                CaseCustodyFolders.RootOf(workflow.Case, document),
                 occurrence,
-                version),
-            command.Content,
-            contentHash,
-            cancellationToken);
-        version.BoxFileId = contentWrite.RemoteId;
-        version.BoxVersionId = contentWrite.BoxVersionId;
-        return new(
-            new(ToOccurrence(occurrence), ToVersion(version), false),
-            version,
-            contentWrite);
+                version));
+    }
+
+    /// <summary>A document add whose rows are staged and whose bytes are not yet written.</summary>
+    internal sealed record StagedDocumentAdd(
+        DocumentOccurrenceEntity Occurrence,
+        DocumentVersionEntity Version,
+        ManagedDocumentContentAddress Address)
+    {
+        /// <summary>Records where the store filed the bytes.</summary>
+        public PendingDocumentAdd Written(DocumentContentWriteResult contentWrite)
+        {
+            ArgumentNullException.ThrowIfNull(contentWrite);
+            Version.BoxFileId = contentWrite.RemoteId;
+            Version.BoxVersionId = contentWrite.BoxVersionId;
+            return new(
+                new(ToOccurrence(Occurrence), ToVersion(Version), false),
+                Version,
+                contentWrite);
+        }
     }
 
     internal sealed record PendingDocumentAdd(

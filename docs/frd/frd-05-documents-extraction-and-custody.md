@@ -154,6 +154,17 @@ repeat every minute.
   inspection images arrive In report and its additional information does
   not ([Image tags](#image-tags)). A full-size original files as the next
   version of the same Case image.
+- A Case's Box folder has one subfolder, `market-research` (operator, 24
+  November 2026; R1238, which amends R775 for this one subfolder only). It
+  holds the Advert Evidence Pack and the advert screenshots of market
+  research submitted from Pegasus Desktop; the submission's Market Valuation
+  Evidence report is filed in the Case's folder with the Case's documents.
+  The subfolder is made when a submission first needs it, and a Case whose
+  Box folder is not there yet is refused a submission's files. What the
+  subfolder holds is listed only in the market research space of the
+  Valuation section, never in the Documents list, and is no source of the
+  report (operator, 26 November 2026; R1313;
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
 - Staff may add manually received WhatsApp evidence with its source and
   channel provenance. That does not switch on a WhatsApp integration.
 - Staff viewing a confirmed MP4 or MOV video on an open Standard or Audit Case
@@ -531,7 +542,9 @@ estimate (operator, 22 October 2026; R221), unless its header types it as
 below. Valuation Evidence is a Glass's, Brego or Cazana guide
 valuation report and the findings a Market research job files: Market
 research is part of Valuation Evidence and is no longer a type of its own
-(operator, 22 October 2026; R220). There are no staff-added custom types, and
+(operator, 22 October 2026; R220). The report, the pack and the screenshots
+of market research submitted from Pegasus Desktop are Valuation Evidence too
+(R1313). There are no staff-added custom types, and
 `pegasus_document_add` takes every type (operator, 22 October 2026; R222);
 adding a document as `Image` requires JPEG or PNG bytes and, once confirmed in
 Box custody, marks the Case's images complete ([R964](../rulings.md);

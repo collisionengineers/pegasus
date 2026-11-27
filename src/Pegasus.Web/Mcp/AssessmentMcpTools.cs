@@ -242,7 +242,10 @@ internal sealed class AssessmentMcpTools(
                     key,
                     token => importRawEstimate.ExecuteAsync(
                         new(context.Actor, caseId, expectedVersion, token,
-                            occurrenceId, documentVersionId, sha256, key, name),
+                            occurrenceId, documentVersionId, sha256, key, name)
+                        {
+                            AwaitsUse = context.EstimateAwaitsUse
+                        },
                         cancellationToken),
                     cancellationToken);
                 return new EstimateImportToolResult(
@@ -328,7 +331,7 @@ internal sealed class AssessmentMcpTools(
                                     recorded?.Rate,
                                     regionalUplift ?? recorded?.RegionalUplift ?? false),
                                 lines.Select(MapLineInput).ToArray(),
-                                new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+                                new(context.EstimateRoute, null, null, null),
                                 aiJobId,
                                 existing is null && lines.All(line => line.LineId is null)
                                     ? null

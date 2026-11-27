@@ -13,6 +13,7 @@ internal static class AuditIdentityModelConfiguration
         {
             entity.Property(item => item.AcceptedInspectionDeadline).HasColumnType("date");
             entity.Property(item => item.AuditCustodyRemoteId).HasMaxLength(200);
+            entity.Property(item => item.MarketResearchCustodyRemoteId).HasMaxLength(200);
             entity.HasOne<StandaloneAuditEvidenceEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.StandaloneAuditEvidenceId)

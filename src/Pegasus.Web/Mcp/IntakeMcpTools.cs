@@ -259,7 +259,9 @@ internal sealed class IntakeMcpTools(
                         safeMediaType,
                         content,
                         timeProvider.GetUtcNow(),
-                        $"automation:{context.ClientId}",
+                        context.IntakeSubmitter,
+                        // The channel is the route the source arrived by, the
+                        // connector, whoever submitted it.
                         new(IntakeSourceChannel.Automation, normalizedToken)),
                     normalizedKey,
                     cancellationToken);

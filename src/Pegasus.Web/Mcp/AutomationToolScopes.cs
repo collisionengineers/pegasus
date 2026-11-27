@@ -21,6 +21,7 @@ internal static class AutomationToolScopes
     [
         (AutomationMcp.CasesScope,
         [
+            "pegasus_session_get",
             "pegasus_case_search",
             "pegasus_case_get",
             "pegasus_case_update_details",
@@ -97,7 +98,8 @@ internal static class AutomationToolScopes
             "pegasus_estimate_act",
             "pegasus_estimate_import",
             "pegasus_assessment_get",
-            "pegasus_assessment_update"
+            "pegasus_assessment_update",
+            "pegasus_market_research_submit"
         ]),
         (AutomationMcp.MailScope,
         [

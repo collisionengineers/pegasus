@@ -474,6 +474,25 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     private static TimeSpan BackoffBeforeAttempt(int attempt) =>
         TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 2));
 
+    /// <summary>
+    /// Makes the folder in Box, or finds the one already there: Box refuses a
+    /// second folder of the name, and the client answers with the first. The
+    /// Case's folder is walked to the approved root before anything is made
+    /// in it, and the folder made is walked again.
+    /// </summary>
+    public async Task<string> EnsureCaseSubfolderAsync(
+        string caseRootRemoteId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseRootRemoteId);
+        var folder = await client.CreateFolderAsync(
+            caseRootRemoteId,
+            CustodyNames.SafeName(name),
+            cancellationToken);
+        return folder.Id;
+    }
+
     public Task StoreAsync(
         Guid caseId,
         string caseReference,

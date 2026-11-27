@@ -92,10 +92,23 @@ internal sealed record CaseGetToolResult(
 }
 
 /// <summary>
-/// Automation Actor Case reads (MCP-02): thin adapters over the same Core
-/// case queries the staff Web UI calls, guarded by the automation.cases
-/// scope. Case writes live with the record they change; the explicit edit
-/// lease for multi-step work is <see cref="EditLeaseMcpTools"/>.
+/// Who the connection acts as: every other tool acts as this actor and
+/// records its work under it (R1304).
+/// </summary>
+internal sealed record SessionToolResult(
+    [property: Description("Staff for a member of staff signed in from Pegasus Desktop; Automation for the Automation Actor.")] string ActorKind,
+    [property: Description("The member of staff's identifier, as the assign actions and pegasus_vocabulary_get name staff; null for the Automation Actor.")] Guid? StaffId,
+    [property: Description("The member of staff's Pegasus username; null for the Automation Actor.")] string? UserName,
+    [property: Description("The member of staff's role: Administrator, Engineer or User; null for the Automation Actor.")] string? Role,
+    [property: Description("The scopes this token holds; tools/list holds only their tools.")] IReadOnlyList<string> Scopes,
+    string CorrelationId);
+
+/// <summary>
+/// Case reads (MCP-02): thin adapters over the same Core case queries the
+/// staff Web UI calls, guarded by the automation.cases scope, with the read
+/// of who the connection acts as. Case writes live with the record they
+/// change; the explicit edit lease for multi-step work is
+/// <see cref="EditLeaseMcpTools"/>.
 /// </summary>
 [McpServerToolType]
 internal sealed class CaseMcpTools(
@@ -104,8 +117,51 @@ internal sealed class CaseMcpTools(
     INotReadyCaseQueries notReadyCases,
     IListCaseDocumentsByCursor listDocuments,
     IListCaseHistoryByCursor listHistory,
+    Pegasus.Core.Identity.IStaffAccountQueries staffAccounts,
+    AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
+    [McpServerTool(
+        Name = "pegasus_session_get",
+        Title = "Get session",
+        ReadOnly = true,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true)]
+    [Description("Returns who this connection acts as: the actor kind, and for a member of staff signed in from Pegasus Desktop their staff identifier, username and role, with the scopes the token holds. Every other tool acts as this actor, with this actor's rights, and records its work under it. It reads nothing else and writes nothing.")]
+    public async Task<SessionToolResult> GetSessionAsync(CancellationToken cancellationToken = default)
+    {
+        var context = await resolver.RequireAsync("pegasus_session_get", cancellationToken);
+
+        // A read of the connection itself: no record is touched, so only a
+        // refusal is history.
+        return await auditor.RecordDenialAsync(
+            context,
+            "pegasus_session_get",
+            "session",
+            null,
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
+            {
+                var actor = context.Actor;
+                if (!context.IsStaff || !Guid.TryParse(actor.SubjectId, out var staffId))
+                {
+                    return new SessionToolResult(
+                        actor.Kind.ToString(), null, null, null, context.Scopes, context.TraceIdentifier);
+                }
+
+                var names = await staffAccounts.GetNamesAsync([staffId], cancellationToken);
+                return new SessionToolResult(
+                    actor.Kind.ToString(),
+                    staffId,
+                    names.GetValueOrDefault(staffId),
+                    actor.Roles.Single().ToString(),
+                    context.Scopes,
+                    context.TraceIdentifier);
+            }),
+            cancellationToken);
+    }
+
     [McpServerTool(
         Name = "pegasus_case_search",
         Title = "Search cases",
