@@ -13,8 +13,7 @@
 }
 @if (Model.InDialog && Model.OwnBackdrop)
 {
-    <div id="@Model.Id" class="dialog-backdrop" data-dialog="@Model.Id"
-         data-dialog-open-on-load="@(Model.OpenOnLoad ? "true" : null)"@(MailComposerView.Write(Model.BackdropAttributes)) hidden>
+    <div id="@Model.Id" class="dialog-backdrop" data-dialog="@Model.Id" data-dialog-open-on-load="@(Model.OpenOnLoad ? "true" : null)"@(MailComposerView.Write(Model.BackdropAttributes)) hidden>
         <partial name="/Pages/Shared/_MailComposeCard.cshtml" model="Model" />
     </div>
 }

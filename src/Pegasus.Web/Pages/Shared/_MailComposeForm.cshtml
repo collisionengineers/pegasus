@@ -19,7 +19,7 @@
     {
         var stackId = Model.Part(name + "-recipients");
         <span class="lbl" id="@(stackId)-label">@label</span>
-        <div id="@stackId" class="stack" data-mail-recipients="@name" data-mail-recipients-keep-one="@(keepOne ? "" : null)">
+        <div id="@stackId" class="stack" data-mail-recipients="@name"@(keepOne ? Html.Raw(" data-mail-recipients-keep-one") : null)>
             @foreach (var recipient in values.DefaultIfEmpty(string.Empty))
             {
                 <span class="recip-box">

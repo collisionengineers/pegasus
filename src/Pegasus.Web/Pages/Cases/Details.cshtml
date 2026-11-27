@@ -202,11 +202,17 @@
         : null;
     var chaserAddress = Model.StaffMailAvailable ? Url.Page("/Cases/Chaser", new { id = summary.CaseId }) : null;
 }
-@if (newMessageAddress is null && chaserAddress is null)
-{
-    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId"></div>
+@{
+    // A data- attribute is drawn even when its value is null, so only the
+    // addresses this Case has are written.
+    var composerAddresses = new Dictionary<string, string?>();
+    if (newMessageAddress is not null)
+    {
+        composerAddresses["data-mail-new-message"] = newMessageAddress;
+    }
+    if (chaserAddress is not null)
+    {
+        composerAddresses["data-mail-chaser"] = chaserAddress;
+    }
 }
-else
-{
-    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId" data-mail-new-message="@newMessageAddress" data-mail-chaser="@chaserAddress"></div>
-}
+<div data-mail-dialog-root data-mail-return-case="@summary.CaseId"@(Pegasus.Web.Presentation.MailComposerView.Write(composerAddresses))></div>
