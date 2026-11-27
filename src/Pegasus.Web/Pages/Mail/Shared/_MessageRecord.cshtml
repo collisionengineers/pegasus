@@ -252,7 +252,6 @@
     @* Composing, the dialogue is the one send-e-mail dialogue instead (_MessageDialog). *@
     @if (!dialogComposing)
     {
-    {
         <span class="left">
             <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
