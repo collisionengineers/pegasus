@@ -427,7 +427,7 @@ public sealed partial class QdosTriageIntegrationTests
         var page = await pageResponse.Content.ReadAsStringAsync();
         Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", page, StringComparison.Ordinal);
         Assert.Contains(
-            $"<h2 id=\"triage-compose-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</h2>",
+            $"<h2 id=\"triage-compose-dialog-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</h2>",
             page,
             StringComparison.Ordinal);
         Assert.DoesNotContain(">Send chaser</span>", page, StringComparison.Ordinal);
@@ -989,7 +989,7 @@ public sealed partial class QdosTriageIntegrationTests
             var html = await page.Content.ReadAsStringAsync();
             Assert.Matches(
                 new Regex(
-                    $"<select id=\"triage-reply-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
+                    $"<select id=\"triage-compose-dialog-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
                     RegexOptions.Singleline | RegexOptions.CultureInvariant),
                 html);
         }

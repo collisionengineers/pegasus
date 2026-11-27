@@ -4,40 +4,29 @@
     The composer as a dialog over the page it was asked from (operator,
     11 November 2026; v51 M; R948): ?handler=Composer on Send a photo link or
     Resend answers this, and photo-link-send.js puts it in the page's
-    [data-dialog="photo-link-compose"] backdrop. Its form posts to the page
-    itself, so a send returns to where it was asked from with its notice, and
-    a refusal, a link to copy or a send not yet settled is answered by the
-    page, with nothing typed lost.
+    [data-dialog="photo-link-compose"] backdrop. It is the one send-e-mail
+    dialogue's card (R1330). Its form posts to the page itself, so a send
+    returns to where it was asked from with its notice, and a refusal, a link
+    to copy or a send not yet settled is answered by the page, with nothing
+    typed lost.
 *@
 @{
     // A closed Case sends no photo link (R847); the Case offers none, so this
     // is drawn only when the Case closed after the page was drawn.
     var closed = Model is Pegasus.Web.Pages.PhotoCapture.SendModel { Facts.IsClosed: true };
 }
-<section class="dialog mail-compose-dialog pc-composer-dialog" role="dialog" aria-modal="true" aria-labelledby="photo-link-compose-title">
-    <header class="dialog-head">
-        <div>
-            @* The Case, its registration and its Principal (v51 L). *@
-            <p class="eyebrow">
-                @if (Model.EyebrowReference is { Length: > 0 } reference)
-                {
-                    <span class="mono">@reference</span><text> · </text>
-                }
-                <span class="mono">@Model.EyebrowRegistration</span>
-                @if (Model.EyebrowPrincipal is { Length: > 0 } principal)
-                {
-                    <text> · @principal</text>
-                }
-            </p>
-            <h2 id="photo-link-compose-title" tabindex="-1">@Model.ComposerTitle</h2>
-        </div>
-        <button type="button" class="dialog-close" data-dialog-close aria-label="Close composer">
-            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-        </button>
-    </header>
-    <div class="dialog-body mail-compose-body">
-        @if (closed)
-        {
+@if (closed)
+{
+    <section class="dialog mail-compose-dialog dialog--send" role="dialog" aria-modal="true" aria-labelledby="photo-link-compose-title">
+        <header class="dialog-head">
+            <div>
+                <h2 id="photo-link-compose-title" tabindex="-1">@Model.ComposerTitle</h2>
+            </div>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close composer">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+            </button>
+        </header>
+        <div class="dialog-body mail-compose-body">
             <div class="notice notice--danger" role="alert">
                 <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-alert-triangle")" /></svg>
                 <span>@IssuePhotoLink.CaseCannotTakeALink</span>
@@ -45,10 +34,10 @@
             <div class="mail-compose-footer">
                 <button type="button" class="btn" data-dialog-close>Close</button>
             </div>
-        }
-        else
-        {
-            <partial name="_PhotoLinkComposer" model="Model" />
-        }
-    </div>
-</section>
+        </div>
+    </section>
+}
+else
+{
+    <partial name="_PhotoLinkComposer" model="Model" />
+}

@@ -1016,7 +1016,7 @@ deleted in wave 5.
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures (the Figures card and the Original report card, `[data-original-report]`) |
-| `dialog--send`, `send-files`, `send-file`, `send-file-open`, `send-file-rename`, `recip-box` | The Send report composer (v48): the `mail-compose-dialog` at 880px, its Files rows (tick, glyph, the name as the viewer link, kind and size, Rename with the stem beside a fixed `.pdf` and Reset) and the To/Cc boxes each with their × |
+| `dialog--send`, `send-files`, `send-file`, `send-file-open`, `send-file-rename`, `recip-box` | The one send-e-mail dialogue (the Send report composer, v48; every staff send since R1330): the `mail-compose-dialog` at 880px, its Files rows (tick, glyph, the name; Send report adds the viewer link, kind and size, and Rename with the stem beside a fixed `.pdf` and Reset) and the To/Cc boxes each with their × |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
@@ -1049,7 +1049,7 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `dialog-backdrop`, `dialog`, `dialog-head`, `dialog-body`, `dialog-foot` | Modal dialog ([contract](README.md#keyboard-and-dialog-contract)) |
-| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The composer dialog (the Triage reply, the Send chaser page, the Send report dialog and a photo link's Resend page): a grid whose fields scroll and whose footer is pinned; From, To and Cc in two columns, then Subject, Message and the attachments |
+| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The one send-e-mail dialogue, drawn by `Pages/Shared/_MailComposer` from a `MailComposerView` for every staff send (operator, 27 November 2026; [R1330](../rulings.md)): Send report, the e-mail dialogue's Reply, Reply all, Forward and new message, Send chaser, the Triage reply and chaser, and a photo link's e-mail. A grid whose fields scroll and whose footer is pinned; From, To, Cc (and the e-mail dialogue's Case / PO) in two columns, then Subject, Message and the attachments; Cancel and the one primary Send in the footer. To and Cc are boxes staff change ([R1329](../rulings.md)); a forward's From is a fixed value. A composer's own fields (Send report's notices and Files, a photo link's channel switch) are its slots; as a page (no script, a refused send) it is the same card |
 | `command-dialog` | Command palette |
 | `toast-region`, `toast` | Toasts |
 
@@ -1057,6 +1057,9 @@ Every e-mail Pegasus sends for a member of staff goes through a composer; no
 button sends one on its own (operator, 10 November 2026: "any email sending
 always needs a dialogue box - a button cannot just send an email on its own";
 [R915](../rulings.md)). A photo link's Send and Resend open its composer.
+Every composer is the one send-e-mail dialogue (operator, 27 November 2026:
+"this should affect all dialogue boxes for send email - they should be using
+the same route / dialogue"; [R1330](../rulings.md)).
 
 A **More** menu holds two or more acts; one act is its own button beside the
 primary, and More takes the size of the buttons beside it (operator, 10

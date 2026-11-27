@@ -2723,65 +2723,9 @@
 })();
 
 
-// --- retained helpers: report recipients, the Glass's window and its return ---
+// --- retained helpers: the Send report's Files rows, the Glass's window and its return ---
 (function () {
     'use strict';
-    // The Send report composer's To and Cc boxes (v48 item O; operator,
-    // 4 November 2026): Add To recipient and Add Cc recipient add a box with
-    // its ×, every box can be removed, and the one remaining To box keeps
-    // none, since a send needs a To. The boxes arrive from the server with
-    // their × already drawn; the stack decides which × show.
-    function refreshRemovals(stack) {
-        if (!stack) { return; }
-        var boxes = stack.querySelectorAll('.recip-box');
-        var keepOne = stack.hasAttribute('data-report-recipients-keep-one');
-        boxes.forEach(function (box) {
-            var remove = box.querySelector('[data-remove-report-recipient]');
-            if (remove) { remove.hidden = keepOne && boxes.length === 1; }
-        });
-    }
-    function bindReportRecipients(root) {
-        root.querySelectorAll('[data-add-report-recipient]').forEach(function (button) {
-            if (button.dataset.recipientBound) { return; }
-            button.dataset.recipientBound = 'true';
-            button.addEventListener('click', function () {
-                var target = document.getElementById(button.dataset.addReportRecipient);
-                if (!target) { return; }
-                var model = target.querySelector('.recip-box');
-                var input = document.createElement('input');
-                input.name = button.dataset.reportRecipientName;
-                input.type = 'email';
-                input.autocomplete = 'email';
-                if (document.getElementById('report-address-book')) { input.setAttribute('list', 'report-address-book'); }
-                input.setAttribute('aria-label', input.name === 'ccRecipients' ? 'Report copy recipient' : 'Report recipient');
-                if (model) {
-                    var box = model.cloneNode(true);
-                    box.querySelector('input').replaceWith(input);
-                    target.appendChild(box);
-                } else {
-                    target.appendChild(input);
-                }
-                refreshRemovals(target);
-                input.focus();
-            });
-        });
-        root.querySelectorAll('[data-report-recipients]').forEach(function (stack) {
-            if (stack.dataset.recipientsBound) { return; }
-            stack.dataset.recipientsBound = 'true';
-            stack.addEventListener('click', function (event) {
-                var remove = event.target.closest('[data-remove-report-recipient]');
-                if (!remove || !stack.contains(remove)) { return; }
-                var box = remove.closest('.recip-box');
-                var neighbour = box && (box.nextElementSibling || box.previousElementSibling);
-                if (box) { box.remove(); }
-                refreshRemovals(stack);
-                var focus = neighbour && neighbour.querySelector('input');
-                if (focus) { focus.focus(); }
-            });
-            refreshRemovals(stack);
-        });
-    }
-
     // The composer's Files rows (v48 items D and E): Rename shows the stem
     // beside a fixed .pdf, or a Case file's own extension (data-extension;
     // R1175, R1176); Enter or leaving keeps the name, Escape puts it back,
@@ -2851,9 +2795,8 @@
         });
     }
 
-    bindReportRecipients(document);
     bindReportFiles(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportRecipients, bindReportFiles);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportFiles);
 })();
 
 

@@ -1,12 +1,15 @@
 @model Pegasus.Web.Pages.PhotoCapture.PhotoLinkComposerPageModel
 @using Pegasus.Core.PhotoCapture
 @using Pegasus.Web.Pages.PhotoCapture
+@using Pegasus.Web.Presentation
 @using Labels = Pegasus.Web.Presentation.OperatorLabels.PhotoCapture
 @*
     The one photo-link composer (operator, 11 November 2026; v51 L, M; R948),
     drawn by Send a photo link and Resend, on their pages and as the dialog
-    ?handler=Composer answers. One channel shows at a time: the checked
-    switch shows its recipient, its wording and its one button, by CSS
+    ?handler=Composer answers, in the one send-e-mail dialogue (R1330): its
+    Email / Text message / Link to copy switch first, then the shared From,
+    To, Subject and Message for the e-mail. One channel shows at a time: the
+    checked switch shows its recipient, its wording and its one button, by CSS
     without script and by photo-link-send.js with it. Every box stays in the
     form, so a link's facts (the customer's name, mobile, e-mail and accident
     date) are posted whichever channel sends; the server checks only the
@@ -18,17 +21,25 @@
 @{
     var send = Model as SendModel;
     var resend = Model as ResendModel;
-    var onPage = ViewData["PhotoLinkComposerOnPage"] is true;
     var channel = Model.ActiveChannel;
     var quick = send?.Mode == PhotoCaptureMode.Quick;
     // The tag helpers' own error class, for the boxes Send alone draws by name.
     string? Invalid(string key) => ViewData.ModelState[key]?.Errors.Count > 0 ? "input-validation-error" : null;
-}
 
-<form method="post" asp-page="@Model.ComposerPage" asp-all-route-data="@Model.ComposerRoute" class="mail-compose-form pc-composer" data-photo-link-composer-form data-no-inplace>
-    <input type="hidden" id="photo-link-compose-key" asp-for="OperationKey" />
-    <input type="hidden" id="photo-link-compose-return" asp-for="ReturnUrl" />
-    <div class="mail-compose-form-fields">
+    Func<object?, object> eyebrow = @<text>
+        @* The Case, its registration and its Principal (v51 L). *@
+        @if (Model.EyebrowReference is { Length: > 0 } reference)
+        {
+            <span class="mono">@reference</span><text> · </text>
+        }
+        <span class="mono">@Model.EyebrowRegistration</span>
+        @if (Model.EyebrowPrincipal is { Length: > 0 } principal)
+        {
+            <text> · @principal</text>
+        }
+    </text>;
+
+    Func<object?, object> beforeFields = @<text>
         <div class="pc-channel-bar">
             <fieldset class="pc-channel-seg">
                 <legend class="sr-only">@Labels.DeliveryMethod</legend>
@@ -96,9 +107,10 @@
             }
         </div>
 
-        @* Who it goes to: the customer's name (Send's own), then the active
-           channel's recipient, or the accident date for a link to copy. *@
-        @if (send is not null || Model.CanEmail || Model.CanText)
+        @* The link's facts: the customer's name (Send's own), the mobile a
+           text goes to, and for a link to copy the accident date. The e-mail
+           is the composer's To below. *@
+        @if (send is not null || Model.CanText)
         {
             <div class="form-grid form-grid--2">
                 @if (send is not null)
@@ -107,23 +119,6 @@
                         <label for="photo-link-compose-name">@Labels.CustomerName</label>
                         <input id="photo-link-compose-name" name="@nameof(SendModel.CustomerName)" type="text" value="@send.CustomerName" class="@Invalid(nameof(SendModel.CustomerName))" autocomplete="off" />
                         @Html.ValidationMessage(nameof(SendModel.CustomerName))
-                    </div>
-                }
-                @if (Model.CanEmail)
-                {
-                    <div class="field" data-photo-link-for="@PhotoLinkComposerPageModel.ByEmail">
-                        @if (send is not null)
-                        {
-                            <label for="photo-link-compose-email">@Labels.ToEmail</label>
-                            <input id="photo-link-compose-email" name="@nameof(SendModel.Email)" type="email" value="@send.Email" class="@Invalid(nameof(SendModel.Email))" autocomplete="off" />
-                            @Html.ValidationMessage(nameof(SendModel.Email))
-                        }
-                        else if (resend is not null)
-                        {
-                            @* Resend goes to the link's own address. *@
-                            <label for="photo-link-to">@Labels.ToEmail</label>
-                            <input id="photo-link-to" type="text" value="@resend.Capture.Email" readonly />
-                        }
                     </div>
                 }
                 @if (send is not null && !Model.CanEmail)
@@ -140,8 +135,8 @@
                     @* The text goes to this mobile (R918); on Send it is also the link's own. *@
                     <div class="field" data-photo-link-for="@(Model.CanText ? PhotoLinkComposerPageModel.ByText : PhotoLinkComposerPageModel.ToCopy)">
                         <label for="photo-link-compose-mobile">@Labels.Mobile</label>
-                        <input asp-for="Mobile" id="photo-link-compose-mobile" type="tel" inputmode="tel" autocomplete="off" />
-                        <span asp-validation-for="Mobile"></span>
+                        <input id="photo-link-compose-mobile" name="@nameof(Model.Mobile)" value="@Model.Mobile" type="tel" inputmode="tel" autocomplete="off" class="@Invalid(nameof(Model.Mobile))" />
+                        @Html.ValidationMessage(nameof(Model.Mobile))
                     </div>
                 }
                 @if (send is not null)
@@ -153,56 +148,33 @@
                 }
             </div>
         }
+    </text>;
 
-        @if (Model.CanEmail)
-        {
-            <div class="form-grid form-grid--2" data-photo-link-for="@PhotoLinkComposerPageModel.ByEmail">
-                <div class="field">
-                    <label for="photo-link-compose-from">@Labels.FromMailbox</label>
-                    <select asp-for="FromMailboxId" id="photo-link-compose-from">
-                        <option value=""></option>
-                        @foreach (var mailbox in Model.Senders.Mailboxes)
-                        {
-                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
-                        }
-                    </select>
-                    <span asp-validation-for="FromMailboxId"></span>
-                </div>
-                <div class="field">
-                    <label for="photo-link-compose-subject">@Labels.Subject</label>
-                    <input asp-for="Subject" id="photo-link-compose-subject" type="text" />
-                    <span asp-validation-for="Subject"></span>
-                </div>
-            </div>
-            <div class="field mail-compose-message" data-photo-link-for="@PhotoLinkComposerPageModel.ByEmail" data-photo-link-wording>
-                <label for="photo-link-compose-body">@Labels.Message</label>
-                @* The standard wording with the name, registration, Principal and
-                   expiry filled in; {photo link} stays until the link exists (R806). *@
-                <textarea asp-for="Body" id="photo-link-compose-body" rows="7" data-photo-link-message></textarea>
-                <span asp-validation-for="Body"></span>
-                <input type="hidden" asp-for="StandardBody" id="photo-link-compose-standard" data-photo-link-standard />
-                <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
-                    @Labels.EditedForThisOneOnly
-                    <button type="submit" name="Submit" value="@PhotoLinkComposerPageModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
-                </p>
-            </div>
-        }
+    Func<object?, object> standardWording = @<text>
+        @* The standard wording with the name, registration, Principal and
+           expiry filled in; {photo link} stays until the link exists (R806). *@
+        <input type="hidden" id="photo-link-compose-standard" name="@nameof(Model.StandardBody)" value="@Model.StandardBody" data-photo-link-standard />
+        <p class="field-hint" data-photo-link-edited hidden="@(!Model.BodyEdited)">
+            @Labels.EditedForThisOneOnly
+            <button type="submit" name="Submit" value="@PhotoLinkComposerPageModel.StandardWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
+        </p>
+    </text>;
 
+    Func<object?, object> afterMessage = @<text>
         @if (Model.CanText)
         {
             @* The Photo link (text) wording (R918, R919). *@
             <div class="field mail-compose-message" data-photo-link-for="@PhotoLinkComposerPageModel.ByText" data-photo-link-wording>
                 <label for="photo-link-compose-text">@Labels.TextMessage</label>
-                <textarea asp-for="TextBody" id="photo-link-compose-text" rows="4" data-photo-link-message></textarea>
-                <span asp-validation-for="TextBody"></span>
-                <input type="hidden" asp-for="StandardTextBody" id="photo-link-compose-standard-text" data-photo-link-standard />
+                <textarea id="photo-link-compose-text" name="@nameof(Model.TextBody)" rows="4" data-photo-link-message>@Model.TextBody</textarea>
+                @Html.ValidationMessage(nameof(Model.TextBody))
+                <input type="hidden" id="photo-link-compose-standard-text" name="@nameof(Model.StandardTextBody)" value="@Model.StandardTextBody" data-photo-link-standard />
                 <p class="field-hint" data-photo-link-edited hidden="@(!Model.TextBodyEdited)">
                     @Labels.EditedForThisOneOnly
                     <button type="submit" name="Submit" value="@PhotoLinkComposerPageModel.StandardTextWording" class="btn btn--small" formnovalidate data-photo-link-reset data-busy-label="@OperatorLabels.Busy.Restoring">@Labels.PutTheStandardWordingBack</button>
                 </p>
             </div>
         }
-
         @if (send is not null)
         {
             @* The capture options sit with Link to copy (v51 L); they are the
@@ -217,17 +189,9 @@
             <input type="hidden" name="@nameof(SendModel.LiveCameraOnly)" value="false" />
             <input type="hidden" name="@nameof(SendModel.OriginalsInBackground)" value="false" />
         }
-    </div>
+    </text>;
 
-    <div class="@(onPage ? "button-row photo-link-send-actions" : "mail-compose-footer")">
-        @if (Model.InDialog)
-        {
-            <button type="button" class="btn" data-dialog-close>Cancel</button>
-        }
-        else
-        {
-            <a class="btn" href="@Model.BackHref">Cancel</a>
-        }
+    Func<object?, object> sendButtons = @<text>
         @if (Model.CanEmail)
         {
             <button type="submit" name="Submit" value="@PhotoLinkComposerPageModel.ByEmail" class="btn btn--primary" data-photo-link-for="@PhotoLinkComposerPageModel.ByEmail" data-busy-label="@OperatorLabels.Busy.Sending">
@@ -247,5 +211,59 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
             <span>@Labels.CreateLinkToCopy</span>
         </button>
-    </div>
-</form>
+    </text>;
+
+    var route = new Microsoft.AspNetCore.Routing.RouteValueDictionary();
+    foreach (var (key, value) in Model.ComposerRoute)
+    {
+        route[key] = value;
+    }
+    // The e-mail fields show only on the Email channel; with no e-mail to
+    // send they never show.
+    var emailOnly = Model.CanEmail
+        ? new Dictionary<string, string?> { ["data-photo-link-for"] = PhotoLinkComposerPageModel.ByEmail }
+        : new Dictionary<string, string?> { ["data-photo-link-for"] = PhotoLinkComposerPageModel.ByEmail, ["hidden"] = null };
+    Func<object?, object> errors = @<partial name="/Pages/Shared/_ErrorSummary.cshtml" />;
+    var composer = new MailComposerView
+    {
+        Id = "photo-link-compose",
+        InDialog = Model.InDialog,
+        // Fetched into the page's own [data-dialog="photo-link-compose"] backdrop.
+        OwnBackdrop = false,
+        EyebrowContent = eyebrow,
+        Title = Model.ComposerTitle,
+        BackHref = Model.InDialog ? null : Model.BackHref,
+        // Send's page says its errors above the card.
+        Status = send is not null && !Model.InDialog ? null : errors,
+        Action = Url.Page(Model.ComposerPage, route)!,
+        FormClass = "pc-composer",
+        FormAttributes = new Dictionary<string, string?> { ["data-photo-link-composer-form"] = null, ["data-no-inplace"] = null },
+        Hidden =
+        [
+            new(nameof(Model.OperationKey), Model.OperationKey),
+            new(nameof(Model.ReturnUrl), Model.ReturnUrl),
+        ],
+        FieldsRequired = false,
+        BeforeFields = beforeFields,
+        EmailFieldAttributes = emailOnly,
+        FromChoices = [.. Model.Senders.Mailboxes.Select(mailbox => new MailComposerSender(mailbox.Id, mailbox.Address))],
+        FromSelected = Model.FromMailboxId,
+        // The e-mail goes to the link's one address, and a photo link copies
+        // no one (R915); Resend goes to the link's own address.
+        ToName = nameof(SendModel.Email),
+        To = [send is not null ? send.Email ?? string.Empty : resend?.Capture.Email ?? string.Empty],
+        ToReadOnly = resend is not null,
+        CcName = null,
+        OffersMoreRecipients = false,
+        Subject = Model.Subject,
+        BodyName = nameof(Model.Body),
+        Body = Model.Body,
+        BodyRows = 7,
+        BodyFieldAttributes = new Dictionary<string, string?> { ["data-photo-link-wording"] = null },
+        BodyAttributes = new Dictionary<string, string?> { ["data-photo-link-message"] = null },
+        BodyExtra = standardWording,
+        AfterMessage = afterMessage,
+        SendButtons = sendButtons,
+    };
+}
+<partial name="/Pages/Shared/_MailComposer.cshtml" model="composer" />

@@ -16,76 +16,76 @@
     <script src="~/js/photo-link-send.js" asp-append-version="true"></script>
 }
 
-@* The Send chaser's composer (R915): nothing is e-mailed until Send by e-mail. *@
-<div class="mail-compose-standalone">
+@if (Model.IssuedUrl is { } issuedUrl)
+{
     @* Once the link is issued the card holds one line and its Close, so it
        takes its content's height as the dialog composer does (#2087). *@
-    <section id="mail-compose-content" class="dialog mail-compose-dialog @(Model.IssuedUrl is null ? null : "pc-composer-dialog")" role="dialog"
-             aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1" data-photo-link-compose>
-        <header class="dialog-head">
-            <div>
-                @* The Case, its registration and its Principal (v51 L; R948). *@
-                <p class="eyebrow">
-                    @if (Model.EyebrowReference is { Length: > 0 } reference)
-                    {
-                        <span class="mono">@reference</span><text> · </text>
-                    }
-                    <span class="mono">@registration</span>
-                    @if (Model.EyebrowPrincipal is { Length: > 0 } principal)
-                    {
-                        <text> · @principal</text>
-                    }
-                </p>
-                <h1 id="mail-compose-title">@Model.Title</h1>
-            </div>
-            <a class="dialog-close" href="@Model.BackHref" aria-label="Close composer">
-                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-            </a>
-        </header>
-        <div class="dialog-body mail-compose-body">
-            <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
-
-            @if (Model.IssuedUrl is { } issuedUrl)
-            {
-                @* The link exists only in this response: shown once to copy. *@
-                @if (Model.TextOutcome is { Accepted: false } textOutcome)
-                {
-                    <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
-                        <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
-                        <p>@Labels.TextNotSent <span class="mono">@textOutcome.FailureCode</span></p>
-                    </section>
-                }
-                @if (Model.Operation is { } operation)
-                {
-                    <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
-                        <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
-                        <p>@OperatorLabels.StaffMail.State(operation.State)</p>
-                        @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed && operation.FailureCode is { Length: > 0 } failureCode)
+    <div class="mail-compose-standalone">
+        <section id="mail-compose-content" class="dialog mail-compose-dialog dialog--send pc-composer-dialog" role="dialog"
+                 aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1" data-photo-link-compose>
+            <header class="dialog-head">
+                <div>
+                    @* The Case, its registration and its Principal (v51 L; R948). *@
+                    <p class="eyebrow">
+                        @if (Model.EyebrowReference is { Length: > 0 } reference)
                         {
-                            <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                            <span class="mono">@reference</span><text> · </text>
                         }
-                        @if (unresolved)
+                        <span class="mono">@registration</span>
+                        @if (Model.EyebrowPrincipal is { Length: > 0 } principal)
                         {
-                            <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+                            <text> · @principal</text>
                         }
-                    </section>
-                }
-                <div class="photo-link-box" data-photo-link-issued>
-                    <code id="photo-link-issued-url" class="photo-link-url">@issuedUrl</code>
-                    <button type="button" class="btn btn--small" data-copy-target="photo-link-issued-url" hidden>
-                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
-                        <span>@Labels.CopyLink</span>
-                    </button>
+                    </p>
+                    <h1 id="mail-compose-title">@Model.Title</h1>
                 </div>
-                <footer class="mail-compose-footer">
-                    <a class="btn" href="@Model.BackHref">Close</a>
-                </footer>
-            }
-            else
+                <a class="dialog-close" href="@Model.BackHref" aria-label="Close composer">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                </a>
+            </header>
+            <div class="dialog-body mail-compose-body">
+                <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+            @* The link exists only in this response: shown once to copy. *@
+            @if (Model.TextOutcome is { Accepted: false } textOutcome)
             {
-                @* One channel at a time (v51 L; R948); the dialog the pages open is this composer too. *@
-                <partial name="_PhotoLinkComposer" model="Model" />
+                <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                    <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
+                    <p>@Labels.TextNotSent <span class="mono">@textOutcome.FailureCode</span></p>
+                </section>
             }
-        </div>
-    </section>
-</div>
+            @if (Model.Operation is { } operation)
+            {
+                <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                    <h2 id="mail-compose-status-title">@Labels.SendStatus</h2>
+                    <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                    @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed && operation.FailureCode is { Length: > 0 } failureCode)
+                    {
+                        <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+                    }
+                    @if (unresolved)
+                    {
+                        <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+                    }
+                </section>
+            }
+            <div class="photo-link-box" data-photo-link-issued>
+                <code id="photo-link-issued-url" class="photo-link-url">@issuedUrl</code>
+                <button type="button" class="btn btn--small" data-copy-target="photo-link-issued-url" hidden>
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-copy")" /></svg>
+                    <span>@Labels.CopyLink</span>
+                </button>
+            </div>
+            <footer class="mail-compose-footer">
+                <a class="btn" href="@Model.BackHref">Close</a>
+            </footer>
+            </div>
+        </section>
+    </div>
+}
+else
+{
+    @* The composer (R915): nothing is e-mailed until Send by e-mail. One
+       channel at a time (v51 L; R948), in the one send-e-mail dialogue's card
+       (R1330); the dialog the pages open is this composer too. *@
+    <partial name="_PhotoLinkComposer" model="Model" />
+}

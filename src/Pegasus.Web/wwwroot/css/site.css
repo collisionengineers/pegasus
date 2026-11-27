@@ -454,7 +454,6 @@ tbody tr:hover{background:#f3f6f7}
    --------------------------------------------------------------------------- */
 
 .mail-subject{font-size:19px;font-weight:780;line-height:1.3}
-.mail-route{font-size:10px;color:var(--muted);margin-top:5px}
 .attachment-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:4px;background:var(--surface-2);padding:6px 8px;font-size:10px;margin:3px 4px 3px 0}
 .attachment-chip .icon{width:14px;height:14px}
 .decision-card{border:1px solid #cbd2d5;background:#fff}
@@ -613,7 +612,42 @@ textarea[data-notes-fit]{resize:vertical;overflow:hidden;line-height:1.5}
 .mail-compose-footer{display:flex;justify-content:flex-end;gap:8px;margin:9px -16px -12px;padding:10px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
 .mail-compose-status h2{font-size:14px}
 .mail-compose-status p{margin:0}
-.mail-compose-standalone{width:min(660px,100%);margin:0 auto}
+.mail-compose-standalone{width:min(880px,100%);margin:0 auto}
+/* ---- The one send-e-mail dialogue (R1330): the Send report composer (v48), 880px, ----
+   drawn by Pages/Shared/_MailComposer for every staff send, on any page. */
+.dialog.mail-compose-dialog.dialog--send{width:min(880px,calc(100vw - 32px));height:min(760px,calc(100vh - 40px))}
+.dialog--send .lg,.dialog--send .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.dialog--send .stack{display:grid;gap:4px}
+.dialog--send .mail-compose-form-fields>.cluster{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px}
+.dialog--send .mail-compose-form-fields .fv{font-size:12.5px}
+.dialog--send input:not([type=checkbox]):not([type=radio]),.dialog--send select{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+.dialog--send .field>.btn{justify-self:start;align-self:start;margin-top:4px}
+.dialog--send .choice{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;white-space:nowrap}
+.dialog--send .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+/* A From that is not a choice (a forward, R655) reads at a box's height. */
+.dialog--send .mail-compose-from .fv{display:flex;align-items:center;min-height:var(--control);overflow-wrap:anywhere}
+/* One box per address with its × (item O). */
+.dialog--send .recip-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px;align-items:center}
+.dialog--send .recip-box .btn--icon{min-width:28px;height:28px;padding:4px}
+.dialog--send .recip-box .btn--icon[hidden]{display:none}
+/* The Files rows (items D and E): tick · glyph · name and kind · Rename. */
+.dialog--send .mail-compose-attachments{max-height:none;overflow:visible}
+.dialog--send .mail-compose-attachments>legend{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em;padding:0;margin:0 0 6px}
+.dialog--send .send-files{display:grid;gap:6px}
+.dialog--send .send-file{display:grid;grid-template-columns:auto 20px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:var(--radius);font-size:12px}
+.dialog--send .send-file>.icon{width:20px;height:20px;color:var(--quiet)}
+.dialog--send .send-file-tick{display:inline-flex;align-items:center;min-width:15px}
+.dialog--send .send-file-tick .choice.is-static .tick{display:inline-flex;width:15px;height:15px;align-items:center;justify-content:center;border:1px solid var(--line-strong);border-radius:3px;background:#fff;color:var(--red)}
+.dialog--send .send-file-tick .choice.is-static .tick .icon{width:12px;height:12px}
+.dialog--send .send-file-name{display:grid;gap:2px;min-width:0}
+.dialog--send .send-file-name b,.dialog--send .send-file-open{font-weight:650;color:inherit;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dialog--send .send-file-open:hover b{text-decoration:underline}
+.dialog--send .send-file-open[hidden]{display:none}
+.dialog--send .send-file-name small{color:var(--muted);font-size:11px}
+.dialog--send .send-file-rename{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.dialog--send .send-file-rename[hidden]{display:none}
+.dialog--send .send-file-rename .mono{font-size:12px;color:var(--muted)}
+.dialog--send .send-file-actions .btn--icon{min-width:28px;height:28px;padding:4px}
 @media(max-width:540px){.dialog.mail-compose-dialog{width:100%;height:calc(100vh - 20px)}.dialog-body.mail-compose-body{padding:10px 12px}.mail-compose-addresses{grid-template-columns:1fr}.mail-compose-footer{margin:9px -12px -10px;padding:9px 12px}}
 .mailbox-table td{height:48px}
 .mailbox-table th:nth-child(3),.mailbox-table td:nth-child(3){width:170px;font-variant-numeric:tabular-nums}

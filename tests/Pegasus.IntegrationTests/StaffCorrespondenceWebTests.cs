@@ -97,7 +97,7 @@ public sealed class StaffCorrespondenceWebTests
             html);
         Assert.Equal(
             "instructions@principal.example; images@repairer.example; office@repairer.example",
-            InputValue(html, "To"));
+            Recipients(html, "To"));
         Assert.Equal(facts.Subject(), InputValue(html, "Subject"));
         var body = TextAreaValue(html, "Body").Replace("\r\n", "\n", StringComparison.Ordinal);
         Assert.Equal(
@@ -125,10 +125,12 @@ public sealed class StaffCorrespondenceWebTests
             ["instructions@principal.example", "images@repairer.example", "office@repairer.example"],
             command.To.Select(recipient => recipient.Address));
 
-        // The status page the send lands on fills nothing in again.
+        // The status page the send lands on shows the send and offers no
+        // second form for it (R1330).
         using var status = await client.GetAsync(response.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.Equal(string.Empty, InputValue(statusHtml, "To"));
+        Assert.Contains("data-mail-send-status", statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"To\"", statusHtml, StringComparison.Ordinal);
         Assert.Single(recipients.CaseIds);
     }
 
@@ -349,6 +351,98 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>What Graph answers that leaves a send's outcome unknown: a 503, or no answer in time.</summary>
+    /// <summary>
+    /// The one send-e-mail dialogue (operator, 27 November 2026; R1329,
+    /// R1330): Reply all's To and Cc are Send report's boxes, starting on the
+    /// original's recipients; what staff leave in them is what is sent, and
+    /// a To emptied is refused without a send.
+    /// </summary>
+    [Fact]
+    public async Task AReplysToAndCcAreBoxesStaffChangeBeforeSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(baseFactory, seedClient, "SC08 BOXES", "SC08-BOXES");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(
+            client, $"/Inbox/{seeded.MessageId:D}?handler=Dialog&compose=reply-all");
+
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", html, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceTo\" type=\"email\" value=\"reply@example.invalid\"", html);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceTo\" type=\"email\" value=\"other-to@example.invalid\"", html);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceCc\" type=\"email\" value=\"copy@example.invalid\"", html);
+        Assert.Contains("data-add-mail-recipient", html, StringComparison.Ordinal);
+
+        var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["FixedCorrespondenceCaseReference"] = InputValue(html, "FixedCorrespondenceCaseReference");
+        form["CorrespondenceTo"] = string.Empty;
+        using (var refused = await client.PostAsync(
+                   $"/Inbox/{seeded.MessageId:D}?handler=ReplyAll", new FormUrlEncodedContent(form)))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Contains("At least one recipient is required.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+        Assert.Equal(0, send.SendCalls);
+
+        form["CorrespondenceTo"] = "changed@example.invalid";
+        form["CorrespondenceCc"] = string.Empty;
+        using var sent = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=ReplyAll", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
+        Assert.Equal("changed@example.invalid", Assert.Single(command.To).Address);
+        Assert.Empty(command.Cc);
+    }
+
+    /// <summary>
+    /// Send chaser opens in the one send-e-mail dialogue over the Case
+    /// (R1330): the composer is fetched into the Case's e-mail dialogue mount,
+    /// and a send from it lands back on the Case with the dialogue reopening
+    /// on the send's status.
+    /// </summary>
+    [Fact]
+    public async Task SendChaserOpensInTheDialogueOverTheCaseAndReturnsThere()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = WebUtility.HtmlDecode(await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        Assert.Matches("<a[^>]*data-send-chaser data-mail-compose-open[^>]*>", page);
+        Assert.Contains($"data-mail-chaser=\"/Cases/{caseId:D}/Chaser\"", page, StringComparison.OrdinalIgnoreCase);
+
+        var dialogue = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}/Chaser?handler=Dialog");
+        Assert.Contains("data-dialog=\"mailMessageDialog\"", dialogue, StringComparison.Ordinal);
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", dialogue, StringComparison.Ordinal);
+        Assert.Equal("true", InputValue(dialogue, "Dialog"));
+        Assert.Equal(
+            "instructions@principal.example; images@repairer.example; office@repairer.example",
+            Recipients(dialogue, "To"));
+
+        using var response = await client.PostAsync(
+            FormAction(dialogue, "Send"),
+            new FormUrlEncodedContent(new Dictionary<string, string>(ChaserForm(dialogue, mailboxId))
+            {
+                ["Dialog"] = "true"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var landing = response.Headers.Location!.ToString();
+        Assert.Contains($"/Cases/{caseId:D}", landing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=chaser", landing, StringComparison.Ordinal);
+        Assert.Contains("mailOperationId=", landing, StringComparison.Ordinal);
+        Assert.Equal(StaffMailPurpose.CaseChaser, Assert.Single(send.Commands).Purpose);
+    }
+
     private const string RejectionReason = "Outside the area we cover.";
 
     /// <summary>
@@ -445,10 +539,11 @@ public sealed class StaffCorrespondenceWebTests
             $"data-mail-new-message=\"/Cases/{caseId:D}/NewMessage\"", page, StringComparison.OrdinalIgnoreCase);
 
         var dialogue = await IntakeWebDriver.GetHtmlAsync(client, dialogueUrl);
+        // The one send-e-mail dialogue (R1330), under the e-mail dialogue's id.
         Assert.Contains("id=\"mailMessageDialog\"", dialogue, StringComparison.Ordinal);
-        Assert.Contains("class=\"dialog dialog--mail\"", dialogue, StringComparison.Ordinal);
-        Assert.Matches("<h2 id=\"mailMessageDialog_title\"[^>]*>New message</h2>", dialogue);
-        Assert.Equal(await ReportRecipientsAsync(factory, caseId), InputValue(dialogue, "To"));
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", dialogue, StringComparison.Ordinal);
+        Assert.Matches("<h2 id=\"mailMessageDialog-title\"[^>]*>New message</h2>", dialogue);
+        Assert.Equal(await ReportRecipientsAsync(factory, caseId), Recipients(dialogue, "To"));
         Assert.Equal(
             CaseMailSubject.RegistrationAndClaimant(header.Summary.Registration, header.Summary.Claimant),
             InputValue(dialogue, "Subject"));
@@ -479,7 +574,7 @@ public sealed class StaffCorrespondenceWebTests
         var status = await IntakeWebDriver.GetHtmlAsync(
             client,
             $"/Cases/{caseId:D}/NewMessage?handler=Dialog&mailOperationId={ExtractOperationId(response.Headers.Location):D}");
-        Assert.Contains("data-new-message-status", status, StringComparison.Ordinal);
+        Assert.Contains("data-mail-send-status", status, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -582,7 +677,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
-            ["To"] = InputValue(html, "To"),
+            ["To"] = Recipients(html, "To"),
+            ["Cc"] = Recipients(html, "Cc"),
             ["Subject"] = InputValue(html, "Subject"),
             ["Body"] = TextAreaValue(html, "Body")
         };
@@ -641,6 +737,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -691,6 +789,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = token,
             ["CorrespondenceOperationKey"] = operationKey,
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -852,6 +952,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: FW: Claim PK12TMZ",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1278,6 +1380,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1369,6 +1473,8 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
                 ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
                 ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+                ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
                 ["FixedCorrespondenceCaseReference"] = InputValue(html, "FixedCorrespondenceCaseReference"),
                 ["CorrespondenceCaseReference"] = typedReference,
                 ["CorrespondenceSubject"] = "Re: Source subject",
@@ -1408,6 +1514,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1852,6 +1960,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -2210,6 +2320,22 @@ public sealed class StaffCorrespondenceWebTests
         return value.Success ? WebUtility.HtmlDecode(value.Groups["value"].Value) : string.Empty;
     }
 
+    /// <summary>
+    /// Every address the composer drew in the boxes named <paramref name="name"/>,
+    /// as one field: a box holding several addresses is read as all of them (R1329).
+    /// </summary>
+    private static string Recipients(string html, string name) =>
+        string.Join(
+            "; ",
+            Regex.Matches(
+                    html,
+                    $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                .Select(tag => Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase))
+                .Where(value => value.Success)
+                .Select(value => WebUtility.HtmlDecode(value.Groups["value"].Value))
+                .Where(value => value.Length > 0));
+
     private static string ButtonFormAction(string html, string handler)
     {
         var button = Regex.Match(
@@ -2279,6 +2405,8 @@ public sealed class StaffCorrespondenceWebTests
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["CorrespondenceOperationKey"] = operationKey,
         ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+        ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+        ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
         ["CorrespondenceCaseReference"] = InputValue(html, "CorrespondenceCaseReference"),
         ["CorrespondenceSubject"] = "Re: Source subject",
         ["CorrespondenceBody"] = body

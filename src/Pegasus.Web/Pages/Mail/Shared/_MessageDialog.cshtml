@@ -17,6 +17,14 @@
    foot. One size whatever it shows; only its body scrolls. The same record
    the /Inbox/{id} page draws, fetched on open by the Inbox's script; the
    reason dialogs it opens follow it as siblings so each stacks over it. *@
+@if (composing)
+{
+    @* Composing, the dialogue is the one send-e-mail dialogue (R1330), under
+       the same id, so the Inbox's script opens and walks it as it does the
+       message; Cancel returns to the message. *@
+    <partial name="Shared/_MessageComposer" model="Model" />
+    return;
+}
 <div id="mailMessageDialog" class="dialog-backdrop" data-dialog="mailMessageDialog"
      data-mail-message="@summary.Id" hidden>
     <section class="dialog dialog--mail" role="dialog" aria-modal="true" aria-labelledby="mailMessageDialog_title">

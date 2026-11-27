@@ -249,20 +249,8 @@
    Reply all and Forward as plain buttons; the classification's next action is
    the one dark button, at the far right, in place of the record bar. *@
 <div class="dialog-foot">
-    @if (dialogComposing)
-    {
-        <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
-           asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
-           asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-           asp-route-queue="@Model.QueueFilter"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-           asp-route-returnCase="@Model.ReturnCase" asp-route-returnSection="@Model.ReturnSectionRouteValue" data-mail-dialog-link>Cancel</a>
-        <button type="submit" form="mailComposerForm" class="btn btn--dark" data-busy-label="@OperatorLabels.Busy.Sending">
-            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-            <span>Send</span>
-        </button>
-    }
-    else
+    @* Composing, the dialogue is the one send-e-mail dialogue instead (_MessageDialog). *@
+    @if (!dialogComposing)
     {
         <span class="left">
             <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
