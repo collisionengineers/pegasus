@@ -1714,6 +1714,124 @@ public sealed class CustodyOutboxIntegrationTests
             filed["53364_1_LtrtoEngineerIn.pdf"].Sha256);
     }
 
+    /// <summary>
+    /// a.PCH26168-p filed Exclusive Repair Network's Audatex costing and its
+    /// photo sheet as Instructions beside the real one. A new Case's mailed
+    /// attachment takes the type what it prints gives it, read from the text
+    /// intake kept for it: the costing is an External estimate, the photo
+    /// sheet Other, and the letter stays the Instruction (operator,
+    /// 27 November 2026; R1336, R1337). Only a mailbox receipt keeps that
+    /// text, so the test writes the rows a mailbox receipt carries.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptedInstructionFilesAnAudatexCostingAndAPhotoSheetByWhatTheyPrint()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Filing Types {fixtureId}", claimNumber: $"TYPE-{fixtureId}");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = "Please see the attached instruction.",
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "_EHR110660_Plus_.pdf", IntakeTestEvidence.CreatePdf("Costing"), MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "_EHR110660_Engineers Repair Images.pdf", IntakeTestEvidence.CreatePdf("Photographs"),
+            MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-filing-types-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-filing-types:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+
+        var retainedTexts = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["_EHR110660_Plus_.pdf"] = """
+                Exclusive Repair Network
+                Invoice
+                Claim Reference: EHR110660 Created: 25/11/2026
+                Audatex System Using Manufacturer Times INVOICE - PAGE 1 OF 3
+                Grand Total Incl VAT £3,069.79
+                Total Due £3,069.79
+                """,
+            ["_EHR110660_Engineers Repair Images.pdf"] = """
+                Our Ref: Page 1Your Ref: EHR110660
+                PM000030-15.jpg PM000030-1.jpg
+                PM000030-4.jpg PM000030-13.jpg
+                """,
+            ["53364_1_LtrtoEngineerIn.pdf"] = "Letter to engineer: instruction to inspect.",
+        };
+        await using (var seed = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var attachments = await seed.Set<IntakeAssetEntity>()
+                .Where(asset => asset.IntakeReceiptId == receipt.Id && asset.Kind == "attachment")
+                .Select(asset => new { asset.SourceLabel, asset.FileName })
+                .ToListAsync();
+            var ordinal = 0;
+            foreach (var attachment in attachments.Where(item => retainedTexts.ContainsKey(item.FileName)))
+            {
+                ordinal++;
+                seed.IntakeSearchDocuments.Add(new IntakeSearchDocumentEntity
+                {
+                    Id = Guid.NewGuid(),
+                    IntakeReceiptId = receipt.Id,
+                    Ordinal = ordinal,
+                    AttachmentOrdinal = ordinal - 1,
+                    SourceLabel = attachment.SourceLabel,
+                    AttachmentFileName = attachment.FileName,
+                    Text = retainedTexts[attachment.FileName],
+                });
+            }
+            Assert.Equal(3, ordinal);
+            await seed.SaveChangesAsync();
+        }
+
+        var outcome = await AcceptAsync(services, receipt.Id);
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var filed = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+
+        Assert.Equal(DocumentSemanticRole.Instruction, filed["53364_1_LtrtoEngineerIn.pdf"]);
+        Assert.Equal(DocumentSemanticRole.ExternalEstimate, filed["_EHR110660_Plus_.pdf"]);
+        Assert.Equal(DocumentSemanticRole.Other, filed["_EHR110660_Engineers Repair Images.pdf"]);
+    }
+
     [Fact]
     public async Task AnUnfiledDocumentOnInitialCustodysNumbersMovesAfterItsFiles()
     {

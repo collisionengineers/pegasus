@@ -166,11 +166,7 @@ internal sealed record ThirdPartySourcePage(
                 continue;
             }
 
-            var text = fragment.Text
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n')
-                .Replace('\u00A0', ' ')
-                .Replace('\u2019', '\'');
+            var text = Normalize(fragment.Text);
             var label = fragment.SourceLabel ?? string.Empty;
             var match = PageLabel.Match(label);
             var page = match.Success
@@ -181,6 +177,18 @@ internal sealed record ThirdPartySourcePage(
 
         return pages;
     }
+
+    /// <summary>
+    /// One document's text as the signatures read it: the same normalisation
+    /// and whitespace folding a page's <see cref="Flat"/> carries.
+    /// </summary>
+    internal static string Flatten(string text) => Whitespace.Replace(Normalize(text), " ");
+
+    private static string Normalize(string text) => text
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n')
+        .Replace('\u00A0', ' ')
+        .Replace('\u2019', '\'');
 }
 
 /// <summary>
@@ -205,6 +213,12 @@ public static class ThirdPartyReportProfiles
     /// offered where an Audit's Original report names its assessor (v28 P51).
     /// </summary>
     public static IReadOnlyList<string> KnownIssuers => KnownIssuerList;
+
+    /// <summary>The photo sheet's signature: a document that prints only photograph file names.</summary>
+    internal const string ImageEvidenceSignatureKey = "image-evidence/1";
+
+    /// <summary>Laird's own report signature.</summary>
+    internal const string LairdSignatureKey = "laird/2";
 
     private const string ExclusiveIssuer = @"Exclusive\s*Vehicle\s*Assessors";
     private const string ConnexusIssuer = @"Connexus\s*Vehicle\s*Assessors";
@@ -248,7 +262,7 @@ public static class ThirdPartyReportProfiles
         // Laird's footer domain is its issuer evidence: the vehicle-history PDF
         // names "Laird Assessors" as a dealer without being a Laird report.
         // The full report's title names its outcome, repairable or total loss.
-        new("laird/2", "2", "Laird Assessors", ThirdPartyReportFamily.Laird,
+        new(LairdSignatureKey, "2", "Laird Assessors", ThirdPartyReportFamily.Laird,
             ThirdPartyDocumentRole.EngineerReport, @"laird-assessors\.com",
             [@"(?:(?:Repairable|Total\s+Loss)\s+Damage\s+Assessment\s+Report|" + SupplementaryReportTitle + ")"], []),
 
@@ -293,7 +307,7 @@ public static class ThirdPartyReportProfiles
         // signature as well as its issuer's, become Ambiguous, and yield no
         // candidate at all. The negatives are the report signals every other
         // negative signature already denies.
-        new("image-evidence/1", "1", null, null,
+        new(ImageEvidenceSignatureKey, "1", null, null,
             ThirdPartyDocumentRole.ImageEvidence, @"\.(?:jpe?g|png)\b",
             [],
             [
@@ -398,6 +412,14 @@ public static class ThirdPartyReportProfiles
         var matched = Compiled.Where(candidate => candidate.Matches(document)).Take(2).ToArray();
         return matched is [{ Signature.Role: ThirdPartyDocumentRole.VehicleCapture }];
     }
+
+    /// <summary>
+    /// Every signature one document's flattened text
+    /// (<see cref="ThirdPartySourcePage.Flatten"/>) matches, evaluated as
+    /// <see cref="Select"/> evaluates them.
+    /// </summary>
+    internal static IReadOnlyList<ThirdPartyDocumentSignature> MatchingSignatures(string flatDocument) =>
+        [.. Compiled.Where(candidate => candidate.Matches(flatDocument)).Select(candidate => candidate.Signature)];
 
     private static string Document(IReadOnlyList<ThirdPartySourcePage> pages) =>
         string.Join(' ', pages.Select(page => page.Flat));
