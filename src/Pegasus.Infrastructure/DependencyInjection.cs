@@ -496,6 +496,7 @@ public static class DependencyInjection
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseClosureReasonQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
         services.AddScoped<RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
@@ -510,6 +511,7 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.Operations.GetEmailTemplate>();
         services.AddScoped<Pegasus.Core.Operations.UpdateEmailTemplate>();
         services.AddScoped<Pegasus.Core.Operations.RenderEmailTemplate>();
+        services.AddScoped<RenderCaseRejectionEmail>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());

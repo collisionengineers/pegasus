@@ -1,0 +1,101 @@
+@model Pegasus.Web.Pages.Cases.NewMessageModel
+@using Pegasus.Web.Presentation
+@{
+    var unresolvedOperation = Model.Operation?.State is Pegasus.Core.Operations.StaffMailState.Submitted
+        or Pegasus.Core.Operations.StaffMailState.Unknown;
+    // The dialogue's fields are the Inbox composer's plain fields; the page's
+    // carry the Send chaser page's own geometry.
+    string Field(string part) => Model.InDialog ? "field" : $"field mail-compose-{part}";
+}
+
+@* The new message's send status and composer, drawn once for the Case's
+   e-mail dialogue and for the page (FRD-21; R1323). In the dialogue the form
+   takes the Inbox composer's classes and its Send is in the dialogue's foot;
+   on the page it takes the Send chaser page's and carries its own. *@
+<partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+
+@if (Model.Operation is { } operation)
+{
+    <section class="mail-compose-status" aria-labelledby="mail-compose-status-title" data-new-message-status>
+        <h2 id="mail-compose-status-title">Send status</h2>
+        <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+        @if (operation.State == Pegasus.Core.Operations.StaffMailState.Failed
+            && operation.FailureCode is { Length: > 0 } failureCode)
+        {
+            <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+        }
+        @if (unresolvedOperation)
+        {
+            @* The Worker's Sent-evidence poll settles Submitted into Sent
+               within its next tick. Nothing here re-sends. *@
+            <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+        }
+    </section>
+}
+
+@if (Model.OffersForm)
+{
+    <form method="post" id="mailComposerForm" asp-page="/Cases/NewMessage" asp-page-handler="Send" asp-route-id="@Model.Id"
+          class="@(Model.InDialog ? "stack mail-compose" : "mail-compose-form")" data-new-message>
+        <input type="hidden" asp-for="OperationKey" />
+        <input type="hidden" asp-for="ExpectedContextVersion" />
+        <div class="@(Model.InDialog ? "stack" : "mail-compose-form-fields")">
+            <div class="@(Model.InDialog ? "mail-compose-route" : "mail-compose-addresses")">
+                <div class="@Field("from")">
+                    <label asp-for="FromMailboxId">From</label>
+                    <select asp-for="FromMailboxId" required>
+                        <option value=""></option>
+                        @foreach (var mailbox in Model.Senders.Mailboxes)
+                        {
+                            <option value="@mailbox.Id" selected="@(Model.FromMailboxId == mailbox.Id)">@mailbox.Address</option>
+                        }
+                    </select>
+                    <span asp-validation-for="FromMailboxId"></span>
+                </div>
+                <div class="@Field("to")">
+                    <label asp-for="To">To</label>
+                    <input asp-for="To" type="text" />
+                    <span asp-validation-for="To"></span>
+                </div>
+                <div class="@Field("cc")">
+                    <label asp-for="Cc">Cc</label>
+                    <input asp-for="Cc" type="text" />
+                </div>
+            </div>
+            <div class="@Field("subject")">
+                <label asp-for="Subject">Subject</label>
+                <input asp-for="Subject" type="text" />
+                <span asp-validation-for="Subject"></span>
+            </div>
+            <div class="@Field("message")">
+                <label asp-for="Body">Message</label>
+                <textarea asp-for="Body" rows="8"></textarea>
+                <span asp-validation-for="Body"></span>
+            </div>
+            @if (Model.AvailableAttachments.Count > 0)
+            {
+                <fieldset class="@Field("attachments")">
+                    <legend>Attachments</legend>
+                    @foreach (var attachment in Model.AvailableAttachments)
+                    {
+                        <label>
+                            <input type="checkbox" name="SelectedAttachments" value="@attachment.Selection"
+                                   checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                            @attachment.FileName
+                        </label>
+                    }
+                    <span asp-validation-for="SelectedAttachments"></span>
+                </fieldset>
+            }
+        </div>
+        @if (!Model.InDialog)
+        {
+            <footer class="mail-compose-footer">
+                <button type="submit" class="btn btn--primary" data-busy-label="@OperatorLabels.Busy.Sending">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                    <span>Send</span>
+                </button>
+            </footer>
+        }
+    </form>
+}

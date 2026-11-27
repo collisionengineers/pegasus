@@ -296,6 +296,11 @@ leaves the operator on the Case, at the section the message was opened from,
 and Previous message and Next message walk that section's messages. Reply,
 Reply all and Forward open the composer in place with that Case chosen
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+Close case's **E-mail the Principal** opens this same dialog on the Case
+page: on the Case's instruction e-mail as a Reply whose Message is the Case
+rejection template, or, for a Case with no instruction e-mail, as a new
+message under the heading **New message** (operator, 27 November 2026;
+[R1321](../rulings.md), [R1323](../rulings.md), [R1327](../rulings.md)).
 While the Case is being edited on that page, the dialog does not offer Link,
 Change or Unlink for that Case (R1280). A refused act is shown on the
 message's own page, as it is from the Inbox, and the way back from there is

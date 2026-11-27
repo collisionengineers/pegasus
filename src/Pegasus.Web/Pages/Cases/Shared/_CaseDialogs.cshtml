@@ -336,6 +336,18 @@
                         <label class="req" for="case-close-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
                         <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
                     </div>
+                    @if (Model.StaffMailAvailable && closureOutcomes.Contains(CaseClosureOutcome.CollisionEngineersRejected))
+                    {
+                        @* The rejection's e-mail to the Principal (operator,
+                           27 November 2026; R1321, R1322, R1325): the Case
+                           closes, then the e-mail dialogue opens on the Case
+                           rejection template. Script shows the tick only
+                           while the outcome is the rejection; the handler
+                           ignores it for any other. *@
+                        <div data-close-email-principal="@CaseClosureOutcome.CollisionEngineersRejected">
+                            <label class="check"><input type="checkbox" name="emailPrincipal" value="true" /> @OperatorLabels.CaseWorkspace.EmailThePrincipal</label>
+                        </div>
+                    }
                 </div>
                 <div class="dialog-foot">
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
