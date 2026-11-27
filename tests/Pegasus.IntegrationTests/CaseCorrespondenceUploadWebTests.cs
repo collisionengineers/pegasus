@@ -38,7 +38,7 @@ public sealed class CaseCorrespondenceUploadWebTests
         var messageId = Guid.Parse(row.Groups[1].Value);
         Assert.Equal(1, Regex.Count(html, "data-mail-dialog-root"));
         Assert.Contains(
-            $"<div data-mail-dialog-root data-mail-return-case=\"{caseId:D}\"></div>", html, StringComparison.Ordinal);
+            $"<div data-mail-dialog-root data-mail-return-case=\"{caseId:D}\"", html, StringComparison.Ordinal);
         Assert.Contains("data-mail-list=\"files\" data-correspondence>", html, StringComparison.Ordinal);
         Assert.Contains($"data-mail-row=\"{messageId:D}\"", html, StringComparison.Ordinal);
         var subject = Regex.Match(html, $"<a[^>]*href=\"/Inbox/{messageId:D}\"[^>]*>");

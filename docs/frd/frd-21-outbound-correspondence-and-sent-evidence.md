@@ -312,7 +312,13 @@ a staff member's own address or any mailbox outside the allowlist.
 35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
 per-mailbox limit.
 
-**What the composer carries.** To, Subject, Message, Case / PO and From. The
+**What the composer carries.** Every staff send is the one send-e-mail
+dialogue, Send report's (operator, 27 November 2026; [R1330](../rulings.md);
+[design](../design/README.md)): From, To and Cc in two columns, To and Cc as
+boxes staff change, one per address (each after the first To removable, with
+Add To recipient and Add Cc recipient; [R1329](../rulings.md)), then Subject,
+Message and the attachments, and Cancel and Send. The e-mail dialogue's
+composer carries To, Cc, Subject, Message, Case / PO and From. The
 report composer carries From, To and Cc (each box after the first To
 removable), Subject prefilled with the derived subject, Message, and Files,
 one row per document with its include tick, its name as its preview and
@@ -362,7 +368,8 @@ send for the Case with no original message, recorded and shown as any other,
 and the dialog reopens on the send's status. No other Case has a new message:
 one that is not closed as Collision Engineers rejected, and one that has an
 instruction e-mail, are refused. A Case chaser opened from the Case's Send chaser is a staff
-send with purpose `CaseChaser` on its own chaser composer
+send with purpose `CaseChaser` in the one send-e-mail dialogue over the Case,
+whose page is its own chaser composer
 (`/Cases/{id}/Chaser`): a reply to the Case's instruction email, or, with
 no instruction email, a new message, from the Outgoing mailbox staff choose
 as From, starting on the default (see From which mailbox; R652, R655). To
@@ -396,8 +403,9 @@ for it** is retired (operator, 11 November 2026; [R948](../rulings.md)).
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
 absent. A Reply-To header that is present but unusable gives an empty list.
-The reply screen shows the retained targets and the chosen recipients so
-staff can confirm them. If the retained metadata is missing or the target
+A Reply's To and Cc boxes start on the retained targets, and Reply all's on
+all the original's recipients; staff change them before sending, and what
+the boxes hold is sent (operator, 27 November 2026; [R1329](../rulings.md)). If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
 Cc are never used as substitutes. There is one exception: when the message
 is a Collision Engineers staff forward (the transport sender is on the staff

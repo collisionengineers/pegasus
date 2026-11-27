@@ -2129,6 +2129,15 @@
             openLink(link);
             return;
         }
+        // Send chaser opens its composer in this same dialogue (R1330); the
+        // link stays the composer's page for a new tab and without script.
+        var composer = target.closest('a[data-mail-compose-open]');
+        if (composer && !isModified(event)) {
+            event.preventDefault();
+            opener = composer;
+            load(composer.href);
+            return;
+        }
         // On the Inbox a click on the row anywhere but a link, a button, a form
         // or the tick pins it.
         var clicked = workspace ? target.closest('[data-mail-row]') : null;
@@ -2204,11 +2213,14 @@
     // landing's own parameters ride to the record once and leave the address.
     var address = new URL(window.location.href);
     var opening = address.searchParams.get('open');
-    // A Case with no e-mail to answer opens a new message instead (R1323):
-    // the landing says `compose=new` and names no message, and the mount
-    // names the address that draws the new message for its Case.
-    var fresh = !opening && address.searchParams.get('compose') === 'new'
-        ? mount.getAttribute('data-mail-new-message')
+    // A composer that answers no message reopens the same way (R1323,
+    // R1330): the landing names it in `compose` and no message, and the
+    // mount names the address that draws it for its Case: the rejection's
+    // new message (`compose=new`) or Send chaser (`compose=chaser`).
+    var COMPOSERS = { 'new': 'data-mail-new-message', 'chaser': 'data-mail-chaser' };
+    var composing = address.searchParams.get('compose');
+    var fresh = !opening && Object.prototype.hasOwnProperty.call(COMPOSERS, composing)
+        ? mount.getAttribute(COMPOSERS[composing])
         : null;
     if (fresh) {
         var composer = new URL(fresh, window.location.href);
@@ -2466,6 +2478,73 @@
             tick.checked = false;
         });
     });
+})();
+
+// --- The send-e-mail dialogue's To and Cc boxes -------------------------------
+// Every staff send's composer (R1329, R1330; the Send report composer's, v48
+// item O): Add To recipient and Add Cc recipient add a box with its ×, every
+// box can be removed, and the one remaining To box keeps none, since a send
+// needs a To. The boxes arrive from the server with their × already drawn;
+// the stack decides which × show. Bound per root, so a composer fetched into
+// a dialogue (the e-mail dialogue, a photo link's) works as one drawn with
+// its page.
+(function () {
+    'use strict';
+    function refreshRemovals(stack) {
+        if (!stack) { return; }
+        var boxes = stack.querySelectorAll('.recip-box');
+        var keepOne = stack.hasAttribute('data-mail-recipients-keep-one');
+        boxes.forEach(function (box) {
+            var remove = box.querySelector('[data-remove-mail-recipient]');
+            if (remove) { remove.hidden = keepOne && boxes.length === 1; }
+        });
+    }
+    function bindMailRecipients(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') { return; }
+        root.querySelectorAll('[data-add-mail-recipient]').forEach(function (button) {
+            if (button.dataset.recipientBound) { return; }
+            button.dataset.recipientBound = 'true';
+            button.addEventListener('click', function () {
+                var target = document.getElementById(button.dataset.addMailRecipient);
+                if (!target) { return; }
+                var model = target.querySelector('.recip-box');
+                var input = document.createElement('input');
+                input.name = button.dataset.mailRecipientName;
+                input.type = 'email';
+                input.autocomplete = 'email';
+                var first = model ? model.querySelector('input') : null;
+                var book = first ? first.getAttribute('list') : null;
+                if (book) { input.setAttribute('list', book); }
+                input.setAttribute('aria-label', button.dataset.mailRecipientLabel || input.name);
+                if (model) {
+                    var box = model.cloneNode(true);
+                    box.querySelector('input').replaceWith(input);
+                    target.appendChild(box);
+                } else {
+                    target.appendChild(input);
+                }
+                refreshRemovals(target);
+                input.focus();
+            });
+        });
+        root.querySelectorAll('[data-mail-recipients]').forEach(function (stack) {
+            if (stack.dataset.recipientsBound) { return; }
+            stack.dataset.recipientsBound = 'true';
+            stack.addEventListener('click', function (event) {
+                var remove = event.target.closest('[data-remove-mail-recipient]');
+                if (!remove || !stack.contains(remove)) { return; }
+                var box = remove.closest('.recip-box');
+                var neighbour = box && (box.nextElementSibling || box.previousElementSibling);
+                if (box) { box.remove(); }
+                refreshRemovals(stack);
+                var focus = neighbour && neighbour.querySelector('input');
+                if (focus) { focus.focus(); }
+            });
+            refreshRemovals(stack);
+        });
+    }
+    bindMailRecipients(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindMailRecipients);
 })();
 
 // --- Close case: the rejection's e-mail tick ----------------------------------

@@ -53,7 +53,9 @@ public boundary is [ADR-0090](../adr/0090-public-photo-capture-surface.md).
 ### Photo links
 
 Staff send a photo link from a Case: the ribbon's **Send photo link**, and
-the same button in the Files head, opens the composer over the Case, whose
+the same button in the Files head, opens the composer over the Case (the
+one send-e-mail dialogue, its channel switch above the e-mail's From, To,
+Subject and Message; operator, 27 November 2026; [R1330](../rulings.md)), whose
 page without script is `/PhotoCapture/Send/{caseId}` (operator, 11 November
 2026; v51 K, M; [R948](../rulings.md)). A closed Case cannot send one: the button is
 hidden and the Send page refuses it with "The Case cannot take a photo

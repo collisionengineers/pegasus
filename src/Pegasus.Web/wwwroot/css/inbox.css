@@ -122,17 +122,10 @@
 .dialog--mail > .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .dialog--mail .dialog-head { align-items: flex-start; gap: 16px; padding-bottom: 10px; }
 .dialog--mail .dialog-head h2 { min-width: 0; }
-.dialog--mail .mail-route { margin: 0; }
 .mail-dialog-title { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .mail-dialog-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; align-self: flex-start; }
 .mail-dialog-nav { flex-shrink: 0; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line, #d2d8db); }
 .mail-dialog-nav .icon-button[disabled] { opacity: .35; cursor: default; }
-.mail-compose { max-width: 900px; }
-/* v41 I15: From, To and the Case sit on one line; it wraps only when it must. */
-.mail-compose-route { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
-.mail-compose-route .mail-route { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.mail-compose-route .field { flex: 1 1 14rem; min-width: 0; margin: 0; }
-.mail-compose-route .case-picker { flex: 0 1 22rem; }
 
 /* The head's context bar: the Case, the message's one outcome beside it (v54
    D12), the Type and an open Query. */

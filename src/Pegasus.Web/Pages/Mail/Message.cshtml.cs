@@ -318,15 +318,20 @@ public sealed class MessageModel(
     [BindProperty]
     public long ExpectedCorrespondenceCaseVersion { get; set; }
 
+    /// <summary>
+    /// One box per address, which staff change before sending on every mode
+    /// (operator, 27 November 2026; R1329): a Reply starts on the original's
+    /// reply targets, Reply all on all its recipients, a Forward empty.
+    /// </summary>
     [BindProperty]
-    public string? CorrespondenceTo { get; set; }
+    public List<string> CorrespondenceTo { get; set; } = [];
 
     /// <summary>The mailbox staff chose for Reply or Reply all; none leaves from the default.</summary>
     [BindProperty]
     public Guid? CorrespondenceFromMailboxId { get; set; }
 
     [BindProperty]
-    public string? CorrespondenceCc { get; set; }
+    public List<string> CorrespondenceCc { get; set; } = [];
 
     [BindProperty]
     public string? CorrespondenceSubject { get; set; }
@@ -1831,15 +1836,10 @@ public sealed class MessageModel(
                 "The send operation has expired. Reload the message and try again.");
         }
 
-        var (to, cc) = mode switch
-        {
-            StaffMailComposeMode.Reply => StaffMailReplyRecipients.Reply(detail),
-            StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(detail, SenderFor(mode)?.Address),
-            StaffMailComposeMode.Forward => (
-                StaffMailReplyRecipients.Parse(CorrespondenceTo),
-                StaffMailReplyRecipients.Parse(CorrespondenceCc)),
-            _ => ([], [])
-        };
+        // What staff left in the boxes is sent, on every mode (R1329); each
+        // box is read as typed, so an address that is not one is refused.
+        var to = StaffMailReplyRecipients.Parse(string.Join("; ", CorrespondenceTo));
+        var cc = StaffMailReplyRecipients.Parse(string.Join("; ", CorrespondenceCc));
         var sender = SenderFor(mode);
         if (sender is null)
             ModelState.AddModelError(nameof(CorrespondenceFromMailboxId), new CaseMailSenderRequiredException().Message);
@@ -2021,10 +2021,12 @@ public sealed class MessageModel(
                 StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(Detail, SenderFor(mode)?.Address),
                 _ => ([], [])
             };
-            if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
+            // The boxes start on the reply's recipients when the composer is
+            // first drawn; a refused send redraws what staff left in them.
+            if (initializeForm && mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
             {
-                CorrespondenceTo = string.Join("; ", recipients.Item1.Select(item => item.Address));
-                CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
+                CorrespondenceTo = [.. recipients.Item1.Select(item => item.Address)];
+                CorrespondenceCc = [.. recipients.Item2.Select(item => item.Address)];
             }
             if (initializeForm)
             {

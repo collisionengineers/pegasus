@@ -61,7 +61,7 @@
     var canUnlinkEvidence = mayActOnCaseData && workflow.ReportSentEvidence is not null
         && state is not CaseLifecycleState.Held && !isClosed;
     // Send chaser is offered on any open Case (operator, 5 October 2026). It
-    // navigates to the composer, so it needs no lease.
+    // opens its composer in the e-mail dialogue (R1330), so it needs no lease.
     var canSendChaser = Model.StaffMailAvailable && !isClosed && workflow.Archive is null;
     // Send photo link opens its composer (FRD-28; R773; v51 M) on the same open
     // Cases as Send chaser; Copy link needs no mailbox, and it is absent
@@ -390,7 +390,9 @@
                 }
                 @if (canSendChaser)
                 {
-                    <a class="btn" asp-page="/Cases/Chaser" asp-route-id="@summary.CaseId" data-send-chaser>
+                    @* Opens its composer in the e-mail dialogue over the Case (R1330);
+                       without script the link is the composer's page. *@
+                    <a class="btn" asp-page="/Cases/Chaser" asp-route-id="@summary.CaseId" data-send-chaser data-mail-compose-open>
                         <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
                         <span>@Frame.SendChaser</span>
                     </a>

@@ -47,11 +47,12 @@ public sealed class NewMessageModel(
     [BindProperty]
     public Guid? FromMailboxId { get; set; }
 
+    /// <summary>One box per address (R1329).</summary>
     [BindProperty]
-    public string? To { get; set; }
+    public List<string> To { get; set; } = [];
 
     [BindProperty]
-    public string? Cc { get; set; }
+    public List<string> Cc { get; set; } = [];
 
     [BindProperty]
     public string? Subject { get; set; }
@@ -124,7 +125,7 @@ public sealed class NewMessageModel(
         }
         if (inDialog)
         {
-            return Partial("Shared/_CaseNewMessageDialog", this);
+            return Partial("Shared/_NewMessageComposer", this);
         }
         return Page();
     }
@@ -149,8 +150,9 @@ public sealed class NewMessageModel(
             return Forbid();
         }
 
-        var to = StaffMailReplyRecipients.Parse(To);
-        var cc = StaffMailReplyRecipients.Parse(Cc);
+        // Each box is read as typed, so an address that is not one is refused, not dropped.
+        var to = StaffMailReplyRecipients.Parse(string.Join("; ", To));
+        var cc = StaffMailReplyRecipients.Parse(string.Join("; ", Cc));
         if (to.Length == 0)
         {
             ModelState.AddModelError(nameof(To), "At least one recipient is required.");
@@ -278,12 +280,10 @@ public sealed class NewMessageModel(
     /// </summary>
     private async Task PrefillAsync(CaseRejectionEmail rejection, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(To)
+        if (To.All(string.IsNullOrWhiteSpace)
             && await reportRecipients.GetAsync(Id, CaseWorkSelector.Current, cancellationToken) is { } facts)
         {
-            To = string.Join(
-                "; ",
-                ReportDispatchPolicy.Plan(facts, clock.GetUtcNow()).To.Select(recipient => recipient.Address));
+            To = [.. ReportDispatchPolicy.Plan(facts, clock.GetUtcNow()).To.Select(recipient => recipient.Address)];
         }
         if (string.IsNullOrWhiteSpace(Subject))
         {

@@ -1338,8 +1338,8 @@ public sealed partial class AssessmentReportDraftWebTests
             Assert.Contains($"<input type=\"hidden\" name=\"{name}\"", dialog, StringComparison.Ordinal);
         }
         Assert.Contains("name=\"fromMailboxId\"", dialog, StringComparison.Ordinal);
-        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"toRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-report-recipient", dialog);
-        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"ccRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-report-recipient", dialog);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"toRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-mail-recipient", dialog);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"ccRecipients\"[^>]*>\\s*<button type=\"button\" class=\"btn btn--small btn--icon\" data-remove-mail-recipient", dialog);
         var subject = InputTag(dialog, "data-report-subject");
         Assert.Contains("name=\"subject\"", subject, StringComparison.Ordinal);
         Assert.Contains($"maxlength=\"{CaseReportDeliveryPolicy.MaximumSubjectLength}\"", subject, StringComparison.Ordinal);

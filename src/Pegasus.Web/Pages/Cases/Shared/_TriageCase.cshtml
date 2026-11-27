@@ -701,97 +701,59 @@
 
 @if (view.OffersComposer)
 {
-    @* The composer (FRD-03, FRD-21): the Inbox composer's frame over the
-       record, sending the chaser until the finding is recorded and Reply with
-       finding once Completed, as a reply to the request e-mail. A refused
-       send opens it again on what was posted, with the reasons. *@
-    <div class="dialog-backdrop" data-dialog="triage-compose-dialog" data-dialog-open-on-load="@(view.ComposerOpensOnLoad ? "true" : null)" hidden>
-        <section class="dialog mail-compose-dialog" role="dialog" aria-modal="true" aria-labelledby="triage-compose-title">
-            <header class="dialog-head">
-                <div>
-                    <p class="eyebrow">Triage · @reference</p>
-                    <h2 id="triage-compose-title" tabindex="-1">@replyLabel</h2>
-                </div>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
-                </button>
-            </header>
-            <div class="dialog-body mail-compose-body">
-                @if (view.ReasonsInComposer)
-                {
-                    <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
-                }
-                <form method="post" asp-page-handler="TriageSendReply" asp-route-id="@record.CaseId" class="mail-compose-form" data-triage-reply-form>
-                    <input type="hidden" name="expectedVersion" value="@record.Version" />
-                    <input type="hidden" name="operationKey" value="@view.ReplyOperationKey" />
-                    <div class="mail-compose-form-fields">
-                        <div class="mail-compose-addresses">
-                            <div class="field mail-compose-from">
-                                <label for="triage-reply-from">From</label>
-                                @* Staff choose From, starting on the default (operator,
-                                   4 November 2026; R655). *@
-                                @{ var chosenFrom = view.ReplyFromMailboxId ?? view.ReplyAnswer.Default?.Id; }
-                                <select id="triage-reply-from" name="fromMailboxId" required>
-                                    <option value=""></option>
-                                    @foreach (var mailbox in view.ReplyAnswer.Choices)
-                                    {
-                                        <option value="@mailbox.Id" selected="@(mailbox.Id == chosenFrom)">@mailbox.Address</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="field mail-compose-to">
-                                <label class="req" for="triage-reply-to">To</label>
-                                <input id="triage-reply-to" name="to" value="@view.ReplyTo" required maxlength="500" data-dialog-initial-focus />
-                            </div>
-                            <div class="field mail-compose-cc">
-                                <label for="triage-reply-cc">Cc</label>
-                                <input id="triage-reply-cc" name="cc" value="@view.ReplyCc" maxlength="500" />
-                            </div>
-                        </div>
-                        <div class="field mail-compose-subject">
-                            <label class="req" for="triage-reply-subject">Subject</label>
-                            <input id="triage-reply-subject" name="subject" value="@view.ReplySubject" required maxlength="500" />
-                        </div>
-                        <div class="field mail-compose-message">
-                            <label class="req" for="triage-reply-body">Message</label>
-                            <textarea id="triage-reply-body" name="body" rows="8" required maxlength="5000">@view.ReplyBody</textarea>
-                        </div>
-                        @if (view.AvailableAttachments.Count > 0)
-                        {
-                            <fieldset class="field mail-compose-attachments">
-                                <legend>Attachments</legend>
-                                @foreach (var attachment in view.AvailableAttachments)
-                                {
-                                    <label>
-                                        <input type="checkbox" name="selectedAttachments" value="@attachment.Selection"
-                                               checked="@view.SelectedAttachments.Contains(attachment.Selection)" />
-                                        @attachment.FileName
-                                    </label>
-                                }
-                            </fieldset>
-                        }
-                        @if (view.IsOutcomeReply)
-                        {
-                            @* Reply with finding alone; the chaser never offers it (R904).
-                               Unticked on every open, a refused send's included (R960). *@
-                            <div class="field">
-                                <label>
-                                    <input type="checkbox" name="deleteCaseCorrespondence" value="true" data-delete-case-correspondence />
-                                    @OperatorLabels.StaffMail.DeleteCaseCorrespondence
-                                </label>
-                            </div>
-                        }
-                    </div>
-                    <footer class="mail-compose-footer">
-                        <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
-                            <span>@(view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser)</span>
-                        </button>
-                    </footer>
-                </form>
-            </div>
-        </section>
-    </div>
+    @* The composer (FRD-03, FRD-21): the one send-e-mail dialogue (R1330)
+       over the record, sending the chaser until the finding is recorded and
+       Reply with finding once Completed, as a reply to the request e-mail.
+       Staff choose From, starting on the default (R655), and change To and
+       Cc (R1329). A refused send opens it again on what was posted, with the
+       reasons. *@
+    Func<object?, object> composerReasons = @<text>
+        @if (view.ReasonsInComposer)
+        {
+            <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+        }
+    </text>;
+    Func<object?, object> composerTick = @<text>
+        @if (view.IsOutcomeReply)
+        {
+            @* Reply with finding alone; the chaser never offers it (R904).
+               Unticked on every open, a refused send's included (R960). *@
+            <label class="choice"><input type="checkbox" name="deleteCaseCorrespondence" value="true" data-delete-case-correspondence /><span>@OperatorLabels.StaffMail.DeleteCaseCorrespondence</span></label>
+        }
+    </text>;
+    var composer = new MailComposerView
+    {
+        Id = "triage-compose-dialog",
+        OpenOnLoad = view.ComposerOpensOnLoad,
+        Eyebrow = $"Triage · {reference}",
+        Title = replyLabel,
+        Status = composerReasons,
+        Action = Url.Page("/Cases/Details", "TriageSendReply", new { id = record.CaseId })!,
+        FormAttributes = new Dictionary<string, string?> { ["data-triage-reply-form"] = null },
+        Hidden =
+        [
+            new("expectedVersion", record.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("operationKey", view.ReplyOperationKey),
+        ],
+        FromName = "fromMailboxId",
+        FromChoices = [.. view.ReplyAnswer.Choices.Select(mailbox => new MailComposerSender(mailbox.Id, mailbox.Address))],
+        FromSelected = view.ReplyFromMailboxId ?? view.ReplyAnswer.Default?.Id,
+        ToName = "to",
+        To = [.. Pegasus.Core.Operations.StaffMailReplyRecipients.Parse(view.ReplyTo).Select(recipient => recipient.Address)],
+        CcName = "cc",
+        Cc = [.. Pegasus.Core.Operations.StaffMailReplyRecipients.Parse(view.ReplyCc).Select(recipient => recipient.Address)],
+        SubjectName = "subject",
+        Subject = view.ReplySubject,
+        BodyName = "body",
+        Body = view.ReplyBody,
+        BodyRows = 8,
+        AttachmentName = "selectedAttachments",
+        Attachments = view.AvailableAttachments,
+        SelectedAttachments = [.. view.SelectedAttachments],
+        AfterAttachments = composerTick,
+        SendLabel = view.IsOutcomeReply ? Labels.SendReply : Labels.SendChaser,
+    };
+    <partial name="/Pages/Shared/_MailComposer.cshtml" model="composer" />
 }
 
 @if (mutable)
