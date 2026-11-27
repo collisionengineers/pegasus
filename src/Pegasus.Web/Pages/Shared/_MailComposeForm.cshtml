@@ -45,7 +45,10 @@
 }
 @if (Model.OffersForm)
 {
-    <form method="post" action="@Model.Action" asp-antiforgery="true" id="@Model.FormId" class="@formClass"@(MailComposerView.Write(Model.FormAttributes))>
+    @* A plain form (the tag helper takes no C# among its attributes), so the
+       antiforgery token is written here. *@
+    <!form method="post" action="@Model.Action" id="@Model.FormId" class="@formClass"@(MailComposerView.Write(Model.FormAttributes))>
+        @Html.AntiForgeryToken()
         @foreach (var (name, value) in Model.Hidden)
         {
             <input type="hidden" name="@name" value="@value" />
@@ -200,5 +203,5 @@
                 </button>
             }
         </footer>
-    </form>
+    </!form>
 }
