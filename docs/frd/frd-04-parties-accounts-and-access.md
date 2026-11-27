@@ -321,9 +321,11 @@ The Principal section of a Contact carries:
   inherits its predecessor's rules. The migration `SendingRulesAreBuilt`
   rewrote every Principal's rules to this shape (25 November 2026,
   [R1267](../rulings.md)); RJS's two "Instruction mentions" rules became
-  Claim Source is Claim Specialists and Claim Source is Accident
-  Specialists, and its "Luton" alternative waits on issue #2204
-  ([R1265](../rulings.md), [R1268](../rulings.md)). The rules were first
+  Claim Source is Claim Specialists, which copies
+  accounts@claimsspecialists.co.uk, and Claim Source is Accident
+  Specialists; "Luton" was staff's name for Claim Specialists and is dropped
+  ([R1265](../rulings.md), [R1268](../rulings.md); operator, 26 November
+  2026, [R1300](../rulings.md), [R1303](../rulings.md)). The rules were first
   imported from the SOP (the supplied
   [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml),
   which keeps its v5 name and holds version 8, 15 October 2026; operator,
@@ -363,7 +365,9 @@ Case's Principal that the instruction's text (its subject, body and the text of 
 ignored ("Car Claims" names "CarClaims") (operator, 25 November 2026; [R1264](../rulings.md)). Two or more matches, or none,
 fill nothing, and a name that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
 before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
-[R1018](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
+[R1018](../rulings.md)). RJS's instructions never name the claim source, so staff set an RJS Case's Claim Source once
+they know it; Easy Claim is a Claim Source linked to RJS, and RJS's reports do not copy it (operator, 26 November 2026;
+[R1301](../rulings.md), [R1302](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's telephone and e-mail for that Case alone. The override
