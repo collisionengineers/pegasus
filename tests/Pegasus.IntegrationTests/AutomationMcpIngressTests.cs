@@ -264,6 +264,7 @@ public sealed class AutomationMcpIngressTests
         var mailToken = await RequestTokenAsync(client, AutomationMcp.MailScope);
         string[] mailTools =
         [
+            "pegasus_classifier_run_record",
             "pegasus_mail_action",
             "pegasus_mail_attachment_text",
             "pegasus_mail_correct_classification",

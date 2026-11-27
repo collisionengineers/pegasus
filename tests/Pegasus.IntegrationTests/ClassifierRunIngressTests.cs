@@ -41,7 +41,10 @@ public sealed class ClassifierRunIngressTests
             Assert.Equal(runId, result.GetProperty("runId").GetGuid());
             Assert.Equal("open", result.GetProperty("stage").GetString());
             Assert.False(result.GetProperty("isReplay").GetBoolean());
-            Assert.Equal(System.Text.Json.JsonValueKind.Null, result.GetProperty("finishedAtUtc").ValueKind);
+            // An open run has no finish, which the result leaves out.
+            Assert.False(
+                result.TryGetProperty("finishedAtUtc", out var finished)
+                && finished.ValueKind != System.Text.Json.JsonValueKind.Null);
         }
 
         using (var again = await PostMcpAsync(client, token, ToolCallPayload(3, Tool, Open(runId, key))))
@@ -97,7 +100,8 @@ public sealed class ClassifierRunIngressTests
             result = Result("success", [new { messageId = Guid.NewGuid(), action = "archived" }])
         })))
         {
-            Assert.Contains("'archived' is not an act the classifier records.", await ReadErrorTextAsync(unknown), StringComparison.Ordinal);
+            // The result is read as raw JSON, whose apostrophes are escaped.
+            Assert.Contains("archived\\u0027 is not an act the classifier records.", await ReadErrorTextAsync(unknown), StringComparison.Ordinal);
         }
 
         Assert.Equal(0, await database.ScalarAsync<int>("SELECT COUNT(*) FROM ClassifierRuns"));
