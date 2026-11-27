@@ -26,7 +26,15 @@ import { randomUUID } from "node:crypto";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { decider, hasChangedSince, isStillWritable, stateOf, type MessageState } from "./eligibility.js";
-import type { InstructionDraft, LinkDestination, MailDetail, MailPhotoRegistrations, PegasusMail } from "./pegasus.js";
+import type {
+  InstructionDraft,
+  LinkDestination,
+  MailDetail,
+  MailPhotoRegistrations,
+  PegasusMail,
+  RunAction,
+  RunItem,
+} from "./pegasus.js";
 import { CorrespondenceCode, MailCategoryCodes, WorkTypes } from "./prompt.js";
 
 export interface Candidate {
@@ -52,8 +60,9 @@ export type ClassifierPegasus = Pick<
 >;
 
 /**
- * What one run came to per message. The run owns it and marks reviewed from
- * it once the model has finished (run.ts recordOutcomes).
+ * What one run came to per message. The run owns it, marks reviewed from it
+ * once the model has finished (run.ts recordOutcomes) and records the run
+ * from it (runs.ts buildItems).
  */
 export interface RunOutcomes {
   /**
@@ -75,10 +84,35 @@ export interface RunOutcomes {
   deferred: Set<string>;
   /** Messages this run wrote to, so reviewed is stored at what they read now. */
   written: Set<string>;
+  /** What the run did with each message it reached a verdict on or deferred, for the run's record. */
+  acts: Map<string, RunAct>;
 }
 
 export function newOutcomes(): RunOutcomes {
-  return { verdicts: new Set(), failed: new Map(), deferred: new Set(), written: new Set() };
+  return { verdicts: new Set(), failed: new Map(), deferred: new Set(), written: new Set(), acts: new Map() };
+}
+
+/** One message's act in the run's record; a dry run's acts are what it would have done. */
+export type RunAct = Omit<RunItem, "messageId">;
+
+/** The acts that wrote to Pegasus, or that a dry run would have written. */
+export const WriteActions: ReadonlySet<RunAction> = new Set<RunAction>([
+  "classified", "linked", "case_created", "one_off_case", "triage_opened", "query_opened",
+]);
+
+/**
+ * A message's second act in a run replaces the first, keeping the first's
+ * category when it names none. A refused Case or Triage after a write keeps
+ * the write, which did happen, and adds only the refusal.
+ */
+export function mergeAct(earlier: RunAct | undefined, next: RunAct): RunAct {
+  if (!earlier) {
+    return next;
+  }
+  if (next.action === "left_for_staff" && WriteActions.has(earlier.action)) {
+    return { ...earlier, ...(next.refusal !== undefined ? { refusal: next.refusal } : {}) };
+  }
+  return { ...next, ...(next.category === undefined && earlier.category !== undefined ? { category: earlier.category } : {}) };
 }
 
 export const ServerName = "classifier";
@@ -114,7 +148,7 @@ function text(value: unknown, isError = false) {
   };
 }
 
-function messageOf(error: unknown): string {
+export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -252,6 +286,10 @@ export function createClassifierTools(options: ClassifierToolOptions) {
     outcomes.verdicts.add(messageId);
     outcomes.failed.delete(messageId);
     outcomes.deferred.delete(messageId);
+  }
+
+  function act(messageId: string, entry: RunAct): void {
+    outcomes.acts.set(messageId, mergeAct(outcomes.acts.get(messageId), { ...entry, at: new Date().toISOString() }));
   }
 
   function failed(messageId: string, reason: string): void {
@@ -437,11 +475,14 @@ export function createClassifierTools(options: ClassifierToolOptions) {
       const { detail, expected } = read;
       if (hasType(detail, args.category, args.workType)) {
         verdict(args.messageId);
+        act(args.messageId, { action: "left", category: args.category, reason: args.reason });
         return text(`The e-mail is already ${args.category}; nothing changed.`);
       }
       log("classify", { messageId: args.messageId, from: detail.classification!.current.category, to: args.category, workType: args.workType, reason: args.reason, dryRun });
+      const classified: RunAct = { action: "classified", category: args.category, reason: args.reason };
       if (dryRun) {
         verdict(args.messageId);
+        act(args.messageId, classified);
         proposed.set(args.messageId, { category: args.category, ...(args.workType ? { workType: args.workType } : {}) });
         return text(`Dry run: would classify as ${args.category}.`);
       }
@@ -458,6 +499,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         });
         known.set(args.messageId, { ...expected, classificationVersion: corrected.version });
         wrote(args.messageId);
+        act(args.messageId, classified);
         return text(`Classified as ${args.category}.`);
       } catch (error) {
         const settled = await settle(args.messageId, expected, (current) =>
@@ -466,6 +508,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         if (settled.kind === "landed") {
           log("classify landed after an error", { messageId: args.messageId, error: messageOf(error) });
           wrote(args.messageId, settled.detail);
+          act(args.messageId, classified);
           return text(`Classified as ${args.category}.`);
         }
         if (settled.kind === "unknown") {
@@ -501,8 +544,10 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text("The e-mail can no longer be linked to a Case.", true);
       }
       log("link", { messageId: args.messageId, caseReference: destination.reference, reason: args.reason, dryRun });
+      const linkedAct: RunAct = { action: "linked", caseId: args.caseId, caseReference: destination.reference, reason: args.reason };
       if (dryRun) {
         verdict(args.messageId);
+        act(args.messageId, linkedAct);
         return text(`Dry run: would link to ${destination.reference}.`);
       }
       try {
@@ -519,6 +564,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           operationKey: operationKey("cls-link", args.messageId, detail.intakeVersion, newAttempt()),
         });
         wrote(args.messageId, linked);
+        act(args.messageId, linkedAct);
         return text(`Linked to ${destination.reference}.`);
       } catch (error) {
         const settled = await settle(args.messageId, expected, (current) =>
@@ -526,6 +572,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         if (settled.kind === "landed") {
           log("link landed after an error", { messageId: args.messageId, error: messageOf(error) });
           wrote(args.messageId, settled.detail);
+          act(args.messageId, linkedAct);
           return text(`Linked to ${destination.reference}.`);
         }
         if (settled.kind === "unknown") {
@@ -595,6 +642,8 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text(read, true);
       }
       const { detail, expected } = read;
+      const leftForStaff = (refusal: string) =>
+        act(args.messageId, { action: "left_for_staff", category: "new-instruction", reason: args.reason, refusal });
       if (detail.summary.caseId != null) {
         return text("The e-mail already has a Case.", true);
       }
@@ -611,7 +660,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           return text(`The received item already has Case ${intake.caseReference ?? intake.caseId}.`, true);
         }
         if (intake.websiteEnquiry) {
-          return await createOneOff(args, detail, expected, intake.version);
+          return await createOneOff(args, detail, expected, intake.version, leftForStaff);
         }
         // The Principal is the one the item established; failing that, the
         // one active Principal Contact its sender belongs to, which Pegasus
@@ -620,9 +669,11 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           ? intake.senderDirectoryPrincipalCode ?? undefined
           : undefined;
         if (intake.establishedPrincipalCode == null && senderPrincipal === undefined) {
+          const refusal = "Pegasus knows no Principal for this e-mail: its sender matched no route and belongs to no one active Principal Contact. The e-mail waits for staff.";
           verdict(args.messageId);
+          leftForStaff(refusal);
           log("create case left for staff", { messageId: args.messageId, missing: ["Principal"] });
-          return text("Pegasus knows no Principal for this e-mail: its sender matched no route and belongs to no one active Principal Contact. The e-mail waits for staff.", true);
+          return text(refusal, true);
         }
         const fields = missingOnly(intake.draft, args);
         // Nothing is written while an identity fact stays missing: the
@@ -630,9 +681,11 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         const supplied = (["claimantName", "claimNumber", "vehicleRegistration"] as const)
           .filter((key) => fields[key] !== undefined).length;
         if ((intake.missingIdentityFields ?? []).length > supplied) {
+          const refusal = `Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`;
           verdict(args.messageId);
+          leftForStaff(refusal);
           log("create case left for staff", { messageId: args.messageId, missing: intake.missingIdentityFields });
-          return text(`Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`, true);
+          return text(refusal, true);
         }
         log("create case", {
           messageId: args.messageId, receiptId, fields: Object.keys(fields), reason: args.reason, dryRun,
@@ -640,6 +693,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         });
         if (dryRun) {
           verdict(args.messageId);
+          act(args.messageId, { action: "case_created", category: "new-instruction", reason: args.reason });
           return text("Dry run: would create the Case.");
         }
         // Pegasus's own suggested inspection address is accepted, as staff
@@ -668,12 +722,20 @@ export function createClassifierTools(options: ClassifierToolOptions) {
             throw new Error(created.safeReason ?? `The Case was not created (${created.allocationStatus ?? "no allocation"}).`);
           }
           wrote(args.messageId, await pegasus.get(args.messageId).catch(() => undefined));
+          act(args.messageId, {
+            action: "case_created", category: "new-instruction",
+            caseId: created.caseId, caseReference: created.caseReference ?? undefined, reason: args.reason,
+          });
           return text(`Created Case ${created.caseReference ?? created.caseId}.`);
         } catch (error) {
           const settled = await settle(args.messageId, expected, (current) => current.summary.caseId != null);
           if (settled.kind === "landed") {
             log("create case landed after an error", { messageId: args.messageId, error: messageOf(error) });
             wrote(args.messageId, settled.detail);
+            act(args.messageId, {
+              action: "case_created", category: "new-instruction",
+              caseId: settled.detail.summary.caseId ?? undefined, caseReference: settled.detail.summary.caseReference ?? undefined, reason: args.reason,
+            });
             return text(`Created Case ${settled.detail.summary.caseReference ?? settled.detail.summary.caseId}.`);
           }
           throw error;
@@ -683,6 +745,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         // Case leaves the e-mail for staff Create case, which is that verdict's
         // outcome, not a failed attempt to retry every run.
         verdict(args.messageId);
+        leftForStaff(messageOf(error));
         log("create case refused", { messageId: args.messageId, error: messageOf(error) });
         return text(`Pegasus refused the Case: ${messageOf(error)}. The e-mail waits for staff.`, true);
       }
@@ -693,21 +756,25 @@ export function createClassifierTools(options: ClassifierToolOptions) {
    * received item is never accepted as (R581), so it is created directly, as
    * staff New case with the Private customer tick does, and the e-mail is
    * then linked to it. The name and the registration must be written in the
-   * enquiry. Called inside create_case's own refusal handling.
+   * enquiry. Called inside create_case's own refusal handling, with its way
+   * of recording that the e-mail waits for staff.
    */
   async function createOneOff(
     args: { messageId: string; reason: string; claimantName?: string; vehicleRegistration?: string; incidentDate?: string },
     detail: MailDetail,
     expected: MessageState,
     intakeVersion: number,
+    leftForStaff: (refusal: string) => void,
   ) {
     const workType = typeOf(args.messageId, detail).workType;
     const claimantName = args.claimantName?.trim();
     const registration = args.vehicleRegistration ? normalizeRegistration(args.vehicleRegistration) : "";
     if (!workType || !claimantName || !registration) {
+      const refusal = "A website enquiry becomes a one-off Case only with the customer's name and the vehicle's registration; the enquiry does not give both, so the e-mail waits for staff.";
       verdict(args.messageId);
+      leftForStaff(refusal);
       log("create case left for staff", { messageId: args.messageId, missing: ["website enquiry name or registration"] });
-      return text("A website enquiry becomes a one-off Case only with the customer's name and the vehicle's registration; the enquiry does not give both, so the e-mail waits for staff.", true);
+      return text(refusal, true);
     }
     const written = [detail.summary.subject, detail.bodyPlainText].join("\n");
     if (!RegistrationShape.test(registration) || /^\d+$/.test(registration) || !appearsIn(registration, written)) {
@@ -717,12 +784,15 @@ export function createClassifierTools(options: ClassifierToolOptions) {
       return text(`${claimantName} is not written in the enquiry; give the name exactly as the enquiry writes it, or leave the e-mail for staff.`, true);
     }
     if (!detail.canLinkCase || detail.intakeVersion == null) {
+      const refusal = "The e-mail cannot be linked to a Case, so no one-off Case is made for it; it waits for staff.";
       verdict(args.messageId);
-      return text("The e-mail cannot be linked to a Case, so no one-off Case is made for it; it waits for staff.", true);
+      leftForStaff(refusal);
+      return text(refusal, true);
     }
     log("create one-off case", { messageId: args.messageId, registration, reason: args.reason, dryRun });
     if (dryRun) {
       verdict(args.messageId);
+      act(args.messageId, { action: "one_off_case", reason: args.reason });
       return text("Dry run: would create the one-off Case and link the e-mail to it.");
     }
     const created = await pegasus.caseCreate({
@@ -734,6 +804,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
       operationKey: operationKey("one-off", args.messageId, intakeVersion),
     });
     const isLinked = (current: MailDetail) => current.summary.caseId?.toLowerCase() === created.caseId.toLowerCase();
+    const oneOff: RunAct = { action: "one_off_case", caseId: created.caseId, caseReference: created.reference, reason: args.reason };
     try {
       const destination = (await pegasus.linkDestinations(args.messageId, created.reference))
         .find((item) => item.caseId.toLowerCase() === created.caseId.toLowerCase());
@@ -749,15 +820,18 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         operationKey: operationKey("one-off-link", args.messageId, detail.intakeVersion, newAttempt()),
       });
       wrote(args.messageId, linked);
+      act(args.messageId, oneOff);
       return text(`Created one-off Case ${created.reference} and linked the e-mail to it.`);
     } catch (error) {
       const settled = await settle(args.messageId, expected, isLinked);
       if (settled.kind === "landed") {
         wrote(args.messageId, settled.detail);
+        act(args.messageId, oneOff);
         return text(`Created one-off Case ${created.reference} and linked the e-mail to it.`);
       }
       // The Case exists; only its link is owed, and that is staff's to make.
       verdict(args.messageId);
+      act(args.messageId, { ...oneOff, refusal: messageOf(error) });
       log("one-off case not linked", { messageId: args.messageId, caseReference: created.reference, error: messageOf(error) });
       return text(`Created one-off Case ${created.reference}, but the e-mail was not linked to it (${messageOf(error)}). Staff link it.`, true);
     }
@@ -825,8 +899,13 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text("The e-mail has no received item to open a Triage from; it waits for staff.", true);
       }
       log("open triage", { messageId: args.messageId, receiptId, registration, source: args.source, reason: args.reason, dryRun });
+      const triage = (opened: { caseId?: string | null; caseReference?: string | null } = {}): RunAct => ({
+        action: "triage_opened", category: "triage-request",
+        caseId: opened.caseId ?? undefined, caseReference: opened.caseReference ?? opened.caseId ?? undefined, reason: args.reason,
+      });
       if (dryRun) {
         verdict(args.messageId);
+        act(args.messageId, triage());
         return text(`Dry run: would open the Triage for ${registration}.`);
       }
       try {
@@ -840,12 +919,14 @@ export function createClassifierTools(options: ClassifierToolOptions) {
             vehicleRegistration: registration,
           });
           wrote(args.messageId, await pegasus.get(args.messageId).catch(() => undefined));
+          act(args.messageId, triage(opened));
           return text(`Opened Triage ${opened.caseReference ?? opened.caseId}.`);
         } catch (error) {
           const settled = await settle(args.messageId, expected, (current) => current.summary.caseId != null);
           if (settled.kind === "landed") {
             log("open triage landed after an error", { messageId: args.messageId, error: messageOf(error) });
             wrote(args.messageId, settled.detail);
+            act(args.messageId, triage(settled.detail.summary));
             return text(`Opened Triage ${settled.detail.summary.caseReference ?? settled.detail.summary.caseId}.`);
           }
           throw error;
@@ -854,6 +935,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         // As for create_case: a refused Triage leaves the e-mail for staff
         // Open the Triage (R588), not a failed attempt to retry every run.
         verdict(args.messageId);
+        act(args.messageId, { action: "left_for_staff", category: "triage-request", reason: args.reason, refusal: messageOf(error) });
         log("open triage refused", { messageId: args.messageId, error: messageOf(error) });
         return text(`Pegasus refused the Triage: ${messageOf(error)}. The e-mail waits for staff.`, true);
       }
@@ -876,12 +958,14 @@ export function createClassifierTools(options: ClassifierToolOptions) {
       }
       if (typeOf(args.messageId, candidate.detail).category !== null) {
         verdict(args.messageId);
+        act(args.messageId, { action: "left", reason: args.reason });
         log("leave", { messageId: args.messageId, reason: args.reason });
         return text("Left as it is.");
       }
       if (mailboxesUnavailableFor.has(args.messageId) && foldersUnavailableFor.has(args.messageId)) {
         outcomes.deferred.add(args.messageId);
         outcomes.failed.delete(args.messageId);
+        act(args.messageId, { action: "deferred", reason: args.reason });
         log("leave until the lookups are back", { messageId: args.messageId, reason: args.reason });
         return text("Left as it is; it is looked at again next run.");
       }
@@ -900,6 +984,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
       log("open query", { messageId: args.messageId, dryRun });
       if (dryRun) {
         verdict(args.messageId);
+        act(args.messageId, { action: "query_opened" });
         return text("Dry run: would open a query.");
       }
       try {
@@ -910,6 +995,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           operationKey: operationKey("qry", args.messageId, read.expected.classificationVersion),
         });
         wrote(args.messageId);
+        act(args.messageId, { action: "query_opened" });
         return text(`Opened query ${opened.queryId}.`);
       } catch (error) {
         failed(args.messageId, messageOf(error));

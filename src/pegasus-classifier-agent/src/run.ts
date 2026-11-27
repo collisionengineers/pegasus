@@ -1,6 +1,7 @@
 // One sweep: find the eligible mail, and only if there is any, let the agent
-// work through it with its tools. runAgent is the one way the model is
-// called; the replay harness uses it over a fixture instead of Pegasus.
+// work through it with its tools. Every sweep Pegasus answers is recorded as
+// a run (runs.ts). runAgent is the one way the model is called; the replay
+// harness uses it over a fixture instead of Pegasus.
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +19,16 @@ import {
   type ReviewedStore,
 } from "./reviewed.js";
 import {
+  buildItems,
+  emptyRun,
+  failedRun,
+  NoVerdict,
+  RunRecorder,
+  runFacts,
+  TableRunStore,
+  type RunEnding,
+} from "./runs.js";
+import {
   createClassifierServer,
   newOutcomes,
   ServerName,
@@ -34,8 +45,6 @@ const RunTimeLimitMs = 12 * 60 * 1000;
 // message unchanged, it is closed as failed and not looked at again unless it
 // changes. A message left while the lookups were unavailable counts no run.
 export const MaxFailedAttempts = 3;
-
-const NoVerdict = "no verdict in a completed run";
 
 // Runs in a row that list no candidate while Pegasus counts mail awaiting a
 // decision before the run's outcome reads failed: an hour at the 15-minute
@@ -155,7 +164,8 @@ export async function checkHidden(
  * write, or no verdict from a completed run, counts one failed attempt, and
  * MaxFailedAttempts of them while unchanged close it as failed. A run cut
  * short by its turn, budget or time cap writes nothing for the messages it did
- * not reach, so they are tried again next time.
+ * not reach, so they are tried again next time. Returns the messages it
+ * closed as failed, which the run's record shows as set aside.
  */
 export async function recordOutcomes(
   batch: Map<string, Candidate>,
@@ -164,7 +174,8 @@ export async function recordOutcomes(
   reviewed: ReviewedStore,
   pegasus: Pick<PegasusMail, "get">,
   log: Logger,
-): Promise<void> {
+): Promise<Set<string>> {
+  const setAside = new Set<string>();
   for (const { detail } of batch.values()) {
     const messageId = detail.summary.id;
     const seen = fingerprint(detail.summary);
@@ -191,9 +202,11 @@ export async function recordOutcomes(
     const giveUp = attempts >= MaxFailedAttempts;
     await reviewed.set(messageId, { fingerprint: seen, outcome: giveUp ? "failed" : "retrying", attempts });
     if (giveUp) {
+      setAside.add(messageId);
       log("closed as failed: no accepted verdict in any attempt", { messageId, attempts, lastError });
     }
   }
+  return setAside;
 }
 
 /**
@@ -285,33 +298,75 @@ export async function runClassifier(log: Logger): Promise<RunSummary> {
     throw error;
   }
   try {
-    const collected = await collectBatch(config, pegasus, reviewed);
-    const { batch } = collected;
-    const hidden = await checkHidden(collected, reviewed, log);
-    if (batch.size === 0) {
-      if (hidden.ticks >= HiddenTicksToFail) {
-        return { eligible: 0, outcome: "failed: candidates hidden", costUsd: 0 };
-      }
-      log("nothing eligible");
-      return { eligible: 0, outcome: hidden.hidden ? "nothing eligible: candidates hidden" : "nothing eligible", costUsd: 0 };
+    // Production's own record of the run is kept whether or not it is a dry
+    // run: production's dry run is still production's run.
+    const recorder = new RunRecorder(
+      runFacts(config),
+      pegasus,
+      config.storageAccount ? TableRunStore.inAccount(config.storageAccount) : undefined,
+      log);
+    await recorder.open();
+    try {
+      return await sweep(config, pegasus, reviewed, recorder, log);
+    } catch (error) {
+      await recorder.close(failedRun(error));
+      throw error;
     }
-    log("eligible", { count: batch.size, dryRun: config.dryRun });
-
-    const outcomes = newOutcomes();
-    const server = createClassifierServer({ pegasus, batch, outcomes, dryRun: config.dryRun, log });
-    const result = await runAgent(config, server, batch.size, log);
-    let { outcome } = result;
-
-    // A completed run that decided nothing, with eligible mail and no refused
-    // or deferred write, is a failed run: the model did not read the batch (#1829).
-    if (result.completed && outcomes.verdicts.size === 0 && outcomes.failed.size === 0 && outcomes.deferred.size === 0) {
-      outcome = "failed: no verdicts";
-      log("failed", { reason: "the run completed without a verdict on any eligible e-mail", eligible: batch.size, summary: result.summary });
-    }
-
-    await recordOutcomes(batch, outcomes, result.completed, reviewed, pegasus, log);
-    return { eligible: batch.size, outcome, costUsd: result.costUsd };
   } finally {
     await pegasus.close();
   }
+}
+
+/** The sweep once Pegasus answers; every return closes the run's record. */
+async function sweep(
+  config: ClassifierConfig,
+  pegasus: PegasusMail,
+  reviewed: ReviewedStore,
+  recorder: RunRecorder,
+  log: Logger,
+): Promise<RunSummary> {
+  const collected = await collectBatch(config, pegasus, reviewed);
+  const { batch } = collected;
+  const hidden = await checkHidden(collected, reviewed, log);
+  const seen = { awaitingDecision: collected.awaitingDecisionCount, candidatesHidden: hidden.hidden, hiddenRuns: hidden.ticks };
+  if (batch.size === 0) {
+    if (hidden.ticks >= HiddenTicksToFail) {
+      return await ended(recorder, emptyRun("failed: candidates hidden", seen));
+    }
+    log("nothing eligible");
+    return await ended(recorder, emptyRun(hidden.hidden ? "nothing eligible: candidates hidden" : "nothing eligible", seen));
+  }
+  log("eligible", { count: batch.size, dryRun: config.dryRun });
+
+  const outcomes = newOutcomes();
+  const server = createClassifierServer({ pegasus, batch, outcomes, dryRun: config.dryRun, log });
+  const result = await runAgent(config, server, batch.size, log);
+  let { outcome } = result;
+
+  // A completed run that decided nothing, with eligible mail and no refused
+  // or deferred write, is a failed run: the model did not read the batch (#1829).
+  if (result.completed && outcomes.verdicts.size === 0 && outcomes.failed.size === 0 && outcomes.deferred.size === 0) {
+    outcome = "failed: no verdicts";
+    log("failed", { reason: "the run completed without a verdict on any eligible e-mail", eligible: batch.size, summary: result.summary });
+  }
+
+  const setAside = await recordOutcomes(batch, outcomes, result.completed, reviewed, pegasus, log);
+  return await ended(recorder, {
+    ...seen,
+    outcome,
+    eligible: batch.size,
+    verdicts: outcomes.verdicts.size,
+    failed: outcomes.failed.size,
+    deferred: outcomes.deferred.size,
+    turns: result.turns,
+    costUsd: result.costUsd,
+    ...(result.summary !== undefined ? { summary: result.summary } : {}),
+    items: buildItems(batch, outcomes, result.completed, setAside),
+  }, batch);
+}
+
+/** Closes the run's record and gives the run's summary, which the record's result matches. */
+async function ended(recorder: RunRecorder, ending: RunEnding, batch?: Map<string, Candidate>): Promise<RunSummary> {
+  await recorder.close(ending, batch);
+  return { eligible: ending.eligible, outcome: ending.outcome, costUsd: ending.costUsd };
 }

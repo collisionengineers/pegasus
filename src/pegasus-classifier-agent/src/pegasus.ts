@@ -178,6 +178,77 @@ export interface MailboxSearch {
   state: "available" | "unavailable";
 }
 
+/** What the run did with one message, as its record in Pegasus shows it. */
+export type RunAction =
+  | "classified" | "linked" | "case_created" | "one_off_case" | "triage_opened" | "query_opened"
+  | "left" | "left_for_staff" | "deferred" | "failed" | "set_aside" | "not_reached";
+
+/** One message of a run's batch, as pegasus_classifier_run_record takes it. */
+export interface RunItem {
+  messageId: string;
+  action: RunAction;
+  /** The mail category code the run gave the message, when it gave one. */
+  category?: string;
+  /** The Case linked or created, or the Triage opened, when known. */
+  caseId?: string;
+  caseReference?: string;
+  /** The model's reason for the act. */
+  reason?: string;
+  /** Pegasus's refusal, or why the message failed. */
+  refusal?: string;
+  /** When the act was, on the classifier's clock. */
+  at?: string;
+}
+
+/** How a run was set up; sent on both stages, so a close whose open was lost still makes the run. */
+export interface RunFacts {
+  dryRun: boolean;
+  model: string;
+  batch: number;
+  scanPages: number;
+  maxBudgetUsd: number;
+  agentVersion: string;
+}
+
+/** What a run came to, sent on close. */
+export interface RunResult {
+  /** runClassifier's RunSummary outcome. */
+  outcome: string;
+  eligible: number;
+  awaitingDecision: number;
+  candidatesHidden: boolean;
+  hiddenRuns: number;
+  verdicts: number;
+  failed: number;
+  deferred: number;
+  turns: number;
+  costUsd: number;
+  durationMs: number;
+  error?: string;
+  /** The model's closing summary. */
+  summary?: string;
+  items: RunItem[];
+}
+
+// A type, not an interface, so it passes as call's arguments.
+export type RunRecord = {
+  runId: string;
+  stage: "open" | "close";
+  operationKey: string;
+  facts: RunFacts;
+  result?: RunResult;
+};
+
+/** What pegasus_classifier_run_record answers. */
+export interface RunRecorded {
+  runId: string;
+  stage: string;
+  isReplay: boolean;
+  startedAtUtc: string;
+  finishedAtUtc: string | null;
+  correlationId: string;
+}
+
 const Scope = "automation.mail automation.intake";
 
 /**
@@ -325,6 +396,14 @@ export class PegasusMail {
     operationKey: string;
   }): Promise<MailDetail> {
     return this.call("pegasus_mail_link_case", args);
+  }
+
+  /**
+   * Records the run for the Administration page. Pegasus replays a stage by
+   * its key, so a repeated open or close changes nothing.
+   */
+  recordRun(args: RunRecord): Promise<RunRecorded> {
+    return this.call("pegasus_classifier_run_record", args);
   }
 
   private async call<T>(name: string, args: Record<string, unknown>): Promise<T> {
