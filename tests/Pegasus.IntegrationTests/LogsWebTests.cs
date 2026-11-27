@@ -33,6 +33,8 @@ public sealed class LogsWebTests
     [InlineData("ai_job_failed", "AI job failed")]
     [InlineData("principal_api_credential_issued", "Principal API credential issued")]
     [InlineData("SignInFailed", "Sign in failed")]
+    [InlineData(Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInEvent, OperatorLabels.DesktopSignIn.SignedInAction)]
+    [InlineData(Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInRefusedEvent, OperatorLabels.DesktopSignIn.RefusedAction)]
     public void AnActionCodeReadsAsWords(string code, string expected) =>
         Assert.Equal(expected, OperatorLabels.ActionLogAction(code));
 

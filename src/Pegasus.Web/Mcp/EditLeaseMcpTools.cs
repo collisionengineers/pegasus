@@ -50,6 +50,11 @@ internal sealed record EditLeaseReleaseToolResult(
 /// (operator, 8 October 2026). A single write needs none of this: a write tool
 /// given no token holds the lease for that one command
 /// (<see cref="Pegasus.Web.Presentation.OneCommandEdit"/>).
+/// <para>
+/// For a member of staff signed in from Pegasus Desktop the staff rules of
+/// FRD-14 apply instead: the call resumes a lease that person already holds,
+/// and a write made under a staff lease ends it, so a token carries one write.
+/// </para>
 /// </summary>
 [McpServerToolType]
 internal sealed class EditLeaseMcpTools(
@@ -58,6 +63,7 @@ internal sealed class EditLeaseMcpTools(
     IEditScopeLeases editScopes,
     IGetTriage getTriage,
     IImageIntakeQueries imageIntakes,
+    Pegasus.Web.Presentation.OneCommandEdit oneCommandEdit,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -90,16 +96,19 @@ internal sealed class EditLeaseMcpTools(
             "pegasus_edit_begin",
             AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(recordId, "record identifier");
                 if (kind == EditLeaseRecordKind.Case)
                 {
-                    var lease = takeOver
-                        ? await AskForCaseLeaseAsync(recordId, expectedVersion, context.Actor, normalizedKey, cancellationToken)
-                        : await caseLeases.ClaimAsync(
-                            new(recordId, expectedVersion, context.Actor, normalizedKey),
-                            cancellationToken);
+                    // A member of staff who already holds the Case is handed the lease they
+                    // hold, as their Case page is; nobody takes over their own lease.
+                    var lease = await oneCommandEdit.ResumeOwnCaseLeaseAsync(recordId, context.Actor, cancellationToken)
+                        ?? (takeOver
+                            ? await AskForCaseLeaseAsync(recordId, expectedVersion, context.Actor, normalizedKey, cancellationToken)
+                            : await caseLeases.ClaimAsync(
+                                new(recordId, expectedVersion, context.Actor, normalizedKey),
+                                cancellationToken));
                     return new EditLeaseToolResult(
                         kind.ToString(), recordId, null, lease.Token, lease.Holder, lease.Version,
                         lease.ExpiresAtUtc, normalizedKey);
@@ -145,7 +154,7 @@ internal sealed class EditLeaseMcpTools(
             "pegasus_edit_renew",
             AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(recordId, "record identifier");
                 var token = RequireToken(editLeaseToken);
@@ -194,7 +203,7 @@ internal sealed class EditLeaseMcpTools(
             "pegasus_edit_end",
             AutomationMcpAuditor.Resource(recordId),
             normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(recordId, "record identifier");
                 var token = RequireToken(editLeaseToken);

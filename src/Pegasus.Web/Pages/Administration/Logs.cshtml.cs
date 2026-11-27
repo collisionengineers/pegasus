@@ -490,7 +490,10 @@ public sealed class LogsModel(
 
     private static bool IsCaseReference(ActionLogRow row) =>
         string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(row.Area, "automation_mcp", StringComparison.Ordinal)
+        // A connector call is recorded in the Automation Actor's area, or in
+        // Pegasus Desktop's when it was made for a member of staff (R1300).
+        || row.Area is Pegasus.Web.Mcp.AutomationMcpAuditor.AutomationAggregateType
+            or Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType
         && row.Operation is
             "pegasus_case_get"
             or "pegasus_edit_begin"

@@ -28,6 +28,8 @@
   it moves the Case version under the lease, the holder's next save lands, and
   the page catches up with what changed.
 - Automatic processing never pretends to hold a staff lease.
+- A member of staff signed in from Pegasus Desktop follows the staff rules:
+  a call resumes the lease they already hold, and its write ends it.
 
 ## Purpose
 
@@ -145,6 +147,38 @@ command's own staff write is the expected outcome and is not a failure. Any
 other failed release never changes the command's outcome: it is logged as a
 Warning without the exception, and an authority still held lapses by itself
 (R523, 29 October 2026).
+
+**From Pegasus Desktop.** <a id="pegasus-desktop"></a> A member of staff
+signed in from Pegasus Desktop
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop);
+R1300) is that member of staff to every lease and scope: the staff rules of
+this document apply to their calls, never the Automation Actor's (26 November
+2026; built to the answer recommended to the operator, whose ruling is owed
+under issue #2166).
+
+- A call that needs the Case's lease resumes a live lease the person already
+  holds, as their Case page does in a second tab: the same token, renewed,
+  with nothing recorded and never a takeover of themselves.
+  `pegasus_edit_begin` hands back that same token. A call that finds the
+  Case free claims the lease for its one command and releases it afterwards.
+- While a colleague or the Automation Actor holds the Case the call is
+  refused. `pegasus_edit_begin` with `takeOver` asks a colleague to hand the
+  Case over and waits for the answer, as Ask to edit does; it offers no Take
+  over anyway and takes over no Automation lease, which stay with the Case
+  page.
+- A write under a staff lease ends it, as every staff change does. A token
+  from `pegasus_edit_begin` therefore carries one write, and the next write
+  resumes or claims again; an open Case page of theirs claims the next lease
+  as it does after any staff change made outside its own save. No call from
+  Pegasus Desktop is a Case save from the edit session, so none keeps the
+  lease.
+- A command that is refused under a lease it resumed leaves that lease as it
+  was: it was the person's session, not the command's to give back.
+- A Triage Case and an Image Intake record follow the record edit scope
+  rules for staff: the call resumes a scope the person holds, and its write
+  ends the scope.
+- Stopping the Automation client releases the Automation Actor's leases and
+  scopes only (R1303).
 
 **What goes in history.** A takeover, a deliberate recovery, and a refused or
 failed save that matters are permanent, attributable history. Routine

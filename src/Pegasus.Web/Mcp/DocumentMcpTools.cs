@@ -51,7 +51,10 @@ internal sealed record DocumentBatchDownloadToolResult(
 /// Automation Actor document tools (MCP-04): thin adapters over the same
 /// canonical case-document custody use cases as the staff app, guarded by the
 /// automation.documents scope. Retained content is provenance-labelled with
-/// the Automation document source; a mutation presents the case edit lease
+/// the Automation document source, which the context carries for the
+/// Automation Actor and for a member of staff signed in from Pegasus Desktop
+/// alike (<see cref="AutomationActorContext.DocumentSource"/>, R1302); a
+/// mutation presents the case edit lease
 /// and expected version like any staff save, or holds the lease for its one
 /// command when none is presented. A download hands the content back as
 /// native MCP content (<see cref="AutomationFileContent"/>) with the original
@@ -73,7 +76,6 @@ internal sealed class DocumentMcpTools(
     AutomationMcpAuditor auditor)
 {
     private const int MaximumBatchDocuments = 25;
-    private const string SourceIdentityPrefix = "automation:";
 
     [McpServerTool(
         Name = "pegasus_document_add",
@@ -114,16 +116,18 @@ internal sealed class DocumentMcpTools(
                     throw new McpException("The expected case version cannot be negative.");
                 }
 
+                var prefix = context.SourceIdentityPrefix;
                 var identity = sourceOccurrenceIdentity?.Trim();
                 if (string.IsNullOrEmpty(identity))
                 {
-                    identity = SourceIdentityPrefix + normalizedKey;
+                    identity = prefix + normalizedKey;
                 }
-                else if (!identity.StartsWith(SourceIdentityPrefix, StringComparison.Ordinal)
-                    || identity.Length is <= 11 or > 512)
+                else if (!identity.StartsWith(prefix, StringComparison.Ordinal)
+                    || identity.Length <= prefix.Length
+                    || identity.Length > 512)
                 {
                     throw new McpException(
-                        "The source occurrence identity must start with 'automation:' and be at most 512 characters.");
+                        $"The source occurrence identity must start with '{prefix}' and be at most 512 characters.");
                 }
 
                 var content = await DocumentUploadMcpTools.ReadContentAsync(
@@ -146,7 +150,7 @@ internal sealed class DocumentMcpTools(
                             safeMediaType,
                             content,
                             parsedRole,
-                            DocumentSource.Automation,
+                            context.DocumentSource,
                             identity,
                             context.Actor,
                             normalizedKey,
@@ -191,7 +195,7 @@ internal sealed class DocumentMcpTools(
             "pegasus_document_download",
             AutomationMcpAuditor.Resource(caseId),
             operationKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 AutomationMcpErrors.RequireId(occurrenceId, "occurrence identifier");
@@ -251,7 +255,7 @@ internal sealed class DocumentMcpTools(
             "pegasus_document_download_batch",
             AutomationMcpAuditor.Resource(caseId),
             operationKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(caseId, "case identifier");
                 if (documents is null || documents.Count is < 1 or > MaximumBatchDocuments)

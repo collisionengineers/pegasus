@@ -116,6 +116,47 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// What the assistant in Pegasus Desktop files under a member of staff's
+    /// name only proposes (R1302): an import marked to await use and a typed
+    /// AI draft are recorded as that person's and stay Drafts, where the same
+    /// person's own import or typed estimate is in use at once.
+    /// </summary>
+    [Fact]
+    public async Task AnImportMarkedToAwaitUseAndAnAiDraftStayDraftsUnderAMemberOfStaffsName()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("awaits-use-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+
+        var importLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "awaits-use-lease-import");
+        var imported = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "awaits-use-import", ImportRawEstimate.ImportReason,
+                importLease.Token, null, new("Glass's 1", 40m, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:awaits-use", parsed.SourceVersion, hash))
+            {
+                AwaitsUse = true
+            },
+            CancellationToken.None);
+        Assert.False(imported.IsCurrent);
+        Assert.Equal(engineer.SubjectId, imported.CreatedBy);
+
+        var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "awaits-use-lease-typed");
+        var typed = await new SaveEstimate(harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock)).ExecuteAsync(
+            new(caseId, typedLease.Version, engineer, "awaits-use-typed", "Typed in by the assistant.",
+                typedLease.Token, null, new("Typed", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
+                new(RepairSpecificationSourceRoute.AiDraft, null, null, null)),
+            CancellationToken.None);
+        Assert.False(typed.IsCurrent);
+        Assert.Equal(RepairSpecificationSourceRoute.AiDraft, typed.Source.Route);
+        Assert.Equal(engineer.SubjectId, typed.CreatedBy);
+    }
+
+    /// <summary>
     /// Discard deletes the lines and the numbered versions by one statement
     /// each, in the open transaction, and reads neither: no command selects
     /// the lines or a version's JSON. A Current spec is refused before any

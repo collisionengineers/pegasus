@@ -2,7 +2,6 @@ using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Identity;
 
 namespace Pegasus.Web.Mcp;
 
@@ -27,9 +26,11 @@ internal sealed record UploadPartToolResult(
 /// <c>pegasus_document_add</c> or <c>pegasus_ai_job_complete_market_research</c>
 /// (operator, 22 October 2026, R203): staging is adapter mechanics, so a
 /// success writes no history row and only a refusal is appended. The upload
-/// belongs to the Automation client, not the grant, so a part staged under
-/// one grant is used under another of the same client. Results
-/// carry counters and identifiers, never content.
+/// belongs to whoever the call is made for
+/// (<see cref="AutomationActorContext.UploadOwner"/>): the Automation client,
+/// not the grant, so a part staged under one grant is used under another of
+/// the same client; or the member of staff signed in from Pegasus Desktop.
+/// Results carry counters and identifiers, never content.
 /// </summary>
 [McpServerToolType]
 internal sealed class DocumentUploadMcpTools(
@@ -58,17 +59,17 @@ internal sealed class DocumentUploadMcpTools(
         var key = AutomationMcpErrors.RequireOperationKey(operationKey);
         var uploadId = AutomationMcpErrors.DeriveOperationGuid(
             UploadPurpose,
-            ActionActor.Automation(context.ClientId),
+            context.UploadActor,
             key);
         return await auditor.RecordDenialAsync(
             context,
             "pegasus_upload_begin",
             uploadId.ToString("D"),
             key,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 var ticket = await uploads.ExecuteAsync(
-                    new BeginDocumentUploadRequest(uploadId, context.ClientId, totalBytes, sha256),
+                    new BeginDocumentUploadRequest(uploadId, context.UploadOwner, totalBytes, sha256),
                     cancellationToken);
                 return new UploadBeginToolResult(
                     ticket.UploadId,
@@ -104,7 +105,7 @@ internal sealed class DocumentUploadMcpTools(
             "pegasus_upload_part",
             AutomationMcpAuditor.Resource(uploadId),
             null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
+            () => AutomationMcpErrors.ExecuteAsync(context, async () =>
             {
                 AutomationMcpErrors.RequireId(uploadId, "upload identifier");
                 var content = AutomationMcpErrors.DecodeContent(
@@ -112,7 +113,7 @@ internal sealed class DocumentUploadMcpTools(
                     DocumentUploadLimits.PartBytes,
                     "The part content");
                 var receipt = await uploads.ExecuteAsync(
-                    new AppendDocumentUploadPartRequest(uploadId, context.ClientId, partNumber, content, sha256),
+                    new AppendDocumentUploadPartRequest(uploadId, context.UploadOwner, partNumber, content, sha256),
                     cancellationToken);
                 return new UploadPartToolResult(
                     receipt.UploadId,
@@ -151,7 +152,7 @@ internal sealed class DocumentUploadMcpTools(
         }
 
         AutomationMcpErrors.RequireId(staged, "upload identifier");
-        var opened = await uploads.ExecuteAsync(new OpenDocumentUploadRequest(staged, context.ClientId), cancellationToken);
+        var opened = await uploads.ExecuteAsync(new OpenDocumentUploadRequest(staged, context.UploadOwner), cancellationToken);
         return opened.Content;
     }
 }

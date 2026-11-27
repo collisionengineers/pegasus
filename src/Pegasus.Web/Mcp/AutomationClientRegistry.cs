@@ -35,6 +35,10 @@ public sealed class AutomationClientRegistry(
     /// <summary>The action-history area of a Pegasus Desktop sign-in decision.</summary>
     public const string DesktopAggregateType = "pegasus_desktop";
 
+    /// <summary>The history codes of the two decisions on the Pegasus Desktop sign-in page.</summary>
+    public const string DesktopSignInEvent = "desktop_sign_in";
+    public const string DesktopSignInRefusedEvent = "desktop_sign_in_refused";
+
     private string EnabledCacheKey => $"automation-mcp:enabled:{options.ClientId}";
 
     private string EnsuredCacheKey => $"automation-mcp:ensured:{options.ClientId}";
@@ -317,7 +321,7 @@ public sealed class AutomationClientRegistry(
                 Guid.NewGuid(),
                 DesktopAggregateType,
                 grantId,
-                approved ? "desktop_sign_in" : "desktop_sign_in_refused",
+                approved ? DesktopSignInEvent : DesktopSignInRefusedEvent,
                 actor,
                 timeProvider.GetUtcNow(),
                 approved ? "Succeeded" : "Denied",

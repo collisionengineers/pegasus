@@ -77,7 +77,8 @@ public sealed partial class AutomationToolScopeTableTests
         ];
         Assert.Equal(mailTools, Listed(AutomationMcp.MailScope));
         var casesAndDocuments = Listed(AutomationMcp.CasesScope, AutomationMcp.DocumentsScope);
-        Assert.Equal(27, casesAndDocuments.Length);
+        Assert.Equal(28, casesAndDocuments.Length);
+        Assert.Contains("pegasus_session_get", casesAndDocuments);
         Assert.Contains("pegasus_edit_begin", casesAndDocuments);
         var intakeTools = Listed(AutomationMcp.IntakeScope);
         Assert.Contains("pegasus_edit_begin", intakeTools);

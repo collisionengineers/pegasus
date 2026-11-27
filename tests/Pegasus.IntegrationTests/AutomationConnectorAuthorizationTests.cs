@@ -258,6 +258,7 @@ public sealed class AutomationConnectorAuthorizationTests
             "pegasus_report_list",
             "pegasus_report_wording_get",
             "pegasus_report_wording_save",
+            "pegasus_session_get",
             "pegasus_upload_begin",
             "pegasus_upload_part",
             "pegasus_vocabulary_get",
@@ -371,7 +372,7 @@ public sealed class AutomationConnectorAuthorizationTests
             var names = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
                 .Select(tool => tool.GetProperty("name").GetString())
                 .ToArray();
-            Assert.Equal(15, names.Length);
+            Assert.Equal(16, names.Length);
             Assert.Contains("pegasus_case_search", names);
             Assert.DoesNotContain("pegasus_mail_send", names);
             Assert.DoesNotContain("pegasus_report_send", names);

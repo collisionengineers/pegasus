@@ -49,6 +49,11 @@ a staff member types in, imports or brings back from Glass's becomes Current
 when it is created (operator, 25 September 2026). The one it replaces stays
 in the list, and **Use repair spec** switches back to it. An AI draft only
 proposes: it stays a Draft until a staff member presses **Use repair spec**.
+That holds whoever the draft is recorded under: what the assistant in Pegasus
+Desktop types in or imports for a member of staff is recorded as theirs,
+typed as an AI draft, and stays a Draft the same way (operator, 26 November
+2026; [R1302](../rulings.md);
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop)).
 The Automation Actor may edit any live spec in place, the Current one
 included, but never puts a spec in use (operator, 7 October 2026;
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)).
@@ -125,7 +130,8 @@ sent ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
-spec; an automation import through MCP stays a Draft.
+spec; an import through MCP stays a Draft, for the Automation Actor and for a
+member of staff signed in from Pegasus Desktop alike ([R1302](../rulings.md)).
 
 **An import fills an empty VIN.** The VIN a Glass's export or calculation
 sheet, or an Audatex report, names fills the Case's VIN in the import's

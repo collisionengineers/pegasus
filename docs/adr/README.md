@@ -34,7 +34,7 @@ Records whose status is superseded live in `superseded/` with their IDs unchange
 | [ADR-0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | accepted | ADR-0078 (intermediary identities clause) | — |
 | [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | accepted | ADR-0025 | — |
 | [ADR-0010](superseded/0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | superseded | — | — |
-| [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | — | — |
+| [ADR-0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | accepted | ADR-0092 (staff through Pegasus Desktop) | — |
 | [ADR-0012](superseded/0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | superseded | — | — |
 | [ADR-0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | accepted | ADR-0029 | — |
 | [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | ADR-0088 (the no-test-environment clause) | — |
