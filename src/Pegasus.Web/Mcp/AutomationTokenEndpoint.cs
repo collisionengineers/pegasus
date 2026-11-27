@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Authentication;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Pegasus.Web.Mcp;
@@ -21,6 +22,11 @@ namespace Pegasus.Web.Mcp;
 /// tool authorization treat connector tokens exactly like client-credentials
 /// tokens. Routine successful issuance stays content-safe telemetry; denials
 /// write security events.
+/// <para>
+/// Pegasus Desktop's client is the one exception (ADR-0092): its code and its
+/// refresh token name the member of staff who signed in, and each exchange
+/// reads that account again before a token is issued.
+/// </para>
 /// </summary>
 internal static class AutomationTokenEndpoint
 {
@@ -46,6 +52,19 @@ internal static class AutomationTokenEndpoint
         var clientId = request.ClientId
             ?? throw new InvalidOperationException(
                 "The authenticated token request is missing its client identifier.");
+        if (registry.IsDesktop(clientId))
+        {
+            return connectorGrant
+                ? await ExchangeDesktopAsync(
+                    httpContext,
+                    request.IsRefreshTokenGrantType(),
+                    timeProvider,
+                    cancellationToken)
+                : Forbid(
+                    Errors.UnauthorizedClient,
+                    "Only the authorization-code and refresh-token grants are permitted for this client.");
+        }
+
         if (!await registry.IsEnabledAsync(clientId, cancellationToken))
         {
             await securityEvents.AppendAsync(
@@ -100,6 +119,64 @@ internal static class AutomationTokenEndpoint
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    /// <summary>
+    /// A Pegasus Desktop code or refresh token becomes tokens only while the
+    /// account it names could still sign in to Pegasus: enabled, holding a
+    /// staff role, not waiting on a password change, and with the security
+    /// stamp it had at the sign-in. A disable, a role change, a password
+    /// reset and a forced sign-out each move the stamp, so each ends the
+    /// sign-in here (R1298). The transport records the refusal.
+    /// </summary>
+    private static async Task<IResult> ExchangeDesktopAsync(
+        HttpContext httpContext,
+        bool renewal,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        var granted = await httpContext.AuthenticateAsync(
+            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var principal = granted.Principal;
+        var grantId = principal?.GetClaim(AutomationMcp.GrantIdentityClaim);
+        if (principal is null
+            || !DesktopPrincipal.IsDesktop(principal)
+            || string.IsNullOrWhiteSpace(grantId)
+            || !Guid.TryParse(principal.GetClaim(Claims.Subject), out var staffId))
+        {
+            return Forbid(Errors.InvalidGrant, "The authorization is no longer valid.");
+        }
+
+        var account = await StaffAccountReader.ReadAsync(
+            httpContext.RequestServices, staffId, cancellationToken);
+        var stamp = principal.GetClaim(AutomationMcp.StaffStampClaim);
+        if (account is not { IsEnabled: true, MustChangePassword: false, Role: not null }
+            || string.IsNullOrEmpty(stamp)
+            || !StaffPrincipalValidator.StampMatches(account.SecurityStamp, stamp))
+        {
+            return Forbid(Errors.InvalidGrant, "The authorization is no longer valid.");
+        }
+
+        var issued = DesktopPrincipal.Create(staffId, stamp, grantId, principal.GetScopes());
+        if (renewal && principal.GetExpirationDate() is { } signInEnds)
+        {
+            // A renewed refresh token keeps the sign-in's end, and the access
+            // token issued with it does not outlive it.
+            var remaining = signInEnds - timeProvider.GetUtcNow();
+            if (remaining <= TimeSpan.Zero)
+            {
+                return Forbid(Errors.InvalidGrant, "The authorization is no longer valid.");
+            }
+            if (remaining < AutomationMcp.AccessTokenLifetime)
+            {
+                issued.SetAccessTokenLifetime(remaining);
+            }
+        }
+
+        return Results.SignIn(
+            issued,
+            properties: null,
+            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    }
+
     private static IResult Forbid(string error, string description) =>
         Results.Forbid(
             new AuthenticationProperties(new Dictionary<string, string?>
@@ -135,4 +212,49 @@ internal static class AutomationPrincipal
         identity.SetDestinations(_ => [Destinations.AccessToken]);
         return new ClaimsPrincipal(identity);
     }
+}
+
+/// <summary>
+/// The principal a Pegasus Desktop sign-in issues (ADR-0092): subject is the
+/// member of staff's id, never a client id; its grant is the sign-in's own
+/// identity; and it carries the account's security stamp, which every later
+/// check compares with the account. Audience and destinations are the
+/// Automation principal's. Its refresh token lasts
+/// <see cref="AutomationMcp.DesktopSignInLifetime"/> from the sign-in, and
+/// because the server's refresh tokens do not slide, a renewal keeps that end.
+/// </summary>
+internal static class DesktopPrincipal
+{
+    public static ClaimsPrincipal Create(
+        Guid staffId,
+        string securityStamp,
+        string grantId,
+        IEnumerable<string> scopes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(securityStamp);
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantId);
+        var identity = new ClaimsIdentity(
+            TokenValidationParameters.DefaultAuthenticationType,
+            Claims.Name,
+            Claims.Role);
+        identity.SetClaim(Claims.Subject, staffId.ToString("D"));
+        identity.SetClaim(AutomationMcp.GrantIdentityClaim, grantId);
+        identity.SetClaim(AutomationMcp.StaffStampClaim, securityStamp);
+        identity.SetScopes(scopes);
+        identity.SetResources(AutomationMcp.Audience);
+        identity.SetDestinations(_ => [Destinations.AccessToken]);
+        var principal = new ClaimsPrincipal(identity);
+        principal.SetRefreshTokenLifetime(AutomationMcp.DesktopSignInLifetime);
+        return principal;
+    }
+
+    /// <summary>The identity of one sign-in, kept across its renewals.</summary>
+    public static string NewGrantId() => $"desktop:{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// Whether a validated principal came from a Pegasus Desktop sign-in:
+    /// only its tokens carry the member of staff's security stamp.
+    /// </summary>
+    public static bool IsDesktop(ClaimsPrincipal principal) =>
+        principal.HasClaim(claim => claim.Type == AutomationMcp.StaffStampClaim);
 }

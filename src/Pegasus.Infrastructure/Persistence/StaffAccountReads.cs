@@ -5,7 +5,8 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The staff cookie check's account read, the staff display names, the eligible
+/// The account read the staff cookie check and the Pegasus Desktop token check
+/// share (the Web's <c>StaffAccountReader</c>), the staff display names, the eligible
 /// sign-off Engineer list and each sign-off Engineer's signature, each kept in
 /// <see cref="IMemoryCache"/> through <see cref="EvictableCacheEntry"/> for
 /// <see cref="StaffSessionPolicy.AccountReadLifetime"/>. Every account writer in
@@ -168,5 +169,13 @@ public sealed class StaffAccountReads(IMemoryCache cache)
     }
 }
 
-/// <summary>The account fields the staff cookie check needs.</summary>
-public sealed record StaffAccountRead(string? SecurityStamp, bool IsEnabled, bool MustChangePassword);
+/// <summary>
+/// The account fields the staff cookie check and the Pegasus Desktop token
+/// check need (ADR-0092). <paramref name="Role"/> is null for an account that
+/// does not hold exactly one staff role, which is no member of staff.
+/// </summary>
+public sealed record StaffAccountRead(
+    string? SecurityStamp,
+    bool IsEnabled,
+    bool MustChangePassword,
+    StaffRole? Role);

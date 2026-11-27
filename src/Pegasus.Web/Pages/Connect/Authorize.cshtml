@@ -3,12 +3,29 @@
 @{
     // The consent screen is not a place in the application: the navless card
     // frame (v26 shell mockup, Pages/Connect/Authorize), wide for the scope list.
+    // Pegasus Desktop's sign-in is the same frame's ordinary card (ADR-0092).
     Layout = "_LayoutAuth";
-    ViewData["Title"] = "Authorise an automation connector";
-    ViewData["AuthCardClass"] = "auth-card--wide consent-card";
+    if (Model.IsDesktopSignIn)
+    {
+        ViewData["Title"] = OperatorLabels.DesktopSignIn.Title;
+    }
+    else
+    {
+        ViewData["Title"] = "Authorise an automation connector";
+        ViewData["AuthCardClass"] = "auth-card--wide consent-card";
+    }
 }
 @section Styles {
-    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    @if (!Model.IsDesktopSignIn)
+    {
+        <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    }
+}
+
+@if (Model.IsDesktopSignIn)
+{
+    <partial name="_DesktopSignIn" model="Model" />
+    return;
 }
 
 <p class="eyebrow">Administration</p>

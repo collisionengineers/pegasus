@@ -269,6 +269,21 @@ public static partial class OperatorLabels
         }
     }
 
+    /// <summary>
+    /// The Pegasus Desktop sign-in page (ADR-0092), in the operator's words
+    /// (26 November 2026; R1299).
+    /// </summary>
+    public static class DesktopSignIn
+    {
+        /// <summary>The page's title and its heading.</summary>
+        public const string Title = "Sign in to Pegasus Desktop";
+        public const string Sentence =
+            "Pegasus Desktop will act in Pegasus as you. Everything it does is recorded under your name.";
+        public const string SignedInAs = "Signed in as";
+        public const string SignIn = "Sign in";
+        public const string Refuse = "Refuse";
+    }
+
     /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {

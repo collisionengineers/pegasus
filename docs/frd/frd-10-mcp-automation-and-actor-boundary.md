@@ -42,6 +42,14 @@ items by exact U-reference through the same Core command as staff
 
 **One Actor.** MCP is a management and development controlled entry point for
 one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access.
+A member of staff may sign in from Pegasus Desktop
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-role-access-matrix);
+operator, 24 and 26 November 2026; R1237, R1297;
+[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). The token that
+sign-in issues names the member of staff and is never read as the Actor, and
+no tool acts for a member of staff yet: every tool and both content routes
+refuse it and record `desktop_access_denied`, which does not count as
+Automation activity.
 The Actor calls only its approved list of ordinary Core actions, with its own
 authentication, identity and permanent history for casework, lease claims and
 releases, takeovers and refusals; routine lease renewal, job polling and
@@ -70,7 +78,10 @@ refusal the Refuse button records (R548). An approved scope never grants
 human staff authority. Code exchange and refresh keep the grant. An expired
 or wrong-audience credential fails before any tool runs; an issued token is
 not revoked but lapses at the end of its own lifetime, and stopping the
-Automation client is the emergency control (R1045). Production signing and
+Automation client is the emergency control (R1045). Pegasus Desktop's client
+alone may revoke its own refresh token, which is how the application signs
+out (R1298); the Stop switch is the Automation client's and does not act on
+it. Production signing and
 encryption use separate persistent certificate purposes with a rotation
 overlap, so a restart or replica change does not invalidate valid tokens.
 Missing production keys fail closed.

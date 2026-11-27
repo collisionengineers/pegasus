@@ -183,6 +183,18 @@ PhotoCapture__PublicOrigin=https://<host>.<tailnet>.ts.net:8443/
 instance prints open from a phone off the tailnet (R785); the three capture
 paths are Funnelled in section 3 before the line goes in.
 
+For sign-in from Pegasus Desktop (R1297,
+[ADR-0092](../../../docs/adr/0092-staff-sign-in-for-pegasus-desktop.md)), when
+the operator turns it on there, also append:
+
+```text
+AutomationMcp__DesktopRedirectUris=http://127.0.0.1/callback
+```
+
+It is not a secret. The address names no port, so the application may listen
+on whichever of its ports is free; without the line the instance has no
+Pegasus Desktop client, as production has none.
+
 For OCR of scanned pages (R931), once the OCR role assignment in Approvals
 exists and the Graph lines are in, also append:
 

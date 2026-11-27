@@ -1212,6 +1212,9 @@ public static partial class OperatorLabels
     {
         "ai_job" => "AI job",
         "automation_mcp" => "Automation",
+        // The product's own name, for a sign-in decision made on its page (ADR-0092).
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType =>
+            Pegasus.Web.Mcp.AutomationMcp.DesktopClientDisplayName,
         "email_template" => EmailTemplates.ActionLogArea,
         "staff_account" => "Staff account",
         "Security" => "Security",

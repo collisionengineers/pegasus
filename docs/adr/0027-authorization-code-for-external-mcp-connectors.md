@@ -3,7 +3,7 @@ id: ADR-0027
 status: accepted
 date: 2026-08-18
 supersedes: []
-superseded_by: [ADR-0041, ADR-0087]
+superseded_by: [ADR-0041, ADR-0087, ADR-0092]
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-06]
 related_frd: [frd-10]
 tags: [mcp, automation, oauth]
@@ -26,7 +26,11 @@ This record is replaced in part:
   decision 4 (29 October 2026, R548): the Administrator approves each
   requested scope with a tick box rather than approving or refusing the
   requested scopes as a whole, the code holds the scopes left ticked, and
-  approving none is the refusal.
+  approving none is the refusal;
+- by [ADR-0092](0092-staff-sign-in-for-pegasus-desktop.md) (26 November 2026,
+  R1237, R1297): "per-staff MCP tokens remain excluded" no longer holds for
+  one client, Pegasus Desktop, whose tokens name the member of staff who
+  signed in. The Automation client's tokens still name the Automation Actor.
 
 Every other clause stands.
 

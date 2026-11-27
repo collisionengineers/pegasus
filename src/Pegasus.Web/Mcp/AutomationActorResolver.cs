@@ -14,7 +14,8 @@ internal sealed record AutomationActorContext(
 /// <summary>
 /// Resolves the authenticated Automation client principal into the Core
 /// Automation actor before any tool touches a use case. Fails closed on a
-/// missing principal, a disabled registration (the immediate kill switch),
+/// missing principal, a Pegasus Desktop token (which names a member of staff,
+/// not the Automation Actor), a disabled registration (the immediate kill switch),
 /// or a token that lacks the tool's per-area scope, writing an attributable
 /// security event for every material denial. A tool's scope is read from
 /// <see cref="AutomationToolScopes"/>, the table the tools/list filter reads.
@@ -65,6 +66,29 @@ internal sealed class AutomationActorResolver(
             throw new McpException("The automation authorization is not valid.");
         }
 
+        if (DesktopPrincipal.IsDesktop(principal))
+        {
+            // A Pegasus Desktop token names a member of staff, and nothing
+            // here acts as one yet (ADR-0092): it is refused, never read as
+            // the Automation Actor. The reason code is not an automation_
+            // one, so the refusal does not count as Automation activity.
+            var securityEvent = new SecurityEvent(
+                Guid.NewGuid(),
+                SecurityEventType.Token,
+                SecurityEventOutcome.Denied,
+                clientId,
+                timeProvider.GetUtcNow(),
+                httpContext.TraceIdentifier,
+                AutomationMcp.DesktopAccessDenied);
+            await securityEvents.AppendAsync(
+                Guid.TryParse(clientId, out _)
+                    ? securityEvent.By(ActorKind.Staff, clientId)
+                    : securityEvent,
+                cancellationToken);
+            httpContext.Items[AutomationMcp.RefusalRecordedItem] = true;
+            throw new McpException("The automation authorization is not valid.");
+        }
+
         if (!await registry.IsEnabledAsync(clientId, cancellationToken))
         {
             await DenyAsync(
@@ -74,7 +98,7 @@ internal sealed class AutomationActorResolver(
                 ActionActor.Automation(clientId),
                 "automation_client_disabled",
                 cancellationToken);
-            httpContext.Items[AutomationMcp.ClientDisabledRecordedItem] = true;
+            httpContext.Items[AutomationMcp.RefusalRecordedItem] = true;
             throw new McpException("The Automation client registration is disabled.");
         }
 
