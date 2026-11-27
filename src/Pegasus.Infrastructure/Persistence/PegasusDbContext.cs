@@ -1170,6 +1170,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         StaffNotificationModelConfiguration.Configure(builder);
         ReleaseNoteModelConfiguration.Configure(builder);
         ProblemReportModelConfiguration.Configure(builder);
+        ClassifierRunModelConfiguration.Configure(builder);
         EmailTemplateModelConfiguration.Configure(builder);
         WorkCentreDismissalModelConfiguration.Configure(builder);
         GuideValuationFetchModelConfiguration.Configure(builder);

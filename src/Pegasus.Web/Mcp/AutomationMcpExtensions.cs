@@ -190,6 +190,7 @@ public static class AutomationMcpExtensions
             .WithTools<ReportPreparationMcpTools>()
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
+            .WithTools<ClassifierRunMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
             .WithTools<ImageIntakeMcpTools>()
             .WithTools<UploadGroupMcpTools>()

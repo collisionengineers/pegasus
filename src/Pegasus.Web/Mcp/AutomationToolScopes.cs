@@ -113,7 +113,8 @@ internal static class AutomationToolScopes
             "pegasus_mail_attachment_text",
             "pegasus_mail_photo_registrations",
             "pegasus_mail_mailbox_search",
-            "pegasus_old_system_folder_search"
+            "pegasus_old_system_folder_search",
+            "pegasus_classifier_run_record"
         ]),
         (AutomationMcp.JobsScope,
         [

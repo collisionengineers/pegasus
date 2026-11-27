@@ -63,6 +63,7 @@ public sealed partial class AutomationToolScopeTableTests
     {
         string[] mailTools =
         [
+            "pegasus_classifier_run_record",
             "pegasus_mail_action",
             "pegasus_mail_attachment_text",
             "pegasus_mail_correct_classification",

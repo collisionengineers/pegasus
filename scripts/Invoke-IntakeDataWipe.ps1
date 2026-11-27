@@ -44,6 +44,7 @@ $wipeTables = @(
     'CaseRepairSpecificationSnapshots', 'CaseRepairSpecifications',
     'CaseReportApprovals', 'CaseReportGenerations', 'CaseReportSentEvidence', 'CaseReportWordings',
     'CaseTasks', 'CaseValuations', 'CaseWorkflowEvents', 'CaseWorkflows', 'CaseWorks', 'Cases',
+    'ClassifierRunItems', 'ClassifierRuns',
     'DocumentContentCacheEntries', 'DocumentOccurrenceTags', 'DocumentOccurrences', 'DocumentVersions',
     'EditScopes', 'EmailResponseEvidence', 'ExternalWorkItems', 'GeneratedCaseArtifacts',
     'GlassRepairEstimateSessions', 'GuideValuationFetches',
