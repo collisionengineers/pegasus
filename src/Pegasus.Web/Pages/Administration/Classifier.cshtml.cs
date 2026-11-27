@@ -102,7 +102,6 @@ public sealed class ClassifierModel(
                     runId,
                     Day,
                     cancellationToken);
-            }
                 DetailMessage = Detail is null ? OperatorLabels.ClassifierRuns.RunNotFound : null;
             }
             catch (ProductionClassifierRunsUnavailableException)
