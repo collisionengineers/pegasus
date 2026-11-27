@@ -41,6 +41,12 @@ namespace Pegasus.Infrastructure.Assessment;
 /// basis rejects the import. Paint time is paint hours, and the printed
 /// "Total Paint And Material Cost" lands on the first paint line.
 ///
+/// The same heading rows print the rate per hour ("Price = £103.06/HR").
+/// The LABOUR heading's rate, or PAINT WORK's when LABOUR prints none, is
+/// returned as <see cref="ParsedEstimate.LabourRate"/>; it only picks the
+/// labour-rate card a new spec starts on (R1328), and a rate that is absent
+/// or unreadable is none, never a refusal.
+///
 /// Those same printed totals are returned as
 /// <see cref="ParsedEstimate.SourceTotals"/>, the parts total being Total
 /// Parts when the footer prints it. They are the document's own
@@ -238,6 +244,9 @@ internal static class AudatexEstimatePdfParser
         /// <summary>The work units to the hour its heading prints; labour and paint only.</summary>
         public int? UnitsPerHour { get; set; }
 
+        /// <summary>The rate per hour its heading prints, when readable; labour and paint only.</summary>
+        public decimal? RatePerHour { get; set; }
+
         public List<EstimateLineInput> Lines { get; } = [];
 
         public List<decimal> Values { get; } = [];
@@ -375,7 +384,8 @@ internal static class AudatexEstimatePdfParser
                     PaintWorkUnits: InHours(Section.Paint, sections[Section.Paint].PrintedTotal),
                     Materials: paintMaterials,
                     Specialist: sections[Section.Extras].PrintedTotal),
-                Discounts: discounts);
+                Discounts: discounts,
+                LabourRate: sections[Section.Labour].RatePerHour ?? sections[Section.Paint].RatePerHour);
         }
 
         /// <summary>
@@ -577,6 +587,43 @@ internal static class AudatexEstimatePdfParser
         }
 
         /// <summary>
+        /// "Price = £103.06/HR" on a LABOUR or PAINT WORK heading row: the
+        /// words from "Price" on are read with their spaces removed, so the
+        /// figure reads whether it prints as one word or several, with or
+        /// without a thousands comma. Anything else is no rate.
+        /// </summary>
+        private static decimal? ReadRatePerHour(VisualRow row)
+        {
+            const string label = "Price=";
+            const string perHour = "/HR";
+            var start = -1;
+            for (var index = 0; index < row.Words.Count; index++)
+            {
+                if (row.Words[index].Text.StartsWith("Price", StringComparison.Ordinal))
+                {
+                    start = index;
+                    break;
+                }
+            }
+            if (start < 0)
+            {
+                return null;
+            }
+
+            var joined = string.Concat(row.Words.Skip(start).Select(word => word.Text));
+            var end = joined.IndexOf(perHour, StringComparison.Ordinal);
+            if (!joined.StartsWith(label, StringComparison.Ordinal) || end < label.Length)
+            {
+                return null;
+            }
+            var figure = joined[label.Length..end].TrimStart('£').Replace(",", "", StringComparison.Ordinal);
+            return decimal.TryParse(figure, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var rate)
+                && rate > 0m
+                ? rate
+                : null;
+        }
+
+        /// <summary>
         /// A section that produced lines must carry the document's own total
         /// for those lines, and the parsed values must reproduce it exactly.
         /// </summary>
@@ -660,6 +707,10 @@ internal static class AudatexEstimatePdfParser
             if (target is Section.Labour or Section.Paint && ReadTimeBasis(row) is { } unitsPerHour)
             {
                 sections[target].UnitsPerHour = unitsPerHour;
+            }
+            if (target is Section.Labour or Section.Paint && ReadRatePerHour(row) is { } ratePerHour)
+            {
+                sections[target].RatePerHour = ratePerHour;
             }
             return true;
         }

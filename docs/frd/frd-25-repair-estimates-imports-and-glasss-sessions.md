@@ -13,7 +13,8 @@
 - A Glass's estimate belongs to its repair spec. **Glass's** on that spec
   reopens the same estimate, and its saved return updates that spec. On any
   other spec it starts a new estimate.
-- An imported spec takes the Standard labour-rate card. AI and
+- An imported spec takes the labour rate its document prints: the card at
+  that rate, or that card with the regional uplift, or Custom (R1328). AI and
   automation material stays a Draft until a staff member presses
   **Use repair spec**.
 - An import is keyed by Case plus source hash. The same hash replays the same
@@ -192,10 +193,17 @@ export and the calculation PDF land the same spec:
   2026) is imported and noted on the first line with room, beside Glass's
   net. It changes no line and no total.
 
-**Labour rate on a new spec.** A new repair spec — imported, returned from
-Glass's, or started with **New repair spec** — takes the Standard
-labour-rate card (operator, 13 October 2026). The staff member can change it.
-A source document's own rate never picks the card.
+**Labour rate on a new spec.** A spec started with **New repair spec** takes
+the Standard labour-rate card (operator, 13 October 2026). A new spec an
+import creates — a dropped or filed estimate, or a Glass's return that starts
+one — takes the rate its document prints (operator, 27 November 2026, R1328):
+the panel or labour rate per hour, never the paint rate when the two differ.
+If that is a card's rate, the spec takes the card, Standard before
+Prestige/Aluminium. If it is a card's rate plus the 15 % regional uplift, to
+the penny, the spec takes that card with the uplift ticked. Otherwise it is
+Custom at the printed rate. A document that prints no rate starts on Standard.
+A return or import that updates an existing spec keeps that spec's rate. The
+staff member can change the rate.
 
 **The labour rate bar (v38 P5, operator, 12 October 2026).** The rate stands
 in a bar under the grid: Standard, then Prestige/Aluminium, and a Custom ·

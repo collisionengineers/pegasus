@@ -98,6 +98,8 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Equal(43.18m, parsed.SourceTotals.Vat);
         Assert.Equal(259.08m, parsed.SourceTotals.Gross);
         Assert.Equal("AB12 CDE 5.10.2026 TEST", parsed.SourceVersion);
+        // The Body summary rate is per hour whatever the time unit (R1328).
+        Assert.Equal(83.28m, parsed.LabourRate);
     }
 
     [Theory]
@@ -269,6 +271,8 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Equal(451.09m, parsed.SourceTotals.Net);
         Assert.Equal(90.22m, parsed.SourceTotals.Vat);
         Assert.Equal(541.31m, parsed.SourceTotals.Gross);
+        // The Body section's summary rate is the labour rate (R1328).
+        Assert.Equal(80.00m, parsed.LabourRate);
     }
 
     /// <summary>

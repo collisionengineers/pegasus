@@ -1398,7 +1398,7 @@ import that stored file instead of storing another copy.
 
 After the source is confirmed in Case Files, its registered provider parser
 runs immediately. A successful import records the new named spec as the
-Current one, on the Standard labour-rate card, and displays its lines in
+Current one, on the labour rate its document prints (FRD-25, R1328), and displays its lines in
 the editor. A parser refusal creates no partial spec;
 the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not

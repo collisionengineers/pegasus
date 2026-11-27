@@ -459,6 +459,45 @@ public sealed class EstimateTests
         Assert.Null(LabourRateCardAdministration.ForNewSpecification([]));
     }
 
+    /// <summary>
+    /// An imported spec starts on the rate its document prints (R1328): the
+    /// card that is that rate, Standard first; else a card plus the 15 %
+    /// uplift to the penny; else Custom. No usable rate is Standard.
+    /// </summary>
+    [Theory]
+    [InlineData("standard", "83.28", "Standard", false, null)]
+    [InlineData("prestige", "103.06", "Prestige/Aluminium", false, null)]
+    [InlineData("standard uplift", "95.77", "Standard", true, null)]
+    [InlineData("prestige uplift", "118.52", "Prestige/Aluminium", true, null)]
+    [InlineData("custom", "90.00", null, false, "90.00")]
+    [InlineData("unprinted", null, "Standard", false, null)]
+    [InlineData("zero", "0", "Standard", false, null)]
+    [InlineData("sub-penny", "83.281", "Standard", false, null)]
+    public void AnImportedSpecificationStartsOnTheRateItsDocumentPrints(
+        string row, string? printed, string? card, bool uplift, string? custom)
+    {
+        Assert.NotNull(row);
+        var standard = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.Standard, 83.28m, 3);
+        var prestige = new LabourRateCard(Guid.NewGuid(), LabourRateCardAdministration.PrestigeAluminium, 103.06m, 1);
+
+        var picked = LabourRateCardAdministration.ForImportedSpecification(
+            [prestige, standard], printed is null ? null : decimal.Parse(printed, System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.Equal(card, picked.Card?.Name);
+        Assert.Equal(uplift, picked.RegionalUplift);
+        Assert.Equal(custom is null ? (decimal?)null : decimal.Parse(custom, System.Globalization.CultureInfo.InvariantCulture), picked.CustomRate);
+    }
+
+    [Fact]
+    public void AnImportedSpecificationIsCustomWhenNoCardIsSetUp()
+    {
+        var picked = LabourRateCardAdministration.ForImportedSpecification([], 103.06m);
+
+        Assert.Null(picked.Card);
+        Assert.Equal(103.06m, picked.CustomRate);
+        Assert.Null(LabourRateCardAdministration.ForImportedSpecification([], null).Card);
+    }
+
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]

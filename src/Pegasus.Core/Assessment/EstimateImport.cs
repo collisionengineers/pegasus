@@ -160,7 +160,11 @@ public sealed record EstimateSourceTotals(
 /// <see cref="Mileage"/> and <see cref="MileageUnit"/> are the odometer
 /// reading the document states, the unit as <see cref="CaseOdometer"/>
 /// writes it (miles when none is printed, R1080); null when it states none
-/// (R1141).
+/// (R1141). <see cref="LabourRate"/> is the panel or labour rate per hour the
+/// document prints, as printed; a paint rate is not read. It picks the
+/// labour-rate card a new spec starts on
+/// (<see cref="LabourRateCardAdministration.ForImportedSpecification"/>,
+/// R1328); null when the format prints none or it could not be read.
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
@@ -172,7 +176,8 @@ public sealed record ParsedEstimate(
     EstimateDiscounts? Discounts = null,
     string? Header = null,
     long? Mileage = null,
-    string? MileageUnit = null);
+    string? MileageUnit = null,
+    decimal? LabourRate = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -314,7 +319,9 @@ public static class EstimateFormats
 /// hash the caller recorded, then re-hashed here; the format is auto-detected
 /// across the registered parsers, and zero or more than one match fails
 /// closed rather than guessing. The parse lands as one new source-labelled
-/// estimate on the Standard labour-rate card; a staff import is the
+/// estimate on the labour rate its document prints
+/// (<see cref="LabourRateCardAdministration.ForImportedSpecification"/>,
+/// R1328); a staff import is the
 /// Case's Current repair spec at once, an Automation import stays a Draft
 /// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>). The
 /// same Case with the same source hash replays to the live estimate that
@@ -445,8 +452,8 @@ public sealed class ImportRawEstimate(
                 cancellationToken);
             return new(updated.SpecificationId);
         }
-        var card = LabourRateCardAdministration.ForNewSpecification(
-            await rateCards.ListAsync(cancellationToken));
+        var rate = LabourRateCardAdministration.ForImportedSpecification(
+            await rateCards.ListAsync(cancellationToken), parsed.LabourRate);
         var saved = await store.SaveImportedEstimateAsync(
             EstimatePolicy.ValidateImportedSave(
             new(request.CaseId,
@@ -465,15 +472,16 @@ public sealed class ImportRawEstimate(
                     string.IsNullOrWhiteSpace(request.Name)
                         ? NextName(existing, parsed.ProviderName)
                         : request.Name.Trim(),
-                    LabourRate: null, OtherCosts: null,
+                    LabourRate: rate.CustomRate, OtherCosts: null,
                     EstimatePolicy.DefaultVatPercent,
-                    Discounts: parsed.Discounts),
+                    Discounts: parsed.Discounts,
+                    RegionalUplift: rate.RegionalUplift),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(
                     line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
                 new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
             {
-                SelectedRateCardId = card?.Id,
-                SelectedRateCardVersion = card?.Version,
+                SelectedRateCardId = rate.Card?.Id,
+                SelectedRateCardVersion = rate.Card?.Version,
                 Work = request.Work,
                 AwaitsUse = request.AwaitsUse,
                 KeepsLease = request.KeepsLease,

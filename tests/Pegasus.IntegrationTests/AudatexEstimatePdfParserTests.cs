@@ -122,6 +122,9 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(110.00m, totals.Specialist);
         Assert.Null(totals.Net);
 
+        // The LABOUR heading's "Price = £80.00/HR" picks the new spec's card (R1328).
+        Assert.Equal(80.00m, result.LabourRate);
+
         // A row's identity is its section and its ordinal within that section,
         // so it survives the four sections being concatenated into one set.
         Assert.Equal(
@@ -139,6 +142,22 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(1.62m, result.Lines[2].PaintWorkUnits);
         Assert.Equal(1.75m, result.SourceTotals!.PanelWorkUnits);
         Assert.Equal(1.62m, result.SourceTotals.PaintWorkUnits);
+    }
+
+    /// <summary>
+    /// The LABOUR heading's price per hour is the labour rate; PAINT WORK's
+    /// stands in only when LABOUR prints none, and a report that prints
+    /// neither still imports, with no rate (R1328).
+    /// </summary>
+    [Fact]
+    public void TheLabourHeadingsPricePerHourIsTheLabourRate()
+    {
+        Assert.Equal(1103.06m, Parse(AudatexEstimateFixture.Build(labourPrice: "£1,103.06", paintPrice: "£90.00")).LabourRate);
+        Assert.Equal(90.00m, Parse(AudatexEstimateFixture.Build(labourPrice: null, paintPrice: "£90.00")).LabourRate);
+
+        var neither = Parse(AudatexEstimateFixture.Build(labourPrice: null, paintPrice: null));
+        Assert.Null(neither.LabourRate);
+        Assert.Equal(6, neither.Lines.Count);
     }
 
     [Theory]

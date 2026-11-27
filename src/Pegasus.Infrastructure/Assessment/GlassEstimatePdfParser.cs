@@ -34,6 +34,9 @@ namespace Pegasus.Infrastructure.Assessment;
 /// operation and Paint section prints one rate, the total operation and Paint
 /// hours at that rate rounded once plus the Additional costs labour; the two
 /// may differ by a penny and either is accepted.
+/// The Body section's summary rate is returned as
+/// <see cref="ParsedEstimate.LabourRate"/>, null when no Body section prints;
+/// it only picks the labour-rate card a new spec starts on (R1328).
 /// </summary>
 internal static class GlassEstimatePdfParser
 {
@@ -591,7 +594,7 @@ internal static class GlassEstimatePdfParser
                 RepairSpecificationSourceRoute.Glasses, new(Parts: partsTotal,
                     PanelWorkUnits: bodyHours is null && auxiliaryHours is null ? null : InHours((bodyHours ?? 0) + (auxiliaryHours ?? 0)),
                     PaintWorkUnits: InHours(SummaryHoursOf(Section.Paint)), Materials: totalMaterial - partsTotal,
-                    Net: net, Vat: vat, Gross: gross), vin);
+                    Net: net, Vat: vat, Gross: gross), vin, LabourRate: body?.SummaryRate);
         }
 
         /// <summary>
