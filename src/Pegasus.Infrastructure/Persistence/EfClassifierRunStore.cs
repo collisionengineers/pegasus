@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Operations;
@@ -228,8 +229,8 @@ internal sealed class EfClassifierRunStore(IDbContextFactory<PegasusDbContext> c
             month ?? 0m);
     }
 
-    private static readonly IReadOnlyDictionary<ClassifierRunAction, int> NoActions =
-        new Dictionary<ClassifierRunAction, int>();
+    private static readonly FrozenDictionary<ClassifierRunAction, int> NoActions =
+        FrozenDictionary<ClassifierRunAction, int>.Empty;
 
     private static ClassifierRunEntity NewRun(Guid runId, ClassifierRunFacts facts, string recordedBy, DateTimeOffset startedAtUtc) =>
         new()

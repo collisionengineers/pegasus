@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Operations;
@@ -273,8 +274,8 @@ public static class ClassifierRunPolicy
     /// </summary>
     public static readonly TimeSpan RunningWindow = TimeSpan.FromMinutes(15);
 
-    private static readonly IReadOnlyDictionary<string, ClassifierRunAction> WireActions =
-        Enum.GetValues<ClassifierRunAction>().ToDictionary(WireName, action => action, StringComparer.Ordinal);
+    private static readonly FrozenDictionary<string, ClassifierRunAction> WireActions =
+        Enum.GetValues<ClassifierRunAction>().ToFrozenDictionary(WireName, action => action, StringComparer.Ordinal);
 
     /// <summary>
     /// The act's name as the classifier sends it and its storage account keeps
@@ -618,7 +619,7 @@ public sealed class ListClassifierRuns(
             ClassifierRunPolicy.Health(local, await store.HealthAsync(now, dayStart, monthStart, cancellationToken), now)
         };
         var live = isInstance ? ClassifierLiveRunsState.Off : ClassifierLiveRunsState.ThisDeployment;
-        IReadOnlyList<ClassifierRunSummary> liveRows = [];
+        ClassifierRunSummary[] liveRows = [];
         if (isInstance && liveRuns is not null)
         {
             // One read serves the list's period and the health row's month and day.
@@ -644,7 +645,7 @@ public sealed class ListClassifierRuns(
 
         var merging = showLive && live == ClassifierLiveRunsState.Shown;
         var skip = (query.Page - 1) * ClassifierRunPolicy.PageSize;
-        IReadOnlyList<ClassifierRunSummary> localRows = [];
+        ClassifierRunSummary[] localRows = [];
         if (showLocal)
         {
             // Alone, the store pages itself; beside the live runs it reads up

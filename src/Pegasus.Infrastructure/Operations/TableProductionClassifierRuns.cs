@@ -236,7 +236,7 @@ internal sealed class TableProductionClassifierRuns(HttpClient httpClient, Token
         return counts;
     }
 
-    private static (IReadOnlyList<ClassifierRunItemView> Items, bool Cut) Items(JsonElement entity)
+    private static (List<ClassifierRunItemView> Items, bool Cut) Items(JsonElement entity)
     {
         var json = Text(entity, "items");
         if (string.IsNullOrWhiteSpace(json))

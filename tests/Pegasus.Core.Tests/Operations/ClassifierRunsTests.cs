@@ -368,15 +368,14 @@ public sealed class ClassifierRunsTests
         public Task<IReadOnlyList<ClassifierRunSummary>> ListAsync(ClassifierRunFilter filter, CancellationToken cancellationToken)
         {
             Filter = filter;
-            IReadOnlyList<ClassifierRunSummary> page =
+            return Task.FromResult<IReadOnlyList<ClassifierRunSummary>>(
             [
                 .. Rows
                     .Where(run => ClassifierRunPolicy.Matches(run, filter.Outcome, filter.OnlyActed, filter.NowUtc))
                     .OrderByDescending(run => run.StartedAtUtc)
                     .Skip(filter.Skip)
                     .Take(filter.Take)
-            ];
-            return Task.FromResult(page);
+            ]);
         }
 
         public Task<ClassifierRunDetail?> GetAsync(Guid runId, CancellationToken cancellationToken) =>
@@ -409,9 +408,8 @@ public sealed class ClassifierRunsTests
                 throw Failure;
             }
 
-            IReadOnlyList<ClassifierRunSummary> rows =
-                [.. Rows.Where(run => run.StartedAtUtc >= fromUtc && run.StartedAtUtc < toUtc)];
-            return Task.FromResult(rows);
+            return Task.FromResult<IReadOnlyList<ClassifierRunSummary>>(
+                [.. Rows.Where(run => run.StartedAtUtc >= fromUtc && run.StartedAtUtc < toUtc)]);
         }
 
         public Task<ClassifierRunDetail?> GetAsync(Guid runId, DateOnly startedOnUtc, CancellationToken cancellationToken)

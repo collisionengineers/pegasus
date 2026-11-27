@@ -304,8 +304,7 @@ public sealed partial class ClassifierRunsWebTests
                 throw new ProductionClassifierRunsUnavailableException(isRefused, "The live runs could not be read.");
             }
 
-            IReadOnlyList<ClassifierRunSummary> runs = [Summary];
-            return Task.FromResult(runs);
+            return Task.FromResult<IReadOnlyList<ClassifierRunSummary>>([Summary]);
         }
 
         public Task<ClassifierRunDetail?> GetAsync(Guid id, DateOnly startedOnUtc, CancellationToken cancellationToken) =>
