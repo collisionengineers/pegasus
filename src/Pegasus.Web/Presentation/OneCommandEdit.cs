@@ -15,9 +15,30 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 public sealed partial class OneCommandEdit(
     OneCommandEditAuthority authority,
+    CaseEditLeases caseLeases,
     IEditScopeLeases editScopes,
     ILogger<OneCommandEdit> logger)
 {
+    /// <summary>
+    /// The live Case lease a member of staff already holds, for a connector call made for that
+    /// person from Pegasus Desktop: the call resumes it, as the Case page does when its holder
+    /// opens the Case in a second tab (FRD-14, Coming back), where a one-off change made from
+    /// elsewhere in Pegasus is refused. Null for the Automation Actor, which never resumes, and
+    /// for a member of staff who holds no live lease on the Case. This is the one place that
+    /// decides it, built to the answer recommended to the operator, whose ruling is still owed
+    /// (issue #2166).
+    /// </summary>
+    public Task<CaseEditLease?> ResumeOwnCaseLeaseAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.Staff
+            ? caseLeases.ResumeAsync(new(caseId, actor), cancellationToken)
+            : Task.FromResult<CaseEditLease?>(null);
+    }
+
     /// <summary>Claims the authority alone, for a caller that words a refused claim itself.</summary>
     public Task<OneCommandEditClaim> ClaimAsync(
         Guid caseId,
@@ -134,21 +155,34 @@ public sealed partial class OneCommandEdit(
     }
 
     /// <summary>
-    /// An Automation write tool's Case lease. A caller that holds a lease from
+    /// A connector write tool's Case lease. A caller that holds a lease from
     /// <c>pegasus_edit_begin</c> presents its token and the command runs under it unchanged; the
-    /// lease stands until the caller ends it (operator, 8 October 2026). A caller that presents
-    /// none gets the lease for that one command, claimed with a key derived from the command's so
-    /// a replay replays the claim (operator, 1 October 2026).
+    /// Automation Actor's lease stands until the caller ends it (operator, 8 October 2026). A
+    /// caller that presents none gets the lease for that one command, claimed with a key derived
+    /// from the command's so a replay replays the claim (operator, 1 October 2026). A member of
+    /// staff who already holds the Case's lease runs the command under that lease
+    /// (<see cref="ResumeOwnCaseLeaseAsync"/>): the write ends it as every staff change does, and
+    /// a refused command leaves it as it was, since it was never this command's to give back.
     /// </summary>
-    public Task<T> RunCaseAsync<T>(
+    public async Task<T> RunCaseAsync<T>(
         Guid caseId,
         long expectedVersion,
         string? heldToken,
         ActionActor actor,
         string operationKey,
         Func<string, Task<T>> action,
-        CancellationToken cancellationToken) =>
-        RunUnlessHeldAsync(caseId, false, expectedVersion, heldToken, actor, operationKey, action, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (string.IsNullOrWhiteSpace(heldToken)
+            && await ResumeOwnCaseLeaseAsync(caseId, actor, cancellationToken) is { } own)
+        {
+            return await action(own.Token);
+        }
+
+        return await RunUnlessHeldAsync(
+            caseId, false, expectedVersion, heldToken, actor, operationKey, action, cancellationToken);
+    }
 
     /// <summary>The same, for an Automation write to a Triage Case under its Triage edit scope.</summary>
     public Task<T> RunTriageAsync<T>(

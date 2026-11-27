@@ -25,7 +25,7 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             throw new IntakeArtifactIntegrityException();
         }
 
-        var storageKey = $"sha256/{normalisedHash[..2]}/{normalisedHash}";
+        var storageKey = DurableKey(normalisedHash);
         await StoreImmutableAsync(
             Resolve(storageKey),
             normalisedHash,
@@ -33,6 +33,15 @@ public sealed partial class FileSystemIntakeArtifactStore(string rootPath)
             cancellationToken);
         return storageKey;
     }
+
+    public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(
+        string contentHash,
+        CancellationToken cancellationToken) =>
+        ReadAsync(DurableKey(NormaliseHash(contentHash)), cancellationToken);
+
+    /// <summary>Where <see cref="StoreAsync"/> keeps the content with this normalised hash.</summary>
+    private static string DurableKey(string normalisedHash) =>
+        $"sha256/{normalisedHash[..2]}/{normalisedHash}";
 
     public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
         Stream content,

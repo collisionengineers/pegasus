@@ -11,11 +11,20 @@
     };
 }
 
-@* One message in a dialog over the Inbox (v41 I2, I17): one head (the subject;
-   From, To and received beneath; Previous and Next and close at the right),
-   the tabs, then the message beside Decision, and the foot. The same record
+@* One message in a dialog over the Inbox (v41 I2, I17; v54): one head (the
+   subject, the Case with its outcome and the Type beneath; the cog, Previous
+   and Next and close at the right), the conversation as one column, and the
+   foot. One size whatever it shows; only its body scrolls. The same record
    the /Inbox/{id} page draws, fetched on open by the Inbox's script; the
    reason dialogs it opens follow it as siblings so each stacks over it. *@
+@if (composing)
+{
+    @* Composing, the dialogue is the one send-e-mail dialogue (R1330), under
+       the same id, so the Inbox's script opens and walks it as it does the
+       message; Cancel returns to the message. *@
+    <partial name="Shared/_MessageComposer" model="Model" />
+    return;
+}
 <div id="mailMessageDialog" class="dialog-backdrop" data-dialog="mailMessageDialog"
      data-mail-message="@summary.Id" hidden>
     <section class="dialog dialog--mail" role="dialog" aria-modal="true" aria-labelledby="mailMessageDialog_title">

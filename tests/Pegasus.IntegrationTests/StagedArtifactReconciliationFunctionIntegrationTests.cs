@@ -648,6 +648,12 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public void Defer(Guid versionId) =>
             throw new InvalidOperationException("Nothing is deferred without a candidate.");
+
+        public Task RecordReadingAsync(
+            EstimateRecognitionCandidate candidate,
+            FiledEstimateReading reading,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Nothing is read without a candidate.");
     }
 
     private sealed class UnreachableDocumentReads : IReadLogicalDocumentVersion
@@ -1161,6 +1167,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "The reconciliation timer must not stage a new artifact.");
+
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,

@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629, R675 to R680, R693 to R696, R708, R709 and R931 decided its shape; this skill
+and rulings R623 to R629, R675 to R680, R693 to R696, R708, R709, R931 and R1319 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -52,10 +52,11 @@ together, with a ruling.
   the operator names, and enable a production mailbox on the instance for
   the window the operator names.
 - **No Azure spend but OCR.** Key Vault secret reads, Graph calls, the
-  SqlPackage extract to a local file and, with `Features__LiveOcr`, the OCR
-  calls charged to production's Document Intelligence account (R931) are the
-  only Azure touches (R623). A step that would create or run anything else in
-  Azure is a question to the operator first.
+  SqlPackage extract to a local file, with `Features__LiveOcr` the OCR
+  calls charged to production's Document Intelligence account (R931), and
+  with `Features__LiveClassifierRuns` the reads of the live classifier's
+  `runs` table (R1319) are the only Azure touches (R623). A step that would
+  create or run anything else in Azure is a question to the operator first.
 - **Funnel for the public origin, the Graph webhook path and, with photo
   capture on, its three paths.** `tailscale funnel` on 443 exposes the whole
   origin, behind password sign-in, so a claude.ai custom connector reaches
@@ -86,6 +87,7 @@ together, with a ruling.
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
 | OCR role assignment, once | the operator; approved 11 November 2026 (R931) | `Cognitive Services User` on production's Document Intelligence resource `pegasus-prod-ocr-252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write OCR needs; recorded in operations |
 | `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R785) |
+| Live classifier runs role assignment, once | the operator's word; not yet given (R1319) | `Storage Table Data Reader` on the live classifier's storage account `pegclass252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write the Mail classifier page's live runs need: `az role assignment create --assignee-object-id e25ca6f2-3eb2-4ea8-9953-229efcfd8893 --assignee-principal-type ServicePrincipal --role "Storage Table Data Reader" --scope /subscriptions/e6076573-23a5-46a8-acef-7e22d264e5db/resourceGroups/rg-pegasus-prod/providers/Microsoft.Storage/storageAccounts/pegclass252ow37gij`; recorded in operations |
 | Seeding the Brego session (section 2) | the operator's word, and a blob read role on `pegcustody252ow37gij` for their `az` account | reads production's `authentication-ring/brego-session.json` (R933) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
@@ -152,7 +154,10 @@ Brego's session lives in the run's Azurite account, at
 storage (R933). Seed it once per run with production's cookie, so the instance
 never signs in through Brego's device-approval challenge. That challenge
 e-mails a verify-browser code, and a second session could sign production out.
-Never verify such a code for the instance. Once the run is started:
+Never verify such a code for the instance. From 26 November 2026 (R1288) the
+instance keeps the Brego account and its sign-in in its own database with the
+other integration logins; the blob below is read once, by the start-up import,
+while the Brego login is not yet set there. Once the run is started:
 
 ```bash
 manifest=artifacts/local-development/<run>/run-manifest.json
@@ -180,6 +185,18 @@ PhotoCapture__PublicOrigin=https://<host>.<tailnet>.ts.net:8443/
 instance prints open from a phone off the tailnet (R785); the three capture
 paths are Funnelled in section 3 before the line goes in.
 
+For sign-in from Pegasus Desktop (R1297,
+[ADR-0092](../../../docs/adr/0092-staff-sign-in-for-pegasus-desktop.md)), when
+the operator turns it on there, also append:
+
+```text
+AutomationMcp__DesktopRedirectUris=http://127.0.0.1/callback
+```
+
+It is not a secret. The address names no port, so the application may listen
+on whichever of its ports is free; without the line the instance has no
+Pegasus Desktop client, as production has none.
+
 For OCR of scanned pages (R931), once the OCR role assignment in Approvals
 exists and the Graph lines are in, also append:
 
@@ -192,6 +209,21 @@ The Worker reads production's Document Intelligence account with the Graph
 registration's secret; a missing endpoint or Graph key fails the start
 naming it. Without the flag, the endpoint line is refused as a
 Production-only setting.
+
+For the live classifier's runs on the Mail classifier page (R1319), once the
+live classifier runs role assignment in Approvals exists, the Graph lines are
+in and a release has put the `runs` table in production, also append:
+
+```text
+Features__LiveClassifierRuns=true
+ClassifierRuns__TableEndpoint=https://pegclass252ow37gij.table.core.windows.net/
+```
+
+The Web reads the live classifier's `runs` table with the Graph
+registration's secret when the page opens and keeps nothing it reads (R696);
+a missing endpoint or Graph key fails the start naming it. Without the flag,
+or before the role exists, the page says in one sentence that live runs are
+not shown and why, and shows the instance's own runs.
 
 The Graph lines wait until the identity exists (section 4); start without
 them if it does not yet, and the run uses the folder mailbox adapters. The two
@@ -329,13 +361,16 @@ or a fresh production copy). Say which before the swap; the swap is on the
 operator's word.
 
 Ports and the public origin come from the manifest; `--initialize-development`
-migrates the existing database forward and keeps its data. Status prints
-`SourceSha`; the instance is current when it equals `git rev-parse origin/dev`
-or the named head. The release preflight refuses a candidate the instance is
+migrates the existing database forward and keeps its data. On this host
+Initialize also rebuilds the classifier agent (section 8) whenever its folder's
+tree changed since the last build, and says which (#2206). Status prints
+`SourceSha` and `ClassifierBuild`; the instance is current when `SourceSha`
+equals `git rev-parse origin/dev` or the named head and `ClassifierBuild` reads
+`current`. The release preflight refuses a candidate the instance is
 not serving (R684), so the instance is back on `dev`'s tip before a release.
 Its `Version` reads `0.0.0-dev`, as in every build that is not a release
 (R686); the SHA is its identity. Whoever walks the instance is told which
-head it serves.
+head it serves and whether the classifier is built from it.
 
 ## 7. Rehearse a release on a copy of production
 
@@ -354,12 +389,14 @@ mailbox deactivated (R627), the copied subscription rows cleared (R678), the
 copied Principal API keys paused (R679), the copied pending
 answered-instruction and Delete case correspondence tidies closed (R680,
 R902) and the copied Glass's logins
-cleared (R708), so the instance subscribes under its own webhook,
+cleared (R708), and production's integration logins replaced by the
+instance's own, set aside before the publish (R1288), so the instance subscribes under its own webhook,
 authenticates no production key, moves only what its own sends answered and
 never tries to decrypt what production's key ring protects. The extract is removed once published, whether or not the publish succeeded,
 so the run database is the only copy of production on the machine (R696);
 the record `state/production-copy-<utc>.json` holds the extract's size and
-SHA-256, the migration head, the Case count and the five counts; `statementsCompleted:
+SHA-256, the migration head, the Case count, the five counts and
+`integrationLoginsKept`; `statementsCompleted:
 false` in it means the publish replaced the database but those statements did
 not run, and Start refuses the run until the copy is re-run. The copy carries
 production's mailbox rows and not the instance's, so `pegasustest@` is added

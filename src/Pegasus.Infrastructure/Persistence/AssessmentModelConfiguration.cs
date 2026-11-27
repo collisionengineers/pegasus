@@ -238,6 +238,54 @@ internal static class AssessmentModelConfiguration
             entity.Navigation(item => item.Work).AutoInclude();
         });
 
+        builder.Entity<MarketResearchSubmissionEntity>(entity =>
+        {
+            var reviews = string.Join(", ", Enum.GetNames<MarketResearchReview>().Select(SqlLiteral));
+            entity.ToTable("MarketResearchSubmissions", table =>
+            {
+                table.HasCheckConstraint("CK_MarketResearchSubmissions_Review", $"[Review] IN ({reviews})");
+                table.HasCheckConstraint("CK_MarketResearchSubmissions_ProposedValue", "[ProposedValue] > 0");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.InputHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.SubmittedBy).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Review).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.GuideMonth).HasColumnType("date");
+            entity.Property(item => item.ProposedValue).HasPrecision(18, 2);
+            entity.Property(item => item.RecordJson).IsRequired();
+            entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
+            entity.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MarketResearchSubmissionFileEntity>(entity =>
+        {
+            var kinds = string.Join(", ", Enum.GetNames<MarketResearchFileKind>().Select(SqlLiteral));
+            entity.ToTable("MarketResearchSubmissionFiles", table =>
+                table.HasCheckConstraint("CK_MarketResearchSubmissionFiles_Kind", $"[Kind] IN ({kinds})"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Kind).HasMaxLength(20).IsRequired();
+            entity.HasIndex(item => new { item.SubmissionId, item.Position }).IsUnique();
+            entity.HasIndex(item => item.OccurrenceId).IsUnique();
+            entity.HasOne<MarketResearchSubmissionEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.SubmissionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<DocumentOccurrenceEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.OccurrenceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<DocumentVersionEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.VersionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<AiJobEntity>(entity =>
         {
             var states = string.Join(", ", Enum.GetNames<AiJobState>().Select(SqlLiteral));

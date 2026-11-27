@@ -1,6 +1,7 @@
 // The fixture-backed Pegasus the replay harness and the tests run the tools
 // against: it holds a batch in memory, applies each write the way Pegasus
-// would, and records it. Nothing reaches Pegasus.
+// would, and records it, as it records each run record. Nothing reaches
+// Pegasus.
 //
 // The fixture is { candidates, mailboxCorpus?, folders?, cases?, intake? }:
 //   candidates     the batch, in the shape collectBatch builds (MailDetail
@@ -35,6 +36,8 @@ import type {
   MailDetail,
   MailPhotoRegistrations,
   OldSystemFolderSearch,
+  RunRecord,
+  RunRecorded,
 } from "./pegasus.js";
 import type { Candidate, ClassifierPegasus } from "./tools.js";
 
@@ -66,6 +69,7 @@ export interface Write {
 
 export class FixturePegasus implements ClassifierPegasus {
   readonly writes: Write[] = [];
+  readonly runRecords: RunRecord[] = [];
   private readonly details = new Map<string, MailDetail>();
   private readonly created = new Map<string, string>();
   private readonly oneOffs: (LinkDestination & { claimNumber?: string | null })[] = [];
@@ -322,6 +326,19 @@ export class FixturePegasus implements ClassifierPegasus {
     const messageId = [...this.details.keys()].find((id) => id.replaceAll("-", "") === keyed) ?? keyed;
     this.writes.push({ kind: "one-off", messageId, detail: `${args.caseType} ${args.vehicleRegistration} ${args.claimantName}` });
     return created;
+  }
+
+  async recordRun(args: RunRecord): Promise<RunRecorded> {
+    this.runRecords.push(structuredClone(args));
+    const now = new Date().toISOString();
+    return {
+      runId: args.runId,
+      stage: args.stage,
+      isReplay: false,
+      startedAtUtc: now,
+      finishedAtUtc: args.stage === "close" ? now : null,
+      correlationId: randomUUID(),
+    };
   }
 
   private async require(messageId: string): Promise<MailDetail> {

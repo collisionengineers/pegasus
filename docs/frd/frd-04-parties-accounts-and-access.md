@@ -87,8 +87,13 @@ The link copies the Contact's identity, version and name, and the address
 stays the instruction's. It is recorded as a choice on the Case is, so staff
 change or clear it; Cases made before the change are not linked (operator, 12
 November 2026; [R1027](../rulings.md), as [R1017](../rulings.md) and
-[R1018](../rulings.md) for a Claim Source). Staff otherwise either
-confirm that text or link the Case to an active Repairer-role Contact, chosen
+[R1018](../rulings.md) for a Claim Source). When the instruction's name links
+none, the Case is linked to the one active Repairer-role Contact linked to the
+Case's Principal that the instruction's text (its subject, body and the text
+of its attachments) names, capitals and spaces ignored ("Car Claims" names
+"CarClaims"); two or more such Contacts named, or none, link nothing, on new
+Cases only (operator, 25 November 2026; [R1264](../rulings.md)). Staff
+otherwise either confirm that text or link the Case to an active Repairer-role Contact, chosen
 from a list that draws the Principal's linked Repairers first (R1015). Linking
 copies that Contact's identity, version, name and address onto the Case, so
 a later directory edit never changes the Case. A save keeps the link the Case
@@ -106,6 +111,30 @@ stored as non-reversible hashes. This stays the sign-in route until a
 separately accepted identity change replaces it. Each account has exactly one
 current role.
 
+**Sign-in from Pegasus Desktop** (operator, 24 and 26 November 2026; R1237,
+R1297 to R1299;
+[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). A member of
+staff may also sign in to Pegasus from Pegasus Desktop, the Windows
+application, with the same username and password. The application opens the
+browser; the member of staff signs in to Pegasus there, and a page headed
+"Sign in to Pegasus Desktop" names their account ("Signed in as"), says
+"Pegasus Desktop will act in Pegasus as you. Everything it does is recorded
+under your name.", and offers **Sign in** and **Refuse**. The application
+never sees the password. Any enabled account may sign in, of any role; an
+account that must change its password changes it first. Either answer is a
+permanent history event under the person's name, which the Action logs read
+as "Signed in from Pegasus Desktop" and "Refused sign-in from Pegasus
+Desktop" (R1308). The sign-in is offered only
+where a deployment configures it: production does not, and there is no row
+for Pegasus Desktop on the Integrations page. A sign-in lasts 8 hours and is
+not extended by use. It ends sooner when the account is disabled, its
+password is reset, its role changes or an Administrator forces a logout, and
+when the application signs out; stopping the Automation client does not end
+it (R1307). Signed in, the member of staff may do through
+the application what they could do in Pegasus itself, recorded under their
+name (R1304); that is owned by
+[FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop).
+
 All three stored staff roles have the same ordinary casework authority.
 Administrator additionally holds application-management authority; an
 Administrator therefore holds every Engineer ability as well as the
@@ -116,7 +145,7 @@ state prerequisite for the action.
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Principal API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Principal API credential lifecycle; workflow configuration, including labour-rate cards; e-mail templates; the approved-mailbox allowlist; OAuth-client registration and revocation; the integrations' logins (Glass's valuation, Cazana, Brego and the two Experian accounts), replaced and never shown back (operator, 26 November 2026; R1288) | Pegasus's own cloud or release administration, or any credential secret other than the integrations' logins, through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
 | `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 | `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 
@@ -192,15 +221,23 @@ The Principal section of a Contact carries:
   a Principal with none shows "No accepted e-mail route. Instructions arrive
   by upload, Triage or the Principal API." in the same box (operator, 13
   October 2026);
-- the default inspection location, Image Based Assessment or a physical
-  address, saved on the click;
+- the inspection setting, saved with the contact by Save contact (operator,
+  25 November 2026; [R1266](../rulings.md)): Inspection mode, Physical
+  address or Image Based Assessment, which fills a new Case
+  ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)),
+  and for Physical address only an optional default inspection location
+  (location label, address and postcode), which the Photo links address list
+  reads. A change of mode applies to Cases made afterwards (amending R118).
+  There is no separate Image Based Assessment tick, so the two cannot
+  disagree;
 - the report recipients
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)): who a
   report goes to is set by the report sending rules below; the separate
   Report recipients settings are gone (operator, 6 October 2026). The Claim
   Source is never copied in by default;
-- the default fee (operator, 5 October 2026), saved with the report
-  settings. Every Principal has one: more than £0 with two decimal places at
+- the default fee (operator, 5 October 2026), saved with the contact by
+  Save contact (operator, 25 November 2026; [R1266](../rulings.md)). Every
+  Principal has one: more than £0 with two decimal places at
   most, the agreed fee's own rule. Every Principal was seeded at £180.00, a
   new Principal starts at £180.00, and a successor code inherits its
   predecessor's. A new Case starts with its Principal's default fee as its
@@ -233,7 +270,8 @@ The Principal section of a Contact carries:
   Legal Assistance Limited, code `ULA`, is the one Principal seeded on the
   Garage authorisation & invoice workflow with the ULA Invoice
   ([R1145](../rulings.md), [R1152](../rulings.md)), its report sending rules
-  the defaults with both Offer ticks on ([R1151](../rulings.md));
+  the defaults with Attach External estimates (offered, unticked) and Attach
+  Repair invoices (offered, unticked) On every Case ([R1151](../rulings.md));
 - the report names (operator, 6 November 2026; R740), saved with the report
   settings: what an Inspection report and an Audit report are called, each
   for a first send and for a re-send, in text with the tokens `{REG}`,
@@ -243,72 +281,76 @@ The Principal section of a Contact carries:
   An empty name is the standard name. A name with another token, or one
   whose longest result could not be filed (120 characters), is refused. A
   successor code inherits its predecessor's;
-- the salvage matrix (operator, 29 September 2026): for each salvage
-  category (A, B, S and N) the bands of Engineer's Value, From £ to To £
-  inclusive, and the percentage of that value paid. It fills the Case's
-  salvage value
-  ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
-  Amounts are £0.00 or more, From is not more than To, the percentage is 0
-  to 100, and each takes two decimal places at most. A category's bands may
-  not overlap; a gap fills nothing. Blank rows are ignored, and a Principal
-  with no bands has no matrix. A refused save names the category and the
-  rule and keeps the typed rows. No Principal starts with one, and a
-  successor code inherits its predecessor's;
-- the report sending rules (operator, 5 and 6 October 2026), from the Report
-  Sending SOP v8 (15 October 2026). Every Principal has them. They say where
-  a report goes, from where, who is copied, what goes with it and what holds
-  or stops it:
-  - Send from: the Outgoing mailbox the send form chooses to start with for
-    a new message, when there is no instruction e-mail to reply from; staff
-    may change it. A reply always leaves from the mailbox the instruction
-    arrived in, or for a staff forward held in instructions@ the mailbox
-    that forwarded it (operator, 3 November 2026; R651, R652);
-  - Send to: fixed addresses that replace the original instruction sender.
-    Empty means the original sender. Send to only means those addresses and
-    no Cc at all. Reply all keeps the instruction's own Cc addresses;
-  - Cc is always copied. Never cc is always removed, even from the
-    instruction's Cc list, and removal wins;
-  - Attach: whether the fee note is a separate PDF, whether the Case's filed
-    estimate or Audatex document goes too, whether the report carries
-    vehicle images, whether a vehicle images document or a figure
-    breakdown is required first, and whether the send form offers the
-    Case's External estimates and Repair invoices, unticked ("Offer
-    external estimates (unticked)" and "Offer repair invoices (unticked)";
-    operator, 17 November 2026; [R1151](../rulings.md)). Garage figures reminds staff, on a
-    repairable outcome, to send the figures to the garage after sending;
-  - Hold is text staff must tick as done before Send. Reminders become tasks
-    when the report is recorded as sent. What the report is called is the
-    report names above, not a sending rule (R740);
-  - Rules add Cc or remove Cc, remind, hold or stop when their conditions
-    hold. A rule may also set the seven Attach choices other than report
-    images for that send, each As the Principal, Attach or Do not attach;
-    a later rule wins. A rule's Rate card adds the after-sending task "Check
-    the report's estimate against the Connexus Repair Rate Card."; no
-    estimate is checked against a card (operator, 15 and 16 October 2026).
-    A rule matches All or Any of its conditions. A condition reads the
-    Case's Claim Source or Repairer (a Contact of that type), the recorded
-    outcome, the Case type (Inspection, Audit or Inspection and audit;
-    operator, 13 October 2026), who sent the instruction, or words: "Instruction mentions" is
-    searched for in the instruction e-mail. Reference prefix holds when the report's
-    reference starts with its letters and a dot (`a.PCH26118` has the
-    prefix `a`). Previous job holds when another Case of the same Principal
-    with the same vehicle registration already has a sent report
-    (operator, 16 October 2026). Several values in one condition are
-    alternatives. A Case type of Inspection or Audit matches the report being
-    sent, which on an Inspection + Audit Case is its Inspection or Audit view
-    (a send carrying both reports is the view it is sent from), and Inspection
-    and audit matches either report (operator, 13 October 2026). Every
-    condition reads a fact the Case holds, and a fact the Case has not set
-    means the condition does not hold; the delivery form asks staff nothing
-    (operator, 12 November 2026; R1023, R1024). "Images from" and "Bodyshop
-    mentions" had no Case fact and are retired (R1025, R1026).
+- the report sending rules (operator, 5 and 6 October 2026; rebuilt 25
+  November 2026, [R1267](../rulings.md) to [R1270](../rulings.md) and
+  [R1272](../rulings.md)), from the Report Sending SOP v8 (15 October 2026),
+  and Send from. Every Principal has them. They say where a report goes,
+  from where, who is copied, what goes with it, what holds or stops it and
+  which Case tasks follow it:
+  - Send from, on the Contact tab: the Outgoing mailbox the send form chooses
+    to start with for a new message, when there is no instruction e-mail to
+    reply from; staff may change it. A reply always leaves from the mailbox
+    the instruction arrived in, or for a staff forward held in instructions@
+    the mailbox that forwarded it (operator, 3 November 2026; R651, R652);
+  - **On every Case** is a list of actions every send takes. **Rules** are
+    numbered, and each reads "If … Then …". A rule's If is one or more groups
+    joined by or, each group one or more conditions joined by and: "if X is
+    not true, and Y is true, or Z is true" is two groups, (not X and Y) or
+    (Z). A condition is a fact, "is" or "is not", and values; several values
+    of one condition are alternatives. A rule's Then is one or more actions;
+  - the facts are the Case's Claim Source or Repairer (a Contact of that
+    type), its recorded Outcome, its Case type (Inspection, Audit or
+    Inspection and audit; operator, 13 October 2026), the instruction's
+    Sender, the report's Reference prefix (`a.PCH26118` has the prefix `a`)
+    and Previous job, whether another Case of the same Principal with the
+    same vehicle registration already has a sent report (operator, 16
+    October 2026). There is no "Instruction mentions": the instruction's
+    text fills the Case's Claim Source or Repairer when the Case is made
+    ([R1075](../rulings.md), [R1264](../rulings.md)), and a rule reads that
+    contact. "Images from" and "Bodyshop mentions" are retired (R1025,
+    R1026). Every condition reads a fact the Case holds: "is" does not hold
+    while the Case has no value for the fact, and "is not" does; the
+    delivery form asks staff nothing (operator, 12 November 2026; R1023,
+    R1024; 25 November 2026, [R1269](../rulings.md));
+  - the actions are Send to, fixed addresses that replace the original
+    instruction sender; Send to only, those addresses and no Cc at all; Reply
+    all, which keeps the instruction's own Cc addresses; Cc, always copied;
+    Never cc, always removed, even from the instruction's Cc list; Attach and
+    Do not attach, each naming a file: Separate fee note, Estimate (the
+    Case's filed estimate), Audatex, Vehicle images document, Figure
+    breakdown, External estimates (offered, unticked) or Repair invoices
+    (offered, unticked) (operator, 17 November 2026; [R1151](../rulings.md));
+    Hold, text staff tick as done before Send; Stop, which refuses Send
+    unless staff with casework override it with a reason; and Add a Case
+    task, a task created when the report is recorded as sent. Nothing
+    happens on a send unless an action says so: a Principal that keeps the
+    instruction's Cc has Reply all On every Case, and one that attaches the
+    separate fee note has Attach Separate fee note. Add a Case task replaces
+    Reminders, a rule's Remind, Rate card and Garage figures; garage figures
+    is the rule "If Outcome is Repairable, then Add a Case task 'Send the
+    figures to the garage.'" ([R1270](../rulings.md)). No estimate is
+    checked against a card (operator, 15 and 16 October 2026);
+  - On every Case applies first, then each applying rule in order, and rules
+    are moved up and down to set it. Addresses and tasks add up; a removal
+    wins over an addition; where two disagree on a file or on Send to, the
+    later wins; the first applying Stop is the one staff see. Whether the
+    report carries vehicle images is a Report generation setting, and what
+    the report is called is the report names above; neither is a sending
+    rule (R740; [R1272](../rulings.md) item F).
 
-  No text in the rules has a length limit. A refused save names the rule and
-  the problem and keeps what was typed. A Principal the SOP does not name,
-  and every Principal created later, has the default rules: reply to the
-  original sender and keep the instruction's Cc. A successor code inherits
-  its predecessor's rules. The rules were imported from the SOP (the
-  supplied
+  No text in the rules has a length limit. A refused save keeps the rule's
+  dialog open with the problem and what was typed. A Principal the SOP does
+  not name, and every Principal created later, starts with Reply all and
+  Attach Separate fee note On every Case and no rule. A successor code
+  inherits its predecessor's rules. The migration `SendingRulesAreBuilt`
+  rewrote every Principal's rules to this shape (25 November 2026,
+  [R1267](../rulings.md)); RJS's two "Instruction mentions" rules became
+  Claim Source is Claim Specialists, which copies
+  accounts@claimsspecialists.co.uk, and Claim Source is Accident
+  Specialists; "Luton" was staff's name for Claim Specialists and is dropped
+  ([R1265](../rulings.md), [R1268](../rulings.md); operator, 26 November
+  2026, [R1300](../rulings.md), [R1303](../rulings.md)). The rules were first
+  imported from the SOP (the supplied
   [report_sending_sop.v5.yaml](../principal-profiles/sop-guides/report_sending_sop.v5.yaml),
   which keeps its v5 name and holds version 8, 15 October 2026; operator,
   16 October 2026), with the SOP's TL thresholds and QCL's contract repair
@@ -342,10 +384,14 @@ the Principal has none (operator ruling, 22 October 2026). The Claim source is c
 contacts, or none. A Case made from a received item is created with one where the item establishes it: the claim source its
 instruction names (DFD's Claim source, SBL's and OAK's Introducer), when that name is an active Claim Source's, ignoring
 capitals; otherwise, for mail accepted through an intermediary, the one active Claim Source linked to the route's Principal
-that the sender matches, by the rule that made it an intermediary. Two or more matches, or none, fill nothing, and a name
-that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
+that the sender matches, by the rule that made it an intermediary; otherwise the one active Claim Source linked to the
+Case's Principal that the instruction's text (its subject, body and the text of its attachments) names, capitals and spaces
+ignored ("Car Claims" names "CarClaims") (operator, 25 November 2026; [R1264](../rulings.md)). Two or more matches, or none,
+fill nothing, and a name that is not a Contact never creates one. It is recorded as a choice on the Case is, so staff change or clear it; Cases made
 before the change are not filled (operator, 12 November 2026; [R1014](../rulings.md), [R1017](../rulings.md),
-[R1018](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
+[R1018](../rulings.md)). RJS's instructions never name the claim source, so staff set an RJS Case's Claim Source once
+they know it; Easy Claim is a Claim Source linked to RJS, and RJS's reports do not copy it (operator, 26 November 2026;
+[R1301](../rulings.md), [R1302](../rulings.md)). The Case keeps a copy of the chosen name, telephone and e-mail, its
 notes follow the chosen record, and a changed choice must still be an active
 Claim Source when the Case is saved. The Case may override the chosen
 source's telephone and e-mail for that Case alone. The override
@@ -423,7 +469,9 @@ change made outside it, such as direct SQL or the intake wipe, is seen within
 Document and thumbnail reads rely on that request check and do not read the
 account again. A queued report render reads its images with the authority
 the account had when the render was queued. A session is never refreshed into
-new authority: it is refused and signs in again. Delete
+new authority: it is refused and signs in again. A sign-in from Pegasus
+Desktop carries the stamp the account had when it was made, and is refused
+the same way once the stamp has moved (R1298). Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable acts at once from the Settings dialog; Delete
@@ -441,6 +489,20 @@ Administration shows whether one is configured and enabled, its username and
 when it was updated, and offers replace and clear. It never shows the stored
 password. Replacing or deleting a credential invalidates old sessions.
 Disabled or deleted staff cannot start or resume a Glass's session.
+
+The integrations' logins (Glass's valuation, Cazana, Brego and the two
+Experian accounts) belong to Collision Engineers, not to a member of staff.
+An Administrator replaces each on Administration > Integrations
+([FRD-17](frd-17-administration-workspace.md#integrations); R1289), which
+shows each login's account and when it was last updated; Pegasus keeps them
+encrypted, shows no other stored value back, and records each change
+in permanent history, attributed to the Administrator, naming the login and
+never a value (operator, 26 November 2026; R1288,
+[ADR-0091](../adr/0091-integration-logins-in-the-database.md)). The Brego
+account is signed in in its Settings dialog there (R1296), with Refresh
+login where the host reads the account's mailbox (R1294), Send sign-in link,
+Link account and, when Brego asks for a code, Confirm code, or with its saved
+password (R1290).
 
 **Sign-off Engineer** is an Administrator-managed account setting available
 for any staff role: a flag, the account's qualifications and a signature
@@ -514,6 +576,9 @@ authorisation. External customers have no staff account.
 - An account cannot disable or delete itself, and the last enabled
   Administrator cannot be removed.
 - A revoked session's token is refused on its next request.
+- A sign-in from Pegasus Desktop is not renewed once the account's security
+  stamp has moved, or after its 8 hours; where the sign-in is not configured
+  there is no such client to sign in to (R1297, R1298).
 - The Principal API secret is shown once; a replay shows nothing.
 - A refusal never reveals Case or source data.
 
@@ -521,7 +586,9 @@ authorisation. External customers have no staff account.
 
 Core tests cover the role matrix, account commands, the credential lifecycle
 and the history write inside each transaction. Integration tests cover the
-Contacts and Staff accounts screens over real HTTP. Deployment and live
+Contacts and Staff accounts screens over real HTTP, and the sign-in from
+Pegasus Desktop from its page to its tokens, renewal, ending and revocation
+(`DesktopSignInTests`). Deployment and live
 acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 

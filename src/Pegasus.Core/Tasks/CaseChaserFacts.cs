@@ -36,8 +36,5 @@ public sealed record CaseChaserFacts(
     /// part is left out, and both absent gives an empty subject for staff to
     /// write. The subject is never templated.
     /// </summary>
-    public string Subject() =>
-        string.Join(" – ", new[] { Registration, Claimant }
-            .Where(part => !string.IsNullOrWhiteSpace(part))
-            .Select(part => part!.Trim()));
+    public string Subject() => CaseMailSubject.RegistrationAndClaimant(Registration, Claimant);
 }

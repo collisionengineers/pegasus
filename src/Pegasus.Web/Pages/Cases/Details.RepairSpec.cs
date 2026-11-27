@@ -1961,7 +1961,7 @@ public sealed partial class DetailsModel
         // its stored name and type, not the dropped file's. The bytes are
         // the dropped file's, which the import parses now, so this does not
         // wait for the Worker to have read the stored copy.
-        var sourceIdentity = $"estimate-import:{operationKey}";
+        var sourceIdentity = FiledEstimateTypePolicy.ImportDropIdentityPrefix + operationKey;
         var reusable = CaseFiles.Live(documents)
             .Where(file => file.Version.ContentLength == fileBytes.LongLength
                 && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)

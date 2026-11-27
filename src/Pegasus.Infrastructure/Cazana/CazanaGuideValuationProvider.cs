@@ -36,7 +36,7 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 public sealed partial class CazanaGuideValuationProvider(
     IHttpClientFactory httpClientFactory,
-    Func<CazanaCompanionAccount> account,
+    Func<CancellationToken, Task<CazanaCompanionAccount>> account,
     TimeProvider timeProvider,
     ILogger<CazanaGuideValuationProvider> logger) : IGuideValuationProvider
 {
@@ -60,7 +60,7 @@ public sealed partial class CazanaGuideValuationProvider(
                 throw new CazanaCompanionFailure("mileage", null, "unit=unreadable");
             }
 
-            var signIn = account();
+            var signIn = await account(cancellationToken);
             var client = new CazanaCompanionClient(httpClientFactory.CreateClient(HttpClientName));
             var authorization = await client.SignInAsync(signIn.Email, signIn.Password, cancellationToken);
             var uuid = await client.LookupAsync(authorization, Vrm(request.Registration), valuationDate, miles, cancellationToken);
@@ -143,8 +143,8 @@ public sealed partial class CazanaGuideValuationProvider(
     /// up, which is the caller's own outcome and passes through.
     /// </summary>
     private static bool Unavailable(Exception exception) =>
-        // An InvalidOperationException is a missing or unresolved account
-        // setting: the reason is logged by key, never shown on the card.
+        // An InvalidOperationException is a login not set or unreadable
+        // (R1288): the reason is logged by name, never shown on the card.
         exception is CazanaCompanionFailure or InvalidOperationException;
 
     private static string Code(Exception exception) => exception switch

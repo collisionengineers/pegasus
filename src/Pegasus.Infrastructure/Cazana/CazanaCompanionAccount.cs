@@ -1,9 +1,11 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Infrastructure.Cazana;
 
 /// <summary>
 /// The Cazana Companion account Get valuation signs in with: one account
-/// Collision Engineers holds for valuations, delivered from Key Vault
-/// (ADR-0079).
+/// Collision Engineers holds for valuations, held in the database
+/// (ADR-0079, ADR-0091).
 ///
 /// <para>
 /// A class rather than a record on purpose: a record's generated
@@ -12,6 +14,8 @@ namespace Pegasus.Infrastructure.Cazana;
 /// </summary>
 public sealed class CazanaCompanionAccount
 {
+    private const string LoginName = "Cazana Companion";
+
     private CazanaCompanionAccount(string email, string password)
     {
         Email = email;
@@ -23,49 +27,22 @@ public sealed class CazanaCompanionAccount
     public string Password { get; }
 
     /// <summary>
-    /// A host hands over its own configuration lookup, so which keys the
-    /// account needs is decided here. A value the platform left as an
-    /// unresolved Key Vault reference is named as that, not as a bad password.
+    /// The login as the database holds it (R1288, ADR-0091), read on each
+    /// valuation. A login not set, or one the key ring can no longer read, is
+    /// named as that, never as a bad password.
     /// </summary>
-    public static CazanaCompanionAccount Create(Func<string, string?> read)
+    internal static CazanaCompanionAccount Create(IntegrationLoginMaterial? login)
     {
-        ArgumentNullException.ThrowIfNull(read);
+        if (login is null || login.Login != IntegrationLogin.Cazana)
+        {
+            throw new InvalidOperationException("The Cazana Companion login is not set.");
+        }
+
         return new(
-            Require(read, "Cazana:CompanionAccount:Email").Trim(),
+            login.Require(IntegrationLoginField.Email, LoginName).Trim(),
             // A password is used exactly as it was stored.
-            Require(read, "Cazana:CompanionAccount:Password"));
+            login.Require(IntegrationLoginField.Password, LoginName));
     }
 
     public override string ToString() => nameof(CazanaCompanionAccount);
-
-    private static string Require(Func<string, string?> read, string key)
-    {
-        var value = read(key);
-        if (string.IsNullOrWhiteSpace(value) || HasControlCharacter(value))
-        {
-            throw new InvalidOperationException($"{key} is required for Cazana valuation.");
-        }
-
-        if (KeyVaultReference.IsUnresolved(value))
-        {
-            throw new InvalidOperationException(
-                $"{key} is an unresolved Key Vault reference; the platform has not resolved the secret.");
-        }
-
-        return value;
-    }
-
-    /// <summary>A plain loop, run for both keys on each press: no enumerator and no delegate.</summary>
-    private static bool HasControlCharacter(string value)
-    {
-        foreach (var character in value)
-        {
-            if (char.IsControl(character))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

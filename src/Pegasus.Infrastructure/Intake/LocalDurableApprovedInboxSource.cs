@@ -399,7 +399,8 @@ internal sealed class LocalDurableApprovedInboxSource(
                 string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
                 string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
                 display.Attachments ?? [],
-                IsRead: false);
+                IsRead: false,
+                HasHtmlBody: display.HasHtmlBody);
         }
         catch (FormatException)
         {

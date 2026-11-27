@@ -43,7 +43,7 @@ public sealed class TriageOutcomeReplyTests
         Assert.Equal("XY34ZZZ", values[EmailTemplates.Registration]);
         Assert.Equal("Roadworthy", values[EmailTemplates.Roadworthiness]);
         Assert.Equal("Repairable", values[EmailTemplates.RepairOutcome]);
-        Assert.Equal("Minor panel damage.", values[EmailTemplates.FindingReason]);
+        Assert.Equal("Minor panel damage.", values[EmailTemplates.Reason]);
     }
 
     [Fact]

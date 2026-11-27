@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -409,9 +410,19 @@ public sealed class ImageViewingWebTests
         Assert.Equal("application/octet-stream", refusedPdf.Content.Headers.ContentType?.MediaType);
         Assert.Equal("attachment", refusedPdf.Content.Headers.ContentDisposition?.DispositionType);
 
+        // The viewer's own request shows a PDF inline as itself (R1275).
+        using var shownPdf = await client.GetAsync($"/Received/{receiptId:D}/Asset/{pdfAsset.Id:D}?inline=true");
+        Assert.Equal(HttpStatusCode.OK, shownPdf.StatusCode);
+        Assert.Equal("application/pdf", shownPdf.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("inline", shownPdf.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal("nosniff", Assert.Single(shownPdf.Headers.GetValues("X-Content-Type-Options")));
+        Assert.True(shownPdf.Headers.CacheControl!.NoStore);
+
         // An asset cannot be fetched under another receipt's identity.
         using var foreign = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{imageAsset.Id:D}");
         Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+        using var foreignShown = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{pdfAsset.Id:D}?inline=true");
+        Assert.Equal(HttpStatusCode.NotFound, foreignShown.StatusCode);
 
         // Anonymous is challenged; roleless is refused.
         using var anonymousRequest = new HttpRequestMessage(
@@ -422,19 +433,24 @@ public sealed class ImageViewingWebTests
         Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
     }
 
-    [Fact]
-    public async Task AssetEndpointForcesSvgToDownload()
+    /// <summary>
+    /// An SVG is a download, even when the viewer asks for it inline: it is an
+    /// image that executes script when navigated to. So is any image type
+    /// other than JPEG, PNG and WebP, because an intake file's type is the
+    /// one its sender declared: an XML type would render as a document.
+    /// </summary>
+    [Theory]
+    [InlineData("diagram.svg", "image/svg+xml", "")]
+    [InlineData("diagram.svg", "image/svg+xml", "?inline=true")]
+    [InlineData("claim.pdf", "image/x+xml", "?inline=true")]
+    [InlineData("animation.gif", "image/gif", "?inline=true")]
+    public async Task AssetEndpointForcesSvgAndOtherImageTypesToDownload(string fileName, string mediaType, string query)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IDownloadIntakeAsset>();
-                services.AddSingleton<IDownloadIntakeAsset>(new SvgAssetDownload());
-            }));
+        using var factory = WithAsset(baseFactory, new FixedAssetDownload(fileName, mediaType, SvgContent));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}");
+        using var response = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}{query}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
@@ -442,19 +458,97 @@ public sealed class ImageViewingWebTests
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
     }
 
-    private sealed class SvgAssetDownload : IDownloadIntakeAsset
+    /// <summary>
+    /// A PDF that arrived as <c>application/octet-stream</c> is known by its
+    /// name (R1246): the viewer's request shows it as the PDF it is, and the
+    /// plain address is still the download.
+    /// </summary>
+    [Fact]
+    public async Task AssetEndpointShowsAnOctetStreamPdfInlineOnlyWhenTheViewerAsks()
     {
-        private static readonly byte[] Content =
-            "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"u8.ToArray();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAsset(baseFactory, new FixedAssetDownload("instruction.pdf", "application/octet-stream", PdfContent));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var address = $"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}";
 
+        using var shown = await client.GetAsync(address + "?inline=true");
+        Assert.Equal(HttpStatusCode.OK, shown.StatusCode);
+        Assert.Equal("application/pdf", shown.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("inline", shown.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal("nosniff", Assert.Single(shown.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal(PdfContent, await shown.Content.ReadAsByteArrayAsync());
+
+        using var saved = await client.GetAsync(address);
+        Assert.Equal("application/octet-stream", saved.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", saved.Content.Headers.ContentDisposition?.DispositionType);
+    }
+
+    /// <summary>
+    /// A Word file's PDF rendering answers as the Case's does where no
+    /// rendering can be made: the viewer's request is a refusal it can show,
+    /// and a plain link is the file itself.
+    /// </summary>
+    [Fact]
+    public async Task AWordAssetWithNoRenderingIsARefusalForTheViewerAndTheFileForALink()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithAsset(
+            baseFactory,
+            new FixedAssetDownload("report.docx", IntakeUploadFilePolicy.DocxMediaType, WordContent),
+            new Pegasus.Infrastructure.Custody.NoDocumentPdfRenderer());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var address = $"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}?handler=Pdf&renderer={CaseDocumentPreviews.RenditionIdentity}";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, address);
+        request.Headers.TryAddWithoutValidation("X-Pegasus-Document-Preview", "1");
+        using var refused = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+        Assert.Equal("application/problem+json", refused.Content.Headers.ContentType?.MediaType);
+        Assert.True(refused.Headers.CacheControl!.NoStore);
+        Assert.Null(refused.Headers.ETag);
+        Assert.Null(refused.Content.Headers.ContentDisposition);
+
+        using var linked = await client.GetAsync(address);
+        Assert.Equal(HttpStatusCode.OK, linked.StatusCode);
+        Assert.Equal("application/octet-stream", linked.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", linked.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal(WordContent, await linked.Content.ReadAsByteArrayAsync());
+    }
+
+    private static readonly byte[] SvgContent =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"u8.ToArray();
+
+    private static readonly byte[] PdfContent = "%PDF-1.4 synthetic"u8.ToArray();
+
+    private static readonly byte[] WordContent = "PK synthetic word"u8.ToArray();
+
+    private static WebApplicationFactory<Program> WithAsset(
+        IntakeWebApplicationFactory baseFactory,
+        FixedAssetDownload asset,
+        Pegasus.Infrastructure.Custody.NoDocumentPdfRenderer? renderer = null) =>
+        baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDownloadIntakeAsset>();
+                services.AddSingleton<IDownloadIntakeAsset>(asset);
+                if (renderer is not null)
+                {
+                    services.RemoveAll<IRenderDocumentAsPdf>();
+                    services.AddSingleton<IRenderDocumentAsPdf>(renderer);
+                }
+            }));
+
+    /// <summary>One retained file, whatever receipt and asset are asked for.</summary>
+    private sealed class FixedAssetDownload(string fileName, string mediaType, byte[] content) : IDownloadIntakeAsset
+    {
         public Task<IntakeSourceDownload?> ExecuteAsync(
             DownloadIntakeAssetQuery query,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeSourceDownload?>(new(
-                Content,
-                "diagram.svg",
-                "image/svg+xml",
-                Content.Length,
+                content,
+                fileName,
+                mediaType,
+                content.Length,
                 "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
     }
 }

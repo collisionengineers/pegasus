@@ -80,12 +80,23 @@
     var principalInvoiceOutstanding = canGenerateCompanion
         && reportAlreadyConfirmed
         && GenerateCaseReport.PrincipalInvoiceTargetOf(CaseReportArtifactKind.AssessmentReport, generation) is not null;
+    // It then makes each companion Send report would require, so it is
+    // offered again while one of those is not generated (R1262).
+    var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
+        artifact.Kind == CaseReportArtifactKind.RepairSpecification);
+    var imagePackArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
+        artifact.Kind == CaseReportArtifactKind.ImagePack);
+    var frozenImageCount = generation?.Snapshot.Images.Count ?? 0;
+    var companionOutstanding = canGenerateCompanion
+        && reportAlreadyConfirmed
+        && CaseReportActs.RequiredCompanionKinds(Model.DeliveryDispatchPlan?.MissingCompanions ?? [], frozenImageCount).Count > 0;
     var canGenerate = canClaimGeneration
         && (reportRetryArtifact is not null
             || feeNoteOutstanding
             || principalInvoiceOutstanding
+            || companionOutstanding
             || !reportAlreadyConfirmed && draftCondition is null);
-    var reportOperationKey = (feeNoteOutstanding || principalInvoiceOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
+    var reportOperationKey = (feeNoteOutstanding || principalInvoiceOutstanding || companionOutstanding ? reportArtifact : reportRetryArtifact)?.OperationKey
         ?? Model.GenerateReportOperationKey;
     // Only a retry of this generation's fee note reuses its key; a new
     // generation's fee note is a new operation.
@@ -93,6 +104,11 @@
         ?? Model.GenerateFeeNoteOperationKey;
     var principalInvoiceOperationKey = (principalInvoiceOutstanding ? principalInvoiceArtifact : null)?.OperationKey
         ?? Model.GeneratePrincipalInvoiceOperationKey;
+    // The companions Generate report makes follow the same rule.
+    var reportImagePackOperationKey = (companionOutstanding ? imagePackArtifact : null)?.OperationKey
+        ?? Model.GenerateImagePackOperationKey;
+    var reportRepairSpecOperationKey = (companionOutstanding ? repairSpecArtifact : null)?.OperationKey
+        ?? Model.GenerateRepairSpecOperationKey;
     // What the preview card opens: the stored report, and a separate fee
     // note once it is confirmed (the Fee tab's own rule).
     var cardReport = reportArtifact is { Filing: CaseReportArtifactFiling.Stored } ? reportArtifact : null;
@@ -114,11 +130,6 @@
     // sent again (operator, 6 October 2026); the dialog is offered only to
     // the lease-holding session (v48 item H). Model.CanSendReport is the one
     // answer the head, the aside's step and the dialog read.
-    var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
-        artifact.Kind == CaseReportArtifactKind.RepairSpecification);
-    var imagePackArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
-        artifact.Kind == CaseReportArtifactKind.ImagePack);
-    var frozenImageCount = generation?.Snapshot.Images.Count ?? 0;
     var canGenerateRepairSpec = canGenerateCompanion
         && repairSpecArtifact?.Status != CaseReportArtifactStatus.Confirmed;
     var canGenerateImagePack = canGenerateCompanion
@@ -162,6 +173,8 @@
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
                     <input type="hidden" name="feeNoteOperationKey" value="@feeNoteOperationKey" />
                     <input type="hidden" name="principalInvoiceOperationKey" value="@principalInvoiceOperationKey" />
+                    <input type="hidden" name="imagePackOperationKey" value="@reportImagePackOperationKey" />
+                    <input type="hidden" name="repairSpecOperationKey" value="@reportRepairSpecOperationKey" />
                     @if (leaseForReport)
                     {
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />

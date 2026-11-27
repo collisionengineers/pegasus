@@ -611,8 +611,8 @@ public sealed partial class DetailsModel
         Guid id,
         long expectedVersion,
         string operationKey,
-        string? to,
-        string? cc,
+        List<string>? to,
+        List<string>? cc,
         string? subject,
         string? body,
         List<string>? selectedAttachments,
@@ -622,6 +622,10 @@ public sealed partial class DetailsModel
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ports);
+        // The composer posts one box per address (R1329); the reply reads
+        // them as the one list they were.
+        var toText = Joined(to);
+        var ccText = Joined(cc);
         if (!TryGetTriageActor(out var actionActor))
         {
             return Forbid();
@@ -653,7 +657,7 @@ public sealed partial class DetailsModel
         // The Delete case correspondence tick is not among it: a refused send
         // comes back unticked (operator, 11 November 2026; R960).
         var draft = new TriageReplyDraft(
-            to, cc, subject, body, selectedAttachments ?? [], fromMailboxId);
+            toText, ccText, subject, body, selectedAttachments ?? [], fromMailboxId);
 
         // A reply answers the mailbox request a Triage Case was opened from.
         if (triage.Record.Origin is not { } origin
@@ -724,12 +728,12 @@ public sealed partial class DetailsModel
                 id, actionActor, ports, draft, cancellationToken, resolved);
         }
 
-        var toRecipients = StaffMailReplyRecipients.ParseValid(to);
+        var toRecipients = StaffMailReplyRecipients.ParseValid(toText);
         if (toRecipients.Length == 0)
         {
             toRecipients = StaffMailReplyRecipients.TriageReply(detail);
         }
-        var ccRecipients = StaffMailReplyRecipients.ParseValid(cc);
+        var ccRecipients = StaffMailReplyRecipients.ParseValid(ccText);
 
         if (toRecipients.Length == 0)
         {
@@ -832,6 +836,11 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>What the operator posted in the reply form, kept on a refused send's redisplay.</summary>
+    private static string? Joined(List<string>? values) =>
+        values is { Count: > 0 }
+            ? string.Join("; ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()))
+            : null;
+
     private sealed record TriageReplyDraft(
         string? To,
         string? Cc,

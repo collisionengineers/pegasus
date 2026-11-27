@@ -1,0 +1,10 @@
+@page "/Cases/{id:guid}/NewMessage"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.NewMessageModel
+@{
+    ViewData["Title"] = OperatorLabels.StaffMail.NewMessage;
+}
+
+@* The new message as a page: what the Case's e-mail dialogue falls back to,
+   and where a refused send returns (FRD-21; R1323, R1330). *@
+<partial name="Shared/_NewMessageComposer" model="Model" />

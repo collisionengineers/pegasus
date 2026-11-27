@@ -1,6 +1,6 @@
 # FRD-24: Engineer findings, damage, valuation and settlement
 
-> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-05, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-04, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -12,8 +12,9 @@
   damage markers on the plan are the report's picture only; nothing is derived
   from them (3 November 2026, R642–R646).
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Glass's, Brego and Cazana are connected: Get valuation fetches their figures,
-  files each provider's PDF report on the Case, and fills an empty Case VIN.
+  Glass's, Brego, Cazana and CAP are connected: Get valuation fetches their
+  figures; Glass's, Brego and Cazana also file their PDF report on the Case
+  and fill an empty Case VIN, and CAP files none (R1205).
   The Engineer's Value is a box on Valuation, typed or filled by the
   calculation. A click on a guide card is the Engineer's decision to use that
   card: the Save records the calculation against it and writes the report's
@@ -226,7 +227,9 @@ The basis is chosen by clicking anywhere on a card (or Enter or Space on
 it), and only a card with a retail value can be the basis, since the
 calculation starts from retail; there is no Basis control beside the figures
 ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI market research
-is automation-only.
+is never typed in Pegasus: its card is written by a research result from the
+AI job list or by a submission from Pegasus Desktop
+([Market Research requests](#market-research-requests)).
 
 Glass's, Brego, Cazana and CAP are the connected guide sources
 ([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md),
@@ -251,9 +254,11 @@ Each new Case has one automatic Glass's valuation request (R465, 28 October
 2026; R545 and R546, 29 October 2026). Case creation records it beside the
 automatic vehicle lookup
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)),
-while the Administrator's Automatic Glass's valuation switch on Automation &
-AI is on, which it is until turned off
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)).
+while the Administrator's Automatic Glass's valuation switch on
+Administration > Integrations, with the other three sources' switches, is on,
+which it is until turned off
+([FRD-17](frd-17-administration-workspace.md#integrations); operator, 26
+November 2026, [R1289](../rulings.md)).
 A Case created while the switch is off has no request, then or later, and
 turning it off settles the requests still waiting. The request is that Get
 valuation, run by the system for the current work and the current month: the
@@ -269,6 +274,13 @@ the request: a vehicle Glass's cannot value or a provider that cannot answer
 records nothing and shows no notice. A Case that is closed, or whose current
 work already holds a Glass's card, is not asked. Any later valuation is Get
 valuation. It never chooses the card as the basis.
+Brego, Cazana and CAP each have the same automatic request behind a switch of
+their own (operator, 26 November 2026, [R1286](../rulings.md)): each new Case
+has one automatic valuation request per source whose switch is on, Glass's
+among them, recorded at its creation and run as the Glass's request is, for
+that source and as that source's own recorder. The Brego, Cazana and CAP
+switches are off until turned on ([R1287](../rulings.md)); a Case created
+while one is off has no request of that source, then or later.
 Cazana's Get valuation signs in with the Cazana Companion account, runs one
 metered Companion lookup for the Case's accepted registration at its accepted
 mileage, and fills the card with Cazana's retail and trade (`remarket`;
@@ -304,7 +316,11 @@ report's text names the Case registration, and fills the work's VIN when the
 work holds none. When Brego holds no data for the registration, its card shows
 an info notice instead,
 `Brego cannot value this vehicle: it holds no data for its registration.`;
-whatever else stops a Brego valuation, the card shows its notice.
+whatever else stops a Brego valuation, the card shows its notice. A Get
+valuation that finds Brego's sign-in gone, or Brego asking to approve the
+browser, signs in again by itself where the account's mailbox can be read,
+once per press, and then values; otherwise the card shows its notice as
+before (26 November 2026, [R1295](../rulings.md)).
 Each connected source is asked once per Case and guide month at the Case's
 accepted registration and mileage (operator, 10 November 2026,
 [R900](../rulings.md)), whoever presses Get valuation, so a repeated press
@@ -312,9 +328,10 @@ costs nothing. A later month counts as the current month it is valued in, and
 so does every ask of CAP ([R1203](../rulings.md)).
 Only an answer with figures uses the ask: a source that cannot answer or
 cannot value the vehicle may be asked again. A corrected accepted
-registration or mileage allows each source and month one more ask. The
-automatic Glass's request is that month's Glass's ask, and it is settled
-unasked when Glass's has already answered. Get valuation stays on the card;
+registration or mileage allows each source and month one more ask. Each
+source's automatic request is that month's ask of that source, and it is
+settled unasked when the source has already answered
+([R1286](../rulings.md)). Get valuation stays on the card;
 a press for a month already answered asks nothing and the card says
 `{Source} has already been asked for this Case.`
 CAP's Get valuation asks Experian, on the API of the vehicle history check
@@ -356,8 +373,10 @@ September 2026). Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
-it never becomes the Engineer's Value by itself.
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
+or by market research submitted from Pegasus Desktop
+([Market Research requests](#market-research-requests)); it never becomes
+the Engineer's Value by itself.
 
 **Retail value, Trade value and Engineer's Value** are the three values the
 report prints in its Vehicle Data table. Retail value and Trade value are the
@@ -476,28 +495,13 @@ whose empty option is Not recorded (operator, 9 October 2026); the select
 stays the posted control, so a browser without script picks the same value
 from it. Salvage value carries a slider reading the share of the Engineer's
 Value, with 5, 10, 15, 20 and 25 % snaps: the amount and the share are one
-fact and the last touch wins. While the outcome is not a total loss the
-salvage rows are absent and a "Salvage · Not applicable" line stands in their
-place. The agreed contract sum, labour hours (read-only, from the Current
+fact and the last touch wins. No Principal setting fills it: the salvage
+matrix is gone (operator, 25 November 2026; R1263). While the outcome is not
+a total loss the salvage rows are absent and a "Salvage · Not applicable" line
+stands in their place. The agreed contract sum, labour hours (read-only, from the Current
 repair spec), storage per day and the recovery charge also stand on it; there
 is no figures strip, no Costs, hire & delays sub-panel, no Salvage sub-panel
 and no computed repair reserve (operator, 9 October 2026).
-
-**The salvage matrix (operator, 29 September 2026).** When the Case's
-Principal has a salvage matrix
-([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
-the matrix fills the Salvage value while the Case edits. Once the outcome is
-Total loss, a category is chosen and the Engineer's Value is known, the
-value is the Engineer's Value times the percentage of the category's band
-that holds it, to the penny, with a half penny rounding away from zero. A
-change of outcome, category or Engineer's Value fills it again. When no
-figure applies any more (N/A, no Engineer's Value, a value in a gap between
-bands) a figure the matrix filled is cleared. A figure the Engineer sets by
-typing, the slider or a snap is their own and the matrix leaves it;
-emptying the value hands it back. A saved value equal to the matrix's figure
-counts as the matrix's. Opening the edit fills nothing. The Save records the
-value as it records a typed one, with no separate provenance. A Principal
-without a matrix changes nothing.
 
 **The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording into
 the reason, joined to what is already there with "and", and may save the typed
@@ -546,6 +550,87 @@ says the result is filed without ending the edit; save or refresh to see it.
 Job states and attribution are owned by
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 
+**Market research from Pegasus Desktop** (operator, 24 and 26 November 2026;
+R1239, R1241, R1309 to R1315; issue 2166). The research and its report are
+now made in Pegasus Desktop. A member of staff signed in there with their own
+Pegasus details
+([ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)) chooses the
+comparable adverts, screenshots and comments on each, and reaches a proposed
+value; the application's own Market Research agent writes the Market
+Valuation Evidence report. The Market Research action above stays as the
+request: it puts the Case on the AI job list, which is primarily for
+automated agents (R1241), and an automated agent that takes a request files
+its result as described above (R28).
+
+By default the application shows the report to the person for accept or
+reject before anything goes to the Case (R1309). Accept files the research
+record, the advert screenshots, the Advert Evidence Pack and the report on
+the Case in one act. Reject sends nothing, and the agent writes the report
+again. A preference in the application alone lets the person file at once
+with no approval; Pegasus does not check it, and keeps with each submission
+which way it came (R1310). With no AI reachable, research may be filed
+without the report after a confirmation in the application, so a submission
+has at most one report and may have none (R1311). Pegasus has no draft state,
+no review setting and no accept or reject step of its own.
+
+One submission
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary))
+is recorded under the member of staff's name and writes, together or not at
+all:
+
+- the research record as the application sent it: the adverts with their
+  comments, the proposed value and its basis, and the search summary;
+- the report, when there is one, as Valuation Evidence in the Case's folder
+  and its Documents list, marked as written by the AI as a job's findings
+  document is (R1306, R1313);
+- the Advert Evidence Pack and the screenshots in the `market-research`
+  subfolder of the Case's Box folder, listed only in the market research
+  space and not in the Documents list (R1238, R1313;
+  [FRD-05](frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody));
+- one AI market research card for the guide month, retail only and with no
+  trade value (R185, R311, R1243), its retail value the record's proposed
+  value. It replaces an earlier research card for that month, and it is
+  written whether or not a report came with the research;
+- the Case history line "Market research submitted from Pegasus Desktop"
+  (R1314).
+
+Like a job's result it needs no Case edit lease and no Case version, moves
+no Case and never sets the Engineer's Value. It is accepted in every Case
+state except Closed, Report sent included (R1242, R1244;
+[FRD-13](frd-13-case-lifecycle-and-workflow.md)). A submission completes a
+market research request waiting on the Case
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list);
+R1312). The same submission sent again changes nothing and answers as the
+first did.
+
+**The market research space** (operator, 26 and 27 November 2026; R1313,
+R1316, R1317; issue 2166). The Valuation section shows the Case's submissions
+in a space of their own under the valuation calculation
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)), newest first, and
+draws nothing while the Case has none. Each submission shows:
+
+- who submitted it and when, as "Submitted by {name}, {date}";
+- its **Proposed value**;
+- its adverts as one table headed **No.**, **Site**, **Vehicle**, **Year**,
+  **Mileage**, **Price**, **Seller** and **Comment**, the comment being the
+  person's own;
+- links named **Market Valuation Evidence**, while the report is one of the
+  Case's documents, **Advert Evidence Pack**, and **Screenshot** in the row of
+  each advert that has one.
+
+The space says who submitted the research and nothing of acceptance or
+review: which way a submission came (R1310) is kept and not shown (R1316).
+The words are the operator's (R1317), and dates and money read as they do
+elsewhere on the Case page. Each link opens its file in the Case viewer by
+the route every Case document is read by, under the same authorization. The
+Advert Evidence Pack and the screenshots are listed nowhere else (R1313), so
+the space is the way to them. It is read-only, the same while reading and
+editing and in both views of an Inspection + Audit Case; the report's Change
+type and Remove stay on its row in Files. A submission whose record cannot be
+read keeps its line and its links and has no table. The record's search
+summary, the basis of its proposed value and its free valuation figure are
+kept and not shown.
+
 ### Valuation readiness
 
 No circular readiness gate is acceptable (operator, 16 October 2026).
@@ -590,10 +675,7 @@ staying the Engineer's own while Retail and Trade still follow the card, the
 preview and the Save recording one figure, and a research result filed while
 a staff member holds the edit lease. Web tests cover the guide cards in both
 modes, the chosen card's Selected word, no Retail or Trade box, and the
-calculation standing once below every card. Core tests cover the
-salvage matrix's rules, band lookup, rounding and when a value follows the
-matrix. Web tests cover
-the salvage matrix handed to the Case only while it edits. Integration tests
+calculation standing once below every card. Integration tests
 cover Glass's Get valuation against the scripted provider — its figures, month,
 mileage and stock save, every failure answering the notice and a vehicle
 too old to value answering its own sentence — and its report
@@ -604,7 +686,9 @@ HTML and PDF, the date each month is valued on, the mileage in whole miles,
 credentials and JWT kept out of URLs and logs, every failure answering the
 notice and a registration with no data answering its own sentence. Integration
 tests cover Brego's Get valuation and Valuation Report against a scripted Brego
-platform and Cognito API — Cognito `USER_SRP_AUTH` sign-in, session reuse and
+platform and Cognito API — sign-in from the stored refresh token and, with a
+saved password, by Cognito `USER_SRP_AUTH` when none is held or it is refused
+(R1290), the account linked by its e-mailed link and its device code, session reuse and
 refresh on 401, VRM lookup, `retail.high` and `trade.high` figures, VIN fill,
 Valuation Report PDF generation and 14×16 broken-image stock replacement, the
 date each month is valued on, the mileage in whole miles, credentials and
@@ -615,7 +699,7 @@ Brego and Cazana evidence is a separate tier
 
 ## Links
 
-- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-05`, `EXT-07`, `EXT-10`,
+- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-04`, `EXT-07`, `EXT-10`,
   `EXT-13` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),

@@ -39,7 +39,7 @@ public sealed partial class AzureBlobIntakeArtifactStore
         CancellationToken cancellationToken)
     {
         var hash = ValidateContent(contentHash, content);
-        var storageKey = $"sha256/{hash[..2]}/{hash}";
+        var storageKey = DurableKey(hash);
         await UploadImmutableAsync(
             storageKey,
             hash,
@@ -49,6 +49,15 @@ public sealed partial class AzureBlobIntakeArtifactStore
             cancellationToken);
         return storageKey;
     }
+
+    public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(
+        string contentHash,
+        CancellationToken cancellationToken) =>
+        ReadAsync(DurableKey(NormalizeHash(contentHash)), cancellationToken);
+
+    /// <summary>Where <see cref="StoreAsync"/> keeps the content with this normalised hash.</summary>
+    private static string DurableKey(string normalizedHash) =>
+        $"sha256/{normalizedHash[..2]}/{normalizedHash}";
 
     public async Task<IntakeQuarantineArtifact> StoreStreamAsync(
         Stream content,

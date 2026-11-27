@@ -106,75 +106,93 @@ does for `Features:LocalIntake`.
 | `Features:LiveVehicleLookup` | The Worker composes the live DVLA/DVSA adapter from `Dvla:*` and `Dvsa:*` (parsed at start) instead of the replay folder; the Web records requests as `production_live`. |
 | `Features:LiveBoxCustody` | Both hosts compose the production storage shape (blob-backed intake artifacts, cached document reads, Box case custody) over the run's Azurite `transient-intake` container, with the fenced local-test Box root `425169015650`. It cannot be combined with `Features:LocalDocumentCustody`. |
 | `Features:LiveGlass` | The Web composes the Glass's gateway from `Glass:*` at start. Without it, or in any host without Glass's, the Case page offers no Glass's control and refuses the command. |
-| `Features:LiveGuideValuation` | The Web composes the Glass's, Cazana and Brego guide valuations, as Production does, from production's accounts (`Glass:ValuationAccount:*`, `Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`), each checked at start naming the key; it requires `Features:LiveGlass`, whose options Glass's valuation reads. There is no Brego session store offline, so each Brego valuation signs in afresh (R709). Without it an offline host offers no Get valuation. |
-| `Features:LiveExperian` | The Web composes the Experian vehicle history check and CAP's guide valuation, as Production does, from `Experian:*`, each act with its own account (read on each call; ADR-0089, R1201, R1215), so the hosted test instance can run them against Experian. Without it an offline host says Experian is not connected and its CAP card is unavailable. |
+| `Features:LiveGuideValuation` | The Web composes the Glass's, Cazana and Brego guide valuations, as Production does, with the logins the run's own database holds (R709, R1288; [integration logins](#integration-logins)); it requires `Features:LiveGlass`, whose options Glass's valuation reads. A login not set leaves its card unavailable. Without it an offline host offers no Get valuation. |
+| `Features:LiveExperian` | The Web composes the Experian vehicle history check and CAP's guide valuation, as Production does, from `Experian:BaseUri` and `Experian:TokenUri`, each act with its own login from the run's database (read on each call; ADR-0089, R1201, R1215, R1288), so the hosted test instance can run them against Experian. Without it an offline host says Experian is not connected and its CAP card is unavailable. |
 | `Features:LiveGraphMail` | Both hosts compose Production's Graph mail side (the mail client, the Inbox and Sent sources and their pollers, staff and report send and the answered-instruction move in the Worker; the mailbox resolver, access check, search and staff send in the Web) over a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, parsed at start. The Worker maintains change subscriptions only when `Graph:ChangeNotificationUrl` (the Funnelled webhook path on the instance's public host) and `Graph:ChangeNotificationClientState` are both set, checked at start: one without the other fails the start naming the missing key, and neither leaves the five-minute recovery poll to carry mail (ADR-0088 as amended, R675 to R677). |
 | `Features:LiveOcr` | The Worker composes Production's Document Intelligence OCR adapter and processor against `DocumentIntelligence:Endpoint`, production's account, which is otherwise a Production-only setting the profile refuses; the endpoint is required and validated as in Production. The adapter authenticates with a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, the registration `Features:LiveGraphMail` uses, which needs `Cognitive Services User` on that account; it is handed to the adapter alone. A missing endpoint or key fails the start naming it. No OCR opt-in existed before this one: without it an offline host composes no OCR provider and OCR work fails closed (ADR-0088 as amended, R931). |
+| `Features:LiveClassifierRuns` | The Web reads the live classifier's runs from the `runs` table of its own storage account, named by `ClassifierRuns:TableEndpoint` (an absolute HTTPS URI, required), so the Mail classifier page shows them beside the instance's own (R1318, R1319). The read authenticates with a `ClientSecretCredential` built from `Graph:TenantId`, `Graph:ClientId` and `Graph:ClientSecret`, the registration `Features:LiveGraphMail` uses, which needs `Storage Table Data Reader` on that account; it is handed to the read alone. It reads when the page opens and keeps nothing. A missing endpoint or key fails the start naming it. Without it the page says live runs are not shown here (ADR-0088 as amended). |
 | `Features:PasswordSignIn` | The automatic offline sign-in stops answering; the Identity cookie and `/Account/SignIn` are used, and `--initialize-development` sets `DevelopmentOffline:AdministratorPassword` on the local Administrator each time it runs. The lifecycle requires it for a run with a public origin. |
 
 `Features:AutomationMcp` with `AutomationMcp:UseDevelopmentKeys` and
 `Features:PrincipalApi` already compose offline and need no further switch.
+`AutomationMcp:DesktopRedirectUris` offers sign-in from Pegasus Desktop
+([ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md), R1297): one or
+more `http` addresses on a loopback IP address, comma or semicolon separated,
+such as `http://127.0.0.1/callback`. Without it there is no Pegasus Desktop
+client. No deployment definition sets it, so production offers no such
+sign-in.
 The lifecycle passes these settings to the hosts from the ignored local
 settings file described in the [runbook](../runbook.md#local-live-integration-run);
 no tracked file carries them.
 
+## Integration logins
+
+The logins of the Glass's valuation, Cazana Companion, Brego and two Experian
+accounts are not settings: they are held in the database, protected with the
+Web host's key ring, and an Administrator replaces each on Administration >
+Integrations (R1288,
+[ADR-0091](../adr/0091-integration-logins-in-the-database.md)). Each provider
+reads its login on each call, never at startup, so a login not set or
+unreadable makes that card or check unavailable rather than stopping the host.
+The Worker reads none.
+
+The settings that held them until R1288 (`Glass:ValuationAccount:*`,
+`Cazana:CompanionAccount:*`, `Brego:ValuationAccount:*`,
+`Experian:HistoryAccount:*` and `Experian:CapAccount:*`, Key Vault references
+in Production) are no longer required at start-up. The release that moves the
+logins reads them once, with Brego's stored sign-in from
+`authentication-ring/brego-session.json`, to fill each login not yet set, and
+never over one that is; the next release removes the settings and their
+secrets (#2177, #2163).
+
 ## Glass's valuation
 
-`Glass:ValuationAccount:Username` and `Glass:ValuationAccount:Password` are
-the Glass's valuation account Get valuation signs in with
-([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)).
-Both are Production required settings, held in Key Vault as
-`glass-valuation-username` and `glass-valuation-password` and delivered to Web
-as `Glass__ValuationAccount__Username` and `Glass__ValuationAccount__Password`
-through versioned secret URI references, each read through its own
-secret-scoped grant; the Worker receives neither. The account is read on each
-valuation, never at startup, so an unresolved reference makes the Glass's card
-answer unavailable rather than stopping the host. The valuation uses the
-repair estimate's `Glass:MarketValueAssessorBaseUri` and
-`Glass:RequestTimeoutSeconds`. Rotating the password is a new secret version
-and a configuration read-back, not a release. `DevelopmentOffline` composes no
-Glass's valuation, so its Glass's card says the source is unavailable.
+The Glass's valuation account
+([ADR-0060](../adr/0060-glass-valuation-account-and-valuation-report.md)) is
+an [integration login](#integration-logins): a username and a password. The
+valuation uses the repair estimate's `Glass:MarketValueAssessorBaseUri` and
+`Glass:RequestTimeoutSeconds`. `DevelopmentOffline` composes no Glass's
+valuation unless `Features:LiveGuideValuation` is set, so its Glass's card
+says the source is unavailable.
 
 ## Cazana valuation
 
-`Cazana:CompanionAccount:Email` and `Cazana:CompanionAccount:Password` are
-the Cazana Companion account Get valuation signs in with
-([ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md)).
-Both are Production required settings, held in Key Vault as
-`cazana-companion-email` and `cazana-companion-password` and delivered to Web
-as `Cazana__CompanionAccount__Email` and `Cazana__CompanionAccount__Password`
-through versioned secret URI references, each read through its own
-secret-scoped grant; the Worker does not receive them. They are read on each
-valuation, never at startup, so an unresolved reference makes the Cazana card
-answer unavailable rather than stopping the host. The Cazana API origin
-(`https://api.cazana.com`) and a 30-second timeout are fixed in the adapter.
-Rotating the password is a new secret version and a configuration read-back,
-not a release. `DevelopmentOffline` composes no Cazana valuation, so its
-Cazana card says the source is unavailable.
+The Cazana Companion account
+([ADR-0079](../adr/0079-cazana-companion-account-and-companion-report.md)) is
+an [integration login](#integration-logins): an e-mail address and a
+password. The Cazana API origin (`https://api.cazana.com`) and a 30-second
+timeout are fixed in the adapter. `DevelopmentOffline` composes no Cazana
+valuation unless `Features:LiveGuideValuation` is set, so its Cazana card says
+the source is unavailable.
 
 ## Brego valuation
 
-`Brego:ValuationAccount:Email` and `Brego:ValuationAccount:Password` are
-the Brego valuation account Get valuation signs in with
-([ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)).
-Both are Production required settings, held in Key Vault as
-`brego-valuation-email` and `brego-valuation-password` and delivered to Web
-as `Brego__ValuationAccount__Email` and `Brego__ValuationAccount__Password`
-through versioned secret URI references, each read through its own
-secret-scoped grant; the Worker does not receive them. They are read on each
-valuation, never at startup, so an unresolved reference makes the Brego card
-answer unavailable rather than stopping the host. Rotating the password is a
-new secret version and a configuration read-back, not a release.
-`DevelopmentOffline` composes no Brego valuation, so its Brego card says the
-source is unavailable.
+The Brego valuation account
+([ADR-0084](../adr/0084-brego-valuation-account-and-valuation-report.md)) is
+an [integration login](#integration-logins): its e-mail address and, when
+it has one, its password (optional, R1290), with the stored sign-in (the
+Cognito refresh token and the `brego-session` cookie) kept and renewed beside
+it. The account is linked on Administration > Integrations, by its e-mailed
+sign-in link or its saved password and the six-digit code Brego e-mails when
+it asks to approve the device; no setting, script or storage role is involved
+([runbook](../runbook.md#linking-the-brego-valuation-account)). Where the Web
+composes its Graph mail reads, Refresh login and a Get valuation that finds
+the sign-in gone read Brego's sign-in e-mail from the account's own mailbox
+(R1294, R1295), which needs the host's Graph identity to have Exchange access
+to that mailbox; it adds no setting.
+`DevelopmentOffline` composes no Brego valuation unless
+`Features:LiveGuideValuation` is set, so its Brego card says the source is
+unavailable.
 
 ## Experian accounts
 
 Experian issues an account per permission, so Pegasus holds two
 ([ADR-0089](../adr/0089-experian-vehicle-history-check.md), R1207, R1215).
-Each act signs in with its own account only; neither reads the other's.
+Each act signs in with its own account only; neither reads the other's. Each
+account is an [integration login](#integration-logins): a client id, a client
+secret, a username and a password.
 
-| Purpose | Settings | Key Vault secrets | Production user | UAT user (test instance) |
+| Purpose | Settings until R1288 | Key Vault secrets until R1288 | Production user | UAT user (test instance) |
 |---|---|---|---|---|
 | Run Experian check (condition records) | `Experian:HistoryAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-history-client-id`, `-client-secret`, `-username`, `-password` | `pattersonaapi` | `pattersonaapiuat` |
 | CAP's Get valuation (CAP valuations, R1201) | `Experian:CapAccount:ClientId`, `ClientSecret`, `Username`, `Password` | `experian-cap-client-id`, `-client-secret`, `-username`, `-password` | `merceraapi` | `merceraapiuat` |
@@ -183,18 +201,13 @@ Each act signs in with its own account only; neither reads the other's.
 token endpoint, are shared by both accounts: production uses
 `https://uk-api.experian.com/ukci/automotive` and
 `https://uk-api.experian.com/oauth2/v1/token`, UAT the same paths on
-`uat-uk-api.experian.com`. Both must be HTTPS on an `experian.com` host. All
-ten are Production required settings (R749): the Web host checks at start-up
-that each is present, and stops naming the key when one is not (R1252). The
-account values reach the Web
-App as `Experian__HistoryAccount__*` and `Experian__CapAccount__*` through
-versioned secret URI references, each read through its own secret-scoped
-grant; the addresses are plain settings (`Experian__BaseUri`,
-`Experian__TokenUri`). The Worker receives none. Their values are read on
-each call, not at start-up, so a setting that is present but holds an
-unresolved Key Vault reference makes that act unavailable rather than stopping
-the host. Rotating a secret is a new secret version and a
-configuration read-back, not a release. `DevelopmentOffline` composes no
+`uat-uk-api.experian.com`. Both must be HTTPS on an `experian.com` host. Both
+are Production required settings (R749): the Web host checks at start-up that
+each is present, and stops naming the key when one is not (R1252). They are
+plain settings (`Experian__BaseUri`, `Experian__TokenUri`); the Worker
+receives neither. The accounts' eight settings stopped being required on 26
+November 2026 (R1288). `DevelopmentOffline` composes no
 Experian unless `Features:LiveExperian` is set, so its Vehicle history area
 says Experian is not connected and its CAP card says the source is
-unavailable; the hosted test instance sets it with both UAT accounts.
+unavailable; the hosted test instance sets it, with both UAT accounts as its
+own integration logins.

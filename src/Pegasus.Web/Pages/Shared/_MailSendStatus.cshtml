@@ -1,0 +1,24 @@
+@model Pegasus.Core.Operations.StaffMailOperation
+@using Pegasus.Web.Presentation
+@*
+    A composer's last send, above its form: its state, a failure's reason,
+    and for a send not yet settled the line that nothing here sends it again
+    (the Worker's Sent-evidence poll settles Submitted into Sent; R1069).
+*@
+@{
+    var unresolved = Model.State is Pegasus.Core.Operations.StaffMailState.Submitted
+        or Pegasus.Core.Operations.StaffMailState.Unknown;
+}
+<section class="mail-compose-status" aria-labelledby="mail-compose-status-@Model.Id.ToString("N")" data-mail-send-status>
+    <h2 id="mail-compose-status-@Model.Id.ToString("N")">Send status</h2>
+    <p>@OperatorLabels.StaffMail.State(Model.State)</p>
+    @if (Model.State == Pegasus.Core.Operations.StaffMailState.Failed
+        && Model.FailureCode is { Length: > 0 } failureCode)
+    {
+        <p class="field-hint">@OperatorLabels.StaffMail.Failure(failureCode)</p>
+    }
+    @if (unresolved)
+    {
+        <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+    }
+</section>

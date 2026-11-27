@@ -337,7 +337,9 @@ There is no received-file page. A received file is shown where it matters:
 on its message, on the upload that brought it, and on the record it became
 (Case, Triage Case, Image-initiated Case, or Unidentified item). Each of those
 offers **Open file** for the retained original and, for email, **Open
-message**. A retained email is named by its subject with `.eml`, or
+message**; the message dialog offers **View** and **Download** on each
+attachment instead
+([FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)). A retained email is named by its subject with `.eml`, or
 `Message.eml` when it has none or when the subject is a name Windows keeps for
 a device, and its download carries that name. Two emails
 may share a name, because the receipt is the identity.
@@ -374,10 +376,11 @@ as **Create case** does, and opens the Triage as **Open the Triage** does
 (operator, 22 October 2026; R223), through `pegasus_intake_action`
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#queue-and-intake-tools)).
 
-A retained message's attachments each state their own outcome in operator
-words: Case created, Linked to Case, Vehicle images, Triage, Unidentified,
-Could not be read (with its reason and its Unidentified item where one
-exists), or Processing failed. The message's outcome is not repeated on every attachment.
+A retained message states its outcome once, in operator words: Case
+created, Linked to Case, Vehicle images, Triage, Unidentified, Could not be
+read (with its reason and its Unidentified item where one exists), or
+Processing failed. Its attachments carry no outcome of their own (operator,
+25 November 2026, R1275).
 
 Box custody follows Case/PO allocation and never precedes it; the custody
 rules, including what happens when Box filing fails, are owned by

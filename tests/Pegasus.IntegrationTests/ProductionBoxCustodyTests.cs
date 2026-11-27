@@ -1346,6 +1346,46 @@ public sealed class ProductionBoxCustodyTests
         Assert.NotEmpty(reconciledSource.RemoteId);
     }
 
+    /// <summary>
+    /// R1238: a Case's folder has one subfolder, <c>market-research</c>. It is
+    /// made once and found again by the next call, and what is addressed to
+    /// it is filed in it and not in the Case's folder.
+    /// </summary>
+    [Fact]
+    public async Task TheMarketResearchSubfolderIsMadeOnceInTheCaseFolderAndHoldsWhatIsFiledInIt()
+    {
+        var box = new StatefulBox();
+        var custody = new BoxCaseCustody(new EmptyArtifactStore(), CreateClient(box));
+        var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        var documents = new BoxDocumentContentStore(CreateClient(box));
+
+        var subfolder = await documents.EnsureCaseSubfolderAsync(root.RemoteId, "market-research", default);
+        var again = await documents.EnsureCaseSubfolderAsync(root.RemoteId, "market-research", default);
+
+        Assert.Equal(subfolder, again);
+        Assert.NotEqual(root.RemoteId, subfolder);
+        Assert.True(box.PathExists("QDOS31001/market-research"));
+
+        var pack = Encoding.UTF8.GetBytes("advert evidence pack");
+        var screenshot = Encoding.UTF8.GetBytes("advert screenshot");
+        using (documents.BeginFolderProofBatch())
+        {
+            await documents.StoreVersionAsync(
+                Address(caseId, subfolder, 4, 1, "evidence-pack.pdf"), pack, Sha256(pack), default);
+            await documents.StoreVersionAsync(
+                Address(caseId, subfolder, 5, 1, "advert-1.jpg"), screenshot, Sha256(screenshot), default);
+        }
+
+        Assert.True(box.PathExists("QDOS31001/market-research/004 evidence-pack.pdf"));
+        Assert.True(box.PathExists("QDOS31001/market-research/005 advert-1.jpg"));
+        Assert.False(box.PathExists("QDOS31001/004 evidence-pack.pdf"));
+        Assert.False(box.PathExists("QDOS31001/005 advert-1.jpg"));
+        Assert.Equal(pack, box.ContentAt("QDOS31001/market-research/004 evidence-pack.pdf"));
+        Assert.Equal(0, box.DeleteCount);
+    }
+
     [Fact]
     public async Task WrongTypeAndAncestryFailClosedWithoutMutation()
     {
@@ -1925,6 +1965,8 @@ public sealed class ProductionBoxCustodyTests
     {
         public Task<string> StoreAsync(string contentHash, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream content, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) => Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 
@@ -1935,6 +1977,9 @@ public sealed class ProductionBoxCustodyTests
 
         public Task<StagedArtifactInventoryItem> StageAsync(Guid stagedReceiptId, string contentHash, Stream value, long contentLength, DateTimeOffset firstSeenAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(string storageKey, CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(content);

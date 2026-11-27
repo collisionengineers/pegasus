@@ -465,7 +465,9 @@ Return to Engineer needs no session. The rules behind each action are in
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
-  it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
+  it opens the chaser composer in the one send-e-mail dialogue over the
+  Case (operator, 27 November 2026; [R1330](../rulings.md); without script
+  its page, `/Cases/{id}/Chaser`), a reply to the
   Case's instruction email, or, with no instruction email, a new message,
   from the Outgoing mailbox staff choose as From (operator, 12 October 2026;
   4 November 2026, R655). From starts on the mailbox the instruction
@@ -492,7 +494,12 @@ Return to Engineer needs no session. The rules behind each action are in
   view with no success notice; a refusal shows its reason.
 - **Close case**, after a separator and in red. Its compact dialog offers
   only the outcomes Core permits and needs an outcome and a reason
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case)).
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case)). While the
+  outcome is Collision Engineers rejected it shows one tick under the
+  reason, **E-mail the Principal**; ticked, the Case closes and the page
+  returns with the e-mail dialogue open on the Case rejection template
+  (operator, 27 November 2026; [R1321](../rulings.md),
+  [R1325](../rulings.md)).
 
 ### Overview
 
@@ -748,6 +755,19 @@ was asked with, and each earlier research stays a card of its own.
 The result is filed without the Case edit lease, so it returns while the
 Engineer is still editing and does not end the edit; the card says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
+
+Under the calculation stands the market research space (operator, 26 and 27
+November 2026; R1313, R1316, R1317): one sub-panel headed **Market research**
+holding the research submitted to the Case from Pegasus Desktop, newest
+first, and not drawn while the Case has none. Each submission is the line
+"Submitted by {name}, {date}", its **Proposed value**, its adverts as one
+dense table (**No.**, **Site**, **Vehicle**, **Year**, **Mileage**,
+**Price**, **Seller**, **Comment**) and links to its files: **Market
+Valuation Evidence**, with the AI source tag, **Advert Evidence Pack**, and a
+**Screenshot** link in an advert's row. The links open in the Case viewer.
+The space holds no control, says nothing of acceptance or review, and is the
+same while reading and editing and in both views
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
 
 A click anywhere on a card with a retail, or Enter or Space on it, is the
 Engineer's decision to use it (operator, 8 October 2026): its name, labels,
@@ -1044,21 +1064,19 @@ classification: the email the Case was created from, received mail
 associated with it later, uploaded `.eml` files and the Sent items of mail
 Pegasus sent for the Case once the Sent-evidence poll has observed them,
 newest first ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)).
-The header reads **Type**. The subject opens that message in a dialog over
-the Case: sender, received time, recipients, its text and attachment names.
-The dialog changes nothing. The type column reads the classification, or
+The header reads **Type**. The subject opens that message in the Inbox's
+message dialog over the Case, with its conversation and everything that
+dialog offers (operator, 26 November 2026, R1278). The type column reads the classification, or
 **Sent** on a Sent item, and an inline **Query** or **Done** chip when the
 message holds a non-withdrawn query. A received row that holds no such
 query, once the report is sent,
 offers **Open query** (operator, 27 October 2026): one click opens a query
 on that message and returns here
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#report-sent-and-queries)).
-Where the record offers **Reply**, **Reply all** and **Forward**, the
-dialog does too; each opens the composer in the Inbox's message dialog with
-this Case chosen. Its **Open full message** opens the Inbox with that
-message's dialog open, which keeps classification and the Case link
-(operator, 30 October 2026, R560); without script the row
-opens the `/Inbox/{id}` record.
+**Reply**, **Reply all** and **Forward** open the composer in that dialog,
+over the Case, with this Case chosen, and whatever is done in the dialog
+leaves the operator here. There is no **Open full message**: the dialog is
+the full message. Without script the row opens the `/Inbox/{id}` record.
 There is no Compose
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
@@ -1144,8 +1162,8 @@ October 2026). It lists every query raised on the Case: the open ones
 first, then the Done ones. When none is open it reads the one sentence "No
 active queries on this case", above any Done rows. A row carries State
 (**Query** while open, **Done** in green once closed), Raised, Raised by,
-Channel, Message (the subject opens the message; a logged query shows its
-details), Assigned to and Done. Assigned to on an open query is **Unassigned**
+Channel, Message (the subject opens the message in the Inbox's message
+dialog over the Case, R1278; a logged query shows its details), Assigned to and Done. Assigned to on an open query is **Unassigned**
 or the assignee's name, opening the assign dialog, with **Take** beside it
 when the viewer does not already hold it. The row's actions are **Reply**
 and **Mark done** on an open mail query while staff mail is available,
@@ -1334,13 +1352,15 @@ The dialog also shows what the Principal's report sending rules decided
 - no question: the rules read the Case's own facts (operator, 12 November
   2026; R1023);
 - To and Cc seeded from the plan, with one line naming what set the Cc and what
-  was removed;
+  was removed, a recipient from the On every Case list named "On every
+  Case" and a rule's "Rule N: …" (operator, 25 November 2026;
+  [R1272](../rulings.md) item S);
 - the Files rows, with required companions always ticked and
   marked "(required for this Principal)", the other work's report and its
   documents as rows, off, once the Audit exists, and the filed estimates the
   rules attach as rows, on, under their filed names,
-  then each External estimate and Repair invoice the Principal's Offer ticks
-  list as a row, off, under its filed name and its document type, one the
+  then each External estimate and Repair invoice the rules offer,
+  as a row, off, under its filed name and its document type, one the
   filed estimates already carry left out
   ([R1151](../rulings.md), [R1158](../rulings.md)). Each of these Case
   file rows opens its file in the Case viewer from its name, as the Files
@@ -1349,9 +1369,14 @@ The dialog also shows what the Principal's report sending rules decided
   (operator, 18 November 2026; [R1175](../rulings.md),
   [R1176](../rulings.md)). A
   required companion that is not generated says so and withholds Send report,
-  and its Generate is in the More menu. Any warning appears as a hint;
-- a read-only "After sending" list of what staff still owe, and
-  a Done tick for each hold.
+  and its Generate is in the More menu; Generate report makes it first
+  ([R1262](../rulings.md)). Any warning appears as a hint;
+- a Done tick for each hold.
+
+There is no "After sending" list: a task the rules add becomes a Case task
+when Report sent is recorded and is shown nowhere before; holds and Stop stay
+in the dialog because they block the send (operator, 25 November 2026;
+[R1270](../rulings.md)).
 
 The Yes and No answers show their labels, and a hold's Done tick sits on the
 hold's own line (v41 K2, operator, 15 and 19 October 2026,

@@ -2723,65 +2723,9 @@
 })();
 
 
-// --- retained helpers: report recipients, the Glass's window and its return ---
+// --- retained helpers: the Send report's Files rows, the Glass's window and its return ---
 (function () {
     'use strict';
-    // The Send report composer's To and Cc boxes (v48 item O; operator,
-    // 4 November 2026): Add To recipient and Add Cc recipient add a box with
-    // its ×, every box can be removed, and the one remaining To box keeps
-    // none, since a send needs a To. The boxes arrive from the server with
-    // their × already drawn; the stack decides which × show.
-    function refreshRemovals(stack) {
-        if (!stack) { return; }
-        var boxes = stack.querySelectorAll('.recip-box');
-        var keepOne = stack.hasAttribute('data-report-recipients-keep-one');
-        boxes.forEach(function (box) {
-            var remove = box.querySelector('[data-remove-report-recipient]');
-            if (remove) { remove.hidden = keepOne && boxes.length === 1; }
-        });
-    }
-    function bindReportRecipients(root) {
-        root.querySelectorAll('[data-add-report-recipient]').forEach(function (button) {
-            if (button.dataset.recipientBound) { return; }
-            button.dataset.recipientBound = 'true';
-            button.addEventListener('click', function () {
-                var target = document.getElementById(button.dataset.addReportRecipient);
-                if (!target) { return; }
-                var model = target.querySelector('.recip-box');
-                var input = document.createElement('input');
-                input.name = button.dataset.reportRecipientName;
-                input.type = 'email';
-                input.autocomplete = 'email';
-                if (document.getElementById('report-address-book')) { input.setAttribute('list', 'report-address-book'); }
-                input.setAttribute('aria-label', input.name === 'ccRecipients' ? 'Report copy recipient' : 'Report recipient');
-                if (model) {
-                    var box = model.cloneNode(true);
-                    box.querySelector('input').replaceWith(input);
-                    target.appendChild(box);
-                } else {
-                    target.appendChild(input);
-                }
-                refreshRemovals(target);
-                input.focus();
-            });
-        });
-        root.querySelectorAll('[data-report-recipients]').forEach(function (stack) {
-            if (stack.dataset.recipientsBound) { return; }
-            stack.dataset.recipientsBound = 'true';
-            stack.addEventListener('click', function (event) {
-                var remove = event.target.closest('[data-remove-report-recipient]');
-                if (!remove || !stack.contains(remove)) { return; }
-                var box = remove.closest('.recip-box');
-                var neighbour = box && (box.nextElementSibling || box.previousElementSibling);
-                if (box) { box.remove(); }
-                refreshRemovals(stack);
-                var focus = neighbour && neighbour.querySelector('input');
-                if (focus) { focus.focus(); }
-            });
-            refreshRemovals(stack);
-        });
-    }
-
     // The composer's Files rows (v48 items D and E): Rename shows the stem
     // beside a fixed .pdf, or a Case file's own extension (data-extension;
     // R1175, R1176); Enter or leaving keeps the name, Escape puts it back,
@@ -2851,9 +2795,8 @@
         });
     }
 
-    bindReportRecipients(document);
     bindReportFiles(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportRecipients, bindReportFiles);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportFiles);
 })();
 
 
@@ -5500,91 +5443,6 @@
         fromField();
     }
 
-    // The Principal's salvage matrix (29 September 2026). While the salvage
-    // value follows it, a change of outcome, category or Engineer's Value
-    // fills the money field with the value times the band's percentage, or
-    // empties it when no band applies. A figure the Engineer sets (typed,
-    // slid or snapped) is their own and the matrix leaves it; emptying the
-    // field hands it back. The arithmetic is Core's SalvageMatrix, in pence.
-    // The Engineer's Value box is the Valuation section's, so one listener,
-    // added once, refills whichever settlement binding is current.
-    var engineerValueBox = '[data-valuation-value="engineer"]';
-    var salvageMatrixRefill = null;
-    document.addEventListener('input', function (event) {
-        if (salvageMatrixRefill && event.target && event.target.matches && event.target.matches(engineerValueBox)) {
-            salvageMatrixRefill();
-        }
-    });
-
-    function bindSalvageMatrix(section) {
-        salvageMatrixRefill = null;
-        var share = section.querySelector('[data-salvage-share]');
-        var row = share ? share.closest('.dec') : null;
-        var field = row ? row.querySelector('input.fi') : null;
-        var bands = null;
-        try { bands = share ? JSON.parse(share.getAttribute('data-salvage-matrix') || 'null') : null; } catch (_) { bands = null; }
-        if (!field || !Array.isArray(bands)) {
-            return;
-        }
-        var following = share.getAttribute('data-salvage-matrix-follows') === 'true';
-        var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
-        var category = control(section.querySelector('[data-decision="assessment.category"]'));
-        var settlementValue = section.querySelector('[data-decision-engineer-value]');
-
-        function pence(text) {
-            var amount = parseFloat(text);
-            return isFinite(amount) ? Math.round(amount * 100) : null;
-        }
-        function engineerValue() {
-            var box = document.querySelector(engineerValueBox);
-            return pence(box ? box.value
-                : settlementValue ? settlementValue.getAttribute('data-engineer-value') : null);
-        }
-        function figure() {
-            var value = engineerValue();
-            if (!outcome || outcome.value !== 'total_loss' || !category || value === null) {
-                return null;
-            }
-            for (var index = 0; index < bands.length; index++) {
-                var band = bands[index];
-                if (band.category === category.value && pence(band.from) <= value && value <= pence(band.to)) {
-                    var salvage = Math.floor((value * Math.round(band.percentage * 100) + 5000) / 10000);
-                    return (salvage / 100).toFixed(2);
-                }
-            }
-            return null;
-        }
-        function refill() {
-            if (!following || !field.isConnected) {
-                return;
-            }
-            var next = figure();
-            var text = next === null ? '' : next;
-            if (field.value === text) {
-                return;
-            }
-            field.value = text;
-            field.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-
-        // The row holds the money field and the slider: typing is the
-        // Engineer's own figure unless it empties the field, and sliding
-        // always is.
-        row.addEventListener('input', function (event) {
-            if (event.isTrusted) {
-                following = event.target === field && field.value === '';
-            }
-        });
-        share.addEventListener('click', function (event) {
-            if (event.target.closest('[data-salvage-snap]')) {
-                following = false;
-            }
-        });
-        if (outcome) { outcome.addEventListener('change', refill); }
-        if (category) { category.addEventListener('change', refill); }
-        salvageMatrixRefill = refill;
-    }
-
     // P15: a bank wording joins the typed reason.
     function bindReasonBank(section) {
         var bank = section.querySelector('[data-reason-bank]');
@@ -5622,7 +5480,6 @@
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
             // The Decisions choices are selects; the v28 P29 radio group is gone (v36 item J).
             bindSalvageShare(section);
-            bindSalvageMatrix(section);
             bindReasonBank(section);
 
             function show(when, on) {

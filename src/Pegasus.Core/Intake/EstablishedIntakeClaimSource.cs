@@ -9,7 +9,13 @@ public enum IntakeClaimSourceOrigin
     Instruction,
 
     /// <summary>The e-mail came from it.</summary>
-    Sender
+    Sender,
+
+    /// <summary>
+    /// The instruction's text named it, the one Claim Source linked to the
+    /// Case's Principal that it names (R1264).
+    /// </summary>
+    InstructionText
 }
 
 /// <summary>
@@ -29,8 +35,11 @@ public sealed record EstablishedClaimSource(
 /// it names is the Case's when that name is an active Claim Source's, ignoring
 /// capitals. Otherwise the sender: mail accepted through an intermediary gives
 /// the one active Claim Source linked to the route's Principal that the sender
-/// matches. Two or more matches, or none, establish nothing, and a name that
-/// is not a Claim Source never becomes one.
+/// matches. Otherwise the instruction's text: the one active Claim Source
+/// linked to the Case's Principal that its subject, body or attachment text
+/// names, ignoring capitals and spaces (operator, 25 November 2026; R1264).
+/// Two or more matches, or none, establish nothing, and a name that is not a
+/// Claim Source never becomes one.
 /// </summary>
 public static class EstablishedIntakeClaimSource
 {
@@ -46,8 +55,11 @@ public static class EstablishedIntakeClaimSource
     /// </summary>
     public static bool HasEvidence(
         IEnumerable<InstructionReviewField> fields,
-        string? intermediaryPrincipalCode) =>
-        NamedIn(fields) is not null || !string.IsNullOrWhiteSpace(intermediaryPrincipalCode);
+        string? intermediaryPrincipalCode,
+        string? instructionText = null) =>
+        NamedIn(fields) is not null
+        || !string.IsNullOrWhiteSpace(intermediaryPrincipalCode)
+        || !string.IsNullOrWhiteSpace(instructionText);
 
     /// <summary>
     /// The one claim source the instruction names, or null when it names none,
@@ -73,11 +85,15 @@ public static class EstablishedIntakeClaimSource
     /// that route is an intermediary's; otherwise null.</param>
     /// <param name="effectiveSenderAddress">The route's effective sender.</param>
     /// <param name="activeClaimSources">Every active Claim Source, with its linked Principals.</param>
+    /// <param name="casePrincipalCode">The Principal the Case is made for.</param>
+    /// <param name="instructionText">The instruction's subject, body and attachment text, or null.</param>
     public static EstablishedClaimSource? For(
         IEnumerable<InstructionReviewField> fields,
         string? intermediaryPrincipalCode,
         string? effectiveSenderAddress,
-        IReadOnlyList<ContactChoice> activeClaimSources)
+        IReadOnlyList<ContactChoice> activeClaimSources,
+        string? casePrincipalCode = null,
+        string? instructionText = null)
     {
         ArgumentNullException.ThrowIfNull(activeClaimSources);
         if (NamedIn(fields) is { } field)
@@ -93,20 +109,25 @@ public static class EstablishedIntakeClaimSource
             }
         }
 
-        if (string.IsNullOrWhiteSpace(intermediaryPrincipalCode)
-            || IntermediaryDomains.IdentityOf(effectiveSenderAddress?.Trim()) is not { } sender)
+        if (!string.IsNullOrWhiteSpace(intermediaryPrincipalCode)
+            && IntermediaryDomains.IdentityOf(effectiveSenderAddress?.Trim()) is { } sender)
         {
-            return null;
+            var senders = activeClaimSources
+                .Where(source => source.IsLinkedTo(intermediaryPrincipalCode)
+                    && string.Equals(
+                        IntermediaryDomains.IdentityOf(source.Email?.Trim()),
+                        sender,
+                        StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToArray();
+            if (senders.Length == 1)
+            {
+                return new(senders[0], IntakeClaimSourceOrigin.Sender);
+            }
         }
 
-        var senders = activeClaimSources
-            .Where(source => source.IsLinkedTo(intermediaryPrincipalCode)
-                && string.Equals(
-                    IntermediaryDomains.IdentityOf(source.Email?.Trim()),
-                    sender,
-                    StringComparison.OrdinalIgnoreCase))
-            .Take(2)
-            .ToArray();
-        return senders.Length == 1 ? new(senders[0], IntakeClaimSourceOrigin.Sender) : null;
+        return NamedInText.LinkedContact(instructionText, casePrincipalCode, activeClaimSources) is { } mentioned
+            ? new(mentioned, IntakeClaimSourceOrigin.InstructionText)
+            : null;
     }
 }

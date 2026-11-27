@@ -278,13 +278,19 @@ public sealed class EfCaseAcceptanceStore(
             await OriginalReportPrefillWriter.ApplyAsync(
                 context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
+        // The instruction's text is read once for both contact types, which
+        // are linked to the Principal the Case is made for (R1264).
+        var instructionText = await CaseDataSnapshotFactory.ReadInstructionTextAsync(
+            context, receipt, cancellationToken);
         var dataSnapshot = CaseDataSnapshotFactory.Create(
             caseEntity,
             receipt,
             request,
             acceptedAtUtc,
-            await CaseDataSnapshotFactory.EstablishClaimSourceAsync(context, receipt, cancellationToken),
-            await CaseDataSnapshotFactory.EstablishRepairerAsync(context, receipt, cancellationToken));
+            await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
+                context, receipt, principal.Code, instructionText, cancellationToken),
+            await CaseDataSnapshotFactory.EstablishRepairerAsync(
+                context, receipt, principal.Code, instructionText, cancellationToken));
         // The mileage the original report states fills the accepted data's
         // empty mileage before the gate reads it (R930).
         if (standaloneAuditEvidence is not null)
@@ -385,11 +391,11 @@ public sealed class EfCaseAcceptanceStore(
             }
         }
 
-        // The Case's one automatic Glass's valuation is requested here too,
-        // beside its vehicle lookup, while the Administrator's switch is on
-        // (R545, R546). The Web host runs it once the registration and mileage
+        // The Case's automatic requests are recorded here too, beside its
+        // vehicle lookup, one for each Administrator switch that is on (R545,
+        // R546, R1286). The Web host runs each once the facts it asks about
         // are accepted.
-        await EfAutomaticGuideValuationStore.EnqueueForCaseAsync(
+        await EfAutomaticRequestStore.EnqueueForCaseAsync(
             context, caseId, caseEntity, acceptedAtUtc, cancellationToken);
 
         receipt.ManualAssociation = new()

@@ -5,7 +5,11 @@
 ## Short version
 
 - MCP is a controlled entry point for one named Automation Actor. Ordinary
-  staff never use it; they use the Web UI.
+  staff use the Web UI.
+- A member of staff signed in from Pegasus Desktop reaches the same tools as
+  themselves: what they do is recorded under their name, what the assistant
+  files stays marked AI, and their own role decides what is allowed (R1304,
+  R1306).
 - Every tool calls the same Core command a staff member would. The Actor has
   its own identity and history and no management powers.
 - The tools are served by one MCP server, `pegasus-automation`, at `/mcp`. A
@@ -41,7 +45,9 @@ items by exact U-reference through the same Core command as staff
 ### MCP automation and actor boundary
 
 **One Actor.** MCP is a management and development controlled entry point for
-one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access.
+one named, vendor-neutral Automation Actor. Ordinary staff have no MCP access
+of their own: the one way a member of staff reaches these tools is by signing
+in from Pegasus Desktop, as the next paragraph describes.
 The Actor calls only its approved list of ordinary Core actions, with its own
 authentication, identity and permanent history for casework, lease claims and
 releases, takeovers and refusals; routine lease renewal, job polling and
@@ -50,6 +56,87 @@ progress heartbeats are telemetry only
 Administrator, configuration, credential, cloud, release, deletion or other
 management authority. The MCP is on in every deployed estate and is stopped by
 the Automation client's Stop switch (R1046).
+
+**Staff through Pegasus Desktop.** <a id="staff-through-pegasus-desktop"></a>
+A member of staff may sign in from Pegasus Desktop
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-role-access-matrix);
+operator, 24 and 26 November 2026; R1237, R1297;
+[ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). The token that
+sign-in issues names the member of staff and is never read as the Actor. A
+call that presents it is made as that person (operator, 26 November 2026;
+R1304): signed in from Pegasus Desktop, a member of staff may do through the
+connector everything they could do in Pegasus itself, sending e-mail and
+reports included, and every action is recorded under their name, not the
+AI's and not the Automation Actor's. The token holds all seven scopes, so
+`tools/list` holds every tool, and the person's own role decides what a call
+may do: every role does casework, and no tool reaches a right only an
+Administrator holds; an action the account's role does not allow is refused
+with "Your account is not allowed to do this." (R1308). Each call first reads
+the account, as the staff cookie
+does on every request: enabled, not waiting on a password change, holding one
+staff role, and with the security stamp it had at the sign-in. A disabled
+account, a reset password, a changed role or a forced logout is therefore
+refused at the next call, on the tools and on both content routes, recorded
+as `desktop_access_denied` under the person, which does not count as
+Automation activity. `pegasus_session_get` answers who a connection acts as:
+the actor kind, and for a member of staff their id, username and role, with
+the scopes the token holds.
+
+Wherever this document says what the Actor does or how its work is recorded,
+a member of staff signed in from Pegasus Desktop does the same through the
+same Core command, under their name, but marked AI (operator, 26 November
+2026; R1306): the actor is the member of staff everywhere, for history,
+attribution and rights, and what the assistant files keeps the AI mark the
+Actor's carries.
+
+- **Their name.** Each call is recorded in the Action logs under their name,
+  in the area **Pegasus Desktop**, not the Actor's **Automation**. Case
+  history, a note, a send, a report approval, a photo link and a settled
+  inspection address name the member of staff. A staged upload belongs to
+  the person who staged it, and a source submitted with
+  `pegasus_intake_submit` is staged under their name.
+- **Marked AI.** A document they add keeps the Automation source, which
+  draws its AI tag, and the `automation:` prefix of its source identity. An
+  estimate they type in is an AI draft. An estimate made this way, typed or
+  imported, is recorded as theirs and stays a Draft: a member of staff puts
+  it in use with **Use repair spec** in Pegasus itself, as for the Actor's. A
+  submitted source still arrives on the automation channel.
+- **One actor, no mark.** A field that holds one actor and nothing else names
+  the person and so carries no AI mark: a note, the recorder of an assessment
+  value or a valuation card, the settler of an inspection address. An
+  assessment value recorded this way reads as a staff value, with no AI
+  source tag.
+- The AI job list is for automated agents: a member of staff is refused
+  Take, Progress, Complete, Fail and Release, and
+  `pegasus_ai_job_complete_market_research`, as in Pegasus itself. They may
+  create a job, cancel one and confirm one.
+- Market research is theirs to submit, and only theirs:
+  `pegasus_market_research_submit` files the research record, the advert
+  screenshots, the Advert Evidence Pack and, when one was written, the
+  Market Valuation Evidence report on a Case in one act (operator, 26
+  November 2026; R1309 to R1315;
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+  Each file is staged first with `pegasus_upload_begin` and
+  `pegasus_upload_part`, and the call names the Case, the guide month, which
+  way the submission came (`Accepted` or `NotReviewed`), the record and each
+  file's upload, name, type and kind. It takes no Case edit lease and no
+  Case version, is refused on a closed Case, and its replay answers with the
+  first submission. The Automation Actor is refused it and files its
+  research through the AI job list.
+- The Automation client's Stop switch does not stop them. A sign-in from
+  Pegasus Desktop ends when the account is disabled, its password is reset,
+  an Administrator signs the person out, or after 8 hours (R1307).
+- Edit leases follow the staff rules of
+  [FRD-14](frd-14-record-edit-leases.md#pegasus-desktop), not the Actor's;
+  that rule is built to the answer recommended to the operator, whose ruling
+  is owed under issue #2166.
+
+Pegasus Desktop puts each change on a card that names the member
+of staff, which they confirm before it is made; that is the application's
+rule, not Pegasus's. So that the application can tell a change from a read,
+every tool that only reads is marked read-only and no other tool is. Case
+details reached this way may be sent by the application to its AI providers,
+which the operator accepted on 26 November 2026 (R1305).
 
 **Casework parity.** Within casework the Actor may do anything a staff member
 with `PerformCasework` can, with two exceptions: it never puts an estimate in
@@ -70,7 +157,10 @@ refusal the Refuse button records (R548). An approved scope never grants
 human staff authority. Code exchange and refresh keep the grant. An expired
 or wrong-audience credential fails before any tool runs; an issued token is
 not revoked but lapses at the end of its own lifetime, and stopping the
-Automation client is the emergency control (R1045). Production signing and
+Automation client is the emergency control (R1045). Pegasus Desktop's client
+alone may revoke its own refresh token, which is how the application signs
+out (R1298); the Stop switch is the Automation client's and does not act on
+it. Production signing and
 encryption use separate persistent certificate purposes with a rotation
 overlap, so a restart or replica change does not invalidate valid tokens.
 Missing production keys fail closed.
@@ -138,7 +228,8 @@ and the parts already received. `pegasus_upload_part` sends one part of
 is refused by its hash before it is stored, and the same bytes sent again
 change nothing. `pegasus_document_add` and
 `pegasus_ai_job_complete_market_research` take the `uploadId` instead of
-`contentBase64`. Only that call writes custody, once the staged document
+`contentBase64`, and `pegasus_market_research_submit` takes one for each of
+its files. Only that call writes custody, once the staged document
 matches its declared size and SHA-256, and its replay returns the original
 record. Staging writes no Case record, and no history row unless it is
 refused. An upload lives 24 hours. `pegasus_intake_submit` takes no
@@ -310,7 +401,9 @@ which goes on to make its separate fee note and then, for a Principal whose
 setting asks for it, the ULA Invoice (operator, 17 November 2026;
 [R1147](../rulings.md);
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
-and the Repair Spec and images documents of a confirmed generation; records
+and then the images document and the Repair Spec when the Principal's rules
+require them at send ([R1262](../rulings.md)); generates either of those
+documents of a confirmed generation on its own; records
 report approval of one stored
 artifact; and links or unlinks report-Sent evidence, each through the staff
 command ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
@@ -319,8 +412,9 @@ Report approval is by staff or the Automation actor (operator, 7 October
 records nothing. An approval, archive or evidence link the Actor records is
 attributed to it and reads back as the Automation actor. A generate_report
 result gives the fee note's outcome as `feeNoteOutcome` and the ULA Invoice's
-as `principalInvoiceOutcome`, each null when none was made; there is no act
-that makes the ULA Invoice on its own.
+as `principalInvoiceOutcome`, and the required companions' as
+`imagePackOutcome` and `repairSpecOutcome`, each null when none was made;
+there is no act that makes the ULA Invoice on its own.
 
 **Document acts.** `pegasus_document_action` tags and untags an image, puts
 it in the report or takes it out, marks the Audit's original report, changes
@@ -648,8 +742,9 @@ and the same replay rule. The caller does not choose a trusted provider
 route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
 document is refused without OCR or partial rows. A staff Import on the Case
-is the Current repair spec at once; the MCP import runs as the Automation
-actor, so it stays a Draft until a staff member uses it.
+is the Current repair spec at once; the MCP import stays a Draft until a
+staff member uses it, whether it runs as the Automation actor or for a member
+of staff signed in from Pegasus Desktop (R1306).
 
 **Estimate saves.** `pegasus_estimate_save` saves through the same Core
 command as the Case's Repair Spec editor (operator, 7 October 2026). A new
@@ -698,14 +793,16 @@ assessment values. Every scope has a consent description on the
 Administrator consent page, which prints it without the scope's identifier
 (operator, 15 and 19 October 2026).
 
-The Actor's whole inventory, 83 tools, by scope. "One-command lease" means
+The whole inventory, 86 tools, by scope, for the Actor and for a member of
+staff signed in from Pegasus Desktop alike. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
 its one command when none is given.
 
 | Scope | Tool | Action | Lease |
 | --- | --- | --- | --- |
-| `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state; cursor page | none |
+| `automation.cases` | `pegasus_session_get` | Who the connection acts as: the actor kind, a member of staff's id, username and role, and the scopes the token holds | none |
+| `automation.cases` | `pegasus_case_search` | Search Cases by text, reference, registration, claimant, claim number, Principal, state, newest received first; cursor page | none |
 | `automation.cases` | `pegasus_case_get` | One Case with its Claim source and Repairer, what still holds it from being ready, and its paged documents (occurrence and version ids for download) and history | none |
 | `automation.cases` | `pegasus_case_update_details` | Case-detail edit through the staff Case save; an omitted value is unchanged, an empty string clears | one-command lease |
 | `automation.cases` | `pegasus_case_note_add` | Add an append-only note to the Case timeline | key only |
@@ -737,7 +834,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced, from `contentBase64` or a staged `uploadId` | one-command lease |
-| `automation.documents` | `pegasus_upload_begin`, `pegasus_upload_part` | Stage one document in parts for `pegasus_document_add` or `pegasus_ai_job_complete_market_research` | none |
+| `automation.documents` | `pegasus_upload_begin`, `pegasus_upload_part` | Stage one document in parts for `pegasus_document_add`, `pegasus_ai_job_complete_market_research` or `pegasus_market_research_submit` | none |
 | `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
 | `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
@@ -748,6 +845,7 @@ its one command when none is given.
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.assessment` | `pegasus_estimate_act` | One Repair Spec act with an `action`: duplicate or discard (each with a reason; the estimate in use cannot be discarded, and a discard deletes the estimate, so the result carries none), scale to a percentage of the Engineer's Value, remove_scaling, or restore a snapshot | one-command lease |
 | `automation.assessment` | `pegasus_valuation_get` | Get valuation for one guide source, recording its card as the Valuation section's Save does | one-command lease |
+| `automation.assessment` | `pegasus_market_research_submit` | Market research from Pegasus Desktop in one act, for a member of staff only: the record, the report with the Case's documents, the pack and the screenshots in the `market-research` subfolder, and one retail-only AI market research card; completes a waiting market research request | key only |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_link_destinations` | The Cases and Triage Cases the message may be linked to, with their versions | none |
@@ -758,6 +856,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_attachment_text` | Read-only: the text the intake reader extracted from one attachment of a retained message, by the attachment's position, cut at the caller's cap (at most 20,000 characters); null when the reader produced none; never the bytes (#1891) | none |
 | `automation.mail` | `pegasus_mail_photo_registrations` | Read-only: the plate reads recorded for a retained message's photographs and the registration they agree on at the accepted bar; no image (R732 to R734) | none |
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
+| `automation.mail` | `pegasus_classifier_run_record` | The mail classifier's record of one run ([FRD-08](frd-08-email-mailbox-and-background-processing.md); R1318): `open` with the settings it runs with, `close` with how it ended and one row per e-mail of its batch; a close whose open never arrived opens the run too, and a repeated stage changes nothing. The Automation Actor's only: a member of staff signed in from Pegasus Desktop is refused it. Changes no mail, Case or classification | key only |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |
@@ -775,6 +874,10 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-27.
   failure.
 - An incomplete, mismatched, foreign or expired staged upload is refused by
   the call that uses it, and nothing is written.
+- A Pegasus Desktop token whose account is disabled, waiting on a password
+  change, without a staff role or changed since the sign-in is refused before
+  any tool runs, and so is one presented where no deployment setting offers
+  the sign-in; each writes `desktop_access_denied` and nothing else.
 - A stopped automation client is refused by the kill switch before any tool
   runs ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
   Its refused call writes one security event on every address:
@@ -845,4 +948,5 @@ separate evidence tiers
   [ADR-0080](../adr/superseded/0080-automation-mcp-one-server-per-scope.md)
   (superseded by ADR-0087),
   [ADR-0087](../adr/0087-one-automation-mcp-server-with-per-scope-consent.md),
-  [ADR-0083](../adr/0083-stage-large-automation-documents-in-parts.md).
+  [ADR-0083](../adr/0083-stage-large-automation-documents-in-parts.md),
+  [ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md).

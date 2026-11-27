@@ -66,8 +66,9 @@
         }
         if (entry.EventType != "case_guidance_applied")
         {
-            // An Original report entry is its reason alone (R295).
-            var words = entry.EventType == "original_report_recorded"
+            // An Original report entry is its reason alone (R295), as is a
+            // filed estimate's reading, "Estimate read: <file>" (R1282).
+            var words = entry.EventType is "original_report_recorded" or "estimate_read"
                 ? entry.Reason
                 : NotesLabels.Words(OperatorLabels.HistoryEvent(entry.EventType), entry.Reason);
             <div class="note sys" data-history-event="@entry.EventType">

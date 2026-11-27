@@ -52,6 +52,12 @@ public static partial class OperatorLabels
 
         /// <summary>The website link and Send a photo link's starting values, while photo capture is on (v50 F; R911).</summary>
         public const string PhotoLinks = "Photo links";
+
+        /// <summary>The automatic requests and the integrations' logins (operator, 26 November 2026; R1289).</summary>
+        public const string Integrations = "Integrations";
+
+        /// <summary>The mail classifier's runs and what it did (operator, 27 November 2026; R1318, R1320).</summary>
+        public const string Classifier = "Mail classifier";
     }
 
     /// <summary>
@@ -264,6 +270,32 @@ public static partial class OperatorLabels
             public const string Exported = "Exported";
             public const string Valued = "Valuation received";
         }
+    }
+
+    /// <summary>
+    /// The Pegasus Desktop sign-in page (ADR-0092) and what follows from it,
+    /// in the operator's words (26 November 2026; R1299, R1308).
+    /// </summary>
+    public static class DesktopSignIn
+    {
+        /// <summary>The page's title and its heading.</summary>
+        public const string Title = "Sign in to Pegasus Desktop";
+        public const string Sentence =
+            "Pegasus Desktop will act in Pegasus as you. Everything it does is recorded under your name.";
+        public const string SignedInAs = "Signed in as";
+        public const string SignIn = "Sign in";
+        public const string Refuse = "Refuse";
+
+        /// <summary>The Action logs' words for the page's two decisions (R1308).</summary>
+        public const string SignedInAction = "Signed in from Pegasus Desktop";
+        public const string RefusedAction = "Refused sign-in from Pegasus Desktop";
+
+        /// <summary>
+        /// What a member of staff signed in from Pegasus Desktop is told when
+        /// their account's role does not allow an action attempted through
+        /// the connector (R1308).
+        /// </summary>
+        public const string ActionNotAllowed = "Your account is not allowed to do this.";
     }
 
     /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>

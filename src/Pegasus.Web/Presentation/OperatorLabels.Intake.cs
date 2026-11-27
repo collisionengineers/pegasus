@@ -409,8 +409,6 @@ public static partial class OperatorLabels
         public const string LinkToCase = "Link to Case";
         public const string ChangeLinkedCase = "Change linked Case";
         public const string Unlink = "Unlink";
-        public const string OpenFile = "Open file";
-        public const string OpenFullMessage = "Open full message";
 
         // The Case cell naming the Case/PO or the Triage's t. reference.
         public const string Case = "Case";
@@ -425,6 +423,47 @@ public static partial class OperatorLabels
 
         /// <summary>"1 attachment", "3 attachments": a list row's count.</summary>
         public static string AttachmentCount(int count) => Counted(count, "attachment");
+
+        // A conversation message's direction in the message dialog's stack (v54 D2, D3).
+        public const string Received = "Received";
+        public const string Sent = "Sent";
+        public const string Quoted = "Quoted";
+
+        public static string Direction(Pegasus.Core.Intake.RetainedMailDirection direction) => direction switch
+        {
+            Pegasus.Core.Intake.RetainedMailDirection.Sent => Sent,
+            Pegasus.Core.Intake.RetainedMailDirection.Quoted => Quoted,
+            _ => Received
+        };
+
+        // A message file's Type on its row in the dialog (v54 D10).
+        public const string Pdf = "PDF";
+        public const string Image = "Image";
+        public const string Word = "Word";
+
+        /// <summary>
+        /// A message file the viewer cannot show, in place of its View (v54
+        /// D10, R1280): a Word file Box does not hold yet, a video, an SVG or
+        /// a type it does not know. The viewer's own refusal reads the same.
+        /// </summary>
+        public const string PreviewUnavailable = "Preview unavailable";
+
+        /// <summary>
+        /// A message's two views (R1277, R1280): as it was sent, with its
+        /// formatting, and its plain text. The small switch on the message
+        /// names the view it switches to.
+        /// </summary>
+        public const string AsSent = "As sent";
+        public const string PlainText = "Plain text";
+
+        /// <summary>A file's Type by how it is shown; null for a kind that has no Type word.</summary>
+        public static string? FileType(Pegasus.Core.Documents.CaseDocumentPreviewKind kind) => kind switch
+        {
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => Pdf,
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => Image,
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.WordAsPdf => Word,
+            _ => null
+        };
 
         /// <summary>
         /// The ledger row's Type chip tone (v42 H): navy for a New instruction,

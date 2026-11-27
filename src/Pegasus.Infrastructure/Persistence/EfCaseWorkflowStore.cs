@@ -15,7 +15,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed partial class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore
+    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore,
+    ICaseClosureReasonQueries
 {
     internal const string ClaimLeaseOperationKind = "claim";
     internal const string ReleaseLeaseOperationKind = "release";
@@ -26,6 +27,22 @@ public sealed partial class EfCaseWorkflowStore(
         var entity = await WorkflowQuery(context, tracking: false)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         return entity is null ? null : Map(entity);
+    }
+
+    /// <summary>
+    /// The reason on the Case's latest close event of that outcome, the event
+    /// <see cref="CloseAsync"/> writes.
+    /// </summary>
+    async Task<string?> ICaseClosureReasonQueries.GetAsync(
+        Guid caseId, CaseClosureOutcome outcome, CancellationToken cancellationToken)
+    {
+        var eventType = $"case_closed_{outcome}";
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.EventType == eventType)
+            .OrderByDescending(item => item.AfterVersion)
+            .Select(item => item.Reason)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
@@ -2254,12 +2271,12 @@ public sealed partial class EfCaseWorkflowStore(
                         || (item.Kind == ExternalWorkKinds.VehicleLookup
                             && item.State != "completed"
                             && item.State != "failed")
-                        // The automatic Glass's valuation settles itself on a
-                        // closed Case and never holds up its archive.
+                        // The automatic requests settle themselves on a closed
+                        // Case and never hold up its archive.
                         || (item.Kind != ExternalWorkKinds.CreateCaseCustody
                             && item.Kind != ExternalWorkKinds.CreateAuditReferenceCustody
                             && item.Kind != ExternalWorkKinds.VehicleLookup
-                            && item.Kind != ExternalWorkKinds.GuideValuation)),
+                            && !EfAutomaticRequestStore.WorkKinds.Contains(item.Kind))),
                 cancellationToken);
         return new(isCustodyConfirmed, hasBlockingExternalWork);
     }

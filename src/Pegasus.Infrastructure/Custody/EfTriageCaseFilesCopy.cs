@@ -238,9 +238,12 @@ internal sealed class EfTriageCaseFilesCopy(
                     version.BoxFileId,
                     version.BoxVersionId,
                     caseEntity.Reference,
-                    Root = document.CustodyFolder == CaseCustodyFolders.Audit
-                        ? caseEntity.AuditCustodyRemoteId
-                        : caseEntity.CustodyRootRemoteId
+                    Root = CaseCustodyFolders.RootOf(
+                        document.CustodyFolder,
+                        document.CustodySubfolder,
+                        caseEntity.CustodyRootRemoteId,
+                        caseEntity.AuditCustodyRemoteId,
+                        caseEntity.MarketResearchCustodyRemoteId)
                 })
             .ToArrayAsync(cancellationToken);
         return [.. rows.Select(row => new SourceFile(

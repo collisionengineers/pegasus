@@ -1,6 +1,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Tests.Assessment;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -196,6 +197,170 @@ public sealed class VehicleHistoryCheckTests
         await check.ExecuteAsync(Request() with { Actor = automation }, default);
 
         Assert.Equal(automation, Assert.Single(store.Saves).Actor);
+    }
+
+    /// <summary>
+    /// The automatic Experian check (R1286, R1291) is Run Experian check run by
+    /// the system: it claims the Case's edit lease for that one command as the
+    /// Automation recorder of the check, records the text under it through the
+    /// same save, and gives the lease back. It asks only for an accepted
+    /// registration, so a Case with no mileage is checked.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticCheckRecordsUnderALeaseItClaimsAndGivesBack()
+    {
+        var caseId = Guid.NewGuid();
+        var saves = new RecordingAssessmentStore();
+        var provider = new AnsweringProvider(VehicleHistoryCheckResult.Found([]));
+        var leases = new ScriptedCaseLeases();
+        var store = new RecordingAutomaticStore(AutomaticRequestDoubles.Open());
+
+        var outcome = await AutomaticCheck(provider, saves, store, leases)
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.VehicleHistoryCheck), default);
+
+        Assert.Equal(AutomaticRequestOutcome.Recorded, outcome);
+        Assert.Equal(["begin", "complete:Recorded"], store.Steps);
+        var actor = AutomaticRequestPolicy.Actor(AutomaticRequestKind.VehicleHistoryCheck);
+        Assert.Equal(ActorKind.Automation, actor.Kind);
+        Assert.Equal("vehicle-history-check", actor.SubjectId);
+        var claim = Assert.Single(leases.Claims);
+        Assert.Same(actor, claim.Actor);
+        Assert.Equal(caseId, claim.CaseId);
+        var save = Assert.Single(saves.Saves);
+        Assert.Same(actor, save.Actor);
+        Assert.Equal(ScriptedCaseLeases.Token, save.EditLeaseToken);
+        Assert.Equal(claim.ExpectedVersion, save.ExpectedVersion);
+        Assert.Equal(VehicleHistoryCheckNarrative.Clean, Assert.Single(save.Fields).Value);
+        var release = Assert.Single(leases.Releases);
+        Assert.Equal(ScriptedCaseLeases.Token, release.LeaseToken);
+        Assert.Same(actor, release.Actor);
+    }
+
+    /// <summary>
+    /// The automatic check waits, asking nothing and claiming nothing, for an
+    /// accepted registration, while anyone holds the Case's edit lease, and
+    /// while the Case's assessment is not writable (a Held Case), as Run
+    /// Experian check is offered only while the Vehicle history text is
+    /// editable (R746).
+    /// </summary>
+    [Theory]
+    [InlineData("registration")]
+    [InlineData("lease")]
+    [InlineData("held")]
+    public async Task AnAutomaticCheckWaitsWithoutAskingExperian(string reason)
+    {
+        var provider = new AnsweringProvider(VehicleHistoryCheckResult.Found([]));
+        var leases = new ScriptedCaseLeases();
+        var store = new RecordingAutomaticStore(reason switch
+        {
+            "lease" => AutomaticRequestDoubles.Open() with { EditLeaseExpiresAtUtc = Now.AddMinutes(5) },
+            "held" => AutomaticRequestDoubles.Open() with { AcceptsAssessment = false },
+            _ => AutomaticRequestDoubles.Open(),
+        });
+
+        var outcome = await AutomaticCheck(
+                provider, new RecordingAssessmentStore(), store, leases, reason == "registration" ? " " : "AB12CDE")
+            .ExecuteAsync(new(WorkItem, Guid.NewGuid(), AutomaticRequestKind.VehicleHistoryCheck), default);
+
+        Assert.Equal(AutomaticRequestOutcome.Waiting, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(leases.Claims);
+        Assert.Equal([$"defer:{Now + AutomaticRequestPolicy.Wait:O}"], store.Steps);
+    }
+
+    /// <summary>
+    /// Vehicle history text that already holds words is never replaced by the
+    /// automatic check (R1291), and Experian not being connected settles the
+    /// request unasked; neither claims a lease.
+    /// </summary>
+    [Theory]
+    [InlineData("text", AutomaticRequestOutcome.NotNeeded)]
+    [InlineData("offline", AutomaticRequestOutcome.Unavailable)]
+    public async Task AnAutomaticCheckIsSettledUnasked(string reason, AutomaticRequestOutcome expected)
+    {
+        var provider = new AnsweringProvider(VehicleHistoryCheckResult.Found([]));
+        var saves = new RecordingAssessmentStore();
+        var leases = new ScriptedCaseLeases();
+        var store = new RecordingAutomaticStore(reason == "text"
+            ? AutomaticRequestDoubles.Open() with { HoldsAnswer = true }
+            : AutomaticRequestDoubles.Open());
+        var caseData = new FixedCaseData("AB12CDE");
+        var historyCheck = reason == "offline"
+            ? new RunVehicleHistoryCheck([], caseData, new SaveAssessment(saves))
+            : new RunVehicleHistoryCheck([provider], caseData, new SaveAssessment(saves));
+
+        var outcome = await AutomaticRequestDoubles.Runner(
+                new NoGuideValuations(), caseData, store, Now, historyCheck: historyCheck, leases: leases)
+            .ExecuteAsync(new(WorkItem, Guid.NewGuid(), AutomaticRequestKind.VehicleHistoryCheck), default);
+
+        Assert.Equal(expected, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Empty(leases.Claims);
+        Assert.Empty(saves.Saves);
+        Assert.Equal([$"complete:{expected}"], store.Steps);
+    }
+
+    /// <summary>
+    /// A vehicle Experian holds no data for settles the request with nothing
+    /// written and no notice (R1291); the lease is still given back.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticCheckOfAVehicleExperianDoesNotHoldWritesNothing()
+    {
+        var saves = new RecordingAssessmentStore();
+        var leases = new ScriptedCaseLeases();
+        var store = new RecordingAutomaticStore(AutomaticRequestDoubles.Open());
+
+        var outcome = await AutomaticCheck(
+                new AnsweringProvider(VehicleHistoryCheckResult.NotFound), saves, store, leases)
+            .ExecuteAsync(new(WorkItem, Guid.NewGuid(), AutomaticRequestKind.VehicleHistoryCheck), default);
+
+        Assert.Equal(AutomaticRequestOutcome.NotValued, outcome);
+        Assert.Empty(saves.Saves);
+        Assert.Equal(["begin", "complete:NotValued"], store.Steps);
+        Assert.Single(leases.Releases);
+    }
+
+    /// <summary>
+    /// A lease someone else claimed first leaves the request waiting and
+    /// unasked: it is not marked asked before its lease is held, so the one
+    /// request is not spent.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticCheckRefusedItsLeaseWaitsUnasked()
+    {
+        var caseId = Guid.NewGuid();
+        var provider = new AnsweringProvider(VehicleHistoryCheckResult.Found([]));
+        var leases = new ScriptedCaseLeases { ClaimRefusal = new CaseEditLeaseConflictException(caseId, 1) };
+        var store = new RecordingAutomaticStore(AutomaticRequestDoubles.Open());
+
+        var outcome = await AutomaticCheck(provider, new RecordingAssessmentStore(), store, leases)
+            .ExecuteAsync(new(WorkItem, caseId, AutomaticRequestKind.VehicleHistoryCheck), default);
+
+        Assert.Equal(AutomaticRequestOutcome.Waiting, outcome);
+        Assert.Equal(0, provider.Calls);
+        Assert.Single(leases.Claims);
+        Assert.Empty(leases.Releases);
+        Assert.Equal([$"defer:{Now + AutomaticRequestPolicy.Wait:O}"], store.Steps);
+    }
+
+    private static readonly Guid WorkItem = Guid.NewGuid();
+
+    private static RunAutomaticRequest AutomaticCheck(
+        IVehicleHistoryCheckProvider provider,
+        RecordingAssessmentStore saves,
+        RecordingAutomaticStore store,
+        ScriptedCaseLeases leases,
+        string registration = "AB12CDE")
+    {
+        var caseData = new FixedCaseData(registration);
+        return AutomaticRequestDoubles.Runner(
+            new NoGuideValuations(),
+            caseData,
+            store,
+            Now,
+            historyCheck: new RunVehicleHistoryCheck([provider], caseData, new SaveAssessment(saves)),
+            leases: leases);
     }
 
     private static RunVehicleHistoryCheck Check(IVehicleHistoryCheckProvider provider, RecordingAssessmentStore store) =>

@@ -49,7 +49,10 @@ tenant platform web application (`https://{slug}.brego.ai/platform`, backed by
    was linked (23 November 2026, [R1231](../rulings.md); see "The account is
    linked by its e-mailed sign-in link" below). Until then it signed in with a
    password through `USER_SRP_AUTH`; Brego now signs the account in by link
-   only, and the password flow is removed. The ID token's `cognito:username`
+   only, and the password flow is removed. Amended 26 November 2026
+   ([R1290](../rulings.md)): a saved password signs in through
+   `USER_SRP_AUTH` again, beside the link, whenever no usable refresh token
+   is held (see "The account is linked by its e-mailed sign-in link"). The ID token's `cognito:username`
    claim names the user the session cookies are keyed by. When an active 1-year `brego-session` cookie is already
    held in memory or in `authentication-ring/brego-session.json`, the fresh
    24-hour Cognito tokens are paired directly with that `brego-session` cookie
@@ -99,7 +102,16 @@ valuation rather than when the host or a Case page is built. From 23 November
 `Brego__ValuationAccount__Password` setting is still deployed until a later
 release removes it, because the release before this one stops at startup
 without it. Neither the refresh token nor the Cognito tokens or session
-cookies ever reach a URL or log.
+cookies ever reach a URL or log. Amended 26 November 2026 (R1288): the
+account is no longer deployment configuration. Its e-mail address and its
+stored sign-in (the refresh token and the `brego-session` cookie) are held in
+the database, protected with the Web host's key ring, and the account is
+replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)); a renewed refresh
+token or a new cookie is written back there, not to
+`authentication-ring/brego-session.json`. The setting and that file are read
+once by that release's import and removed in the next. A session held in
+memory is reused only while the account is the one it was signed in for.
 
 **The account is linked by its e-mailed sign-in link** (23 November 2026,
 [R1231](../rulings.md)). Brego's login page signs an account in by Cognito
@@ -117,7 +129,68 @@ Brego; one whose refresh token Cognito refuses does so at
 `stage=cognito_refresh`, and the account is linked again
 ([runbook](../runbook.md#linking-the-brego-valuation-account)). A host reads
 the store before its own memory at each sign-in, so a link made while it runs
-is used without a restart. There is no screen for the link yet.
+is used without a restart; from 26 November 2026 (R1288) the store is the
+account's row in the database.
+
+Amended 26 November 2026 ([R1290](../rulings.md), R1288, #2180): the screen
+exists and the script is gone. An Administrator links the account on
+Administration > Integrations (`IBregoAccountLink`, built over `BregoClient`
+and the login's row): Send sign-in link asks Brego for the link; Link account
+redeems the pasted link, whose `#magic-link=` token is read from the whole
+link and refused, unused, when the link names another e-mail address than the
+account's. Password sign-in is back beside the link, revising this record's
+23 November "the password flow is removed": the account may also hold a
+password, and with one saved Pegasus signs in through `USER_SRP_AUTH`
+whenever it holds no usable sign-in, that is when no refresh token is stored
+or Cognito refuses the stored one; saving the account with a password signs
+in at once on the page. Either way, when Brego's device approval answers
+`challenge_required`, Brego e-mails a six-digit code: the page keeps the
+sign-in's tokens protected in the login's row (`ProtectedPendingLink`, under
+its own protection purpose) until the access token expires, and Confirm code
+submits the code to `users/me/device-approval/verify`, reads the approval
+again and finishes. A finished sign-in mints the `brego-session` and is
+stored with the account under the login's next generation, so no host reuses
+a session of the one before, with one `integration_login_linked` history row
+that names no value; any replacement of the account clears both the stored
+sign-in and a sign-in waiting for a code. A valuation that signs in by
+password on a device Brego wants a code for is unavailable at
+`stage=device_approval` and keeps nothing; the code is entered only on the
+page. No token, password, link or code reaches a URL, a log line, a history
+row or an exception message.
+
+Amended 26 November 2026 ([R1294](../rulings.md), [R1295](../rulings.md)):
+Pegasus reads Brego's sign-in e-mail itself. Brego mails the account's own
+address, so the Web reads that mailbox's Inbox over its existing Graph reads
+(`GraphBregoSignInMailReader` behind `IBregoSignInMailReader`, composed only
+where the Web composes Graph): it lists the newest ten messages, reads those
+received since Pegasus asked Brego for a sign-in, and accepts only a message
+whose one From address is `noreply@brego.io`, whose Subject is exactly
+`Brego - Your sign-in link` or `Brego - Verify this browser`, and whose
+topmost Authentication-Results header says `dmarc=pass`. The link is taken
+from the HTML, decoded, never from Brego's click-tracking link, and only for
+the account's own e-mail address; the code is the one six-digit number in the
+visible text. The mailbox is not an approved mailbox
+([FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe)):
+nothing in it is marked read, moved, deleted or taken into intake. Refresh
+login on the Integrations page signs in with the saved password, or asks for
+a link and reads it, polling every 2 seconds for at most 30, and reads the
+code the same way when Brego asks to approve the device; the paste and code
+boxes stay as the fallback, and every page sign-in reads the code from the
+mailbox before it waits for one. Before anything is asked of Brego the
+mailbox is checked: a host that cannot read it asks nothing, so Brego sends
+no e-mail nobody reads. A Get valuation that finds the sign-in gone (no
+refresh token, or one Cognito refuses, and no password) or meets
+`challenge_required` repairs it the same way by itself, at most once a press
+and under the provider's one sign-in lock, so concurrent presses wait for one
+repair; a repaired sign-in is stored as a link is, under the next
+generation, with an `integration_login_linked` history row by the system
+recorder `brego-sign-in`. A failed repair keeps nothing, no sign-in waiting
+for a code included, and is unavailable at `mail_link` (the link did not
+arrive or the mailbox stopped being readable) or `mail_code` (the code did not
+arrive or was refused). Production's Web identity has no Exchange access to
+the account's mailbox until the operator approves that Exchange change, so
+there this works only once it is made; the test instance's Graph
+registration can read it already.
 
 **The month is a date.** Brego values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and
@@ -146,7 +219,12 @@ answers `NoVehicleData` (`brego.valuation.not_found`). Every other failure
 answers the card's "unavailable" sentence and logs `brego.valuation.rejected`,
 `forbidden`, `throttled`, `provider_failed`, `unreadable`, `device_approval`,
 `transport` or `mileage_unit`, with
-`stage=<mileage|authorizer|cognito_init|cognito_verify|device_approval|session|lookup|valuation>`.
+`stage=<mileage|sign_in|authorizer|cognito_refresh|password|device_approval|session|lookup|valuation>`
+(list completed 26 November 2026, R1290: `sign_in` and `cognito_refresh` came
+with the stored refresh token on 23 November, when `cognito_init` and
+`cognito_verify` went with the password flow; `password` is the password
+sign-in's two Cognito exchanges, and a refused password is `forbidden` there). From
+26 November 2026 (R1295) a press may also stop at `mail_link` or `mail_code`.
 The `configuration` failure (a missing or unresolved account setting) names the
 setting's key instead.
 
@@ -159,12 +237,20 @@ setting's key instead.
 - Linking the account is a person's step, at a workstation, with the account's
   mailbox open: once, and again whenever Brego ends the sign-in. Until it is
   linked every Brego valuation is unavailable (23 November 2026,
-  [R1231](../rulings.md)).
+  [R1231](../rulings.md)). From 26 November 2026 ([R1290](../rulings.md)) the
+  step is an Administrator's on Administration > Integrations, needing no
+  Azure role, and an account with a saved password signs in by itself.
 - Production and the hosted test instance (`Features:LiveGuideValuation`,
   [R709](../rulings.md)) compose the Brego provider; any other host does not.
   The test instance keeps its `brego-session` cookie in its own Azurite
   `authentication-ring/brego-session.json`, seeded with production's cookie, so
   it never signs in through device approval ([R933](../rulings.md), 11 November 2026).
+  From 26 November 2026 (R1288) it keeps them in its own database, imported
+  once from that file, and a production copy keeps the instance's own
+  ([ADR-0091](0091-integration-logins-in-the-database.md)). With each host
+  linked on its own page, the instance is linked on its own during the build
+  and production's sign-in is watched; a result that they end each other's
+  session goes back to the operator before a release ([R1292](../rulings.md)).
 
 ## Links
 

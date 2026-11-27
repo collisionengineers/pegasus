@@ -491,6 +491,20 @@ public sealed partial class DetailsModel
     public string SendReportOperationKey { get; private set; } = NewOperationKey();
 
     /// <summary>
+    /// The operation keys of what a report request goes on to make: its fee
+    /// note, the Principal's own invoice (R1147) and the companions the
+    /// Principal's rules require (R1262). A missing key makes none of that kind.
+    /// </summary>
+    private sealed record FollowOnKeys(
+        string? FeeNote,
+        string? PrincipalInvoice,
+        string? ImagePack,
+        string? RepairSpec)
+    {
+        public static FollowOnKeys None { get; } = new(null, null, null, null);
+    }
+
+    /// <summary>
     /// The report's wording blocks for a Case whose report can be projected:
     /// the snapshot the blocks compose from, and every block the section
     /// offers. A Case that cannot yet be projected has neither.
@@ -581,20 +595,24 @@ public sealed partial class DetailsModel
     /// confirmed (operator, 7 October 2026). A report still being filed to
     /// Box makes its fee note on the next Generate report. After the fee note
     /// it makes the Principal's own invoice for a Principal whose setting asks
-    /// for one, the same way (R1147).
+    /// for one, the same way (R1147), and then each companion document the
+    /// Principal's rules require, so Send report has them (R1262).
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string feeNoteOperationKey,
         string? principalInvoiceOperationKey,
+        string? imagePackOperationKey,
+        string? repairSpecOperationKey,
         string? editLeaseToken,
         long expectedCaseVersion,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
             id, operationKey, editLeaseToken, expectedCaseVersion,
             CaseReportArtifactKind.AssessmentReport,
-            targetGenerationId: null, cancellationToken, feeNoteOperationKey, principalInvoiceOperationKey);
+            targetGenerationId: null, cancellationToken,
+            new(feeNoteOperationKey, principalInvoiceOperationKey, imagePackOperationKey, repairSpecOperationKey));
 
     /// <summary>
     /// The two companion documents a delivery may attach (v28 P22). Each is a
@@ -642,14 +660,14 @@ public sealed partial class DetailsModel
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
         CancellationToken cancellationToken,
-        string? feeNoteOperationKey = null,
-        string? principalInvoiceOperationKey = null)
+        FollowOnKeys? followOnKeys = null)
     {
+        var keys = followOnKeys ?? FollowOnKeys.None;
         if (string.IsNullOrWhiteSpace(editLeaseToken))
         {
             return await GenerateWithOneOffLeaseAsync(
                 id, operationKey, expectedCaseVersion, kind,
-                targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken);
+                targetGenerationId, keys, cancellationToken);
         }
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
@@ -662,7 +680,7 @@ public sealed partial class DetailsModel
         }
         return await GenerateAsync(
             actor, id, operationKey, editLeaseToken, expectedCaseVersion,
-            kind, targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken);
+            kind, targetGenerationId, keys, cancellationToken);
     }
 
     /// <summary>
@@ -678,8 +696,7 @@ public sealed partial class DetailsModel
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
-        string? feeNoteOperationKey,
-        string? principalInvoiceOperationKey,
+        FollowOnKeys keys,
         CancellationToken cancellationToken)
     {
         var guard = await GuardSectionCommandAsync(
@@ -713,7 +730,7 @@ public sealed partial class DetailsModel
 
         return await OneCommandEdit.RunClaimedAsync(lease, actor, () => GenerateAsync(
             actor, id, operationKey, lease.Token, expectedCaseVersion,
-            kind, targetGenerationId, feeNoteOperationKey, principalInvoiceOperationKey, cancellationToken));
+            kind, targetGenerationId, keys, cancellationToken));
     }
 
     /// <summary>
@@ -721,7 +738,8 @@ public sealed partial class DetailsModel
     /// separate fee note from the generation it confirmed (operator, 7 October
     /// 2026); a report not yet confirmed leaves the fee note to the next
     /// Generate report, which replays the report's operation key. The
-    /// Principal's own invoice follows the fee note in the same way (R1147).
+    /// Principal's own invoice follows the fee note in the same way (R1147),
+    /// and then each companion document the Principal's rules require (R1262).
     /// </summary>
     private async Task<IActionResult> GenerateAsync(
         ActionActor actor,
@@ -731,8 +749,7 @@ public sealed partial class DetailsModel
         long expectedCaseVersion,
         CaseReportArtifactKind kind,
         Guid? targetGenerationId,
-        string? feeNoteOperationKey,
-        string? principalInvoiceOperationKey,
+        FollowOnKeys keys,
         CancellationToken cancellationToken)
     {
         // One custody batch around the report and its companions: the Case
@@ -748,12 +765,13 @@ public sealed partial class DetailsModel
             return outcome;
         }
         var latest = result!;
-        if (!string.IsNullOrWhiteSpace(feeNoteOperationKey)
-            && CaseReportActs.FeeNoteRequestAfter(request, latest, feeNoteOperationKey) is { } feeNoteRequest)
+        if (!string.IsNullOrWhiteSpace(keys.FeeNote)
+            && CaseReportActs.FeeNoteRequestAfter(request, latest, keys.FeeNote) is { } feeNoteRequest)
         {
             // The report stands whatever the fee note's outcome; a fee note
             // that is not generated says so beside the report's confirmation.
-            var (feeNoteResult, feeNoteOutcome) = await GenerateOneAsync(generator, feeNoteRequest, cancellationToken);
+            var (feeNoteResult, feeNoteOutcome) = await GenerateOneAsync(
+                generator, feeNoteRequest, cancellationToken, followOn: true);
             if (feeNoteOutcome is ForbidResult or NotFoundResult)
             {
                 return feeNoteOutcome;
@@ -762,13 +780,36 @@ public sealed partial class DetailsModel
         }
         // The Principal's own invoice follows the fee note from the latest
         // generation, and stands or fails on its own as the fee note does (R1147).
-        if (!string.IsNullOrWhiteSpace(principalInvoiceOperationKey)
-            && CaseReportActs.PrincipalInvoiceRequestAfter(request, latest, principalInvoiceOperationKey) is { } invoiceRequest)
+        if (!string.IsNullOrWhiteSpace(keys.PrincipalInvoice)
+            && CaseReportActs.PrincipalInvoiceRequestAfter(request, latest, keys.PrincipalInvoice) is { } invoiceRequest)
         {
-            var (_, invoiceOutcome) = await GenerateOneAsync(generator, invoiceRequest, cancellationToken);
+            var (invoiceResult, invoiceOutcome) = await GenerateOneAsync(
+                generator, invoiceRequest, cancellationToken, followOn: true);
             if (invoiceOutcome is ForbidResult or NotFoundResult)
             {
                 return invoiceOutcome;
+            }
+            latest = invoiceResult ?? latest;
+        }
+        // Then each companion Send report would require and is not yet
+        // generated, each standing or failing on its own (R1262). A form
+        // without their keys makes none.
+        if (keys.ImagePack is { Length: > 0 } imagePackKey && keys.RepairSpec is { Length: > 0 } repairSpecKey)
+        {
+            var reportActs = HttpContext.RequestServices.GetRequiredService<CaseReportActs>();
+            var companions = await reportActs.RequiredCompanionRequestsAfterAsync(
+                request,
+                latest,
+                companion => companion == CaseReportArtifactKind.ImagePack ? imagePackKey : repairSpecKey,
+                cancellationToken);
+            foreach (var companionRequest in companions)
+            {
+                var (_, companionOutcome) = await GenerateOneAsync(
+                    generator, companionRequest, cancellationToken, followOn: true);
+                if (companionOutcome is ForbidResult or NotFoundResult)
+                {
+                    return companionOutcome;
+                }
             }
         }
         return RedirectToReport(id);
@@ -777,12 +818,15 @@ public sealed partial class DetailsModel
     /// <summary>
     /// One artifact's generation: the request, and how each outcome reads
     /// back. A generated artifact answers its result and no action; every
-    /// other outcome answers the action that ends the request.
+    /// other outcome answers the action that ends the request. One that
+    /// follows its report (<paramref name="followOn"/>) leaves the report's
+    /// confirmation standing.
     /// </summary>
     private async Task<(CaseReportGenerationResult? Result, IActionResult? Outcome)> GenerateOneAsync(
         IGenerateCaseReport generator,
         GenerateCaseReportRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool followOn = false)
     {
         var id = request.CaseId;
         var kind = request.Kind;
@@ -840,9 +884,9 @@ public sealed partial class DetailsModel
                 {
                     TempData[OpenReportKey] = stored.Id.ToString("D");
                 }
-                // The fee note and the Principal's own invoice follow their
-                // report, whose confirmation stands.
-                if (kind is not (CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice))
+                // The fee note, the Principal's own invoice and the companions
+                // that follow their report leave its confirmation standing.
+                if (!followOn && kind is not (CaseReportArtifactKind.FeeNote or CaseReportArtifactKind.PrincipalInvoice))
                 {
                     TempData["CaseStatus"] = kind switch
                     {

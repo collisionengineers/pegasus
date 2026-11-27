@@ -79,6 +79,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseReportWordingEntity> CaseReportWordings => Set<CaseReportWordingEntity>();
     internal DbSet<SendToAiControlEntity> SendToAiControl => Set<SendToAiControlEntity>();
     internal DbSet<AiJobEntity> AiJobs => Set<AiJobEntity>();
+    internal DbSet<MarketResearchSubmissionEntity> MarketResearchSubmissions => Set<MarketResearchSubmissionEntity>();
+    internal DbSet<MarketResearchSubmissionFileEntity> MarketResearchSubmissionFiles => Set<MarketResearchSubmissionFileEntity>();
     internal DbSet<PrincipalApiCredentialEntity> PrincipalApiCredentials => Set<PrincipalApiCredentialEntity>();
     internal DbSet<PrincipalSubmissionEntity> PrincipalSubmissions => Set<PrincipalSubmissionEntity>();
     internal DbSet<LabourRateCardEntity> LabourRateCards => Set<LabourRateCardEntity>();
@@ -139,6 +141,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<PhotoCaptureBatchEntity> PhotoCaptureBatches => Set<PhotoCaptureBatchEntity>();
     internal DbSet<StandingPhotoLinkEntity> StandingPhotoLinks => Set<StandingPhotoLinkEntity>();
     internal DbSet<StandingPhotoLinkAddressEntity> StandingPhotoLinkAddresses => Set<StandingPhotoLinkAddressEntity>();
+    internal DbSet<IntegrationLoginEntity> IntegrationLogins => Set<IntegrationLoginEntity>();
 
 
 
@@ -552,6 +555,12 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ReportSendingRulesJson)
                 .IsRequired()
                 .HasDefaultValue(EfOrganizationAdministration.DefaultReportSendingJson);
+            entity.Property(item => item.SendFromMailbox).HasMaxLength(Pegasus.Core.Cases.ContactDirectoryPolicy.MaximumEmailLength);
+            // Every row is written with its value, so a Principal without
+            // images keeps false; the default fills the rows that predate it.
+            entity.Property(item => item.ReportImages)
+                .HasDefaultValue(true)
+                .ValueGeneratedNever();
             entity.Property(item => item.DefaultFee)
                 .HasPrecision(18, 2)
                 .HasDefaultValue(Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard);
@@ -1161,6 +1170,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         StaffNotificationModelConfiguration.Configure(builder);
         ReleaseNoteModelConfiguration.Configure(builder);
         ProblemReportModelConfiguration.Configure(builder);
+        ClassifierRunModelConfiguration.Configure(builder);
         EmailTemplateModelConfiguration.Configure(builder);
         WorkCentreDismissalModelConfiguration.Configure(builder);
         GuideValuationFetchModelConfiguration.Configure(builder);
@@ -1252,9 +1262,12 @@ internal sealed class PrincipalEntity
     public string? DefaultInspectionSourceKind { get; set; }
     public string? DefaultInspectionSourceRecordId { get; set; }
     public long? DefaultInspectionSourceVersion { get; set; }
-    public string? SalvageMatrixJson { get; set; }
     public decimal DefaultFee { get; set; } = Pegasus.Core.Cases.PrincipalDefaultFeePolicy.Standard;
     public string ReportSendingRulesJson { get; set; } = EfOrganizationAdministration.DefaultReportSendingJson;
+    // The Outgoing mailbox a report send starts on (R655), and whether its
+    // reports carry vehicle images; their own settings since R1267.
+    public string? SendFromMailbox { get; set; }
+    public bool ReportImages { get; set; } = true;
     // What its reports are called (R740); null is the standard name.
     public string? InspectionReportNameFirst { get; set; }
     public string? InspectionReportNameResend { get; set; }
@@ -1320,6 +1333,10 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
     public string? AuditCustodyRemoteId { get; set; }
     public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
+
+    // The market-research subfolder of the Case's folder, once a submission
+    // from Pegasus Desktop has made it (R1238).
+    public string? MarketResearchCustodyRemoteId { get; set; }
     public List<CaseWorkEntity> Works { get; set; } = [];
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];

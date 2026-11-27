@@ -846,7 +846,8 @@ internal sealed class EfVehicleLookupWorkStore(
     /// fields a capture document or a photo link named as filled; and the
     /// mileage an original report filled when it was recorded, named by the
     /// report's version among <paramref name="fields"/>
-    /// (<see cref="OriginalReportPrefillWriter.FillMileage"/>).
+    /// (<see cref="OriginalReportPrefillWriter.FillMileage"/>); and the mileage
+    /// a filed estimate's reading named as filled.
     /// </summary>
     internal static async Task<IReadOnlySet<string>> FilledCaseDataSinceAsync(
         PegasusDbContext context,
@@ -861,7 +862,8 @@ internal sealed class EfVehicleLookupWorkStore(
                 && (item.EventType.StartsWith("vehicle_lookup_")
                     || item.EventType == EfVehicleCaptureFill.EventType
                     || item.EventType == EfPhotoCaptureCaseWriter.FilledEventType
-                    || item.EventType == EfDocumentCustodyStore.OriginalReportRecordedEventKind)
+                    || item.EventType == EfDocumentCustodyStore.OriginalReportRecordedEventKind
+                    || item.EventType == EfDocumentCustodyStore.EstimateReadEventKind)
                 && item.ResultJson != null)
             .Select(item => item.ResultJson!)
             .ToListAsync(cancellationToken);

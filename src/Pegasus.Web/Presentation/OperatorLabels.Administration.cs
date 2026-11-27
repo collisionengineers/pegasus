@@ -147,6 +147,11 @@ public static partial class OperatorLabels
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
+        /// <summary>
+        /// The e-mail dialogue's heading for a message that answers none: a
+        /// rejected Case with no instruction e-mail (operator, 27 November 2026; R1327).
+        /// </summary>
+        public const string NewMessage = "New message";
         /// <summary>The reply composer's tick that marks the replied message's open query done on observed Sent.</summary>
         public const string MarkQueryDone = "Mark query done";
         /// <summary>
@@ -277,13 +282,6 @@ public static partial class OperatorLabels
         public const string State = "State";
         public const string ReplaceCode = "Replace code";
         public const string PrincipalApi = "Principal API";
-        public const string SalvageMatrix = "Salvage matrix";
-        public const string SalvageFrom = "From (£)";
-        public const string SalvageTo = "To (£)";
-        public const string SalvagePercentage = "Percentage paid (%)";
-        public const string AddSalvageBand = "Add band";
-        public const string RemoveSalvageBand = "Remove";
-        public const string SaveSalvageMatrix = "Save salvage matrix";
         public const string DefaultFee = "Default fee (£)";
         // The VAT number the Principal's fee notes print (operator, 12 November 2026; R1006 to R1008).
         public const string FeeNoteVatNumber = "Fee note VAT number";
@@ -324,53 +322,105 @@ public static partial class OperatorLabels
                 Pegasus.Core.Reports.ReportNamesRule.TooLong => ": too long to name a file.",
                 _ => ": use only {REG}, {CASE REF} and {OUTCOME}.",
             };
-        public const string ReportSending = "Report sending";
-        public const string SaveReportSending = "Save report sending";
         public const string SendFrom = "Send from";
         public const string SendFromNone = "Not set";
-        public const string SendTo = "Send to";
-        public const string SendToHint = "Empty: the original instruction sender.";
-        public const string SendToOnly = "Send to only";
-        public const string ReplyAll = "Reply all";
-        public const string Cc = "Cc";
-        public const string NeverCc = "Never cc";
-        public const string Attach = "Attach";
-        public const string FeeNoteSeparate = "Fee note is a separate PDF";
-        public const string AttachEstimate = "Estimate";
-        public const string AttachAudatex = "Audatex";
         public const string ReportImages = "Report carries vehicle images";
-        public const string VehicleImagesDocument = "Vehicle images document required";
-        public const string FigureBreakdown = "Figure breakdown required";
-        // The Offer ticks (operator, 17 November 2026; R1151).
-        public const string OfferExternalEstimates = "Offer external estimates (unticked)";
-        public const string OfferRepairInvoices = "Offer repair invoices (unticked)";
-        public const string GarageFigures = "Garage figures";
-        public const string Hold = "Hold";
         public const string HoldHint = "Send stays off until staff tick this as done.";
-        public const string Reminders = "Reminders";
-        public const string AddAddress = "Add address";
-        public const string AddReminder = "Add reminder";
+        public const string StopHint = "Send is refused; staff may override with a reason.";
+        public const string ValueHint = "Separate several with commas.";
+
+        // The Contact tab's three headed sections (operator, 25 November 2026; v55 item B).
+        public const string OrganisationSection = "Organisation";
+        public const string CasesSection = "Cases";
+        public const string EmailSection = "E-mail";
+
+        // The Sending rules tab and its dialogs (operator, 25 November 2026; v55, R1266 to R1272).
+        public const string SendingRules = "Sending rules";
+        public const string OnEveryCase = "On every Case";
         public const string Rules = "Rules";
-        public const string Rule = "Rule";
         public const string AddRule = "Add rule";
+        public const string Edit = "Edit";
+        public const string NewRule = "New rule";
+        public static string RuleNumber(int number) => $"Rule {number}";
+        public const string If = "If";
+        public const string Then = "Then";
+        public const string And = "And";
+        public const string Or = "Or";
+        /// <summary>The joins a rule's If line reads between conditions and between groups.</summary>
+        public const string JoinAnd = "and";
+        public const string JoinOr = "or";
+        public const string Is = "is";
+        public const string IsNot = "is not";
+        public const string AddAction = "Add action";
         public const string RemoveRule = "Remove rule";
-        public const string RuleMatch = "Match";
-        public const string RuleMatchAll = "All conditions";
-        public const string RuleMatchAny = "Any condition";
+        public static string RemoveRuleNumber(int number) => $"Remove rule {number}";
+        public const string SaveRule = "Save rule";
+        public const string Save = "Save";
+        public const string NoRules = "No rules.";
+        public const string NoActions = "No actions.";
+        public const string NoPreviousJob = "No previous job";
+        public static string LinkedTo(string principalName) => $"Linked to {principalName}";
+        public const string OtherContacts = "Other contacts";
+        public static string MoveRuleUp(int number) => $"Move rule {number} up";
+        public static string MoveRuleDown(int number) => $"Move rule {number} down";
+        // Accessible names of a dialog row's controls.
+        public const string RemoveCondition = "Remove condition";
+        public const string RemoveAction = "Remove action";
+        public const string IsOrIsNot = "Is or is not";
         public const string Condition = "Condition";
-        public const string NoCondition = "No condition";
-        public const string ConditionValueHint = "Separate several with commas.";
-        public const string ActionCcAdd = "Cc add";
-        public const string ActionCcRemove = "Cc remove";
-        public const string ActionRemind = "Remind";
-        public const string ActionHold = "Hold";
-        public const string ActionStop = "Stop";
-        public const string ActionStopHint = "Send is refused; staff may override with a reason.";
-        public const string ActionRateCard = "Rate card";
-        /// <summary>A rule's three choices for each attach flag (operator, 16 October 2026).</summary>
-        public const string AttachAsThePrincipal = "As the Principal";
-        public const string AttachOverrideOn = "Attach";
-        public const string AttachOverrideOff = "Do not attach";
+        public const string ActionField = "Action";
+        public const string FileField = "File";
+
+        /// <summary>What a condition of a sending rule reads.</summary>
+        public static string Fact(Pegasus.Core.Reports.ReportSendingFact fact) => fact switch
+        {
+            Pegasus.Core.Reports.ReportSendingFact.ClaimSource => "Claim Source",
+            Pegasus.Core.Reports.ReportSendingFact.Repairer => "Repairer",
+            Pegasus.Core.Reports.ReportSendingFact.Outcome => "Outcome",
+            Pegasus.Core.Reports.ReportSendingFact.CaseType => "Case type",
+            Pegasus.Core.Reports.ReportSendingFact.Sender => "Sender",
+            Pegasus.Core.Reports.ReportSendingFact.RefPrefix => "Reference prefix",
+            Pegasus.Core.Reports.ReportSendingFact.PreviousJob => "Previous job",
+            _ => fact.ToString()
+        };
+
+        /// <summary>What an action of a sending rule does.</summary>
+        public static string Action(Pegasus.Core.Reports.ReportSendingActionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingActionKind.SendTo => "Send to",
+            Pegasus.Core.Reports.ReportSendingActionKind.SendToOnly => "Send to only",
+            Pegasus.Core.Reports.ReportSendingActionKind.ReplyAll => "Reply all",
+            Pegasus.Core.Reports.ReportSendingActionKind.Cc => "Cc",
+            Pegasus.Core.Reports.ReportSendingActionKind.NeverCc => "Never cc",
+            Pegasus.Core.Reports.ReportSendingActionKind.Attach => "Attach",
+            Pegasus.Core.Reports.ReportSendingActionKind.DoNotAttach => "Do not attach",
+            Pegasus.Core.Reports.ReportSendingActionKind.Hold => "Hold",
+            Pegasus.Core.Reports.ReportSendingActionKind.Stop => "Stop",
+            Pegasus.Core.Reports.ReportSendingActionKind.Task => "Add a Case task",
+            _ => kind.ToString()
+        };
+
+        /// <summary>The group an action is listed under in the dialog's action choice.</summary>
+        public static string ActionGroup(Pegasus.Core.Reports.ReportSendingActionKind kind) => kind switch
+        {
+            Pegasus.Core.Reports.ReportSendingActionKind.Attach or Pegasus.Core.Reports.ReportSendingActionKind.DoNotAttach => "Attachments",
+            Pegasus.Core.Reports.ReportSendingActionKind.Hold or Pegasus.Core.Reports.ReportSendingActionKind.Stop => "Before sending",
+            Pegasus.Core.Reports.ReportSendingActionKind.Task => "After sending",
+            _ => "Recipients"
+        };
+
+        /// <summary>A file an Attach or Do not attach action names.</summary>
+        public static string File(Pegasus.Core.Reports.ReportSendingFile file) => file switch
+        {
+            Pegasus.Core.Reports.ReportSendingFile.FeeNoteSeparate => "Separate fee note",
+            Pegasus.Core.Reports.ReportSendingFile.Estimate => "Estimate",
+            Pegasus.Core.Reports.ReportSendingFile.Audatex => "Audatex",
+            Pegasus.Core.Reports.ReportSendingFile.VehicleImagesDocument => "Vehicle images document",
+            Pegasus.Core.Reports.ReportSendingFile.FigureBreakdown => "Figure breakdown",
+            Pegasus.Core.Reports.ReportSendingFile.OfferExternalEstimates => "External estimates (offered, unticked)",
+            Pegasus.Core.Reports.ReportSendingFile.OfferRepairInvoices => "Repair invoices (offered, unticked)",
+            _ => file.ToString()
+        };
         public const string RefPrefixLettersOnly = "A reference prefix is letters only.";
 
         // A Principal panel's notices and refusals on the contact page.
@@ -378,11 +428,8 @@ public static partial class OperatorLabels
         public const string SubmittedValueInvalid = "The submitted value is not valid.";
         public const string SettingsNotAccepted = "The settings were not accepted.";
         public const string ReportSettingsUpdated = "The principal's report settings were updated.";
-        public const string SalvageMatrixUpdated = "The principal's salvage matrix was updated.";
         public const string ReportSendingUpdated = "The principal's report sending rules were updated.";
         public const string AddressRequired = "An address is required.";
-        public const string DefaultLocationUpdated = "The principal's default inspection location was updated.";
-        public const string DefaultLocationNotAccepted = "The default location was not accepted.";
         public const string NewCodeRequired = "A new principal code is required.";
         // The form's own field words, as a refusal names them (R539).
         public const string CodeField = "principal code";
@@ -420,20 +467,6 @@ public static partial class OperatorLabels
             OrganizationAdministrationError.StaleVersion => "The principal changed after this page was loaded. Review the current settings and retry.",
             OrganizationAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
             _ => "The settings change was not accepted."
-        };
-
-        /// <summary>A report sending condition as the rule row names it.</summary>
-        public static string ConditionKind(Pegasus.Core.Reports.ReportSendingConditionKind kind) => kind switch
-        {
-            Pegasus.Core.Reports.ReportSendingConditionKind.ClaimSource => "Claim Source",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Repairer => "Repairer",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Mentions => "Instruction mentions",
-            Pegasus.Core.Reports.ReportSendingConditionKind.SenderNot => "Sender is not",
-            Pegasus.Core.Reports.ReportSendingConditionKind.Outcome => "Outcome",
-            Pegasus.Core.Reports.ReportSendingConditionKind.CaseType => "Case type",
-            Pegasus.Core.Reports.ReportSendingConditionKind.RefPrefix => "Reference prefix",
-            Pegasus.Core.Reports.ReportSendingConditionKind.PreviousJob => "Previous job",
-            _ => kind.ToString()
         };
 
         /// <summary>A salvage category as the Case names it: "Cat S".</summary>
@@ -699,9 +732,6 @@ public static partial class OperatorLabels
             "In-flight work remains visible and no result is discarded.";
 
         public const string SendToAi = "Send to AI";
-
-        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
-        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
         public const string Save = "Save AI settings";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
@@ -726,6 +756,148 @@ public static partial class OperatorLabels
             "automation.jobs" => "AI jobs",
             "automation.send" => "Sending",
             _ => key
+        };
+    }
+
+    /// <summary>
+    /// The Integrations administration area's words (operator, 26 November
+    /// 2026; R1289, R1296): one table of the integrations with their automatic
+    /// switches, and a Settings dialog per login. <see cref="Admin.Integrations"/>
+    /// is the area's name; the wording the staff Glass's credential dialog and
+    /// Mail settings already give is reused from its owners.
+    /// </summary>
+    public static class Integrations
+    {
+        // The table's columns and the Brego dialog's sign-in section (R1296).
+        public const string Integration = "Integration";
+        public const string Automatic = "Automatic";
+        public const string SignIn = "Sign-in";
+        public const string Settings = MailSettings.Settings;
+        public const string Cancel = MailSettings.Cancel;
+        public const string CloseDialog = MailSettings.CloseDialog;
+
+        /// <summary>The automatic Glass's valuation switch at Case creation (R546).</summary>
+        public const string AutomaticGlassValuation = "Automatic Glass's valuation";
+        public const string AutomaticBregoValuation = "Automatic Brego valuation";
+        public const string AutomaticCazanaValuation = "Automatic Cazana valuation";
+        public const string AutomaticCapValuation = "Automatic CAP valuation";
+        public const string AutomaticExperianCheck = "Automatic Experian check";
+        public const string SaveAutomatic = "Save automatic requests";
+        public const string AutomaticSaved = "Automatic requests saved.";
+
+        public const string Account = CaseWorkspaceLabels.GlassCredential.Account;
+        public const string Updated = CaseWorkspaceLabels.GlassCredential.Updated;
+        public const string NotSet = CaseWorkspaceLabels.GlassCredential.NotSet;
+        public const string Username = CaseWorkspaceLabels.GlassCredential.Username;
+        public const string Password = CaseWorkspaceLabels.GlassCredential.Password;
+        public const string Email = "E-mail";
+        public const string ClientIdentifier = AutomationAdmin.ClientIdentifier;
+        public const string ClientSecret = "Client secret";
+        public const string Save = CaseWorkspaceLabels.GlassCredential.Save;
+        public const string Saved = CaseWorkspaceLabels.GlassCredential.Saved;
+        public const string NotAccepted = CaseWorkspaceLabels.GlassCredential.NotAccepted;
+        public const string Expired = AutomationAdmin.Expired;
+
+        public const string UsernameRequired = CaseWorkspaceLabels.GlassCredential.UsernameRequired;
+        public const string PasswordRequired = CaseWorkspaceLabels.GlassCredential.PasswordRequired;
+        public const string EmailRequired = "Enter an e-mail address.";
+        public const string ClientIdentifierRequired = "Enter a client identifier.";
+        public const string ClientSecretRequired = "Enter a client secret.";
+
+        /// <summary>A stored login the key ring can no longer read.</summary>
+        public const string Unreadable = "The stored login cannot be read. Save it again.";
+
+        /// <summary>The label of one automatic request switch, read by a screen reader in its row.</summary>
+        public static string AutomaticSwitch(AutomaticRequestKind kind) => kind switch
+        {
+            AutomaticRequestKind.GlassesValuation => AutomaticGlassValuation,
+            AutomaticRequestKind.BregoValuation => AutomaticBregoValuation,
+            AutomaticRequestKind.CazanaValuation => AutomaticCazanaValuation,
+            AutomaticRequestKind.CapValuation => AutomaticCapValuation,
+            AutomaticRequestKind.VehicleHistoryCheck => AutomaticExperianCheck,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The automatic request kind is unknown.")
+        };
+
+        /// <summary>The name of one login's row and the heading of its dialog.</summary>
+        public static string Heading(IntegrationLogin login) => login switch
+        {
+            IntegrationLogin.GlassValuation => "Glass's valuation account",
+            IntegrationLogin.Brego => "Brego valuation account",
+            IntegrationLogin.Cazana => "Cazana Companion account",
+            IntegrationLogin.ExperianHistory => "Experian vehicle history account",
+            IntegrationLogin.ExperianCap => "Experian CAP account",
+            _ => throw new ArgumentOutOfRangeException(nameof(login), login, "The integration login is unknown.")
+        };
+
+        /// <summary>The label of one value a login is made of.</summary>
+        public static string Field(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => Username,
+            IntegrationLoginField.Email => Email,
+            IntegrationLoginField.Password => Password,
+            IntegrationLoginField.ClientId => ClientIdentifier,
+            IntegrationLoginField.ClientSecret => ClientSecret,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
+        };
+
+        /// <summary>The refusal of one value left blank.</summary>
+        public static string Required(IntegrationLoginField field) => field switch
+        {
+            IntegrationLoginField.Username => UsernameRequired,
+            IntegrationLoginField.Email => EmailRequired,
+            IntegrationLoginField.Password => PasswordRequired,
+            IntegrationLoginField.ClientId => ClientIdentifierRequired,
+            IntegrationLoginField.ClientSecret => ClientSecretRequired,
+            _ => throw new ArgumentOutOfRangeException(nameof(field), field, "The login field is unknown.")
+        };
+
+        // Signing the Brego account in (operator, 26 November 2026; R1290, #2180).
+        public const string SendBregoLink = "Send sign-in link";
+        public const string LinkBrego = "Link account";
+        public const string ConfirmBregoCode = "Confirm code";
+        public const string BregoSignInLink = "Sign-in link";
+        public const string BregoCode = "Code";
+        public const string BregoLinked = "Brego account linked.";
+        public const string BregoNoToken = "Paste the whole sign-in link.";
+        public const string BregoLinkRefused = "Brego rejected the link: it is used, expired or not the latest one sent.";
+        public const string BregoPasswordRefused = "Brego refused the password.";
+        public const string BregoCodeFormat = "A code is six digits.";
+        public const string BregoCodeRefused = "Brego refused the code.";
+        public const string BregoNoLinkWaiting = "No link is waiting for a code. Send a new sign-in link.";
+        public const string BregoUnreachable = "Brego could not be reached. Try again.";
+
+        // Signing in from Brego's own e-mail (operator, 26 November 2026; R1294, R1295).
+        public const string RefreshBregoLogin = "Refresh login";
+        public const string BregoMailNotArrived = "Brego's e-mail did not arrive. Try again.";
+        public const string BregoMailUnreadable = "Brego's e-mail could not be read. Try again.";
+
+        /// <summary>The notice after Send sign-in link, naming the account's address.</summary>
+        public static string BregoLinkSent(string email) =>
+            $"Brego e-mailed a sign-in link to {email}. It expires 15 minutes later.";
+
+        /// <summary>The code step's prompt, naming the address the waiting sign-in's code went to.</summary>
+        public static string BregoCodeSent(string email) =>
+            $"Brego e-mailed a six-digit code to {email}.";
+
+        /// <summary>
+        /// The sentence for a refused Brego step. In the password sign-in Brego
+        /// offering no sign-in reads as the password refused.
+        /// </summary>
+        public static string BregoRefusal(BregoLinkRefusal refusal, string email, bool passwordSignIn) => refusal switch
+        {
+            BregoLinkRefusal.NotOffered when passwordSignIn => BregoPasswordRefused,
+            BregoLinkRefusal.NotOffered => $"Brego did not offer a sign-in link for {email}.",
+            BregoLinkRefusal.NoToken => BregoNoToken,
+            BregoLinkRefusal.AnotherAccount => $"The link is for another account than {email}.",
+            BregoLinkRefusal.LinkRefused => BregoLinkRefused,
+            BregoLinkRefusal.PasswordRefused => BregoPasswordRefused,
+            BregoLinkRefusal.CodeFormat => BregoCodeFormat,
+            BregoLinkRefusal.CodeRefused => BregoCodeRefused,
+            BregoLinkRefusal.NoLinkWaiting => BregoNoLinkWaiting,
+            BregoLinkRefusal.Unreachable => BregoUnreachable,
+            BregoLinkRefusal.MailNotArrived => BregoMailNotArrived,
+            BregoLinkRefusal.MailUnreadable => BregoMailUnreadable,
+            _ => NotAccepted
         };
     }
 

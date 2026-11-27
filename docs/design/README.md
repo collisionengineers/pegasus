@@ -607,7 +607,7 @@ record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
 `<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
 applies the stroke and caps because a `<use>` clone does not inherit them. The
-file holds the seventy-seven glyphs in the two tables below; each glyph
+file holds the seventy-nine glyphs in the two tables below; each glyph
 checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
 element in that file.
 
@@ -648,7 +648,7 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `check-circle` | `check-circle` | `D2F9F42C4597323E817B24647215BC97274BCECF121B2FEBA78328976FC43953` | Confirmed completion |
 | `file` | `file` | `E9F859A5D8F33262E1D99A22ECDBBD38C861D10F27E4E64F4FB440B12C9D7E31` | Document rows |
 | `mail` | `mail` | `1B61B1C98D63DE2270AA1B5E498115F209A86EB4B9C8EACB64D973EC8D14A367` | Mail rows, Correspondence |
-| `link` | `link` | `419DB6E93B579C03EB3E8FFD3498C344C54DA7938C6F8EFB11C69BDE4C012AAC` | Case link |
+| `link` | `link` | `419DB6E93B579C03EB3E8FFD3498C344C54DA7938C6F8EFB11C69BDE4C012AAC` | Case link; Administration nav and hub: Integrations (R1289) |
 | `edit` | `pencil` | `08192262945F01FEBD377BF1787E4E4D419BB648BF7B752C5591CB82D0D0017F` | Edit Case, inline edit |
 | `save` | `save` | `0B1F6DF1117FFB3E57BBA5988DD06ED944BCCE696F5391A7B94729E3BE90006C` | Save |
 | `close` | `x` | `EEAAD857AC2A8C02C12BACD1232559E6190E739218BA0CA3457861C8B250F5A5` | Dialog close, tab close, remove; Damage: clear an impact row, Clear markers |
@@ -679,8 +679,8 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the file's seventy-seven
-symbols: the fifty-three above plus these twenty-four.
+The v26 shell and Case record glyphs below complete the file's seventy-nine
+symbols: the fifty-three above plus these twenty-six.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
@@ -708,6 +708,8 @@ symbols: the fifty-three above plus these twenty-four.
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 | — | `camera` | `08402EEB94664F771FCAFBDDF9E0D122B27CA3113245262C898599F72F60BB0C` | Photo links (`Send photo link`, Administration nav and hub) |
 | — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R964) |
+| — | `text` | `34D0476D663BE4F0ED14BDF8542B0F64D0F11B37D5C77B989521FA05F4E215E1` | Message dialog: Plain text, the switch from an e-mail as sent (R1277) |
+| — | `mail-search` | `196F212500D2766A00FDD03AFBC1A79B6EB8E3726B2EB62BCFC034366CD90CED` | Administration nav and hub: Mail classifier, the classifier's runs (R1318, R1320) |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
 Cases uses `list-checks` and Administration `settings` (`list` and
@@ -778,8 +780,6 @@ Approved necessary copy includes:
 
 > This Principal expects the fee note as a separate document and none is confirmed.
 
-> Empty: the original instruction sender.
-
 > Send stays off until staff tick this as done.
 
 > Use {ref}, {reg} and {outcome}. Empty: the standard name.
@@ -788,24 +788,31 @@ Approved necessary copy includes:
 
 > Send is refused; staff may override with a reason.
 
-The nine after it are report sending copy (operator, 6 October 2026): the
+The eight after it are report sending copy (operator, 6 October 2026): the
 tooltip on a greyed Archive, two delivery-form notices and
-a warning, and the five hints on the Principal's Report sending panel. Two of
+a warning, and the four hints on the Principal's Report generation and
+Sending rules panels; the Send to hint went with the fixed Send to box
+(operator, 25 November 2026; R1272). Two of
 them named "prepare" when they were approved and were reworded to "send" when
 delivery became one step; they are on the next design sign-off.
 
-A Report sending rule offers its conditions in one order: Claim Source,
-Repairer, Instruction mentions, Sender is not, Outcome,
-then Case type (operator, 13 October 2026), then Reference prefix
-and Previous job (Report Sending SOP v8; operator, 16 October 2026; Images
-from and Bodyshop mentions retired 12 November 2026, R1023). Outcome
+A sending rule's condition offers its facts in one order: Claim Source,
+Repairer, Outcome, Case type, Sender, Reference prefix and Previous job, each
+"is" or "is not", a Previous job condition reading "Previous job" or "No
+previous job" (Report Sending SOP v8; operator, 13 and 16 October 2026;
+"Instruction mentions" removed 25 November 2026, R1268; v55 item M,
+[R1272](../rulings.md)). Outcome
 and Case type are each a choice of their values; Case type names them as the
 Cases list does: Inspection, Audit, Inspection and audit. A refused rule says
 "choose a case type from the list", as it says "choose an outcome from the
-list". The v8 words are the operator's (16 October 2026): the action Rate
-card, a rule's five Attach choices As the Principal, Attach and Do not
-attach, and these two sentences, the refusal of a non-letter reference
-prefix and the after-sending task a rule's Rate card adds.
+list". The actions are Send to, Send to only, Reply all, Cc, Never cc,
+Attach, Do not attach, Hold, Stop and Add a Case task, and the files an
+Attach names are Separate fee note, Estimate, Audatex, Vehicle images
+document, Figure breakdown, External estimates (offered, unticked) and
+Repair invoices (offered, unticked) (v55 items K and L, R1272). These two
+sentences are the operator's (16 October 2026): the refusal of a non-letter
+reference prefix, and the Rate card task, now a text the Add a Case task box
+suggests (v55 item N, R1272).
 
 > A reference prefix is letters only.
 
@@ -916,7 +923,13 @@ condition deduction and the previous total loss tick box with its
 stands, with the basis it starts from beside it; each adjustment's amount
 shows beside its control, and the box's label carries a recorded
 calculation's source as one `src-tag` word. AI market research is a card of
-its own with its Valuation month and Get valuation. What the report includes
+its own with its Valuation month and Get valuation. Under the calculation,
+research submitted from Pegasus Desktop has a space of its own (operator, 26
+and 27 November 2026; R1316, R1317): a `sub-panel` headed Market research,
+absent while the Case has none, with one "Submitted by {name}, {date}" line,
+a Proposed value, one dense adverts table and its file links per submission,
+no control, and no word of acceptance or review
+([FRD-16](../frd/frd-16-case-record-workspace.md)). What the report includes
 is not here: it is Report wording's settings on the Report section (v45,
 operator, 2 November 2026; R640).
 There is no separate Add valuation
@@ -1003,7 +1016,7 @@ deleted in wave 5.
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its bursts, and the aside figures (the Figures card and the Original report card, `[data-original-report]`) |
-| `dialog--send`, `send-files`, `send-file`, `send-file-open`, `send-file-rename`, `recip-box` | The Send report composer (v48): the `mail-compose-dialog` at 880px, its Files rows (tick, glyph, the name as the viewer link, kind and size, Rename with the stem beside a fixed `.pdf` and Reset) and the To/Cc boxes each with their × |
+| `dialog--send`, `send-files`, `send-file`, `send-file-open`, `send-file-rename`, `recip-box` | The one send-e-mail dialogue (the Send report composer, v48; every staff send since R1330): the `mail-compose-dialog` at 880px, its Files rows (tick, glyph, the name; Send report adds the viewer link, kind and size, and Rename with the stem beside a fixed `.pdf` and Reset) and the To/Cc boxes each with their × |
 | `damage-diagram`, `dv-hit`, `dm`, `dm-guides` | The vehicle's drawing and the outline a press must start on, one burst per recorded damage over its unpainted disc (kept as drawn, unclipped), and the dashed band guides shown while editing |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
@@ -1016,7 +1029,9 @@ deleted in wave 5.
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `decision-card` | Message decision |
 | `inbox-row--ticks`, `inbox-row-tick`, `inbox-bulk` | A row's gutter tick and the one bulk form above the Inbox list (v41 I18) |
-| `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar, and the cog settings menu (Case, Type, Query, Change case, Decided) |
+| `dialog--mail`, `mail-context-bar`, `mail-settings-menu`, `inbox-ledger` | The Inbox ledger (Case, Type, Subject, Sender, Received) and the message dialog: full-width body, context bar with the one outcome chip, and the cog settings menu (Case, Type, Query, Change case, Decided) |
+| `mail-stack`, `mail-msg`, `mail-files` | The message dialog's one column: the conversation as folded rows, the opened message unfolded with its recipients, its text at body size in a 72ch column, and its files as rows beneath it, each with View and Download; View opens the page's viewer over the dialog (R1275) |
+| `mail-sent`, `mail-format`, `icon-text` | The e-mail as it was sent, in a script-less frame sized to its content, and the 32px icon button beside the recipients that switches that message to plain text and back (R1277) |
 | `mail-settings-section`, `mail-settings-case`, `mail-settings-actions`, `mail-settings-foot` | The cog menu's sections: one `mail-decision-label` each, a divider between them, actions as `btn--small` in a row, and the muted Decided foot line (R632 to R637) |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `admin-layout`, `admin-nav` | Administration |
@@ -1034,7 +1049,7 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `dialog-backdrop`, `dialog`, `dialog-head`, `dialog-body`, `dialog-foot` | Modal dialog ([contract](README.md#keyboard-and-dialog-contract)) |
-| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The composer dialog (the Triage reply, the Send chaser page, the Send report dialog and a photo link's Resend page): a grid whose fields scroll and whose footer is pinned; From, To and Cc in two columns, then Subject, Message and the attachments |
+| `mail-compose-dialog`, `mail-compose-body`, `mail-compose-form`, `mail-compose-form-fields`, `mail-compose-addresses`, `mail-compose-subject`, `mail-compose-message`, `mail-compose-attachments`, `mail-compose-footer` | The one send-e-mail dialogue, drawn by `Pages/Shared/_MailComposer` from a `MailComposerView` for every staff send (operator, 27 November 2026; [R1330](../rulings.md)): Send report, the e-mail dialogue's Reply, Reply all, Forward and new message, Send chaser, the Triage reply and chaser, and a photo link's e-mail. A grid whose fields scroll and whose footer is pinned; From, To, Cc (and the e-mail dialogue's Case / PO) in two columns, then Subject, Message and the attachments; Cancel and the one primary Send in the footer. To and Cc are boxes staff change ([R1329](../rulings.md)); a forward's From is a fixed value. A composer's own fields (Send report's notices and Files, a photo link's channel switch) are its slots; as a page (no script, a refused send) it is the same card |
 | `command-dialog` | Command palette |
 | `toast-region`, `toast` | Toasts |
 
@@ -1042,6 +1057,9 @@ Every e-mail Pegasus sends for a member of staff goes through a composer; no
 button sends one on its own (operator, 10 November 2026: "any email sending
 always needs a dialogue box - a button cannot just send an email on its own";
 [R915](../rulings.md)). A photo link's Send and Resend open its composer.
+Every composer is the one send-e-mail dialogue (operator, 27 November 2026:
+"this should affect all dialogue boxes for send email - they should be using
+the same route / dialogue"; [R1330](../rulings.md)).
 
 A **More** menu holds two or more acts; one act is its own button beside the
 primary, and More takes the size of the buttons beside it (operator, 10
@@ -1183,7 +1201,7 @@ this section holds the cross-cutting rules every page is held to.
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. The default repairer VAT status is Registered (19 October 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
-| Message dialog | The subject opens one dialog over the Inbox, with Previous message and Next message in its head; opening, reading and moving between messages change no message or Case state; `/Inbox/{id}` stays for a new tab and for no script (v41 I2, I6, I17; [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). |
+| Message dialog | The subject opens one dialog over the Inbox, with Previous message and Next message in its head; opening, reading and moving between messages change no message or Case state; `/Inbox/{id}` stays for a new tab and for no script (v41 I2, I6, I17; [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)). It is one column with no tabs, 880px wide and 700px tall whatever it shows (R1273 to R1275; [v54 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v54-email-dialogue/v54_planning/current/v54-notes.md)). |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |

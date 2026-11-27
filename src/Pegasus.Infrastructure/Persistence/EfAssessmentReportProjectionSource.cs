@@ -73,8 +73,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 PrincipalAddress = item.Case.Principal.Organization.Address,
                 PrincipalPostcode = item.Case.Principal.Organization.Postcode,
                 // Whether the report carries vehicle images is the Principal's
-                // rule, read with the rest of its row.
-                PrincipalReportSendingRulesJson = item.Case.Principal.ReportSendingRulesJson,
+                // setting, read with the rest of its row.
+                PrincipalReportImages = item.Case.Principal.ReportImages,
                 // The VAT number its fee notes print; null is the standard number.
                 PrincipalFeeNoteVatNumber = item.Case.Principal.FeeNoteVatNumber,
                 // Whether Generate report also makes the Principal's own
@@ -170,8 +170,13 @@ internal sealed class EfAssessmentReportProjectionSource(
                     new ManagedDocumentContentAddress(
                         caseId,
                         workspace.Header.Reference,
+                        // A report source is never kept in a subfolder (ConfirmedDocumentsAsync).
                         CaseCustodyFolders.RootOf(
-                            pair.Row.Folder, workflow.CustodyRootRemoteId, workflow.AuditCustodyRemoteId),
+                            pair.Row.Folder,
+                            subfolder: null,
+                            workflow.CustodyRootRemoteId,
+                            workflow.AuditCustodyRemoteId,
+                            marketResearchRootRemoteId: null),
                         pair.Row.OccurrenceId,
                         pair.Row.Ordinal,
                         pair.Row.DocumentId,
@@ -230,7 +235,7 @@ internal sealed class EfAssessmentReportProjectionSource(
                 workspace.Assessment, latestApplied?.Reason),
             Wording: wording,
             SignOffEngineersOffered: profiles.Count > 0,
-            IncludeVehicleImages: IncludesVehicleImages(workflow.PrincipalReportSendingRulesJson),
+            IncludeVehicleImages: workflow.PrincipalReportImages,
             VatNumber: workflow.PrincipalFeeNoteVatNumber,
             // The Principal's own invoice's facts, only for a Principal whose
             // setting asks for it, so every other snapshot keeps its bytes:
@@ -304,14 +309,6 @@ internal sealed class EfAssessmentReportProjectionSource(
     }
 
     /// <summary>
-    /// Whether a report for a Principal with these stored report sending
-    /// rules carries vehicle images. The projection and a generation's replay
-    /// check both read it here.
-    /// </summary>
-    internal static bool IncludesVehicleImages(string reportSendingRulesJson) =>
-        EfOrganizationAdministration.ReadReportSending(reportSendingRulesJson).Attach.ReportImages;
-
-    /// <summary>
     /// The valuation guides the Case's accepted values were taken from. Only
     /// these decide the report's source-aware guide wording. Each card's guide
     /// comes back by card too, so the applied valuation's basis card names
@@ -362,6 +359,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                && version.IsCurrent
                && !version.IsLogicallyRemoved
                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+               // What is kept in a subfolder is not one of the Case's own
+               // documents, so it is no source of the report (R1313).
+               && document.CustodySubfolder == null
                && !context.Set<GeneratedCaseArtifactEntity>().Any(
                    artifact => artifact.OperationKey == occurrence.OperationKey)
          orderby occurrence.Ordinal

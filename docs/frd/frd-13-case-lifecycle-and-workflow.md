@@ -63,6 +63,12 @@ unlinked`. Each reads `Closed`, and its disposition and reason are written to
 the Case's Notes (operator, 15 October 2026). The Case stays on record and,
 except for `Created in error`, can be returned to work with a reason.
 
+Market research submitted from Pegasus Desktop is accepted in every state
+except `Closed`, `Report sent` included, and refused on a Case closed in any
+of the four dispositions (operator, 24 and 26 November 2026; R1242, R1244,
+R1315). It moves no Case and never sets the Engineer's Value
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+
 Every state change and disposition is a Core transition. It records who did
 it, when, why, the state before and after, and any evidence, permanently.
 Screens, the Worker, APIs and MCP tools all call the same Core use cases;
@@ -269,6 +275,22 @@ It offers exactly the closed dispositions Core allows for that Case:
 `Principal cancelled` and `Collision Engineers rejected`. A reason is
 required. An outcome that is missing or unrecognised is refused; it never
 falls back to a default.
+
+**E-mail the Principal.** While the outcome is `Collision Engineers rejected`
+the dialog offers one tick, **E-mail the Principal**, unticked, under the
+reason (operator, 27 November 2026; [R1321](../rulings.md),
+[R1322](../rulings.md), [R1325](../rulings.md)). It is drawn only where
+staff mail is available. Ticked, the Case closes as it always does, and the
+Case page comes back with the e-mail dialogue open on the **Case rejection**
+template
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), rendered
+for the Case with the reason just given, for staff to edit and send: a reply
+to the Case's instruction e-mail, or, for a Case with none, a new message
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence);
+[R1323](../rulings.md)). Closing never waits on the e-mail and never sends
+one: the close is already recorded when the dialogue opens, and staff may
+close the dialogue without sending. A refused close, `Principal cancelled`
+or no tick opens nothing.
 
 Two dispositions are not offered here. `Created in error` needs its own
 corrected-Principal replacement action

@@ -4,12 +4,12 @@
 
 ## Short version
 
-- `/Administration` has fourteen areas: Accounts, Contacts, Workflow
+- `/Administration` has sixteen areas: Accounts, Contacts, Workflow
   configuration, Photo links (while photo capture is on), Mail settings,
-  E-mail templates, Valuation presets, Unroadworthy reasons, Service health,
-  Logs, Management Reports, Release notes, Problem reports and Automation &
-  AI, which holds the AI jobs list. Its Automation panels appear only when
-  composed.
+  E-mail templates, Valuation presets, Unroadworthy reasons, Integrations,
+  Service health, Mail classifier, Logs, Management Reports, Release notes,
+  Problem reports and Automation & AI, which holds the AI jobs list. Its
+  Automation panels appear only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -42,13 +42,14 @@ estimates by
 configuration**, **Photo links** (while photo capture is on; operator, 10
 November 2026; [R911](../rulings.md)), **Mail settings**, **E-mail templates**,
 **Valuation presets**, **Unroadworthy reasons** (operator, 11 November 2026;
-[R952](../rulings.md)), **Service
-health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
-**Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
+[R952](../rulings.md)), **Integrations** (operator, 26 November 2026;
+[R1289](../rulings.md)), **Service
+health**, **Mail classifier** (operator, 27 November 2026;
+[R1318](../rulings.md)), **Logs**, **Management Reports**, **Release notes**,
+**Problem reports** and **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
 to AI switch
-([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch))
-and the Automatic Glass's valuation switch (R546),
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)),
 appear only when the Automation capability is composed; the AI jobs list
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list))
 is on it in every deployment, so the page is always listed. The former
@@ -114,16 +115,37 @@ the type read-only and only that type's sections. The list is one panel per
 type, with no lede, no Sort control and no Type column; its order, columns and
 filters are in
 [FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration). The
-contact form shows Type, and for a Principal its Principal code, Inspection
-mode and Accepted e-mail identities, as greyed read-only boxes; Replace code
+contact form shows Type, and for a Principal its Principal code and
+Accepted e-mail identities, as greyed read-only boxes; Replace code
 stays the only route to a new code. Notes on every Case grows to fit its
 text. Linked principals is one list in three columns. The label is Phone in
 the New dialog, on the contact and in the list. Save contact returns to the
 Contacts list. An active Principal's page is tabs: Contact, Report
-generation, Report sending, Salvage matrix, Default inspection location and
-Principal API, each its own address (`?tab=`) so the tabs work without
-script, with Replace code in the head of the Contact tab
-([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
+generation, Sending rules and Principal API,
+each its own address (`?tab=`) so the tabs work without script, with Replace
+code in the head of the Contact tab
+([v41 A3](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md));
+there is no Salvage matrix tab (operator, 25 November 2026; R1263) and no
+Default inspection location tab (operator, 25 November 2026;
+[R1266](../rulings.md), [R1272](../rulings.md) item A).
+
+The Contact tab is one form in headed sections, saved by Save contact
+(operator, 25 November 2026, approving the
+[v55 round](https://github.com/collisionengineers/pegasus-design-archive/tree/design/v55-contacts-and-sending-rules/v55_planning)
+as drawn; [R1272](../rulings.md) items B to E and T;
+[v55 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v55-contacts-and-sending-rules/v55_planning/current/v55-notes.md)).
+**Organisation** holds the name, Type, Principal code, Phone, Email, Address
+and Postcode. **Cases** holds, for a Principal, Default fee (£), required;
+Inspection mode, a choice of Physical address or Image Based Assessment;
+for Physical address only, the optional Default inspection location
+(Location label, Address, Postcode); and Notes on every Case. A change of
+Inspection mode applies to Cases made afterwards; there is no "Default to
+Image Based Assessment" tick ([R1266](../rulings.md), amending R118).
+**E-mail**, for a Principal, holds Accepted e-mail identities, read-only, and
+Send from, a list of the Outgoing mailboxes that can send, with Not set
+(R655). A Claim Source's and a Repairer's page takes the Organisation and
+Cases headings, Cases holding Linked principals and, for a Claim Source,
+Notes on every Case, and changes nothing else.
 There is no Principal settings panel. A Principal, Claim Source or Repairer
 contact's page also has a **Photo links** tab: the standing URL, its QR code,
 Copy, Pause or Resume, Replace link, Retire link (operator, 9 November
@@ -134,8 +156,8 @@ while `Features:PhotoCapture` is off.
 A panel's save returns to its tab with its notice inside the panel; a refused
 save shows its message at the top of that panel and keeps what was typed
 (operator, 13 October 2026). Principal-specific
-settings are part of that Contact record. Report generation carries the Default fee (£) box,
-then the Fee note VAT number box, whose hint is "Empty: the standard number." and
+settings are part of that Contact record. Report generation carries the Fee
+note VAT number box, whose hint is "Empty: the standard number." and
 which shows the standard number, 262 0937 10, greyed when empty (operator,
 12 November 2026; R1008),
 then Audit workflow (Original engineer report or Garage authorisation &
@@ -146,33 +168,57 @@ Invoice; [R1162](../rulings.md)), Invoice VAT number and Invoice payment terms
 which Generate report reads to make the ULA Invoice
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#companion-documents-and-what-a-delivery-attaches)),
 then Inspection report name and Audit report name, each a First send and a
-Re-send text box, above Save report settings; it has no Report recipients
-settings (operator, 6 October 2026). An empty name box shows its standard name
+Re-send text box, then the Report carries vehicle images tick
+([R1272](../rulings.md) item F), above Save report settings; it has no
+Default fee, which is on the Contact tab ([R1266](../rulings.md)), and no
+Report recipients settings (operator, 6 October 2026). An empty name box
+shows its standard name
 greyed (`{CASE REF} {REG} {OUTCOME} report`, and `…report.` for Re-send), and
 each report name has `{REG}`, `{CASE REF}` and `{OUTCOME}` buttons that put the
-token at the cursor of the box last used (operator, 6 November 2026; R740). The Report sending panel follows Report generation and is
-shown for a Principal only; every Principal has rules to show. Send from is a list of the Outgoing
-mailboxes that can send, with Not set. Send to, Cc, Never cc and Reminders are repeated
-inputs with an Add button; Send to only, Reply all, Garage figures and the
-eight Attach choices are ticks, the last two "Offer external estimates
-(unticked)" and "Offer repair invoices (unticked)" (operator, 17 November
-2026; [R1151](../rulings.md)); Hold is text, with no length limit. Rules are repeated rows, each with
-Match (All or Any condition), three condition lines (a kind, then a Contact
-list, the four outcomes, the Case types, or text for
-Instruction mentions, Sender is not and Reference prefix;
-Previous job takes no value; the kinds, in order, are Claim Source,
-Repairer, Instruction mentions, Sender is not, Outcome,
-Case type, Reference prefix and Previous job; Images from and Bodyshop
-mentions are retired, 12 November 2026, R1023), and the
-actions Cc add, Cc remove, Remind, Hold, Stop, a Rate card tick and the seven
-Attach choices other than report images, each As the Principal, Attach or
-Do not attach (Report Sending SOP v8; operator, 16 October 2026). A
-non-letter reference prefix is refused: "A reference prefix is letters
-only." A Remove rule button per row, one spare blank row, an Add rule button,
-and one Save report sending. The Salvage matrix panel follows it: one
-table per salvage category, with From (£), To (£) and Percentage paid (%)
-columns, a Remove button per row, one spare blank row, an Add band button,
-and one Save salvage matrix. The list filters live as the operator types, 300
+token at the cursor of the box last used (operator, 6 November 2026; R740).
+
+The **Sending rules** panel follows Report generation and is shown for a
+Principal only (operator, 25 November 2026; [R1267](../rulings.md),
+[R1271](../rulings.md), [R1272](../rulings.md) items A, G to S and U;
+[v55 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v55-contacts-and-sending-rules/v55_planning/current/v55-notes.md)).
+Its head holds Add rule, the panel's one primary. **On every Case** is one
+list of the actions every send takes, with Edit, which opens the On every
+Case dialog. **Rules** lists the numbered rules, each a card with its number,
+an If line and a Then line written as sentences, then Move up and Move down
+(hidden at the ends) and Edit. Moving a rule saves at once. The panel has no
+Save and no Cancel: each dialog saves its own rule, and a refused save keeps
+the dialog open with its refusal and what was typed.
+
+Each dialog is an address of the tab, so it opens and works without script;
+each Add in it is a form post that redraws it. The rule dialog, headed New
+rule or Rule N, has If and Then. If is one or more groups joined by or: a
+group is one or more conditions joined by and, its And button adds a
+condition to it, and Or starts a new group. A condition is a fact, "is" or
+"is not", and its values. The facts, in order, are Claim Source, Repairer,
+Outcome, Case type, Sender, Reference prefix and Previous job. Claim Source
+and Repairer take one or more contacts from a list of those linked to the
+Principal, under "Linked to {Principal}", then "Other contacts"; Outcome and
+Case type take one or more of their values; Sender and Reference prefix take
+text, several separated by commas ("Separate several with commas."); Previous
+job takes no value and reads "Previous job" or "No previous job". Then is one
+or more actions, with Add action: Send to, Send to only, Reply all, Cc, Never
+cc, Attach, Do not attach, Hold, Stop and Add a Case task. Send to, Cc and
+Never cc take addresses separated by commas; Attach and Do not attach name a
+file: Separate fee note, Estimate, Audatex, Vehicle images document, Figure
+breakdown, External estimates (offered, unticked) or Repair invoices
+(offered, unticked); Hold and Stop take text with no length limit, hinted
+"Send stays off until staff tick this as done." and "Send is refused; staff
+may override with a reason."; Add a Case task takes text, suggesting "Send
+the figures to the garage." and "Check the report's estimate against the
+Connexus Repair Rate Card." and taking any other. A non-letter reference
+prefix is refused: "A reference prefix is letters only." The foot holds
+Remove rule on an existing rule, Cancel and Save rule. Remove rule asks
+first, in a dialog headed Remove rule N that shows the rule, with Cancel and
+Remove rule. The On every Case dialog is the Then part alone, with Cancel and
+Save. What each condition reads and each action does at send is owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules).
+
+The Contacts list filters live as the operator types, 300
 milliseconds after the last keystroke, alongside the Apply control for
 no-script use. Server-side filtering is unchanged. A telephone value accepts
 digits, spaces and an optional leading `+` only (UK numbers keep a leading
@@ -265,9 +311,11 @@ Case chaser
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
 the Photo link e-mail
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
-9 November 2026; R773) and the Photo link (text)
+9 November 2026; R773), the Photo link (text)
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text); operator,
-10 November 2026; R919).
+10 November 2026; R919) and the Case rejection
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case); operator,
+27 November 2026; [R1324](../rulings.md)).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -286,7 +334,13 @@ built-in body is the one sentence the due-chaser sweep writes, without the
 reference, and the sign-off. The Photo link's are `{registration}`,
 `{claimant}`, `{photo link}`, `{link expiry}` and `{principal name}`; its
 built-in body is the one FRD-28 gives. The Photo link (text) has the same
-placeholders and the short built-in body FRD-28 gives for the text. A body naming any other placeholder
+placeholders and the short built-in body FRD-28 gives for the text. The Case
+rejection's are `{greeting}` (the report delivery's), `{registration}`,
+`{claimant}`, `{case reference}`, `{principal name}` and `{reason}`, the
+reason staff gave in the Close case dialog. Its built-in body, signed off as
+drafted (operator, 27 November 2026; [R1324](../rulings.md)), is "Good
+{greeting}, Unfortunately we are unable to accept this instruction for
+{registration}. Reason: {reason} Kind Regards", each on its own line. A body naming any other placeholder
 is refused, and the message names it. Save acts on the click with the rendered version. A
 stale save is refused and asks the Administrator to reload.
 
@@ -295,7 +349,8 @@ all empty is left out. The subject is not templated: a reply keeps
 "Re: {original subject}", a report delivery follows
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)
 (a reply keeps "Re:" the instruction's subject, and a new message is
-"{REG} Report"), and a chaser opens with the registration and the claimant.
+"{REG} Report"), and a chaser opens with the registration and the claimant,
+as a rejection sent as a new message does ([R1327](../rulings.md)).
 Until an Administrator saves a template, its built-in body is used.
 Staff can edit the rendered text before it is sent. Each save
 enters the Action logs.
@@ -327,6 +382,55 @@ Administrator to reload. **Remove** deletes the wording. Neither reaches a
 reason already recorded on a Case. Add, Save and Remove write no Action log
 entry.
 
+### Integrations
+
+**Integrations** (`/Administration/Integrations`), in the Configuration group
+after Unroadworthy reasons, is listed in every deployment (operator, 26
+November 2026; [R1289](../rulings.md)). It is one table of the five
+integrations, in this order: Glass's valuation, Brego, Cazana, Experian
+vehicle history and Experian CAP (operator, 26 November 2026;
+[R1296](../rulings.md)). All five rows show in every deployment, because the
+logins are stored whatever the host carries.
+
+- Each row shows the integration, its **Account** (the account's name, Not
+  set, or that the stored login cannot be read and is saved again), when the
+  login was last **Updated**, its **Automatic** switch and **Settings**. The
+  switches are Automatic Glass's valuation, Automatic Brego valuation,
+  Automatic Cazana valuation, Automatic Experian check (the Experian vehicle
+  history row) and Automatic CAP valuation
+  ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources);
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md)), with one Save under
+  the table. A Save writes a switch only when its checkbox differs from the
+  stored state, so one that changes nothing writes no history; each change is
+  attributed and kept in permanent history. The switches moved here from
+  Automation & AI, superseding R546's placement of the Glass's switch.
+- **Settings** opens the login's dialog
+  ([FRD-04](frd-04-parties-accounts-and-access.md); R1288): the account and
+  when it was last updated, and the login's fields, which are only replaced:
+  no stored value is shown back in them, and a password or client secret
+  typed into a refused form is not either. A login whose stored value cannot
+  be read says so and is saved again. A save made after another
+  Administrator's is not accepted. A dialog opens by itself only for a save
+  it refused, showing why, or for a Brego sign-in that waits for its code;
+  every other outcome is a notice on the page.
+- Brego's dialog (operator, 26 November 2026; [R1290](../rulings.md), #2180)
+  takes the account's e-mail and, optionally, its password; saving it with a
+  password signs the account in at once, and a refusal is stated while the
+  credential stays saved. Its **Sign-in** section holds **Send sign-in link**,
+  which has Brego e-mail a sign-in link to the account, and the pasted
+  **Sign-in link** with **Link account**, which signs it in. When Brego asks
+  for a six-digit code, the section shows where it was sent, a **Code** box
+  and **Confirm code**, only while a sign-in waits for one. Each step is its
+  own form, so Enter in a box submits that box's step. The link, the code and
+  the password are never shown back. The section is absent until the
+  account's e-mail is saved, and where the host does not carry the sign-in.
+  Where the host can read the account's mailbox, **Refresh login** signs the
+  account in from Brego's e-mail in one press, and saving the e-mail without
+  a password does the same; Send sign-in link, the pasted link and the typed
+  code remain as the fallback (operator, 26 November 2026;
+  [R1294](../rulings.md)). Refresh login is absent where this host's
+  composition cannot read the mailbox.
+
 ### Service health
 
 **Service health** (`/Administration/Health`) is Administration only and
@@ -355,6 +459,53 @@ of the table, never an empty or partial table, answers 200 and logs a
 warning (operator, 22 October 2026; R414). It carries no notice that the
 external-work queue is cut short (operator, 16 and 22 October 2026; R159,
 R415).
+
+### Mail classifier
+
+**Mail classifier** (`/Administration/Classifier`), in Operations and
+oversight after Service health, is listed in every deployment and is
+Administrators only (operator, 27 November 2026; [R1318](../rulings.md)). It
+shows the runs the mail classifier records of itself
+([FRD-08](frd-08-email-mailbox-and-background-processing.md)). Production
+shows production's runs alone. The hosted test instance shows its own runs
+and, where it has been given the read, the live classifier's beside them,
+each row carrying its environment, Live or Test, and an Environment filter
+(Both, Test, Live); without that read it says in one sentence that live runs
+are not shown and why: not switched on here, access not given, or not
+readable just now ([R1319](../rulings.md);
+[ADR-0088](../adr/0088-one-hosted-test-instance.md)). Live runs are read when
+the page opens and never kept (R696), and production never reads the
+instance.
+
+- **Health** is one table, one row per environment shown: the last run's
+  time and outcome, runs in the last 24 hours, failed in a row (the newest
+  finished runs that failed or did not finish, past a run still running),
+  and the cost spent today and this month in London, summed from the runs'
+  recorded costs. A deployment with no run says No run recorded. When the
+  newest finished run found the mail list hiding mail Pegasus counts as
+  awaiting a decision, a warning above says how many e-mails and for how
+  many runs.
+- **Runs** lists the runs started in a period of London dates, the last 7
+  days unless chosen, up to 31 days, newest first with the Started header
+  turning the order, 50 a page with Previous and Next, as Action logs pages.
+  The filters are From, To, Outcome and Runs (All runs, Runs that acted).
+  Each row shows when it started, its outcome as a chip (Running, Did not
+  finish, Completed, Nothing to do, Mail hidden, Cut short, Failed) with
+  Dry run beneath it for a dry run, its e-mails, what it did as counts by
+  act, its cost and how long it took. A run with no close reads Running for 15
+  minutes and then Did not finish.
+- **Open** shows the run in a dialog, as the Intake log opens a received
+  file: its facts (started, finished, how long, outcome, mode, e-mails,
+  awaiting a decision, cost, spending cap, turns, model, batch, list pages
+  read, version and any error), the classifier's summary, and one row per
+  e-mail: when, the e-mail by its subject and sender, linked to its message
+  where this deployment holds it, what the run did with it (a dry run's
+  acts read as what it would have done), the type it gave, the Case, linked
+  where this deployment holds it, its reason and Pegasus's refusal. A run of
+  this deployment also opens Action logs at the Automation Actor's calls
+  from the run's start to its close.
+- A fresh install with no run recorded shows only "No classifier runs are
+  recorded yet." The page's words are R1320's.
 
 ### Logs
 
@@ -565,13 +716,17 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the fourteen areas and their routes, the on-click actions
+Acceptance covers the sixteen areas and their routes, the Mail classifier's
+health, runs, filters, run dialog, empty state and live runs on the test
+instance, the on-click actions
 without confirmation (Delete access confirms), the Action logs actor
 resolution and filter, the Intake log columns and actions, the six workflow
 settings and their ranges, and the Management Reports with each report's CSV
 and the workbook, the period choices and the invalid period, the Case list's
 downloads and refusals, preset create, save and remove, and unroadworthy
-reason wording add, reword, remove and the stale refusal. Authenticated Web
+reason wording add, reword, remove and the stale refusal, and the
+Integrations switches' one Save and each login's replacement and refusals,
+with no typed value shown back. Authenticated Web
 tests cover server-owned behaviour. Deployment and live acceptance are
 separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

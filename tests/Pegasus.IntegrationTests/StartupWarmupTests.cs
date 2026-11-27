@@ -1030,6 +1030,10 @@ public sealed class StartupWarmupTests
             Guid id, RetainedMailSummary? summary, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        Task<RetainedMailOriginal?> IRetainedMailQueries.GetOriginalAsync(
+            Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope, int page, int pageSize, CancellationToken cancellationToken)
         {
@@ -1094,7 +1098,7 @@ public sealed class StartupWarmupTests
             throw new NotSupportedException();
 
         public Task<RetainedMailDetail?> GetAsync(
-            Guid id, CancellationToken cancellationToken, string? searchTerm = null) =>
+            Guid id, CancellationToken cancellationToken, string? searchTerm = null, bool withConversation = false) =>
             throw new NotSupportedException();
 
         public Task<RetainedMailDetail?> GetByOriginReceiptAsync(

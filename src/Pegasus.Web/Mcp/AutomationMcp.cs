@@ -7,6 +7,8 @@ namespace Pegasus.Web.Mcp;
 /// clause 10): one named vendor-neutral Automation client, authenticated by
 /// client credentials or, for an external connector, by authorization code
 /// with PKCE (ADR-0027), per-area scopes, and a dedicated rate-limit policy.
+/// The same authorization server also signs a member of staff in from
+/// Pegasus Desktop, where that is configured (ADR-0092).
 /// </summary>
 public static class AutomationMcp
 {
@@ -30,6 +32,23 @@ public static class AutomationMcp
     public const string Audience = "pegasus-automation-mcp";
     public const string TokenEndpointPath = "/connect/token";
     public const string AuthorizationEndpointPath = "/authorize";
+
+    /// <summary>
+    /// RFC 7009: where Pegasus Desktop ends its sign-in. The Automation
+    /// client holds no permission for it (ADR-0092).
+    /// </summary>
+    public const string RevocationEndpointPath = "/connect/revoke";
+
+    /// <summary>
+    /// Pegasus Desktop's client: public, native, and registered only where
+    /// <c>AutomationMcp:DesktopRedirectUris</c> is configured (ADR-0092, R1297).
+    /// Its tokens name the member of staff who signed in, never the
+    /// Automation Actor.
+    /// </summary>
+    public const string DesktopClientId = "pegasus-desktop";
+
+    /// <summary>The product's name, as the registration's display name.</summary>
+    public const string DesktopClientDisplayName = "Pegasus Desktop";
 
     /// <summary>The one server's path (ADR-0087): every tool is served here.</summary>
     public const string McpEndpointPath = "/mcp";
@@ -57,29 +76,57 @@ public static class AutomationMcp
     public const string GrantIdentityClaim = "pegasus_automation_grant";
 
     /// <summary>
-    /// The <c>HttpContext.Items</c> key the actor resolver sets on a request
-    /// it refuses because its client is stopped, once
-    /// <c>automation_client_disabled</c> is written for it: that refusal
-    /// writes the client-disabled event only, so the transport denial is not
-    /// recorded again (R1097).
+    /// The security stamp the member of staff's account had when they signed
+    /// in from Pegasus Desktop. Only a Pegasus Desktop token carries it, and
+    /// the token is refused once the account's stamp has moved (ADR-0092).
+    /// Codes, access tokens and refresh tokens are all encrypted, so the stamp
+    /// is never disclosed to the application.
     /// </summary>
-    public const string ClientDisabledRecordedItem = "Pegasus.AutomationMcp.ClientDisabledRecorded";
+    public const string StaffStampClaim = "pegasus_staff_stamp";
+
+    /// <summary>
+    /// The security event reason of a token request from Pegasus Desktop's
+    /// client that was refused. Not an <c>automation_</c> reason, so it is
+    /// not read as Automation activity.
+    /// </summary>
+    public const string DesktopTokenRejected = "desktop_token_rejected";
+
+    /// <summary>The security event reason of a Pegasus Desktop token refused at a tool or content route.</summary>
+    public const string DesktopAccessDenied = "desktop_access_denied";
+
+    /// <summary>
+    /// The <c>HttpContext.Items</c> key the actor resolver sets on a request
+    /// it refuses and records itself: a stopped client, once
+    /// <c>automation_client_disabled</c> is written for it (R1097), and a
+    /// Pegasus Desktop token, once <c>desktop_access_denied</c> is. That
+    /// refusal writes the resolver's event only, so the transport denial is
+    /// not recorded again.
+    /// </summary>
+    public const string RefusalRecordedItem = "Pegasus.AutomationMcp.RefusalRecorded";
     /// <summary>The rate limit's permits a minute, partitioned per IP address (ADR-0087).</summary>
     public const int RequestsPerIpAddressPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
+    /// <summary>
+    /// How long a sign-in from Pegasus Desktop lasts, measured from the
+    /// sign-in and not extended by use (R1298).
+    /// </summary>
+    public static readonly TimeSpan DesktopSignInLifetime = TimeSpan.FromHours(8);
+
     public static IReadOnlyList<string> Scopes { get; } =
         [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope, SendScope];
 
     /// <summary>
-    /// The bearer-only automation surface a program calls: the token endpoint,
-    /// the one server and the two content routes. The consent page at
-    /// <see cref="AuthorizationEndpointPath"/> is a staff page and is not one.
+    /// The bearer-only automation surface a program calls: the token and
+    /// revocation endpoints, the one server and the two content routes. The
+    /// consent page at <see cref="AuthorizationEndpointPath"/> is a staff page
+    /// and is not one.
     /// </summary>
     public static bool IsIngressPath(PathString path) =>
         path.StartsWithSegments(McpEndpointPath)
         || path.Equals(TokenEndpointPath, StringComparison.OrdinalIgnoreCase)
+        || path.Equals(RevocationEndpointPath, StringComparison.OrdinalIgnoreCase)
         || path.StartsWithSegments(DocumentContentPath)
         || path.StartsWithSegments(IntakeSourceContentPath);
 
@@ -117,6 +164,7 @@ public sealed record AutomationMcpOptions(
     Uri PublicOrigin,
     TimeSpan RegistrationCacheLifetime,
     IReadOnlyList<Uri> RedirectUris,
+    IReadOnlyList<Uri> DesktopRedirectUris,
     bool UseDevelopmentKeys,
     IReadOnlyList<Uri> SigningCertificateSecretUris,
     IReadOnlyList<Uri> EncryptionCertificateSecretUris)
@@ -130,6 +178,13 @@ public sealed record AutomationMcpOptions(
     /// </summary>
     public bool ConnectorAuthorizationEnabled => RedirectUris.Count > 0;
 
+    /// <summary>
+    /// Sign-in from Pegasus Desktop is offered only where its redirect URIs
+    /// are configured (R1297). No deployment definition sets them, so
+    /// production offers none.
+    /// </summary>
+    public bool DesktopSignInEnabled => DesktopRedirectUris.Count > 0;
+
     public static AutomationMcpOptions? TryCreate(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -142,6 +197,11 @@ public sealed record AutomationMcpOptions(
         {
             throw new InvalidOperationException(
                 "AutomationMcp:ClientId is required and cannot exceed 100 characters.");
+        }
+        if (string.Equals(clientId, AutomationMcp.DesktopClientId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"AutomationMcp:ClientId cannot be '{AutomationMcp.DesktopClientId}', which names Pegasus Desktop's client.");
         }
 
         // The secret comes from configuration/user-secrets only; it is never
@@ -175,8 +235,7 @@ public sealed record AutomationMcpOptions(
         // separated). https only, except loopback for local evidence runs; no
         // fragment. Absent means the authorization-code flow is not offered.
         var redirectUris = new List<Uri>();
-        foreach (var candidate in (configuration["AutomationMcp:RedirectUris"] ?? string.Empty)
-            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var candidate in SplitUris(configuration["AutomationMcp:RedirectUris"]))
         {
             if (!Uri.TryCreate(candidate, UriKind.Absolute, out var redirectUri)
                 || !string.IsNullOrEmpty(redirectUri.Fragment)
@@ -188,6 +247,29 @@ public sealed record AutomationMcpOptions(
             }
 
             redirectUris.Add(redirectUri);
+        }
+
+        // Pegasus Desktop's redirect URIs (comma or semicolon separated):
+        // plain http on a loopback IP literal, as RFC 8252 section 7.3 asks of
+        // a native application, never a host name. An entry without a port
+        // admits any port the application listens on; one with a port admits
+        // that port only. Absent means sign-in from Pegasus Desktop is not
+        // offered (R1297).
+        var desktopRedirectUris = new List<Uri>();
+        foreach (var candidate in SplitUris(configuration["AutomationMcp:DesktopRedirectUris"]))
+        {
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var redirectUri)
+                || redirectUri.Scheme != Uri.UriSchemeHttp
+                || redirectUri.HostNameType is not (UriHostNameType.IPv4 or UriHostNameType.IPv6)
+                || !redirectUri.IsLoopback
+                || redirectUri.UserInfo.Length != 0
+                || !string.IsNullOrEmpty(redirectUri.Fragment))
+            {
+                throw new InvalidOperationException(
+                    "AutomationMcp:DesktopRedirectUris entries must be absolute http URIs on a loopback IP address (127.0.0.1 or [::1]) without a fragment.");
+            }
+
+            desktopRedirectUris.Add(redirectUri);
         }
 
         var production = string.Equals(
@@ -232,10 +314,18 @@ public sealed record AutomationMcpOptions(
             publicOrigin,
             TimeSpan.FromSeconds(cacheSeconds),
             redirectUris,
+            desktopRedirectUris,
             useDevelopmentKeys,
             signingCertificates,
             encryptionCertificates);
     }
+
+    private static readonly char[] UriSeparators = [',', ';'];
+
+    private static string[] SplitUris(string? configured) =>
+        (configured ?? string.Empty).Split(
+            UriSeparators,
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static List<Uri> LoadSecretUris(
         IReadOnlyList<string>? configured,

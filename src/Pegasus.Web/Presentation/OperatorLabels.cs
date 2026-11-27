@@ -371,6 +371,7 @@ public static partial class OperatorLabels
             EmailTemplatePurpose.CaseChaser => "Case chaser",
             EmailTemplatePurpose.PhotoLink => "Photo link",
             EmailTemplatePurpose.PhotoLinkText => "Photo link (text)",
+            EmailTemplatePurpose.CaseRejection => "Case rejection",
             _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
         };
     }
@@ -950,6 +951,9 @@ public static partial class OperatorLabels
         "correspondence_move_failed" => StaffMail.CaseEmailsNotMoved,
         "instruction_moved_to_deleted_items" => StaffMail.InstructionMoved,
         "instruction_move_failed" => StaffMail.InstructionNotMoved,
+        // A submission from Pegasus Desktop (operator, 26 November 2026; R1314).
+        Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.SubmittedEventType =>
+            Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.HistoryReason,
         _ => Humanise(eventType)
     };
 
@@ -1111,6 +1115,12 @@ public static partial class OperatorLabels
 
             // Service health and request operations
             "running" => "blue",
+
+            // The mail classifier's runs (R1320): a run that stopped without
+            // its close failed; one cut short, or that found the list hiding
+            // mail, needs a look.
+            "did not finish" => "red",
+            "cut short" or "mail hidden" => "amber",
             "working" => "green",
             "review required" => "amber",
             "needs attention" or "not set" => "amber",
@@ -1211,7 +1221,11 @@ public static partial class OperatorLabels
     public static string ActionLogArea(string area) => area switch
     {
         "ai_job" => "AI job",
-        "automation_mcp" => "Automation",
+        Pegasus.Web.Mcp.AutomationMcpAuditor.AutomationAggregateType => "Automation",
+        // The product's own name, for a sign-in decision made on its page and
+        // for what a member of staff then does from it (ADR-0092, R1304).
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType =>
+            Pegasus.Web.Mcp.AutomationMcp.DesktopClientDisplayName,
         "email_template" => EmailTemplates.ActionLogArea,
         "staff_account" => "Staff account",
         "Security" => "Security",
@@ -1224,15 +1238,21 @@ public static partial class OperatorLabels
 
     /// <summary>
     /// An Action logs row's Action: the stored event code as words, with AI
-    /// and API as the initialisms they are (v41 A13).
+    /// and API as the initialisms they are (v41 A13). A code the operator has
+    /// worded reads in those words.
     /// </summary>
-    public static string ActionLogAction(string operation) =>
-        string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
+    public static string ActionLogAction(string operation) => operation switch
+    {
+        // The two decisions on the Pegasus Desktop sign-in page, in the operator's words (R1308).
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInEvent => DesktopSignIn.SignedInAction,
+        Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInRefusedEvent => DesktopSignIn.RefusedAction,
+        _ => string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch
         {
             "ai" => "AI",
             "api" => "API",
             _ => word
-        }));
+        }))
+    };
 
     /// <summary>An Action logs row's Result, written with a capital whatever its stored spelling (v41 A13).</summary>
     public static string ActionLogResult(string result) =>
@@ -1328,7 +1348,8 @@ public static partial class OperatorLabels
     /// The source tag of a recorded assessment value: the vehicle lookup's
     /// writes read Lookup, an Original report cell filled from the filed report
     /// and a VIN filled from a capture document Extracted, the agreed fee a new Case took from its Principal Principal,
-    /// the findings a linked Triage filled Triage, any other Automation
+    /// the findings a linked Triage filled Triage, the Vehicle history text the
+    /// automatic Experian check recorded Automatic (R1291), any other Automation
     /// actor's AI, a Pegasus worker's Automatic; a staff
     /// value and the Good pre-incident condition every Case starts with
     /// (R598) carry none.
@@ -1341,6 +1362,7 @@ public static partial class OperatorLabels
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Intake.ThirdPartyReports.VehicleCaptureFill.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation when field.RecordedBy == PrincipalDefaultFeePolicy.RecorderId => SourceTagWord.Principal,
         ActorKind.Automation when field.RecordedBy == Pegasus.Core.Triage.TriageFindingFill.RecorderId => SourceTagWord.Triage,
+        ActorKind.Automation when field.RecordedBy == AutomaticRequestPolicy.VehicleHistoryCheckActorId => SourceTagWord.Automatic,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null

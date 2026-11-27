@@ -174,9 +174,9 @@ public sealed class ValuationTests
     public void AutomationCompletionAdmitsOnlyAiMarketResearch()
     {
         var details = Details(source: ValuationSource.AiMarketResearch);
-        Assert.Equal(details, ValuationPolicy.ValidateAutomationMarketResearch(details));
+        Assert.Equal(details, ValuationPolicy.ValidateMarketResearch(details));
         Assert.Throws<InvalidOperationException>(() =>
-            ValuationPolicy.ValidateAutomationMarketResearch(Details(ValuationSource.Glasses)));
+            ValuationPolicy.ValidateMarketResearch(Details(ValuationSource.Glasses)));
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public sealed class ValuationTests
 
         var research = Details(ValuationSource.AiMarketResearch) with { TradeValue = null };
         Assert.Equal(research, ValuationPolicy.ValidateDetails(research));
-        Assert.Equal(research, ValuationPolicy.ValidateAutomationMarketResearch(research));
+        Assert.Equal(research, ValuationPolicy.ValidateMarketResearch(research));
         var noRetail = Assert.Throws<ArgumentException>(() =>
             ValuationPolicy.ValidateDetails(research with { RetailValue = null }));
         Assert.Contains("A market research valuation carries its retail value.", noRetail.Message, StringComparison.Ordinal);

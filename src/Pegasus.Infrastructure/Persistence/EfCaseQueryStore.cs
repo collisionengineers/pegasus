@@ -440,7 +440,8 @@ public sealed class EfCaseQueryStore(
             .Where(item => item.Id == query.CaseId)
             .Select(item => new
             {
-                Documents = context.Set<CaseDocumentEntity>().Count(document => document.CaseId == query.CaseId),
+                Documents = context.Set<CaseDocumentEntity>().Count(document =>
+                    document.CaseId == query.CaseId && document.CustodySubfolder == null),
                 History = timeline.Count(),
                 OpenTasks = context.Set<CaseTaskEntity>()
                     .Count(task => task.CaseId == query.CaseId && task.State == openTaskState)
@@ -1480,9 +1481,11 @@ public sealed class EfCaseQueryStore(
         Guid caseId,
         CancellationToken cancellationToken)
     {
+        // The Case's own documents: what is kept in a subfolder is listed only
+        // in the space it belongs to (R1313).
         var documentEntities = await context.Set<CaseDocumentEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.CaseId == caseId && item.CustodySubfolder == null)
             .OrderBy(item => item.Id)
             .Take(500)
             .ToArrayAsync(cancellationToken);
@@ -1508,7 +1511,8 @@ public sealed class EfCaseQueryStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var query = context.Set<DocumentOccurrenceEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId);
+            .Where(item => item.CaseId == caseId)
+            .OfCaseDocuments(context);
         if (afterId is { } id)
         {
             var afterValue = afterRecordedAtUtc!.Value;

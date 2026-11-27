@@ -206,12 +206,8 @@ _Avoid_: Image-based client, provider exception
 The inspection type of every Case, and the exact report value recorded at Inspect at instead of a physical inspection address; always written out in full in staff-facing surfaces and documents.
 _Avoid_: IBA, image-based mode, desktop assessment value
 
-**Salvage matrix**:
-A Principal's table of Engineer's Value bands and the percentage of that value paid, for each salvage category (A, B, S, N). It fills the Case's salvage value while the Case edits, until the Engineer sets their own ([FRD-24](docs/frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)). The pre-accident value (PAV) it bands is the Engineer's Value.
-_Avoid_: Salvage table, salvage rates
-
 **Report sending rules**:
-A Principal's standing instructions for sending a Case's report: where it goes and from, who is copied or never copied, what goes with it, what holds or stops it, what staff do after, and the report's file name ([FRD-04](docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration)). A rule changes the copies or what goes with the report, or holds, stops or reminds, when its conditions about the Case hold (Report Sending SOP v8); a condition with no Case fact yet is undecided and is asked at delivery. In dispatch, a **Hold** is a text staff tick as done before Send, and a **Stop** refuses Send until staff with casework override it with a recorded reason; neither is the Held Case state.
+A Principal's standing instructions for sending a Case's report: where it goes and from, who is copied or never copied, what goes with it, what holds or stops it, and which Case tasks follow it ([FRD-04](docs/frd/frd-04-parties-accounts-and-access.md#contacts-administration)). They are an "On every Case" list of actions and numbered rules, each "If … Then …": the If is one or more groups joined by or, each group conditions about the Case's facts joined by and, each condition "is" or "is not"; the Then is actions (Send to, Send to only, Reply all, Cc, Never cc, Attach, Do not attach, Hold, Stop, Add a Case task). Nothing happens on a send unless an action says so (Report Sending SOP v8; R1267, R1272). A fact the Case has not set fails an "is" condition and passes an "is not" one; staff are asked nothing at delivery (R1023, R1024, R1269). In dispatch, a **Hold** is a text staff tick as done before Send, and a **Stop** refuses Send until staff with casework override it with a recorded reason; neither is the Held Case state.
 _Avoid_: Sending SOP, dispatch rules, Held (for a dispatch hold)
 
 **Vehicle enrichment**:

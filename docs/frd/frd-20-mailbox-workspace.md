@@ -47,8 +47,9 @@ No Case Found when not, each a neutral chip; the message dialog's context
 bar and the first option of its Type select read the same (operator,
 30 October 2026, R559, R571). A row click opens `#mailMessageDialog`.
 
-The message dialog is full width. A context bar under the route line shows
-Case, Type and Query. The settings menu (cog, `#icon-settings`) holds, in
+The message dialog is full width. A context bar under the subject shows
+Case, Type and Query, with the message's outcome as one chip beside the Case
+(operator, 25 November 2026, R1275). The settings menu (cog, `#icon-settings`) holds, in
 order, Case (the Case, or None, with Link to Case, Change or Unlink beside
 it), Type (one select), Query (Open query or Mark query done), Change case
 (Place on Hold and Close case, only when the linked Case allows that act) and
@@ -86,11 +87,12 @@ Each row shows sender, subject and a short excerpt of the body. The subject
 opens the message as a dialog over the list; the address `/Inbox/{id}` stays
 for a new tab and for no script (operator, 16 October 2026, R159 (c),
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
-Every other in-app link to a message (the Case's message dialog and its
-Reply, Reply all and Forward, the Case's query Reply, Unidentified, Image
-Intake, Create case, the Logs drawer and notifications) opens the Inbox with
-that message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws
-the dialog's head (operator, 30 October 2026, R560).
+A Case's own messages (its Correspondence rows, its Queries rows and a
+query's Reply) open the dialog over the Case (operator, 26 November 2026,
+R1278). Every other in-app link to a message (Unidentified, Image Intake,
+Create case, the Logs drawer and notifications) opens the Inbox with that
+message's dialog open, `/Inbox?open={id}`; the `/Inbox/{id}` page draws the
+dialog's head (operator, 30 October 2026, R560).
 Clicking elsewhere on a row selects it. The selected row is marked. Up and
 Down move through the rows. In All incoming, No Case Found and Dismissed each
 row carries a checkbox in its left gutter; ticking it neither opens nor
@@ -108,8 +110,9 @@ folder, category and search filters stay visible and are kept when the operator
 returns from a message or a Case. A fresh visit resets to the default
 all-Inboxes view; there is no cross-session preference.
 
-The message record's Attachments tab states each attachment's own outcome
-([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
+The message dialog states the message's outcome once, beside its Case in
+the head, and no attachment carries one (operator, 25 November 2026, R1275;
+[FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 There is no `View in Outlook`. The in-app message, attachment and thread
 view was accepted as enough, so there is no Outlook navigation, action or
@@ -121,22 +124,83 @@ The message is the one reader, and it is a dialog over the Inbox (v41 items
 I2, I4 and I17, signed off 19 October 2026,
 [v41 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
 The list has no quick preview. The dialog has one head: the subject, with
-From, To and received beneath, and Previous message and Next message at the
+the context bar beneath, and Previous message and Next message at the
 right beside Close, so the list can be read without closing it. Then come the
-tabs Message, Attachments and Thread, and the message beside Decision, and a
-foot. Opening, reading and moving between messages never changes
-classification, association, read state, Case state or custody.
+conversation and a foot. Opening, reading and moving between messages never
+changes classification, association, read state, Case state or custody.
+
+The conversation is one column with no tabs (operator, 25 November 2026,
+R1273 to R1275,
+[v54 notes](https://github.com/collisionengineers/pegasus-design-archive/blob/design/v54-email-dialogue/v54_planning/current/v54-notes.md)).
+It lists every retained message of the conversation, oldest first, each
+marked Received or Sent. The opened message is unfolded and marked. Every
+other message is one line (its sender, its direction, its first words, its
+attachment count and its time) and unfolds in place, with no request and
+without script. An unfolded message shows who it was sent to, its text in the
+sender's own paragraphs, and its attachments beneath it as rows of name, type
+(PDF, Image or Word) and size. A staff forward's row names its original
+sender, and the member of staff who forwarded it sits with the recipients.
+
+A message opens as it was sent, with its formatting, wherever it has any and
+its retained original can be read (operator, 26 November 2026, R1277,
+R1280). A small icon button on the message switches that message to plain
+text and back: it is named **Plain text**, is pressed while plain text shows,
+and its tooltip names the view it switches to (**Plain text** or **As
+sent**). Plain text is exactly what intake read. A message has no switch and
+shows as plain text where it has no formatting, where its original cannot be
+read yet, where it is a Sent item retained before originals were kept
+(R1279), and where it is a quoted message.
+
+The formatted view is made from the retained original at each view and is
+not stored; the browser keeps it. It shows the sender's own words: it is cut
+at the first quoted message, and for a staff forward it is the forwarded
+message. Where that cut cannot be found the whole e-mail shows as sent. The
+earlier messages are the same folded rows in both views. It is drawn in a
+frame of its own that runs no script, submits no form and loads nothing but
+pictures: anything else the e-mail carries (scripts, forms, frames, embedded
+objects, refreshes) is removed first. Its links open a new tab. Pictures on
+the sender's servers load, and pictures embedded in the e-mail are part of
+the view, so there is no separate picture address.
+
+Each attachment row offers **View** and **Download** (operator, 25 November
+2026, R1275, which replaces R950 for mail attachments). View draws a PDF or a
+JPEG, PNG or WebP image in the viewer over the dialog, before the message has
+a Case as after: the shared evidence viewer on the Inbox and on a Triage Case,
+the Case's own viewer on a Case. A Word document has View wherever Box holds
+the file, as a PDF rendering of it (R949, R1280), and reads **Preview
+unavailable** otherwise; so does any other file the viewer cannot draw, and any other image
+type, since an attachment's type is the one its sender declared and only those
+three are served from Pegasus's address as themselves. Download gives the
+retained file. Previous and Next in the viewer move among that message's
+attachments and pass over one that cannot be shown. Escape closes an open
+file first, then the dialog. No attachment carries an outcome or a note of
+its own.
+
+A message quoted inside an e-mail's text is not left in that text. One
+Pegasus also retains is not repeated. One it does not retain is a row of its
+own, marked Quoted, which opens as text. It is taken as retained when its
+sender and the opening of its text match a retained message of the
+conversation, and it keeps the place it has in the e-mail, whether or not its
+date can be read (R1280). Four shapes of quoted header are recognised:
+Outlook's From, Sent, To and Subject block, `Original Message`, `On ...
+wrote:` and Gmail's forwarded marker. Any other shape stays in the text as
+written.
+
+The dialog is 880px wide and 700px tall, or the height of the window less
+40px where that is smaller, whatever it shows. Only its body scrolls.
 
 Opening a message keeps the list's filter and position. The record shows the
-full retained message, its attachments and a chronological thread, and
+full retained message, its attachments and its conversation, and
 states the current classification, processing outcome and Case
 association before any action is offered. When a message opened a Triage
 and is linked to no Case, its Decision shows that Triage as its Case with
 Open Triage (operator ruling, 15 October 2026) and still offers Link to Case.
 
-The thread shows only retained messages in the same approved mailbox and
-folder scope. A matching thread identity never fetches or reveals other
-messages.
+The conversation shows only retained messages of the same approved mailbox,
+in any of its folders, so what Pegasus sent from that mailbox sits with what
+it received (operator, 25 November 2026, R1275). A matching thread identity
+never fetches or reveals other messages, and a reply sent from another
+approved mailbox is not joined.
 
 Until a retained message has yielded its original effective sender, the
 Inbox shows a neutral Processing state. It never shows the forwarding desk
@@ -224,14 +288,26 @@ the exact message and the list context it came from.
 
 Each Case workspace shows its linked received and Sent items as one
 chronological history, newest first by default with an oldest-first option.
-A row opens its message over the Case, read-only: no
-classification, association, read-state, Case-state or custody change. Reply,
-Reply all and Forward appear there where the record offers them and open the
-composer in the Inbox's message dialog with that Case chosen
-([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
-The full message record is one link away for every other action
-([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing
-stays in this mailbox workspace.
+A row opens the message dialog over the Case: the same dialog the Inbox
+opens, with everything it offers there, and not a second one (operator,
+26 November 2026, R1278). Opening and reading still change nothing. An act
+taken in it (a reply, Dismiss, a change of Type, Link, Change or Unlink)
+leaves the operator on the Case, at the section the message was opened from,
+and Previous message and Next message walk that section's messages. Reply,
+Reply all and Forward open the composer in place with that Case chosen
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)):
+the one send-e-mail dialogue, Send report's, whose To and Cc staff change
+(operator, 27 November 2026; [R1329](../rulings.md), [R1330](../rulings.md)).
+Close case's **E-mail the Principal** opens this same dialog on the Case
+page: on the Case's instruction e-mail as a Reply whose Message is the Case
+rejection template, or, for a Case with no instruction e-mail, as a new
+message under the heading **New message** (operator, 27 November 2026;
+[R1321](../rulings.md), [R1323](../rulings.md), [R1327](../rulings.md)).
+While the Case is being edited on that page, the dialog does not offer Link,
+Change or Unlink for that Case (R1280). A refused act is shown on the
+message's own page, as it is from the Inbox, and the way back from there is
+to the Case ([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox
+browsing stays in this mailbox workspace.
 
 ### Dismiss
 

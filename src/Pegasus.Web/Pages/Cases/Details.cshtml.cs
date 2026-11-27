@@ -70,7 +70,6 @@ public sealed partial class DetailsModel(
     IEnumerable<IEstimateDocumentParser> estimateParsers,
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
-    IPrincipalSalvageMatrixQueries principalSalvageMatrices,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     CaseEditLeases leases,
     CaseEditRequestWatch editRequestWatch,
@@ -89,6 +88,7 @@ public sealed partial class DetailsModel(
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
     IListAppliedValuations listAppliedValuations,
+    ListCaseMarketResearch listMarketResearch,
     Pegasus.Core.Vehicle.RunVehicleHistoryCheck runVehicleHistoryCheck,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
@@ -798,9 +798,6 @@ public sealed partial class DetailsModel(
         });
         var cards = reads.Start(token => labourRateCards.ListAsync(actor, token));
         var bankWordings = reads.Start(unroadworthyReasonBank.ListAsync);
-        var salvageMatrix = CanEditEngineering
-            ? reads.Start(token => principalSalvageMatrices.GetForCaseAsync(id, token))
-            : null;
         var reportInputs = reads.Start(token => reportSnapshotSource.GetAsync(id, actor, work, reuse, token));
         var currentGeneration = reads.Start(token =>
             reportGenerations.GetCurrentAsync(actor, id, work, token));
@@ -819,7 +816,6 @@ public sealed partial class DetailsModel(
         LabourRateCards = await cards;
         ApplyEstimateSelection(estimate);
         UnroadworthyReasonWordings = [.. (await bankWordings).Select(item => item.Text)];
-        PrincipalSalvageMatrix = salvageMatrix is null ? null : await salvageMatrix;
         var inputs = await reportInputs;
         snapshotSignOffEngineers = inputs?.Readiness.EligibleSignOffEngineers;
         if (inputs is not null && canOpen)
@@ -1158,6 +1154,9 @@ public sealed partial class DetailsModel(
         var valuationReads = rendered.Contains("valuation")
             ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token))
             : null;
+        var marketResearch = rendered.Contains("valuation")
+            ? reads.Start(token => listMarketResearch.ExecuteAsync(id, token))
+            : null;
         await reads.WhenAllAsync();
 
         if (vehicle is not null)
@@ -1196,6 +1195,10 @@ public sealed partial class DetailsModel(
         if (valuationReads is not null)
         {
             ApplyValuationSection(await valuationReads);
+        }
+        if (marketResearch is not null)
+        {
+            MarketResearchSubmissions = await marketResearch;
         }
     }
 

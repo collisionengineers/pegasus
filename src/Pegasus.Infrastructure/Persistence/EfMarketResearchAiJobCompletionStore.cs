@@ -22,7 +22,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         CompleteMarketResearchAiJobCommand command,
         CancellationToken cancellationToken)
     {
-        var details = ValuationPolicy.ValidateAutomationMarketResearch(new(
+        var details = ValuationPolicy.ValidateMarketResearch(new(
             ValuationSource.AiMarketResearch,
             command.RecordedDate,
             command.RecordedTime,
@@ -30,18 +30,14 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.RetailValue,
             null,
             command.GuideMonth));
-        var documentCommand = new AddCaseDocumentCommand(
+        var documentCommand = MarketResearchFiling.ReportDocument(
             command.CaseId,
             command.FileName,
             command.MediaType,
             command.Content,
-            DocumentSemanticRole.ValuationEvidence,
-            DocumentSource.Automation,
             $"ai-market-research:{command.JobId:D}",
             command.Actor,
-            command.OperationKey,
-            0,
-            string.Empty);
+            command.OperationKey);
         EfDocumentCustodyStore.ValidateAddCommand(documentCommand);
         var contentHash = EfDocumentCustodyStore.ComputeSha256(command.Content.Span);
         var completionHash = Hash(command, contentHash);
@@ -82,8 +78,6 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         // is what would otherwise stop the research returning. The open Case
         // and its version are left as they were.
         CaseMutationGuard.RequireOpen(workflow, command.Actor);
-        // The researched card belongs to the current work.
-        var workId = await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken);
         var pending = await EfDocumentCustodyStore.PrepareAddAsync(
             context,
             contentStore,
@@ -95,39 +89,18 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         MarketResearchAiJobCompletion completed;
         try
         {
-            // Research for a month that already has a card replaces that card
-            // (ValuationPolicy.Replaces); the earlier figures stay in the history.
-            var replaced = await EfValuationStore.FindReplacedAsync(context, workId, details, cancellationToken);
-            var before = replaced is null ? null : EfValuationStore.Map(replaced);
-            var valuationEntity = replaced ?? new CaseValuationEntity
-            {
-                Id = Guid.NewGuid(),
-                WorkId = workId,
-                Source = details.Source.ToString(),
-                RecordedBy = command.Actor.SubjectId,
-                RecordedAtUtc = now
-            };
-            EfValuationStore.Write(valuationEntity, details, replaced is null ? null : command.Actor.SubjectId, now);
-            if (replaced is null)
-            {
-                context.CaseValuations.Add(valuationEntity);
-            }
-
-            var valuation = EfValuationStore.Map(valuationEntity);
-
-            EfValuationStore.AddHistory(
+            var valuation = await MarketResearchFiling.WriteCardAsync(
                 context,
                 workflow,
+                details,
                 command.Actor,
                 command.OperationKey,
-                replaced is null
-                    ? "AI market research attached."
-                    : "AI market research attached, replacing the card for its month.",
                 MarketResearchPolicy.AttachedEventType,
+                "AI market research attached.",
+                "AI market research attached, replacing the card for its month.",
                 completionHash,
-                valuation,
-                before,
-                now);
+                now,
+                cancellationToken);
 
             job.State = nameof(AiJobState.Completed);
             job.ClosedAtUtc = now;
@@ -161,46 +134,14 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         }
         catch (Exception exception)
         {
-            Exception? rollbackFailure = null;
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch (Exception caught)
-            {
-                rollbackFailure = caught;
-            }
-
-            try
-            {
-                if (pending.ContentWrite.Disposition == DocumentContentWriteDisposition.Created)
-                {
-                    await DocumentContentRollback.RemoveOrphanAsync(
-                        contextFactory,
-                        contentStore,
-                        command.CaseId,
-                        workflow.Case.Reference,
-                        pending.Version.Id,
-                        exception);
-                }
-            }
-            catch (Exception cleanupFailure) when (rollbackFailure is not null)
-            {
-                throw new AggregateException(
-                    "The document database write failed, its rollback could not be confirmed, and custody cleanup did not complete.",
-                    exception,
-                    rollbackFailure,
-                    cleanupFailure);
-            }
-
-            if (rollbackFailure is not null)
-            {
-                throw new AggregateException(
-                    "The document database transaction failed and its rollback could not be confirmed.",
-                    exception,
-                    rollbackFailure);
-            }
-
+            await MarketResearchFiling.RollBackAsync(
+                contextFactory,
+                contentStore,
+                transaction,
+                command.CaseId,
+                workflow.Case.Reference,
+                [pending],
+                exception);
             throw;
         }
 

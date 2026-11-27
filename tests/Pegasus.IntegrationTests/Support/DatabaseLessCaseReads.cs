@@ -18,8 +18,9 @@ namespace Pegasus.IntegrationTests.Support;
 /// <remarks>
 /// A recording-store test serves its Case from the store, so these are the
 /// reads it used to send to a restored database: no kind, preparation,
-/// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason, salvage
-/// matrix, report, valuation, repairer, image intake or lease to resume; Send
+/// previous address, reviewed inspection location, AI job, estimate, saved unroadworthy reason,
+/// report, valuation, market research submission, repairer, image intake or
+/// lease to resume; Send
 /// to AI switched on, because no row says otherwise; and the reference rows the
 /// migrations seed (the labour-rate cards, the valuation presets, the built-in
 /// image tags and the claim sources). <c>DatabaseLessWebHostTests</c> compares
@@ -35,12 +36,12 @@ internal sealed class DatabaseLessCaseReads :
     IListCaseEstimates,
     ILabourRateCardStore,
     IUnroadworthyReasonBankStore,
-    IPrincipalSalvageMatrixQueries,
     ICaseReportSnapshotSource,
     ICaseReportGenerationStore,
     ISendToAiControl,
     IListCaseValuations,
     IListAppliedValuations,
+    IMarketResearchSubmissionQueries,
     IValuationPresetStore,
     IContactDirectoryQueries,
     ILeaseCaseForEdit,
@@ -108,7 +109,8 @@ internal sealed class DatabaseLessCaseReads :
     /// The claim sources the schema seeds, in the store's name order: slots
     /// 01 to 0b from the SOP seeds of 12, 13 and 17 October 2026, and slots
     /// 0e to 19, the introducers Oakwood's instructions name, each linked to
-    /// OAK (migration ContactsFollowQuickReference, R1030).
+    /// OAK (migration ContactsFollowQuickReference, R1030), and slot 1b, Easy
+    /// Claim, linked to RJS (migration EasyClaimIsAnRjsClaimSource, R1302).
     /// </summary>
     private static readonly IReadOnlyList<ContactChoice> ClaimSources =
     [
@@ -118,6 +120,7 @@ internal sealed class DatabaseLessCaseReads :
         SeededClaimSource("00000000-0000-4000-8000-00000000f001", "Car 2 Go"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f003", "CarClaims"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f006", "Easdons"),
+        SeededClaimSource("00000000-0000-4000-8000-00000000f01b", "Easy Claim") with { LinkedPrincipalCodes = ["RJS"] },
         OakIntroducer("00000000-0000-4000-8000-00000000f011", "Ecs Accident Repair Ltd"),
         SeededClaimSource("00000000-0000-4000-8000-00000000f004", "Expert Claims"),
         OakIntroducer("00000000-0000-4000-8000-00000000f012", "Glasgow Smart Repair"),
@@ -236,10 +239,6 @@ internal sealed class DatabaseLessCaseReads :
         Guid id, string renderedText, CancellationToken cancellationToken) =>
         Refused<UnroadworthyReasonChange>(nameof(IUnroadworthyReasonBankStore));
 
-    Task<SalvageMatrix?> IPrincipalSalvageMatrixQueries.GetForCaseAsync(
-        Guid caseId, CancellationToken cancellationToken) =>
-        Task.FromResult<SalvageMatrix?>(null);
-
     Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
         Guid caseId,
         ActionActor actor,
@@ -298,6 +297,10 @@ internal sealed class DatabaseLessCaseReads :
     Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(
         Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
+
+    Task<IReadOnlyList<StoredMarketResearchSubmission>> IMarketResearchSubmissionQueries.ListForCaseAsync(
+        Guid caseId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<StoredMarketResearchSubmission>>([]);
 
     Task<IReadOnlyList<ValuationPreset>> IValuationPresetStore.ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult(ValuationPresets);

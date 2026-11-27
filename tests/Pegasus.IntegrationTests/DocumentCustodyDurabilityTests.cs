@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -682,6 +683,171 @@ public sealed class DocumentCustodyDurabilityTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    /// A recognised garage estimate mailed to the Case is typed by its header
+    /// (R1140): its Correspondence file becomes an External estimate, the
+    /// Case's empty mileage and VIN are filled from it (R1141), one history
+    /// line says "Estimate read: <file>" (R1282) and the VIN its own line
+    /// (R1283), and a mileage-only Not ready Case moves to Review (R930).
+    /// Read again, it records nothing more.
+    /// </summary>
+    [Fact]
+    public async Task ARecognisedEstimateTypesItsMailedFileAndFillsTheCasesEmptyMileageAndVin()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database, "audit");
+        await SeedCompleteButForMileageAsync(database, caseId, instructionMileage: null);
+        var occurrenceId = await SeedCurrentDocumentAsync(
+            database, caseId, 0, "garage-estimate.pdf",
+            role: DocumentSemanticRole.Correspondence, source: DocumentSource.ExternalCorrespondence);
+        var candidate = await EstimateCandidateAsync(database, occurrenceId);
+        var reading = new FiledEstimateReading(DocumentSemanticRole.ExternalEstimate, "WVWZZZ1KZAW000001", 24534, "miles");
+
+        await RecordReadingAsync(database, candidate, reading);
+        await RecordReadingAsync(database, candidate, reading);
+
+        await using var verification = await database.CreateContextAsync();
+        var occurrence = await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId);
+        Assert.Equal(DocumentSemanticRole.ExternalEstimate, occurrence.SemanticRole);
+        var mileage = await verification.CaseDataFields
+            .SingleAsync(item => item.WorkId == caseId && item.FieldName == CaseDataFieldNames.VehicleMileage);
+        Assert.Equal("24534", mileage.Value);
+        Assert.Equal(CaseDataCodes.Fact, mileage.ValueKind);
+        Assert.Equal(FiledEstimateReading.MileagePolicyKey, mileage.PolicyKey);
+        Assert.Equal(candidate.VersionId.ToString("D"), mileage.SourceIdentity);
+        Assert.Equal("garage-estimate.pdf", mileage.SourceLabel);
+        Assert.Equal(
+            "WVWZZZ1KZAW000001",
+            await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.VehicleVin)
+                .Select(item => item.Value)
+                .SingleAsync());
+        Assert.Equal(
+            nameof(CaseLifecycleState.Review),
+            (await verification.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).State);
+        var read = await verification.CaseWorkflowEvents
+            .SingleAsync(item => item.CaseId == caseId && item.EventType == "estimate_read");
+        Assert.Equal("Estimate read: garage-estimate.pdf", read.Reason);
+        Assert.Equal(nameof(ActorKind.SystemWorker), read.ActorKind);
+        Assert.Contains("vehicle_mileage", read.ResultJson, StringComparison.Ordinal);
+        var history = await verification.ActionHistory.SingleAsync(item => item.EventKind == "estimate_read");
+        Assert.Contains("\"SemanticRole\":\"Correspondence\"", history.BeforeJson, StringComparison.Ordinal);
+        Assert.Contains("\"SemanticRole\":\"ExternalEstimate\"", history.AfterJson, StringComparison.Ordinal);
+        var vin = await verification.CaseWorkflowEvents
+            .SingleAsync(item => item.CaseId == caseId && item.EventType == "glass_vin_filled");
+        Assert.Equal("The estimate's VIN filled the Case's empty VIN.", vin.Reason);
+    }
+
+    /// <summary>
+    /// A type staff chose is never overwritten, nor one they changed after
+    /// filing, and a mileage the Case holds is never replaced (R1140, R1141):
+    /// with nothing recorded on the Case there is no history line, while an
+    /// empty VIN still fills.
+    /// </summary>
+    [Fact]
+    public async Task AStaffTypeAndTheCasesOwnMileageAreKept()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database, "audit");
+        await SeedCompleteButForMileageAsync(database, caseId, instructionMileage: 41200);
+        var chosen = await SeedCurrentDocumentAsync(
+            database, caseId, 0, "chosen.pdf", role: DocumentSemanticRole.Correspondence);
+        var changed = await SeedCurrentDocumentAsync(
+            database, caseId, 1, "changed.pdf", role: DocumentSemanticRole.Correspondence,
+            source: DocumentSource.ExternalCorrespondence, sha256: new string('b', 64));
+        await using (var context = await database.CreateContextAsync())
+        {
+            // The Change type's history row names the occurrence (R204).
+            context.ActionHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "case",
+                AggregateId = caseId.ToString("D"),
+                EventKind = "case_document_type_set",
+                ActorKind = nameof(ActorKind.Staff),
+                ActorSubjectId = Guid.NewGuid().ToString("D"),
+                ActorRolesJson = "[]",
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                Outcome = "Succeeded",
+                CorrelationId = "type-change",
+                Reason = "Staff's choice.",
+                BeforeJson = $$"""{"Id":"{{changed:D}}","SemanticRole":"ExternalEstimate"}""",
+                AfterJson = $$"""{"Id":"{{changed:D}}","SemanticRole":"Correspondence"}""",
+                PolicyVersion = "test"
+            });
+            await context.SaveChangesAsync();
+        }
+        var reading = new FiledEstimateReading(DocumentSemanticRole.CeEstimate, "WVWZZZ1KZAW000001", 24534, "miles");
+
+        await RecordReadingAsync(database, await EstimateCandidateAsync(database, chosen), reading);
+        await RecordReadingAsync(database, await EstimateCandidateAsync(database, changed), reading);
+
+        await using var verification = await database.CreateContextAsync();
+        Assert.All(
+            await verification.Set<DocumentOccurrenceEntity>().Where(item => item.CaseId == caseId).ToListAsync(),
+            item => Assert.Equal(DocumentSemanticRole.Correspondence, item.SemanticRole));
+        Assert.Equal(
+            "41200",
+            (await verification.CaseDataFields
+                .SingleAsync(item => item.WorkId == caseId && item.FieldName == CaseDataFieldNames.VehicleMileage)).Value);
+        Assert.False(await verification.CaseWorkflowEvents.AnyAsync(item => item.EventType == "estimate_read"));
+        Assert.Single(await verification.CaseWorkflowEvents
+            .Where(item => item.CaseId == caseId && item.EventType == "glass_vin_filled").ToListAsync());
+    }
+
+    /// <summary>
+    /// While a member of staff edits the Case the reading waits: nothing is
+    /// recorded and the recognition is told to read the version again later.
+    /// </summary>
+    [Fact]
+    public async Task AReadingWaitsForTheCaseEditor()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database, "audit");
+        var occurrenceId = await SeedCurrentDocumentAsync(
+            database, caseId, 0, "garage-estimate.pdf", role: DocumentSemanticRole.Other);
+        await using (var scope = database.CreateAsyncScope())
+        {
+            await ClaimLeaseAsync(
+                database, scope.ServiceProvider, caseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+        }
+
+        var candidate = await EstimateCandidateAsync(database, occurrenceId);
+
+        await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(() => RecordReadingAsync(
+            database, candidate, new FiledEstimateReading(DocumentSemanticRole.ExternalEstimate, null, null, null)));
+
+        await using var verification = await database.CreateContextAsync();
+        Assert.Equal(
+            DocumentSemanticRole.Other,
+            (await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId)).SemanticRole);
+    }
+
+    /// <summary>The recognition's candidate for the occurrence's version.</summary>
+    private static async Task<EstimateRecognitionCandidate> EstimateCandidateAsync(
+        LocalDbTestDatabase database,
+        Guid occurrenceId)
+    {
+        await using var context = await database.CreateContextAsync();
+        var occurrence = await context.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId);
+        var version = await context.Set<DocumentVersionEntity>().SingleAsync(item => item.Id == occurrence.VersionId);
+        return new(
+            occurrence.CaseId, version.DocumentId, version.Id, version.FileName, version.MediaType,
+            version.ContentLength, version.Sha256, IsGenerated: false);
+    }
+
+    private static async Task RecordReadingAsync(
+        LocalDbTestDatabase database,
+        EstimateRecognitionCandidate candidate,
+        FiledEstimateReading reading)
+    {
+        await using var scope = database.CreateAsyncScope();
+        var candidates = new EfEstimateRecognitionCandidates(
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            TimeProvider.System);
+        await candidates.RecordReadingAsync(candidate, reading, CancellationToken.None);
     }
 
     /// <summary>
@@ -2184,6 +2350,125 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    /// <summary>
+    /// R1238: the Advert Evidence Pack and a screenshot of a submission are
+    /// addressed to the Case's market-research subfolder, for the write and
+    /// for the read back, and the report to the Case's own folder. What is in
+    /// the subfolder is no document of the Case's list and no source of its
+    /// report (R1313).
+    /// </summary>
+    [Fact]
+    public async Task ASubmissionsPackAndScreenshotAreWrittenAndReadThroughTheSubfolderAndAreNotTheCasesDocuments()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.IntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            await SubmitAndReadThroughTheSubfolderAsync(root);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static async Task SubmitAndReadThroughTheSubfolderAsync(string root)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var content = new ManagedOnlyDocumentContentStore(new LocalDocumentContentStore(root));
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var record = new MarketResearchRecord(
+            MarketResearchSubmissionPolicy.SchemaVersion,
+            null,
+            null,
+            null,
+            null,
+            42000,
+            null,
+            null,
+            null,
+            [
+                new MarketResearchRecordAdvert(
+                    1, "search", null, null, null, null, null, 9800m, null, "Close match.", true, 90, null, ["advert-1.jpg"], null)
+            ],
+            new MarketResearchRecordValue(1, null, null, null, null, null, 9900m, "average", null),
+            "pack.pdf");
+        var command = new SubmitMarketResearchCommand(
+            caseId,
+            actor,
+            "mcp:durability-research",
+            MarketResearchReview.Accepted,
+            new DateOnly(2031, 5, 1),
+            record,
+            [
+                new(Guid.NewGuid(), "report.pdf", "application/pdf", MarketResearchFileKind.Report),
+                new(Guid.NewGuid(), "pack.pdf", "application/pdf", MarketResearchFileKind.EvidencePack),
+                new(Guid.NewGuid(), "advert-1.jpg", "image/jpeg", MarketResearchFileKind.Screenshot)
+            ],
+            "staff:durability");
+        MarketResearchSubmissionPolicy.Validate(command);
+        var recordJson = MarketResearchSubmissionPolicy.RecordJson(record);
+        var screenshotBytes = "advert screenshot"u8.ToArray();
+
+        var submission = await new EfMarketResearchSubmissionStore(factory, content, TimeProvider.System).SubmitAsync(
+            new(
+                command,
+                MarketResearchSubmissionPolicy.InputHash(command, recordJson),
+                recordJson,
+                ["market valuation evidence"u8.ToArray(), "advert evidence pack"u8.ToArray(), screenshotBytes]),
+            CancellationToken.None);
+
+        const string subfolder = "case-root-id/market-research";
+        Assert.Equal(
+            "report.pdf=case-root-id pack.pdf=" + subfolder + " advert-1.jpg=" + subfolder,
+            string.Join(' ', submission.Files.Select(file =>
+                $"{file.FileName}={content.Addresses.Single(address => address.VersionId == file.VersionId).CaseRootRemoteId}")));
+
+        // The read back goes through the subfolder too.
+        var screenshot = submission.Files.Single(file => file.Kind == MarketResearchFileKind.Screenshot);
+        IDownloadCaseDocument download = new EfDocumentCustodyStore(
+            factory,
+            content,
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
+        await using (var downloaded = await download.ExecuteAsync(
+            new(caseId, screenshot.OccurrenceId, screenshot.VersionId, actor, $"download:{Guid.NewGuid():N}"),
+            CancellationToken.None))
+        {
+            Assert.NotNull(downloaded);
+            using var copy = new MemoryStream();
+            await downloaded!.Content.CopyToAsync(copy);
+            Assert.Equal(screenshotBytes, copy.ToArray());
+        }
+        Assert.Equal(subfolder, Assert.Single(content.ReadAddresses).CaseRootRemoteId);
+
+        // The Documents list and the report's sources hold the report alone.
+        var listed = await services.GetRequiredService<ICaseDocumentQueries>().ListAsync(caseId, CancellationToken.None);
+        Assert.Equal("report.pdf", Assert.Single(listed.SelectMany(document => document.Versions)).FileName);
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(subfolder, await context.Cases
+            .Where(value => value.Id == caseId)
+            .Select(value => value.MarketResearchCustodyRemoteId)
+            .SingleAsync());
+        Assert.Equal(
+            "report.pdf",
+            Assert.Single(await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+                context, caseId, CancellationToken.None)).FileName);
+        Assert.Equal(
+            2,
+            await context.Set<CaseDocumentEntity>().CountAsync(document =>
+                document.CaseId == caseId && document.CustodySubfolder == CaseCustodyFolders.MarketResearch));
+    }
+
     private static async Task<Guid> SeedCaseAsync(
         LocalDbTestDatabase database,
         string caseType = "inspection",
@@ -2253,7 +2538,8 @@ public sealed class DocumentCustodyDurabilityTests
         string fileName,
         string? operationKey = null,
         DocumentSemanticRole role = DocumentSemanticRole.Instruction,
-        string? sha256 = null)
+        string? sha256 = null,
+        DocumentSource source = DocumentSource.StaffUpload)
     {
         await using var context = await database.CreateContextAsync();
         var documentId = Guid.NewGuid();
@@ -2289,7 +2575,7 @@ public sealed class DocumentCustodyDurabilityTests
                 VersionId = versionId,
                 Ordinal = ordinal,
                 SemanticRole = role,
-                Source = DocumentSource.StaffUpload,
+                Source = source,
                 SourceOccurrenceIdentity = $"test-document:{occurrenceId:N}",
                 RecordedAtUtc = DateTimeOffset.UtcNow,
                 OperationKey = operationKey ?? $"seed-document:{occurrenceId:N}"
@@ -2383,6 +2669,8 @@ public sealed class DocumentCustodyDurabilityTests
     {
         public List<ManagedDocumentContentAddress> Addresses { get; } = [];
 
+        public List<ManagedDocumentContentAddress> ReadAddresses { get; } = [];
+
         public Task StoreAsync(
             Guid caseId,
             string caseReference,
@@ -2398,7 +2686,11 @@ public sealed class DocumentCustodyDurabilityTests
             string expectedSha256,
             CancellationToken cancellationToken)
         {
-            Addresses.Add(address);
+            // A submission writes several files at the same time.
+            lock (Addresses)
+            {
+                Addresses.Add(address);
+            }
             return await inner.StoreVersionAsync(
                 address,
                 content,
@@ -2436,6 +2728,16 @@ public sealed class DocumentCustodyDurabilityTests
                 expectedSha256,
                 expectedLength,
                 cancellationToken);
+
+        public Task<Stream> OpenReadVersionAsync(
+            ManagedDocumentContentAddress address,
+            string expectedSha256,
+            long expectedLength,
+            CancellationToken cancellationToken)
+        {
+            ReadAddresses.Add(address);
+            return inner.OpenReadVersionAsync(address, expectedSha256, expectedLength, cancellationToken);
+        }
 
         public Task DeleteAsync(
             Guid caseId,

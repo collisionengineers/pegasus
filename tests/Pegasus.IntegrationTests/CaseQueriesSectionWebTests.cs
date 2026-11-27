@@ -70,8 +70,9 @@ public sealed class CaseQueriesSectionWebTests
     /// <summary>
     /// Open queries come first, then the resolved ones, whatever order the
     /// store answers in. A mail query shows its sender and subject as the
-    /// message link and, while open and staff mail is available, Reply; a
-    /// staff query shows its channel and details.
+    /// message link and, while open and staff mail is available, Reply, each
+    /// opening the Inbox's own e-mail dialog over the Case (R1278); a staff
+    /// query shows its channel and details.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -107,14 +108,20 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("handler@principal.example", mail.Markup, StringComparison.Ordinal);
         Assert.Contains("When is the supplementary due?", mail.Markup, StringComparison.Ordinal);
         Assert.Contains($">{QueryLabels.Channel(CaseQueryChannel.Email)}<", mail.Markup, StringComparison.Ordinal);
-        Assert.Contains($"data-dialog-open=\"case-message-{messageId:N}\"", mail.Markup, StringComparison.Ordinal);
-        Assert.Contains("query-subject-link", mail.Markup, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-row=\"{messageId:D}\"", mail.Markup, StringComparison.OrdinalIgnoreCase);
+        var subject = Regex.Match(mail.Markup, "<a[^>]*query-subject-link[^>]*>");
+        Assert.True(subject.Success, "An open mail query does not link its message.");
+        Assert.Contains("data-mail-open", subject.Value, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{messageId:D}\"", subject.Value, StringComparison.OrdinalIgnoreCase);
         var reply = Regex.Match(mail.Markup, "<a[^>]*data-query-reply=\"[^\"]+\"[^>]*>");
         Assert.True(reply.Success, "An open mail query offers no Reply.");
-        Assert.Contains($"href=\"/Inbox?open={messageId:D}", reply.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-mail-open", reply.Value, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{messageId:D}?", reply.Value, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("compose=reply", reply.Value, StringComparison.Ordinal);
         Assert.Contains($"correspondenceCaseReference={Reference}", reply.Value, StringComparison.Ordinal);
-        Assert.Contains($"data-dialog=\"case-message-{messageId:N}\" data-case-message-dialog", html, StringComparison.Ordinal);
+        Assert.Contains("markQueryDone=true", reply.Value, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-message-dialog", html, StringComparison.Ordinal);
+        Assert.Contains("data-mail-list=\"queries\"", body, StringComparison.Ordinal);
 
         var staff = rows.Single(row => row.Id == openStaff.Id.ToString("D"));
         Assert.Contains($">{QueryLabels.Open}</span>", staff.Markup, StringComparison.Ordinal);
@@ -122,7 +129,8 @@ public sealed class CaseQueriesSectionWebTests
         Assert.Contains("Repairer asked for the labour rate", staff.Markup, StringComparison.Ordinal);
         Assert.Contains("Sam Staff", staff.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-query-reply", staff.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open=\"case-message-", staff.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-row", staff.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mail-open", staff.Markup, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"case-assign-query-dialog\"", staff.Markup, StringComparison.Ordinal);
 
         Assert.Contains($">{QueryLabels.Done}</span>", rows[2].Markup, StringComparison.Ordinal);
@@ -144,7 +152,8 @@ public sealed class CaseQueriesSectionWebTests
 
         var row = Assert.Single(Rows(QueriesBody(await ReadQueriesAsync(store, fragment: false))));
 
-        Assert.Contains($"data-dialog-open=\"case-message-{messageId:N}\"", row.Markup, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-row=\"{messageId:D}\"", row.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-mail-open", row.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("data-query-reply", row.Markup, StringComparison.Ordinal);
     }
 
@@ -293,20 +302,21 @@ public sealed class CaseQueriesSectionWebTests
         return WebUtility.HtmlDecode(await GetHtmlAsync(client, path));
     }
 
-    /// <summary>The Queries body, up to the message dialogs drawn after its table.</summary>
+    /// <summary>The Queries body, to the end of its section.</summary>
     private static string QueriesBody(string html)
     {
         var start = html.IndexOf("data-case-queries>", StringComparison.Ordinal);
         Assert.True(start >= 0, "The Queries section is not rendered.");
-        var end = html.IndexOf("data-case-message-dialog", start, StringComparison.Ordinal);
-        return end < 0 ? html[start..] : html[start..end];
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Queries section is not closed.");
+        return html[start..end];
     }
 
     private static (string Id, bool Open, string Markup)[] Rows(string body) =>
     [
         .. Regex.Matches(
                 body,
-                "<tr data-case-query=\"(?<id>[^\"]+)\" data-case-query-open=\"(?<open>true|false)\">.*?</tr>",
+                "<tr data-case-query=\"(?<id>[^\"]+)\" data-case-query-open=\"(?<open>true|false)\"[^>]*>.*?</tr>",
                 RegexOptions.Singleline | RegexOptions.CultureInvariant)
             .Select(match => (match.Groups["id"].Value, match.Groups["open"].Value == "true", match.Value))
     ];

@@ -250,6 +250,31 @@ the list's filters; a run that lists no candidate while that count is above
 zero logs `warning: candidates hidden`, and four such runs in a row end
 `failed: candidates hidden` (operator, 4 November 2026, R735).
 
+**Run record.** The agent records each of its runs in Pegasus (operator, 27
+November 2026; [R1318](../rulings.md)). Once Pegasus answers it opens the run
+through `pegasus_classifier_run_record` with the settings it runs with (dry
+run or write, model, batch, list pages read, spending cap and its version),
+and it closes the run with how it ended, the e-mails it had, Pegasus's count
+of mail awaiting a decision and whether the list hid it, its verdicts, failed
+and deferred e-mails, turns, cost, duration, any error, the model's closing
+summary, and one row for each e-mail of its batch: what it did (classified,
+linked, created a Case or a one-off Case, opened a Triage or a query, left it
+as it is, left it for staff, left it until the next run, failed, set it aside
+or did not reach it), the type it gave, the Case, its reason and Pegasus's
+refusal. A dry run's acts are what it would have done. A run with nothing
+eligible, or whose list hid mail, is recorded too; a run that finds Pegasus
+unavailable records nothing. Only the Automation Actor writes a run, a
+repeated open or close changes nothing, and a record that fails is logged
+while the run goes on. In production the agent also keeps each run in the
+`runs` table of its own storage account, which the hosted test instance
+reads (R1319). A run's calls are found in Action logs by its window, from its
+open to its close: its operation keys carry no run id, because Pegasus
+replays a write by its key and a later run's retry must meet the write an
+earlier run made (a query opened, for one). The runs are shown
+on Administration › Mail classifier
+([FRD-17](frd-17-administration-workspace.md#mail-classifier)); how long they
+are kept is an [open decision](../open-decisions.md).
+
 **History.** Every automated or human classification decision keeps the
 source identity, policy key and version, outcome, evidence references,
 confidence or ambiguity facts, the actor or automated identity, and the

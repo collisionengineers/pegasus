@@ -35,7 +35,7 @@ namespace Pegasus.IntegrationTests;
 /// (operator, 28 September 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class CaseValuationSectionWebTests
+public sealed partial class CaseValuationSectionWebTests
 {
     private static readonly (string Slug, string Name)[] GuideSources =
     [
@@ -1604,7 +1604,10 @@ public sealed class CaseValuationSectionWebTests
         return mva;
     }
 
-    /// <summary>Glass's as Production composes it, over the scripted provider.</summary>
+    /// <summary>
+    /// Glass's as Production composes it, over the scripted provider, with the
+    /// login held in memory instead of read from the database (R1288).
+    /// </summary>
     private static void ConnectGlass(IServiceCollection services, ScriptedGlass mva)
     {
         services.AddSingleton(new GlassRepairEstimateOptions(
@@ -1618,8 +1621,13 @@ public sealed class CaseValuationSectionWebTests
         services.Configure<HttpClientFactoryOptions>(
             GlassRepairEstimateOptions.HttpClientName,
             options => options.HttpMessageHandlerBuilderActions.Add(handler => handler.PrimaryHandler = mva));
-        services.AddGlassGuideValuation(_ => GlassValuationAccount.Create(key =>
-            key.EndsWith("Username", StringComparison.Ordinal) ? "valuation-test" : "synthetic-password"));
+        services.AddSingleton<IGuideValuationProvider>(provider => new GlassGuideValuationProvider(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            () => provider.GetRequiredService<GlassRepairEstimateOptions>(),
+            _ => Task.FromResult(GlassValuationAccount.Create(
+                TestIntegrationLogins.Glass("valuation-test", "synthetic-password"))),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<GlassGuideValuationProvider>>()));
     }
 
     /// <summary>Records the filing the press handed on, and reads its report as filing would.</summary>

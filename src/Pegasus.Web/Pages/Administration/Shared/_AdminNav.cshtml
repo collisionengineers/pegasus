@@ -12,6 +12,7 @@
             "release-notes" => "/Administration/ReleaseNotes/Index",
             "problem-reports" => "/Administration/ProblemReports",
             "health" => "/Administration/Health",
+            "classifier" => "/Administration/Classifier",
             "valuation-presets" => "/Administration/ValuationPresets/Index",
             "unroadworthy-reasons" => "/Administration/UnroadworthyReasons/Index",
             "contacts" => "/Administration/Contacts/Index",
@@ -62,12 +63,23 @@
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-car")" /></svg>
             <span>@OperatorLabels.Admin.UnroadworthyReasons</span>
         </a>
+        @* The automatic requests and the integrations' logins (R1289), listed
+           in every deployment. *@
+        <a asp-page="/Administration/Integrations" aria-current="@Current("integrations")">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-link")" /></svg>
+            <span>@OperatorLabels.Admin.Integrations</span>
+        </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">
         <span class="admin-nav__label" id="admin-nav-oversight">Operations and oversight</span>
         <a asp-page="/Administration/Health" aria-current="@Current("health")">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-heart-pulse")" /></svg>
             <span>@OperatorLabels.Admin.Health</span>
+        </a>
+        @* The mail classifier's runs and what it did (R1318). *@
+        <a asp-page="/Administration/Classifier" aria-current="@Current("classifier")">
+            <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-mail-search")" /></svg>
+            <span>@OperatorLabels.Admin.Classifier</span>
         </a>
         <a asp-page="/Administration/Logs" aria-current="@Current("logs")">
             <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-scroll-text")" /></svg>

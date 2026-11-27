@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -26,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 /// Administrator, so the consent page is reached without a sign-in dance.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed partial class AutomationConnectorAuthorizationTests
+public sealed class AutomationConnectorAuthorizationTests
 {
     private const string State = "state-4c1c0d0f";
 
@@ -259,6 +258,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             "pegasus_report_list",
             "pegasus_report_wording_get",
             "pegasus_report_wording_save",
+            "pegasus_session_get",
             "pegasus_upload_begin",
             "pegasus_upload_part",
             "pegasus_vocabulary_get",
@@ -372,7 +372,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
             var names = document.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray()
                 .Select(tool => tool.GetProperty("name").GetString())
                 .ToArray();
-            Assert.Equal(15, names.Length);
+            Assert.Equal(16, names.Length);
             Assert.Contains("pegasus_case_search", names);
             Assert.DoesNotContain("pegasus_mail_send", names);
             Assert.DoesNotContain("pegasus_report_send", names);
@@ -628,6 +628,60 @@ public sealed partial class AutomationConnectorAuthorizationTests
         }
     }
 
+    /// <summary>
+    /// The page admits any member of staff for Pegasus Desktop's client
+    /// (ADR-0092). For the Automation client it stays the Administrator's
+    /// alone: the page and both of its handlers refuse every other role, and
+    /// nothing is recorded as a decision.
+    /// </summary>
+    [Fact]
+    public async Task AMemberOfStaffWhoIsNotAnAdministratorCannotConsentForTheAutomationClient()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            localIntakeEnabled: true,
+            TimeProvider.System,
+            useIntegrationTestAuthentication: true);
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var browser = CreateBrowser(mcpFactory);
+        var (_, challenge) = Pkce();
+
+        // The Administrator's own page supplies the form the others then post.
+        using var consent = await browser.GetAsync(AuthorizeUrl(challenge, "automation.cases"));
+        var html = await consent.Content.ReadAsStringAsync();
+        Assert.True(consent.StatusCode == HttpStatusCode.OK, $"{(int)consent.StatusCode}: {html}");
+
+        foreach (var role in new[] { StaffRoleNames.User, StaffRoleNames.Engineer })
+        {
+            using var pageRequest = new HttpRequestMessage(
+                HttpMethod.Get, AuthorizeUrl(challenge, "automation.cases"));
+            pageRequest.Headers.Add("X-Test-Roles", role);
+            using var page = await browser.SendAsync(pageRequest);
+            Assert.Equal(HttpStatusCode.Forbidden, page.StatusCode);
+            Assert.DoesNotContain(
+                "Authorise the connector",
+                await page.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+
+            foreach (var handler in new[] { "Accept", "Deny" })
+            {
+                using var decision = new HttpRequestMessage(HttpMethod.Post, AuthorizeHandlerUrl(handler))
+                {
+                    Content = ConsentForm(html)
+                };
+                decision.Headers.Add("X-Test-Roles", role);
+                using var refused = await browser.SendAsync(decision);
+                Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+            }
+        }
+
+        Assert.Equal(0, await (await factory.DatabaseAsync).ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE EventKind IN (N'automation_connector_authorized', N'automation_connector_denied')
+            """));
+    }
+
     [Fact]
     public async Task DisabledClientCannotAuthoriseOrExchange()
     {
@@ -674,26 +728,6 @@ public sealed partial class AutomationConnectorAuthorizationTests
         Assert.DoesNotContain("Authorise the connector", refusedBody, StringComparison.Ordinal);
     }
 
-    // The staff cookies (identity, antiforgery) are Secure, so the browser
-    // half of the flow talks to the test host over https like the case web
-    // tests do; the connector half uses the same origin so tokens issued and
-    // validated by the local server share one issuer.
-    private static HttpClient CreateBrowser(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = true,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-    private static HttpClient CreateConnector(WebApplicationFactory<Program> factory) =>
-        factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            HandleCookies = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
     private static WebApplicationFactory<Program> WithPersistentOAuthCredentials(
         IntakeWebApplicationFactory factory,
         X509Certificate2 signing,
@@ -726,16 +760,6 @@ public sealed partial class AutomationConnectorAuthorizationTests
             null,
             X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
     }
-
-    private static (string Verifier, string Challenge) Pkce()
-    {
-        var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
-        var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
-        return (verifier, challenge);
-    }
-
-    private static string Base64Url(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private static string AuthorizeUrl(
         string? challenge,
@@ -780,74 +804,8 @@ public sealed partial class AutomationConnectorAuthorizationTests
     private static string AuthorizeHandlerUrl(string handler) =>
         AutomationMcp.AuthorizationEndpointPath + "?handler=" + handler;
 
-    private static FormUrlEncodedContent ConsentForm(string html, IReadOnlyCollection<string>? tickedScopes = null)
-    {
-        // Re-post exactly what the page rendered: the echoed OAuth parameters,
-        // the operation key, the antiforgery token and the scope tick boxes,
-        // every one as rendered (ticked) unless the test unticks some.
-        // Only the consent panel's form: the shell has its own sign-out form
-        // with its own antiforgery token.
-        var start = html.IndexOf("aria-labelledby=\"connector-heading\"", StringComparison.Ordinal);
-        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start, "consent panel not found");
-        var panel = html[start..end];
-        var fields = new List<KeyValuePair<string, string>>();
-        foreach (Match input in InputTag().Matches(panel))
-        {
-            var tag = input.Value;
-            var hidden = tag.Contains("type=\"hidden\"", StringComparison.Ordinal);
-            var tickBox = tag.Contains("type=\"checkbox\"", StringComparison.Ordinal);
-            if (!hidden && !tickBox)
-            {
-                continue;
-            }
-
-            var name = Attribute().Match(tag);
-            var value = ValueAttribute().Match(tag);
-            if (!name.Success || !value.Success)
-            {
-                continue;
-            }
-
-            var decodedValue = WebUtilityDecode(value.Groups["v"].Value);
-            if (tickBox)
-            {
-                Assert.Contains(" checked", tag, StringComparison.Ordinal);
-                if (tickedScopes is not null && !tickedScopes.Contains(decodedValue, StringComparer.Ordinal))
-                {
-                    continue;
-                }
-            }
-
-            fields.Add(new(WebUtilityDecode(name.Groups["v"].Value), decodedValue));
-        }
-
-        Assert.Contains(fields, field => field.Key == "__RequestVerificationToken");
-        Assert.Contains(fields, field => field.Key == "OperationKey");
-        return new FormUrlEncodedContent(fields);
-    }
-
-    private static string WebUtilityDecode(string value) => WebUtility.HtmlDecode(value);
-
-    private static Dictionary<string, string?> ParseQuery(Uri uri)
-    {
-        var values = new Dictionary<string, string?>(StringComparer.Ordinal);
-        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = pair.IndexOf('=');
-            var key = Uri.UnescapeDataString(separator < 0 ? pair : pair[..separator]);
-            values[key] = separator < 0 ? string.Empty : Uri.UnescapeDataString(pair[(separator + 1)..]);
-        }
-
-        return values;
-    }
-
-    [GeneratedRegex("<input[^>]*>")]
-    private static partial Regex InputTag();
-
-    [GeneratedRegex(@"\sname=""(?<v>[^""]+)""")]
-    private static partial Regex Attribute();
-
-    [GeneratedRegex(@"\svalue=""(?<v>[^""]*)""")]
-    private static partial Regex ValueAttribute();
+    // Only the consent panel's form: the shell has its own sign-out form with
+    // its own antiforgery token.
+    private static FormUrlEncodedContent ConsentForm(string html, IReadOnlyCollection<string>? tickedScopes = null) =>
+        RenderedForm(html, "aria-labelledby=\"connector-heading\"", "</section>", tickedScopes);
 }

@@ -41,10 +41,10 @@ namespace Pegasus.Core.Reports;
 /// </para>
 /// <para>
 /// <see cref="IncludeVehicleImages"/> is loaded from the Case's Principal's
-/// report sending rules (<see cref="ReportSendingAttachments.ReportImages"/>),
+/// Report images setting (<see cref="Cases.Principal.ReportImages"/>),
 /// never chosen on the Generate form (operator, 6 October 2026). The preview
 /// and the generation read it alike, and it is frozen into the snapshot, so a
-/// later change to the rules does not alter a frozen generation.
+/// later change to the setting does not alter a frozen generation.
 /// </para>
 /// <para>
 /// <see cref="VatNumber"/> is the Principal's fee note VAT number, null for

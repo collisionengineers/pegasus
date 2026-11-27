@@ -1,0 +1,42 @@
+@model Pegasus.Web.Pages.Cases.NewMessageModel
+@using Pegasus.Web.Presentation
+@*
+    The rejection e-mail as a new message (FRD-21; R1323, R1326, R1327) in
+    the one send-e-mail dialogue (R1330): over the Case in the e-mail
+    dialogue's mount, and as a page without script or after a refused send.
+*@
+@{
+    Func<object?, object> status = @<text>
+        <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+        @if (Model.Operation is { } operation)
+        {
+            <partial name="/Pages/Shared/_MailSendStatus.cshtml" model="operation" />
+        }
+    </text>;
+    var composer = new MailComposerView
+    {
+        Id = "mailMessageDialog",
+        InDialog = Model.InDialog,
+        Eyebrow = Model.Case?.Summary.Reference,
+        Title = OperatorLabels.StaffMail.NewMessage,
+        BackHref = Model.InDialog ? null : Url.Page("/Cases/Details", new { id = Model.Id }),
+        Status = status,
+        OffersForm = Model.OffersForm,
+        Action = Url.Page("/Cases/NewMessage", "Send", new { id = Model.Id })!,
+        FormAttributes = new Dictionary<string, string?> { ["data-new-message"] = null },
+        Hidden =
+        [
+            new(nameof(Model.OperationKey), Model.OperationKey),
+            new(nameof(Model.ExpectedContextVersion), Model.ExpectedContextVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ],
+        FromChoices = [.. Model.Senders.Mailboxes.Select(mailbox => new MailComposerSender(mailbox.Id, mailbox.Address))],
+        FromSelected = Model.FromMailboxId,
+        To = Model.To,
+        Cc = Model.Cc,
+        Subject = Model.Subject,
+        Body = Model.Body,
+        Attachments = Model.AvailableAttachments,
+        SelectedAttachments = Model.SelectedAttachments,
+    };
+}
+<partial name="/Pages/Shared/_MailComposer.cshtml" model="composer" />

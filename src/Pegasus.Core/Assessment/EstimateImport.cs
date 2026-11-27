@@ -30,6 +30,12 @@ public sealed record ImportRawEstimateRequest(
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 
     /// <summary>
+    /// An import that lands as a Draft whoever made it: the connector's, which
+    /// a member of staff puts in use in Pegasus itself (R1306).
+    /// </summary>
+    public bool AwaitsUse { get; init; }
+
+    /// <summary>
     /// The staff member's edit session continues past this import. A Glass's
     /// return lands its estimate under the session they hold and never ends it
     /// (operator, 6 October 2026); the file import they press keeps ending the
@@ -147,7 +153,14 @@ public sealed record EstimateSourceTotals(
 /// its format names one; it fills the Case's empty VIN
 /// (<see cref="GlassVinFillPolicy"/>). <see cref="Discounts"/> carries the
 /// deduction from RRP an Audatex document applies to its parts, which lands
-/// as the estimate's parts discount (R615).
+/// as the estimate's parts discount (R615). <see cref="Header"/> is the text
+/// an Audatex report prints above its assessment number on page one, the
+/// company that produced it, which types a filed estimate
+/// (<see cref="FiledEstimateTypePolicy"/>); null when it prints none.
+/// <see cref="Mileage"/> and <see cref="MileageUnit"/> are the odometer
+/// reading the document states, the unit as <see cref="CaseOdometer"/>
+/// writes it (miles when none is printed, R1080); null when it states none
+/// (R1141).
 /// </summary>
 public sealed record ParsedEstimate(
     string SourceVersion,
@@ -156,7 +169,10 @@ public sealed record ParsedEstimate(
     RepairSpecificationSourceRoute Route,
     EstimateSourceTotals? SourceTotals = null,
     string? Vin = null,
-    EstimateDiscounts? Discounts = null);
+    EstimateDiscounts? Discounts = null,
+    string? Header = null,
+    long? Mileage = null,
+    string? MileageUnit = null);
 
 /// <summary>
 /// The whole import is refused with an operator-readable reason. Wrong
@@ -421,6 +437,7 @@ public sealed class ImportRawEstimate(
                     new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
                 {
                     Work = request.Work,
+                    AwaitsUse = request.AwaitsUse,
                     KeepsLease = request.KeepsLease,
                     GlassEstimate = request.GlassEstimate,
                     Vin = parsed.Vin,
@@ -458,6 +475,7 @@ public sealed class ImportRawEstimate(
                 SelectedRateCardId = card?.Id,
                 SelectedRateCardVersion = card?.Version,
                 Work = request.Work,
+                AwaitsUse = request.AwaitsUse,
                 KeepsLease = request.KeepsLease,
                 GlassEstimate = request.GlassEstimate,
                 Vin = parsed.Vin,

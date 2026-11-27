@@ -34,6 +34,8 @@ pegasus_web_runtime_role,D,DELETE,CaseWorkflowEvents
 pegasus_web_runtime_role,D,DELETE,CaseWorkflows
 pegasus_web_runtime_role,D,DELETE,CaseWorks
 pegasus_web_runtime_role,D,DELETE,Cases
+pegasus_web_runtime_role,D,DELETE,ClassifierRunItems
+pegasus_web_runtime_role,D,DELETE,ClassifierRuns
 pegasus_web_runtime_role,D,DELETE,DocumentContentCacheEntries
 pegasus_web_runtime_role,D,DELETE,DocumentOccurrences
 pegasus_web_runtime_role,D,DELETE,DocumentVersions
@@ -64,7 +66,10 @@ pegasus_web_runtime_role,D,DELETE,IntakeReceipts
 pegasus_web_runtime_role,D,DELETE,IntakeSourceCandidates
 pegasus_web_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_web_runtime_role,D,DELETE,IntakeWorkItems
+pegasus_web_runtime_role,D,DELETE,IntegrationLogins
 pegasus_web_runtime_role,D,DELETE,LabourRateCards
+pegasus_web_runtime_role,D,DELETE,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,D,DELETE,MarketResearchSubmissions
 pegasus_web_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_web_runtime_role,D,DELETE,OpenIddictAuthorizations
 pegasus_web_runtime_role,D,DELETE,OpenIddictScopes
@@ -98,12 +103,15 @@ pegasus_web_runtime_role,D,DELETE,WorkCentreDismissals
 pegasus_web_runtime_role,D,DELETE,WorkflowConfigurations
 pegasus_web_runtime_role,D,INSERT,ApprovedMailboxSubscriptions
 pegasus_web_runtime_role,D,UPDATE,ApprovedMailboxSubscriptions
+pegasus_web_runtime_role,D,UPDATE,ClassifierRunItems
 pegasus_web_runtime_role,D,UPDATE,ContactPrincipalLinks
 pegasus_web_runtime_role,D,UPDATE,DocumentOccurrenceTags
 pegasus_web_runtime_role,D,UPDATE,ImageIntakeLifecycleEvents
 pegasus_web_runtime_role,D,UPDATE,ImageTags
 pegasus_web_runtime_role,D,UPDATE,IntakeAssetTags
 pegasus_web_runtime_role,D,UPDATE,IntakeMailClassificationHistory
+pegasus_web_runtime_role,D,UPDATE,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,D,UPDATE,MarketResearchSubmissions
 pegasus_web_runtime_role,D,UPDATE,UnidentifiedHistory
 pegasus_web_runtime_role,G,DELETE,AspNetUserRoles
 pegasus_web_runtime_role,G,DELETE,AspNetUsers
@@ -158,6 +166,8 @@ pegasus_web_runtime_role,G,INSERT,CaseWorkflowEvents
 pegasus_web_runtime_role,G,INSERT,CaseWorkflows
 pegasus_web_runtime_role,G,INSERT,CaseWorks
 pegasus_web_runtime_role,G,INSERT,Cases
+pegasus_web_runtime_role,G,INSERT,ClassifierRunItems
+pegasus_web_runtime_role,G,INSERT,ClassifierRuns
 pegasus_web_runtime_role,G,INSERT,ContactPrincipalLinks
 pegasus_web_runtime_role,G,INSERT,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,INSERT,DocumentOccurrenceTags
@@ -189,7 +199,10 @@ pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroupHistory
 pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroupMembers
 pegasus_web_runtime_role,G,INSERT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,INSERT,IntakeWorkItems
+pegasus_web_runtime_role,G,INSERT,IntegrationLogins
 pegasus_web_runtime_role,G,INSERT,LabourRateCards
+pegasus_web_runtime_role,G,INSERT,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,G,INSERT,MarketResearchSubmissions
 pegasus_web_runtime_role,G,INSERT,OpenIddictApplications
 pegasus_web_runtime_role,G,INSERT,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,INSERT,OpenIddictTokens
@@ -265,6 +278,8 @@ pegasus_web_runtime_role,G,SELECT,CaseWorkflowEvents
 pegasus_web_runtime_role,G,SELECT,CaseWorkflows
 pegasus_web_runtime_role,G,SELECT,CaseWorks
 pegasus_web_runtime_role,G,SELECT,Cases
+pegasus_web_runtime_role,G,SELECT,ClassifierRunItems
+pegasus_web_runtime_role,G,SELECT,ClassifierRuns
 pegasus_web_runtime_role,G,SELECT,ContactPrincipalLinks
 pegasus_web_runtime_role,G,SELECT,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,SELECT,DocumentOccurrenceTags
@@ -304,7 +319,10 @@ pegasus_web_runtime_role,G,SELECT,IntakeStagedReceipts
 pegasus_web_runtime_role,G,SELECT,IntakeSubmissionGroupMembers
 pegasus_web_runtime_role,G,SELECT,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,SELECT,IntakeWorkItems
+pegasus_web_runtime_role,G,SELECT,IntegrationLogins
 pegasus_web_runtime_role,G,SELECT,LabourRateCards
+pegasus_web_runtime_role,G,SELECT,MarketResearchSubmissionFiles
+pegasus_web_runtime_role,G,SELECT,MarketResearchSubmissions
 pegasus_web_runtime_role,G,SELECT,OpenIddictApplications
 pegasus_web_runtime_role,G,SELECT,OpenIddictAuthorizations
 pegasus_web_runtime_role,G,SELECT,OpenIddictScopes
@@ -369,6 +387,7 @@ pegasus_web_runtime_role,G,UPDATE,CaseValuations
 pegasus_web_runtime_role,G,UPDATE,CaseWorkflows
 pegasus_web_runtime_role,G,UPDATE,CaseWorks
 pegasus_web_runtime_role,G,UPDATE,Cases
+pegasus_web_runtime_role,G,UPDATE,ClassifierRuns
 pegasus_web_runtime_role,G,UPDATE,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,UPDATE,DocumentOccurrences
 pegasus_web_runtime_role,G,UPDATE,DocumentVersions
@@ -389,6 +408,7 @@ pegasus_web_runtime_role,G,UPDATE,IntakeManualAssociations
 pegasus_web_runtime_role,G,UPDATE,IntakeReceipts
 pegasus_web_runtime_role,G,UPDATE,IntakeSubmissionGroups
 pegasus_web_runtime_role,G,UPDATE,IntakeWorkItems
+pegasus_web_runtime_role,G,UPDATE,IntegrationLogins
 pegasus_web_runtime_role,G,UPDATE,LabourRateCards
 pegasus_web_runtime_role,G,UPDATE,OpenIddictApplications
 pegasus_web_runtime_role,G,UPDATE,OpenIddictAuthorizations
@@ -455,6 +475,8 @@ pegasus_worker_runtime_role,D,DELETE,CaseWorkflowEvents
 pegasus_worker_runtime_role,D,DELETE,CaseWorkflows
 pegasus_worker_runtime_role,D,DELETE,CaseWorks
 pegasus_worker_runtime_role,D,DELETE,Cases
+pegasus_worker_runtime_role,D,DELETE,ClassifierRunItems
+pegasus_worker_runtime_role,D,DELETE,ClassifierRuns
 pegasus_worker_runtime_role,D,DELETE,ContactPrincipalLinks
 pegasus_worker_runtime_role,D,DELETE,DocumentOccurrenceTags
 pegasus_worker_runtime_role,D,DELETE,DocumentOccurrences
@@ -486,7 +508,10 @@ pegasus_worker_runtime_role,D,DELETE,IntakeReceipts
 pegasus_worker_runtime_role,D,DELETE,IntakeSourceCandidates
 pegasus_worker_runtime_role,D,DELETE,IntakeStagedReceipts
 pegasus_worker_runtime_role,D,DELETE,IntakeWorkItems
+pegasus_worker_runtime_role,D,DELETE,IntegrationLogins
 pegasus_worker_runtime_role,D,DELETE,LabourRateCards
+pegasus_worker_runtime_role,D,DELETE,MarketResearchSubmissionFiles
+pegasus_worker_runtime_role,D,DELETE,MarketResearchSubmissions
 pegasus_worker_runtime_role,D,DELETE,OpenIddictApplications
 pegasus_worker_runtime_role,D,DELETE,OpenIddictAuthorizations
 pegasus_worker_runtime_role,D,DELETE,OpenIddictScopes

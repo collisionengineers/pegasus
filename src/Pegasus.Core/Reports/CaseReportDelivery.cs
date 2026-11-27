@@ -561,7 +561,8 @@ public static class CaseReportDeliveryPolicy
     /// <summary>
     /// The addresses the delivery form offers beside its recipient fields
     /// (v28 P21): the sender of the instruction that opened the Case, the
-    /// addresses that instruction copied, and the Principal's own To and Cc.
+    /// addresses that instruction copied, and the Send to and Cc addresses
+    /// the Principal's rules name for every Case.
     /// Nothing else is suggested, and the operator's typed address is never
     /// overwritten.
     /// </summary>
@@ -577,7 +578,9 @@ public static class CaseReportDeliveryPolicy
             .Select(address => Recipient(address, null))
             .OfType<StaffMailRecipient>()
             .Select(recipient => new ReportRecipientCandidate(recipient.Address, "This case")));
-        candidates.AddRange(facts.Rules.SendTo.Concat(facts.Rules.Cc)
+        candidates.AddRange(facts.Rules.EveryCase
+            .Where(action => action.Kind is ReportSendingActionKind.SendTo or ReportSendingActionKind.Cc)
+            .SelectMany(action => action.Addresses ?? [])
             .Select(address => Recipient(address, null))
             .OfType<StaffMailRecipient>()
             .Select(recipient => new ReportRecipientCandidate(recipient.Address, "Principal")));

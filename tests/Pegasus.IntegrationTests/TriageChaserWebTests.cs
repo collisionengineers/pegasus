@@ -427,7 +427,7 @@ public sealed partial class QdosTriageIntegrationTests
         var page = await pageResponse.Content.ReadAsStringAsync();
         Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", page, StringComparison.Ordinal);
         Assert.Contains(
-            $"<h2 id=\"triage-compose-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</h2>",
+            $"<h2 id=\"triage-compose-dialog-title\" tabindex=\"-1\">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithFinding}</h2>",
             page,
             StringComparison.Ordinal);
         Assert.DoesNotContain(">Send chaser</span>", page, StringComparison.Ordinal);
@@ -989,7 +989,7 @@ public sealed partial class QdosTriageIntegrationTests
             var html = await page.Content.ReadAsStringAsync();
             Assert.Matches(
                 new Regex(
-                    $"<select id=\"triage-reply-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
+                    $"<select id=\"triage-compose-dialog-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
                     RegexOptions.Singleline | RegexOptions.CultureInvariant),
                 html);
         }
@@ -1641,8 +1641,8 @@ public sealed partial class QdosTriageIntegrationTests
             inner.CountManyAsync(scopes, cancellationToken);
 
         public Task<RetainedMailDetail?> GetAsync(
-            Guid id, CancellationToken cancellationToken, string? searchTerm = null) =>
-            inner.GetAsync(id, cancellationToken, searchTerm);
+            Guid id, CancellationToken cancellationToken, string? searchTerm = null, bool withConversation = false) =>
+            inner.GetAsync(id, cancellationToken, searchTerm, withConversation);
 
         public Task<RetainedMailPreview?> GetPreviewAsync(
             Guid id, RetainedMailSummary? summary, CancellationToken cancellationToken) =>
@@ -1661,6 +1661,9 @@ public sealed partial class QdosTriageIntegrationTests
 
         public Task<Guid?> FindReceiptIdAsync(Guid id, CancellationToken cancellationToken) =>
             inner.FindReceiptIdAsync(id, cancellationToken);
+
+        public Task<RetainedMailOriginal?> GetOriginalAsync(Guid id, CancellationToken cancellationToken) =>
+            inner.GetOriginalAsync(id, cancellationToken);
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>

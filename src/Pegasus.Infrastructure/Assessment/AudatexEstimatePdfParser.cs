@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using static Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser;
 
 namespace Pegasus.Infrastructure.Assessment;
@@ -46,6 +47,14 @@ namespace Pegasus.Infrastructure.Assessment;
 /// arithmetic and never overrule <see cref="EstimateTotals"/>, which costs
 /// the estimate from the rows at Pegasus's own rate, discounts and VAT
 /// categories; the import does not store them.
+///
+/// Page one names the company that produced the report above its
+/// "Assessment Number:" row ("TEL: COLLISION ENGINEERS" or a garage's name
+/// and address), and its vehicle details print "VIN Number:" and
+/// "Odometer:" ("24534 miles", or "Not Known"). They are returned as
+/// <see cref="ParsedEstimate.Header"/>, <see cref="ParsedEstimate.Vin"/> and
+/// <see cref="ParsedEstimate.Mileage"/>, and a VIN or reading the report
+/// prints twice differently is not returned (R1140, R1141, R1281).
 /// </summary>
 internal static class AudatexEstimatePdfParser
 {
@@ -65,6 +74,14 @@ internal static class AudatexEstimatePdfParser
     private const double PageBodyTop = 720;
     private const double PageBodyBottom = 30;
 
+    /// <summary>
+    /// The vehicle details print their values from about x 159 and the Model
+    /// Specs column from about x 298, on the same rows, so a word right of
+    /// this is the specs column's, never a value: an empty VIN is not read
+    /// from the specs printed beside it.
+    /// </summary>
+    private const double VehicleValueColumnEnd = 250;
+
     internal static ParsedEstimate Parse(IReadOnlyList<VisualRow> rows)
     {
         var headerEnds = rows
@@ -77,7 +94,98 @@ internal static class AudatexEstimatePdfParser
             reader.Read(row);
         }
 
-        return reader.Complete();
+        var parsed = reader.Complete();
+        var vins = rows.SelectMany(VinsOn).Distinct(StringComparer.Ordinal).Take(2).ToArray();
+        var readings = rows.SelectMany(ReadingsOn).Distinct().Take(2).ToArray();
+        return parsed with
+        {
+            Header = HeaderText(rows),
+            Vin = vins.Length == 1 ? vins[0] : null,
+            Mileage = readings.Length == 1 ? readings[0].Reading : null,
+            MileageUnit = readings.Length == 1 ? readings[0].Unit : null,
+        };
+    }
+
+    /// <summary>
+    /// The text page one prints above its "Assessment Number:" row, in
+    /// reading order: the company that produced the report. Null when
+    /// nothing prints there.
+    /// </summary>
+    private static string? HeaderText(IReadOnlyList<VisualRow> rows)
+    {
+        var identity = rows
+            .Where(IsAssessmentNumberRow)
+            .OrderBy(row => row.Page)
+            .ThenByDescending(row => row.Y)
+            .FirstOrDefault();
+        if (identity is null)
+        {
+            return null;
+        }
+
+        var header = string.Join(
+            ' ',
+            rows.Where(row => row.Page == identity.Page && row.Y > identity.Y)
+                .OrderByDescending(row => row.Y)
+                .Select(row => row.JoinedText.Trim())
+                .Where(text => text.Length > 0));
+        return header.Length == 0 ? null : header;
+    }
+
+    private static bool IsAssessmentNumberRow(VisualRow row)
+    {
+        for (var index = 1; index < row.Words.Count; index++)
+        {
+            if (row.Words[index].Text == "Number:" && row.Words[index - 1].Text == "Assessment")
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The value after each "VIN Number:" on the row.</summary>
+    private static IEnumerable<string> VinsOn(VisualRow row)
+    {
+        for (var index = 0; index < row.Words.Count - 2; index++)
+        {
+            if (row.Words[index].Text == "VIN"
+                && row.Words[index + 1].Text == "Number:"
+                && row.Words[index + 2].X < VehicleValueColumnEnd)
+            {
+                yield return row.Words[index + 2].Text.ToUpperInvariant();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The reading after each "Odometer:" on the row, with the unit printed
+    /// after it, or miles when the next word is not a unit (R1080). "Not
+    /// Known" is no reading.
+    /// </summary>
+    private static IEnumerable<(long Reading, string Unit)> ReadingsOn(VisualRow row)
+    {
+        for (var index = 0; index < row.Words.Count - 1; index++)
+        {
+            if (row.Words[index].Text != "Odometer:"
+                || row.Words[index + 1].X >= VehicleValueColumnEnd
+                || !long.TryParse(
+                    row.Words[index + 1].Text,
+                    NumberStyles.AllowThousands,
+                    CultureInfo.InvariantCulture,
+                    out var reading))
+            {
+                continue;
+            }
+
+            var stated = index + 2 < row.Words.Count
+                && row.Words[index + 2].X < VehicleValueColumnEnd
+                && CaseOdometer.TryParseUnit(row.Words[index + 2].Text, out var unit)
+                    ? CaseOdometer.Format(unit)
+                    : null;
+            yield return (reading, CaseOdometer.UnitOf(reading, stated)!);
+        }
     }
 
     /// <summary>The "Version:" row that closes each page's repeating header block.</summary>

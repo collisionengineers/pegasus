@@ -6,8 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Persistence.Migrations;
-using Kind = Pegasus.Core.Reports.ReportSendingConditionKind;
-using RuleMatch = Pegasus.Core.Reports.ReportSendingRuleMatch;
+using Act = Pegasus.Core.Reports.ReportSendingActionKind;
+using SendingFact = Pegasus.Core.Reports.ReportSendingFact;
+using SendingFile = Pegasus.Core.Reports.ReportSendingFile;
 
 namespace Pegasus.IntegrationTests;
 
@@ -23,172 +24,143 @@ public sealed class PrincipalReportSendingSeedTests
 {
     private const string SopYamlSha256 = "83ced76c64f9d8cea7c02babb4f9a643ec7d26a0fae677c50256f2924f07f16c";
 
+    private static readonly ReportSendingAction ReplyAll = new(Act.ReplyAll);
+    private static readonly ReportSendingAction FeeNoteSeparate = Attach(SendingFile.FeeNoteSeparate);
+
+    /// <summary>The rule Garage figures became, last of a Principal's rules (R1270).</summary>
+    private static readonly ReportSendingRule GarageFigures = new(
+        [[new(SendingFact.Outcome, ["repairable"])]],
+        [AddTask(ReportDispatchPolicy.GarageFiguresTask)]);
+
+    private static ReportSendingAction SendTo(IReadOnlyList<string> addresses) => new(Act.SendTo, addresses);
+    private static ReportSendingAction Cc(IReadOnlyList<string> addresses) => new(Act.Cc, addresses);
+    private static ReportSendingAction NeverCc(IReadOnlyList<string> addresses) => new(Act.NeverCc, addresses);
+    private static ReportSendingAction Attach(SendingFile file) => new(Act.Attach, File: file);
+    private static ReportSendingAction AddTask(string text) => new(Act.Task, Text: text);
+
+    private static PrincipalReportSendingRules EveryCase(IReadOnlyList<ReportSendingAction> actions) => new(actions, []);
+
     /// <summary>
     /// The rules each Principal Report Sending SOP v8 names has, derived from
     /// docs/principal-profiles/sop-guides/report_sending_sop.v5.yaml (version
-    /// 8) by a one-off script. <c>send_to: original_sender</c> is no Send to and
-    /// <c>send_from</c> names the mailbox. A <c>source</c> condition is that
-    /// Claim Source by name, except ACSP and CS: they are Principals only, so the
-    /// instruction is matched on their <c>match</c> text
-    /// (a contact has one type since 13 October 2026).
-    /// <c>report_status</c> is the Outcome and <c>rate_card</c> is Rate card.
-    /// PCH's notes name its report. Two rules no longer follow the YAML: its
-    /// <c>bodyshop_mentions</c> (AX) and <c>images_from</c> (YML) conditions
-    /// had no Case fact and were only ever asked of staff, so the operator
-    /// restated them on the Case's Repairer and Claim Source (12 November
-    /// 2026; R1023, R1025, R1026). Two more follow the Report Sending Quick
-    /// Reference of 29 October 2026 instead: SBL never copies
+    /// 8) by a one-off script and built as rules by the migration
+    /// SendingRulesAreBuilt (R1267 to R1270). <c>send_to: original_sender</c>
+    /// is no Send to and <c>send_from</c> is the Principal's Send from, a
+    /// column of its own. A <c>source</c> condition is that Claim Source by
+    /// name, except ACSP and CS: they are Principals only.
+    /// <c>report_status</c> is the Outcome and <c>rate_card</c> the Rate card
+    /// task. PCH's notes name its report. Two rules no longer follow the YAML:
+    /// its <c>bodyshop_mentions</c> (AX) and <c>images_from</c> (YML)
+    /// conditions had no Case fact and were only ever asked of staff, so the
+    /// operator restated them on the Case's Repairer and Claim Source (12
+    /// November 2026; R1023, R1025, R1026). Two more follow the Report Sending
+    /// Quick Reference of 29 October 2026 instead: SBL never copies
     /// SBL@connexus.co.uk, and PCH's iRevolution rule reads the Case's
-    /// Repairer (13 November 2026; R1031, R1033). The YAML stays as supplied
-    /// evidence (R3).
+    /// Repairer (13 November 2026; R1031, R1033). "Instruction mentions" is
+    /// retired (R1268): PCH's audit rule keeps its other two conditions, and
+    /// RJS's two rules read the Claim Sources Claim Specialists and Accident
+    /// Specialists where a database has them, and are gone where it has not
+    /// (R1265). The YAML stays as supplied evidence (R3).
     /// </summary>
-    private static Dictionary<string, PrincipalReportSendingRules> SopRules(Func<string, string> claimSource)
+    private static Dictionary<string, PrincipalReportSendingRules> SopRules(
+        Func<string, string> claimSource, Func<string, string?> claimSourceIfAny)
     {
         var sop = PrincipalReportSendingRules.Default;
-        var attach = ReportSendingAttachments.Default;
+        var rjsRules = new List<ReportSendingRule>();
+        if (claimSourceIfAny("Claim Specialists") is { } claimSpecialists)
+        {
+            rjsRules.Add(new([[new(SendingFact.ClaimSource, [claimSpecialists])]], [Cc(["accounts@claimsspecialists.co.uk"])]));
+        }
+        if (claimSourceIfAny("Accident Specialists") is { } accidentSpecialists)
+        {
+            rjsRules.Add(new([[new(SendingFact.ClaimSource, [accidentSpecialists])]], [Cc(["admin@accidentspecialist.co.uk"])]));
+        }
         return new()
         {
-            ["ACSP"] = sop with { Cc = ["admin@accidentspecialist.co.uk"] },
+            ["ACSP"] = EveryCase([ReplyAll, Cc(["admin@accidentspecialist.co.uk"]), FeeNoteSeparate]),
             ["ALISON"] = sop,
-            ["ALS"] = sop with
-            {
-                Cc = ["claims@autologistic.co.uk", "p.mandy@oakwoodscotland.co.uk"],
-                Attach = attach with { FeeNoteSeparate = false, Estimate = true },
-                GarageFigures = true
-            },
+            ["ALS"] = new(
+                [ReplyAll, Cc(["claims@autologistic.co.uk", "p.mandy@oakwoodscotland.co.uk"]), Attach(SendingFile.Estimate)],
+                [GarageFigures]),
             ["AMS"] = sop,
-            ["AX"] = sop with
-            {
-                SendTo = ["engineersreports@ax-uk.com", "engineersinspections@ax-uk.com"],
-                Cc = ["p.mandy@oakwoodscotland.co.uk"],
-                Attach = attach with { FeeNoteSeparate = false },
-                GarageFigures = true,
-                Rules =
+            ["AX"] = new(
                 [
-                    new(RuleMatch.All,
-                        [
-                            new(Kind.Repairer, [SendingRulesReadCaseFacts.EasdonsBodyshopId]),
-                            new(Kind.ClaimSource, [claimSource("Guardian Accident Claims"), claimSource("James Claims")])
-                        ],
-                        new([], ["p.mandy@oakwoodscotland.co.uk"]))
-                ]
-            },
-            ["BC"] = sop with { Cc = ["a.nawaz@bakercoleman.co.uk", "h.ahmed@bakercoleman.co.uk"] },
-            ["BLACK"] = sop with { Attach = attach with { Estimate = true } },
-            ["CS"] = sop with
-            {
-                SendFromMailbox = "engineers@collisionengineers.co.uk",
-                SendTo = ["info@claimsspecialists.co.uk", "accounts@claimsspecialists.co.uk"]
-            },
-            ["DFD"] = sop with
-            {
-                Cc = ["richard.pownall@dfd-solicitors.co.uk"],
-                Rules =
+                    SendTo(["engineersreports@ax-uk.com", "engineersinspections@ax-uk.com"]),
+                    ReplyAll,
+                    Cc(["p.mandy@oakwoodscotland.co.uk"])
+                ],
                 [
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("Car 2 Go")])], new(["info@car2go-nw.co.uk"], [])),
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("SMC")])], new(["tony@shaunmarnell.co.uk"], [])),
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("CarClaims")])],
-                        new([], [], Stop: "CarClaims job. This needs checking with Andy before it is sent."))
-                ]
-            },
-            ["FRZ"] = sop with
-            {
-                SendTo = ["Ontrack789@gmail.com"],
-                Reminders = ["WhatsApp Swade to say the report has been sent."]
-            },
-            ["FW"] = sop with { Cc = ["info@fairwaylegal.co.uk"], Attach = attach with { FeeNoteSeparate = false } },
+                    new(
+                        [[
+                            new(SendingFact.Repairer, [SendingRulesReadCaseFacts.EasdonsBodyshopId]),
+                            new(SendingFact.ClaimSource, [claimSource("Guardian Accident Claims"), claimSource("James Claims")])
+                        ]],
+                        [NeverCc(["p.mandy@oakwoodscotland.co.uk"])]),
+                    GarageFigures
+                ]),
+            ["BC"] = EveryCase([ReplyAll, Cc(["a.nawaz@bakercoleman.co.uk", "h.ahmed@bakercoleman.co.uk"]), FeeNoteSeparate]),
+            ["BLACK"] = EveryCase([ReplyAll, FeeNoteSeparate, Attach(SendingFile.Estimate)]),
+            ["CS"] = EveryCase([SendTo(["info@claimsspecialists.co.uk", "accounts@claimsspecialists.co.uk"]), ReplyAll, FeeNoteSeparate]),
+            ["DFD"] = new(
+                [ReplyAll, Cc(["richard.pownall@dfd-solicitors.co.uk"]), FeeNoteSeparate],
+                [
+                    new([[new(SendingFact.ClaimSource, [claimSource("Car 2 Go")])]], [Cc(["info@car2go-nw.co.uk"])]),
+                    new([[new(SendingFact.ClaimSource, [claimSource("SMC")])]], [Cc(["tony@shaunmarnell.co.uk"])]),
+                    new([[new(SendingFact.ClaimSource, [claimSource("CarClaims")])]],
+                        [new(Act.Stop, Text: "CarClaims job. This needs checking with Andy before it is sent.")])
+                ]),
+            ["FRZ"] = EveryCase(
+                [SendTo(["Ontrack789@gmail.com"]), ReplyAll, FeeNoteSeparate, AddTask("WhatsApp Swade to say the report has been sent.")]),
+            ["FW"] = EveryCase([ReplyAll, Cc(["info@fairwaylegal.co.uk"])]),
             ["HTU"] = sop,
-            ["KBS"] = sop with
-            {
-                Cc = ["info@knightsbridgesolicitors.co.uk"],
-                Rules =
+            ["KBS"] = new(
+                [ReplyAll, Cc(["info@knightsbridgesolicitors.co.uk"]), FeeNoteSeparate],
                 [
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("Expert Claims")])],
-                        new(["gabbas@knightsbridgesolicitors.co.uk"], [])),
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("Rapid Rental Solutions")])],
-                        new(["Rapidlongton@gmail.com"], []))
-                ]
-            },
+                    new([[new(SendingFact.ClaimSource, [claimSource("Expert Claims")])]], [Cc(["gabbas@knightsbridgesolicitors.co.uk"])]),
+                    new([[new(SendingFact.ClaimSource, [claimSource("Rapid Rental Solutions")])]], [Cc(["Rapidlongton@gmail.com"])])
+                ]),
             ["KERR"] = sop,
-            ["KMR"] = sop with { Cc = ["info@kmrlaw.co.uk"] },
-            ["MIDAS"] = sop with
-            {
-                Attach = attach with { FeeNoteSeparate = false },
-                Hold = "WhatsApp the report to Midas to check before it is sent."
-            },
-            ["MOTORX"] = sop with { Attach = attach with { FeeNoteSeparate = false } },
-            ["MP"] = sop with
-            {
-                Cc = ["mdakri@montrealprestige.co.uk", "info@montrealprestige.co.uk"],
-                Attach = attach with
-                {
-                    FeeNoteSeparate = false, ReportImages = false, VehicleImagesDocument = true, FigureBreakdown = true
-                }
-            },
-            ["OAK"] = sop with { Cc = ["p.mandy@oakwoodscotland.co.uk"], GarageFigures = true },
-            ["PCH"] = sop with
-            {
-                SendTo = ["SBL@connexus.co.uk"],
-                ReplyAll = false,
-                Attach = attach with { FeeNoteSeparate = false, FigureBreakdown = true },
-                Rules =
+            ["KMR"] = EveryCase([ReplyAll, Cc(["info@kmrlaw.co.uk"]), FeeNoteSeparate]),
+            ["MIDAS"] = EveryCase([ReplyAll, new(Act.Hold, Text: "WhatsApp the report to Midas to check before it is sent.")]),
+            ["MOTORX"] = EveryCase([ReplyAll]),
+            ["MP"] = EveryCase(
                 [
-                    new(RuleMatch.All,
-                        [new(Kind.Repairer, [ContactsFollowQuickReference.IRevolutionRepairerId]), new(Kind.Outcome, ["repairable"])],
-                        new(["repairs@irevolutionrepairnetwork.co.uk"], [], Remind: "Authorise the garage", RateCard: true)),
-                    new(RuleMatch.Any,
-                        [new(Kind.Mentions, ["audit"]), new(Kind.RefPrefix, ["a"]), new(Kind.PreviousJob, [])],
-                        new([], ["repairs@irevolutionrepairnetwork.co.uk"]))
-                ]
-            },
-            ["QCL"] = sop with
-            {
-                NeverCc = ["credithire@hackneysolutions.co.uk"],
-                Attach = attach with { FeeNoteSeparate = false }
-            },
-            ["QDOS"] = sop with
-            {
-                Cc = ["engineers@qdosassist.co.uk"],
-                Attach = attach with { FeeNoteSeparate = false },
-                GarageFigures = true
-            },
-            ["RJS"] = sop with
-            {
-                Cc = ["engreport@robertjameslaw.co.uk"],
-                Rules =
+                    ReplyAll,
+                    Cc(["mdakri@montrealprestige.co.uk", "info@montrealprestige.co.uk"]),
+                    Attach(SendingFile.VehicleImagesDocument),
+                    Attach(SendingFile.FigureBreakdown)
+                ]),
+            ["OAK"] = new([ReplyAll, Cc(["p.mandy@oakwoodscotland.co.uk"]), FeeNoteSeparate], [GarageFigures]),
+            ["PCH"] = new(
+                [SendTo(["SBL@connexus.co.uk"]), Attach(SendingFile.FigureBreakdown)],
                 [
-                    new(RuleMatch.Any,
-                        [new(Kind.Mentions, ["Luton"]), new(Kind.Mentions, ["Claim Specialist", "Claims Specialist", "claimsspecialists.co.uk"])],
-                        new(["accounts@claimsspecialists.co.uk"], [])),
-                    new(RuleMatch.All, [new(Kind.Mentions, ["Accident Specialist"])], new(["admin@accidentspecialist.co.uk"], []))
-                ]
-            },
-            ["SBL"] = sop with
-            {
-                SendTo = ["Claims@smartbusinesslink.com"],
-                NeverCc = ["SBL@connexus.co.uk"],
-                Attach = attach with { FeeNoteSeparate = false },
-                Rules =
-                [
-                    new(RuleMatch.All, [new(Kind.Outcome, ["repairable"])],
-                        new([], [], Remind: "Check with the engineer that the garage has been authorised."))
-                ]
-            },
-            ["SIX"] = sop with { SendTo = ["info@sixwaysclaims.co.uk"] },
-            ["SS"] = sop with { Attach = attach with { FeeNoteSeparate = false } },
+                    new(
+                        [[new(SendingFact.Repairer, [ContactsFollowQuickReference.IRevolutionRepairerId]), new(SendingFact.Outcome, ["repairable"])]],
+                        [
+                            Cc(["repairs@irevolutionrepairnetwork.co.uk"]),
+                            AddTask("Authorise the garage"),
+                            AddTask(ReportDispatchPolicy.RateCardTask)
+                        ]),
+                    new(
+                        [[new(SendingFact.RefPrefix, ["a"])], [new(SendingFact.PreviousJob, [])]],
+                        [NeverCc(["repairs@irevolutionrepairnetwork.co.uk"])])
+                ]),
+            ["QCL"] = EveryCase([ReplyAll, NeverCc(["credithire@hackneysolutions.co.uk"])]),
+            ["QDOS"] = new([ReplyAll, Cc(["engineers@qdosassist.co.uk"])], [GarageFigures]),
+            ["RJS"] = new([ReplyAll, Cc(["engreport@robertjameslaw.co.uk"]), FeeNoteSeparate], rjsRules),
+            ["SBL"] = new(
+                [SendTo(["Claims@smartbusinesslink.com"]), ReplyAll, NeverCc(["SBL@connexus.co.uk"])],
+                [new([[new(SendingFact.Outcome, ["repairable"])]], [AddTask("Check with the engineer that the garage has been authorised.")])]),
+            ["SIX"] = EveryCase([SendTo(["info@sixwaysclaims.co.uk"]), ReplyAll, FeeNoteSeparate]),
+            ["SS"] = EveryCase([ReplyAll]),
             ["SWAN"] = sop,
-            ["TEN"] = sop with { Attach = attach with { FeeNoteSeparate = false } },
-            ["TP"] = sop with { Cc = ["info@taylorprice.co.uk"] },
+            ["TEN"] = EveryCase([ReplyAll]),
+            ["TP"] = EveryCase([ReplyAll, Cc(["info@taylorprice.co.uk"]), FeeNoteSeparate]),
             ["WALKER"] = sop,
             ["WLS"] = sop,
-            ["YML"] = sop with
-            {
-                Rules =
-                [
-                    new(RuleMatch.All, [new(Kind.ClaimSource, [claimSource("Swinton")])],
-                        new([], [], Remind: "send Swinton a copy of the report on WhatsApp."))
-                ]
-            }
+            ["YML"] = new(
+                sop.EveryCase,
+                [new([[new(SendingFact.ClaimSource, [claimSource("Swinton")])]], [AddTask("send Swinton a copy of the report on WhatsApp.")])])
         };
     }
 
@@ -263,9 +235,11 @@ public sealed class PrincipalReportSendingSeedTests
         var (principals, organizations) = await LoadAsync(factory);
         string ClaimSource(string name) =>
             Assert.Single(organizations.Values, item => item.Name == name && item.Role == "claim_source").Id.ToString("D");
+        string? ClaimSourceIfAny(string name) =>
+            organizations.Values.SingleOrDefault(item => item.Name == name && item.Role == "claim_source" && item.Active)?.Id.ToString("D");
         string Notes(string code) => organizations[principals[code].Principal.OrganizationId].NotesOnEveryCase ?? string.Empty;
 
-        foreach (var (code, rules) in SopRules(ClaimSource))
+        foreach (var (code, rules) in SopRules(ClaimSource, ClaimSourceIfAny))
         {
             Assert.True(principals.ContainsKey(code), $"{code} must be seeded.");
             Assert.True(principals[code].Principal.IsActive, code);
@@ -288,7 +262,19 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.True(organizations[frz.OrganizationId].Active);
         Assert.Equal("00000000-0000-4000-8000-00000000f00b", ClaimSource("iRevolution Repair Network"));
         Assert.Equal("PCH / Connexus", organizations[principals["PCH"].Principal.OrganizationId].Name);
-        Assert.Equal(["Ontrack789@gmail.com"], principals["SWADE"].Rules.SendTo.ToArray());
+        Assert.Equal(
+            ["Ontrack789@gmail.com"],
+            principals["SWADE"].Rules.EveryCase.Single(action => action.Kind == Act.SendTo).Addresses!.ToArray());
+        // Send from and Report images left the rules for their own columns
+        // (R1267): CS names its mailbox and MP's reports carry no images; no
+        // other Principal does either.
+        Assert.Equal(
+            ["CS"],
+            principals.Where(pair => pair.Value.Principal.SendFromMailbox is not null).Select(pair => pair.Key).ToArray());
+        Assert.Equal("engineers@collisionengineers.co.uk", principals["CS"].Principal.SendFromMailbox);
+        Assert.Equal(
+            ["MP"],
+            principals.Where(pair => !pair.Value.Principal.ReportImages).Select(pair => pair.Key).ToArray());
 
         // PCH's seeded attachment name became its Inspection report names, in
         // the new tokens (R740); its Audit report keeps the standard name
@@ -345,6 +331,122 @@ public sealed class PrincipalReportSendingSeedTests
                 .Where(principal => principal.Code == "WLS")
                 .Select(principal => principal.ReportSendingRulesJson)
                 .SingleAsync());
+    }
+
+    /// <summary>
+    /// Rules in the earlier shape are built (R1267 to R1270), exactly as the
+    /// migration SendingRulesAreBuilt words them: the fixed settings become
+    /// every-Case actions in their fixed order, Send from and Report images
+    /// move to their columns, "All" is one group and "Any" one per condition,
+    /// "Sender is not" is Sender with "is not", "Instruction mentions" goes
+    /// with a rule left with nothing else, Rate card and Garage figures become
+    /// tasks, and RJS's two rules read the Claim Sources that exist and active
+    /// (R1268). Met again it changes nothing, and an old condition kind it
+    /// does not know, or a rule adding and removing the same Cc address,
+    /// stops it with the row unchanged.
+    /// </summary>
+    [Fact]
+    public async Task TheBuiltRulesRestatementBuildsEveryOldSettingAndChangesNothingTwice()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        // ExecuteSqlRaw reads braces as placeholders, and the rules are JSON.
+        var build = SendingRulesAreBuilt.Sql
+            .Replace("{", "{{", StringComparison.Ordinal)
+            .Replace("}", "}}", StringComparison.Ordinal);
+        const string repairerId = "6b1c3c9e-1d7e-4b8a-9a51-3f0f5a0b7c11";
+        const string claimSpecialistsId = "6b1c3c9e-1d7e-4b8a-9a51-3f0f5a0b7c12";
+        const string accidentSpecialistsId = "6b1c3c9e-1d7e-4b8a-9a51-3f0f5a0b7c13";
+        context.Organizations.Add(new OrganizationEntity { Id = Guid.Parse(claimSpecialistsId), Name = "Claim Specialists", Role = "claim_source" });
+        context.Organizations.Add(new OrganizationEntity { Id = Guid.Parse(accidentSpecialistsId), Name = "Accident Specialists", Role = "claim_source" });
+        await context.SaveChangesAsync();
+        // Inactive, so RJS's second rule has no Claim Source to read and goes.
+        await context.Organizations
+            .Where(item => item.Id == Guid.Parse(accidentSpecialistsId))
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Active, false));
+        Task SetRulesAsync(string code, string json) => context.Principals
+            .Where(principal => principal.Code == code)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.ReportSendingRulesJson, json));
+        Task<PrincipalEntity> PrincipalAsync(string code) => context.Principals.AsNoTracking()
+            .SingleAsync(principal => principal.Code == code);
+        async Task<string> StoredAsync() => JsonSerializer.Serialize(
+            await context.Principals.AsNoTracking().OrderBy(item => item.Code)
+                .Select(item => new { item.Code, item.ReportSendingRulesJson, item.SendFromMailbox, item.ReportImages })
+                .ToArrayAsync());
+
+        var wls = """
+            {"sendFromMailbox":"desk@collisionengineers.co.uk","sendTo":["to@principal.example"],"sendToOnly":true,"replyAll":true,"cc":["cc@principal.example"],"neverCc":["never@principal.example"],"attach":{"feeNoteSeparate":true,"estimate":true,"audatex":false,"reportImages":false,"vehicleImagesDocument":true,"figureBreakdown":false,"offerRepairInvoices":true},"garageFigures":true,"hold":"Ring the \"handler\" first.","reminders":["First task","Second task"],"attachmentName":"stray","rules":[{"match":"All","if":[{"kind":"Repairer","values":["<repairerId>"]},{"kind":"Outcome","values":["repairable"]},{"kind":"Mentions","values":["audit"]}],"then":{"ccAdd":["garage@principal.example"],"ccRemove":[],"remind":"Authorise the garage","rateCard":true}},{"match":"Any","if":[{"kind":"SenderNot","values":["handler@principal.example"]},{"kind":"RefPrefix","values":["a"]},{"kind":"PreviousJob","values":[]}],"then":{"ccAdd":[],"ccRemove":["cc@principal.example"],"hold":"Check it","stop":"Stop it","attach":{"estimate":false,"audatex":true}}},{"match":"Any","if":[{"kind":"Mentions","values":["Luton"]}],"then":{"ccAdd":["luton@principal.example"],"ccRemove":[]}}]}
+            """.Replace("<repairerId>", repairerId, StringComparison.Ordinal);
+        const string rjs = """
+            {"sendTo":[],"sendToOnly":false,"replyAll":true,"cc":["engreport@robertjameslaw.co.uk"],"neverCc":[],"attach":{"feeNoteSeparate":true,"estimate":false,"audatex":false,"reportImages":true,"vehicleImagesDocument":false,"figureBreakdown":false},"garageFigures":false,"reminders":[],"rules":[{"match":"Any","if":[{"kind":"Mentions","values":["Luton"]},{"kind":"Mentions","values":["Claim Specialist","Claims Specialist","claimsspecialists.co.uk"]}],"then":{"ccAdd":["accounts@claimsspecialists.co.uk"],"ccRemove":[]}},{"match":"All","if":[{"kind":"Mentions","values":["Accident Specialist"]}],"then":{"ccAdd":["admin@accidentspecialist.co.uk"],"ccRemove":[]}}]}
+            """;
+        await SetRulesAsync("WLS", wls);
+        await SetRulesAsync("RJS", rjs);
+        var untouched = (await PrincipalAsync("ALS")).ReportSendingRulesJson;
+
+        await context.Database.ExecuteSqlRawAsync(build);
+
+        var builtWls = await PrincipalAsync("WLS");
+        Assert.Equal(
+            """
+            {"everyCase":[{"kind":"SendTo","addresses":["to@principal.example"]},{"kind":"SendToOnly"},{"kind":"ReplyAll"},{"kind":"Cc","addresses":["cc@principal.example"]},{"kind":"NeverCc","addresses":["never@principal.example"]},{"kind":"Attach","file":"FeeNoteSeparate"},{"kind":"Attach","file":"Estimate"},{"kind":"Attach","file":"VehicleImagesDocument"},{"kind":"Attach","file":"OfferRepairInvoices"},{"kind":"Hold","text":"Ring the \"handler\" first."},{"kind":"Task","text":"First task"},{"kind":"Task","text":"Second task"}],"rules":[{"if":[[{"fact":"Repairer","values":["<repairerId>"]},{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Cc","addresses":["garage@principal.example"]},{"kind":"Task","text":"Authorise the garage"},{"kind":"Task","text":"Check the report's estimate against the Connexus Repair Rate Card."}]},{"if":[[{"fact":"Sender","values":["handler@principal.example"],"not":true}],[{"fact":"RefPrefix","values":["a"]}],[{"fact":"PreviousJob","values":[]}]],"then":[{"kind":"NeverCc","addresses":["cc@principal.example"]},{"kind":"DoNotAttach","file":"Estimate"},{"kind":"Attach","file":"Audatex"},{"kind":"Hold","text":"Check it"},{"kind":"Stop","text":"Stop it"}]},{"if":[[{"fact":"Outcome","values":["repairable"]}]],"then":[{"kind":"Task","text":"Send the figures to the garage."}]}]}
+            """.Replace("<repairerId>", repairerId, StringComparison.Ordinal),
+            builtWls.ReportSendingRulesJson);
+        Assert.Equal("desk@collisionengineers.co.uk", builtWls.SendFromMailbox);
+        Assert.False(builtWls.ReportImages);
+        // The text is the built shape the store reads, and the migration's
+        // task texts are the policy's.
+        var read = EfOrganizationAdministration.ReadReportSending(builtWls.ReportSendingRulesJson);
+        Assert.Equal(ReportDispatchPolicy.RateCardTask, read.Rules[0].Then[2].Text);
+        Assert.Equal(ReportDispatchPolicy.GarageFiguresTask, Assert.Single(read.Rules[2].Then).Text);
+        Assert.Equal(SendingRulesAreBuilt.DefaultRulesJson, EfOrganizationAdministration.DefaultReportSendingJson);
+
+        var builtRjs = await PrincipalAsync("RJS");
+        Assert.Equal(
+            """
+            {"everyCase":[{"kind":"ReplyAll"},{"kind":"Cc","addresses":["engreport@robertjameslaw.co.uk"]},{"kind":"Attach","file":"FeeNoteSeparate"}],"rules":[{"if":[[{"fact":"ClaimSource","values":["<claimSpecialistsId>"]}]],"then":[{"kind":"Cc","addresses":["accounts@claimsspecialists.co.uk"]}]}]}
+            """.Replace("<claimSpecialistsId>", claimSpecialistsId, StringComparison.Ordinal),
+            builtRjs.ReportSendingRulesJson);
+        Assert.Null(builtRjs.SendFromMailbox);
+        Assert.True(builtRjs.ReportImages);
+        Assert.Equal(untouched, (await PrincipalAsync("ALS")).ReportSendingRulesJson);
+        Assert.Contains(
+            "everyCase",
+            await context.Database.SqlQueryRaw<string>(
+                    "SELECT [d].[definition] AS [Value] FROM sys.default_constraints AS [d] "
+                    + "INNER JOIN sys.columns AS [c] ON [c].[object_id] = [d].[parent_object_id] AND [c].[column_id] = [d].[parent_column_id] "
+                    + "WHERE [d].[parent_object_id] = OBJECT_ID(N'[dbo].[Principals]') AND [c].[name] = N'ReportSendingRulesJson'")
+                .SingleAsync(),
+            StringComparison.Ordinal);
+
+        var built = await StoredAsync();
+        await context.Database.ExecuteSqlRawAsync(build);
+
+        Assert.Equal(built, await StoredAsync());
+
+        var unknown = wls.Replace("\"kind\":\"Outcome\"", "\"kind\":\"ImagesFrom\"", StringComparison.Ordinal);
+        Assert.NotEqual(wls, unknown);
+        await SetRulesAsync("WLS", unknown);
+
+        var refused = await Assert.ThrowsAnyAsync<DbException>(() => context.Database.ExecuteSqlRawAsync(build));
+
+        Assert.Contains("restate that rule on the Principal contact", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(unknown, (await PrincipalAsync("WLS")).ReportSendingRulesJson);
+
+        // A rule that adds and removes the same Cc address would be built
+        // into one the store refuses to read, so it stops the statement too.
+        var overlap = wls.Replace(
+            "\"ccAdd\":[],\"ccRemove\":[\"cc@principal.example\"]",
+            "\"ccAdd\":[\"CC@principal.example\"],\"ccRemove\":[\"cc@principal.example\"]",
+            StringComparison.Ordinal);
+        Assert.NotEqual(wls, overlap);
+        await SetRulesAsync("WLS", overlap);
+
+        var overlapRefused = await Assert.ThrowsAnyAsync<DbException>(() => context.Database.ExecuteSqlRawAsync(build));
+
+        Assert.Contains("both adds and removes the same Cc address", overlapRefused.Message, StringComparison.Ordinal);
+        Assert.Equal(overlap, (await PrincipalAsync("WLS")).ReportSendingRulesJson);
     }
 
     /// <summary>
@@ -405,18 +507,12 @@ public sealed class PrincipalReportSendingSeedTests
             "TEN",
             "Inbox: Engineers\r\nSending Report: Fee note separate return to file handler\r\n\r\nInbox: Andrew");
         await SetNotesAsync("QCL", "Contract repair at 75%.\r\n\r\nInbox: Engineers");
+        // Its SBL and PCH steps read the rules' earlier shape, so over built
+        // rules (R1267) they change nothing.
         var seededSbl = await context.Principals.AsNoTracking()
             .Where(principal => principal.Code == "SBL")
             .Select(principal => principal.ReportSendingRulesJson)
             .SingleAsync();
-        var copied = seededSbl.Replace(
-            "\"cc\":[],\"neverCc\":[\"SBL@connexus.co.uk\"]",
-            "\"cc\":[\"SBL@connexus.co.uk\"],\"neverCc\":[]",
-            StringComparison.Ordinal);
-        Assert.NotEqual(seededSbl, copied);
-        await context.Principals
-            .Where(principal => principal.Code == "SBL")
-            .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.ReportSendingRulesJson, copied));
         await context.Principals
             .Where(principal => principal.Code == "FRZ")
             .ExecuteUpdateAsync(setters => setters.SetProperty(principal => principal.IsActive, false));
@@ -509,12 +605,12 @@ public sealed class PrincipalReportSendingSeedTests
         // Every contact a condition names is a real organisation with the right role.
         foreach (var seeded in principals.Values)
         {
-            foreach (var condition in seeded.Rules.Rules.SelectMany(rule => rule.If))
+            foreach (var condition in seeded.Rules.Rules.SelectMany(rule => rule.If.SelectMany(group => group)))
             {
-                var role = condition.Kind switch
+                var role = condition.Fact switch
                 {
-                    ReportSendingConditionKind.ClaimSource => "claim_source",
-                    ReportSendingConditionKind.Repairer => "repairer",
+                    SendingFact.ClaimSource => "claim_source",
+                    SendingFact.Repairer => "repairer",
                     _ => null
                 };
                 if (role is null) continue;
@@ -534,56 +630,65 @@ public sealed class PrincipalReportSendingSeedTests
         string IdOf(string name) => Assert.Single(organizations.Values, item => item.Name == name).Id.ToString("D");
         PrincipalReportSendingRules Rules(string code) => principals[code].Rules;
 
+        IReadOnlyList<string> Addresses(PrincipalReportSendingRules rules, Act kind) =>
+            [.. rules.EveryCase.Where(action => action.Kind == kind).SelectMany(action => action.Addresses ?? [])];
+
         // AX: Repairer is Easdons Bodyshop and Claim Source is Guardian
-        // Accident Claims or James Claims (R1025).
-        var ax = Assert.Single(Rules("AX").Rules);
-        Assert.Equal(ReportSendingRuleMatch.All, ax.Match);
-        Assert.Equal(
-            [ReportSendingConditionKind.Repairer, ReportSendingConditionKind.ClaimSource],
-            ax.If.Select(condition => condition.Kind).ToArray());
-        Assert.Equal([IdOf("Easdons Bodyshop")], ax.If[0].Values.ToArray());
-        Assert.Equal([IdOf("Guardian Accident Claims"), IdOf("James Claims")], ax.If[1].Values.ToArray());
-        Assert.Equal("p.mandy@oakwoodscotland.co.uk", Assert.Single(ax.Then.CcRemove));
-        Assert.Equal(2, Rules("AX").SendTo.Count);
-        Assert.False(Rules("AX").Attach.FeeNoteSeparate);
-        Assert.True(Rules("AX").GarageFigures);
+        // Accident Claims or James Claims (R1025), then Garage figures last.
+        Assert.Equal(2, Rules("AX").Rules.Count);
+        var ax = Rules("AX").Rules[0];
+        var axGroup = Assert.Single(ax.If);
+        Assert.Equal([SendingFact.Repairer, SendingFact.ClaimSource], axGroup.Select(condition => condition.Fact).ToArray());
+        Assert.Equal([IdOf("Easdons Bodyshop")], axGroup[0].Values.ToArray());
+        Assert.Equal([IdOf("Guardian Accident Claims"), IdOf("James Claims")], axGroup[1].Values.ToArray());
+        Assert.Equal("p.mandy@oakwoodscotland.co.uk", Assert.Single(Assert.Single(ax.Then).Addresses!));
+        Assert.Equal(2, Addresses(Rules("AX"), Act.SendTo).Count);
+        Assert.False(Rules("AX").MayAttach(SendingFile.FeeNoteSeparate));
+        Assert.Equal(new PrincipalReportSendingRules([], [GarageFigures]), new PrincipalReportSendingRules([], [Rules("AX").Rules[1]]));
 
         // DFD: SMC, Car 2 Go and a CarClaims stop.
         Assert.Equal(3, Rules("DFD").Rules.Count);
-        Assert.Equal(
-            "CarClaims job. This needs checking with Andy before it is sent.",
-            Rules("DFD").Rules[2].Then.Stop);
-        Assert.Equal([IdOf("CarClaims")], Rules("DFD").Rules[2].If[0].Values.ToArray());
+        var dfdStop = Assert.Single(Rules("DFD").Rules[2].Then);
+        Assert.Equal(Act.Stop, dfdStop.Kind);
+        Assert.Equal("CarClaims job. This needs checking with Andy before it is sent.", dfdStop.Text);
+        Assert.Equal([IdOf("CarClaims")], Assert.Single(Assert.Single(Rules("DFD").Rules[2].If)).Values.ToArray());
 
-        // YML: Claim Source is Swinton (R1026).
+        // YML: Claim Source is Swinton (R1026), an after-sending task.
         var yml = Assert.Single(Rules("YML").Rules);
-        Assert.Equal(ReportSendingConditionKind.ClaimSource, Assert.Single(yml.If).Kind);
-        Assert.Equal([IdOf("Swinton")], yml.If[0].Values.ToArray());
-        Assert.Equal("send Swinton a copy of the report on WhatsApp.", yml.Then.Remind);
+        var ymlCondition = Assert.Single(Assert.Single(yml.If));
+        Assert.Equal(SendingFact.ClaimSource, ymlCondition.Fact);
+        Assert.Equal([IdOf("Swinton")], ymlCondition.Values.ToArray());
+        Assert.Equal(AddTask("send Swinton a copy of the report on WhatsApp."), Assert.Single(yml.Then));
 
-        // CS has no instruction e-mail, so it names its mailbox.
-        Assert.Equal("engineers@collisionengineers.co.uk", Rules("CS").SendFromMailbox);
-        Assert.Equal(2, Rules("CS").SendTo.Count);
+        // CS has no instruction e-mail, so it names its mailbox (its own column).
+        Assert.Equal("engineers@collisionengineers.co.uk", principals["CS"].Principal.SendFromMailbox);
+        Assert.Equal(2, Addresses(Rules("CS"), Act.SendTo).Count);
 
-        // MP: the images document and figure breakdown are required companions.
-        Assert.False(Rules("MP").Attach.ReportImages);
-        Assert.True(Rules("MP").Attach.VehicleImagesDocument);
-        Assert.True(Rules("MP").Attach.FigureBreakdown);
-        Assert.Equal("WhatsApp the report to Midas to check before it is sent.", Rules("MIDAS").Hold);
-        Assert.Equal("credithire@hackneysolutions.co.uk", Assert.Single(Rules("QCL").NeverCc));
+        // MP: no report images, and the images document and figure breakdown
+        // are required companions.
+        Assert.False(principals["MP"].Principal.ReportImages);
+        Assert.True(Rules("MP").MayAttach(SendingFile.VehicleImagesDocument));
+        Assert.True(Rules("MP").MayAttach(SendingFile.FigureBreakdown));
+        Assert.Contains(
+            new ReportSendingAction(Act.Hold, Text: "WhatsApp the report to Midas to check before it is sent."),
+            Rules("MIDAS").EveryCase);
+        Assert.Equal("credithire@hackneysolutions.co.uk", Assert.Single(Addresses(Rules("QCL"), Act.NeverCc)));
 
         // PCH: Repairer is iRevolution Repair Network and the outcome is
-        // repairable (R1033). SBL never copies its Connexus address (R1031).
-        var pch = Rules("PCH").Rules[0];
+        // repairable (R1033); its audit rule lost "mentions audit" (R1268) and
+        // keeps reference prefix a or a previous job. SBL never copies its
+        // Connexus address (R1031).
+        var pch = Assert.Single(Rules("PCH").Rules[0].If);
+        Assert.Equal([SendingFact.Repairer, SendingFact.Outcome], pch.Select(condition => condition.Fact).ToArray());
+        Assert.Equal([ContactsFollowQuickReference.IRevolutionRepairerId], pch[0].Values.ToArray());
+        Assert.Equal("repairs@irevolutionrepairnetwork.co.uk", Assert.Single(Rules("PCH").Rules[0].Then[0].Addresses!));
         Assert.Equal(
-            [ReportSendingConditionKind.Repairer, ReportSendingConditionKind.Outcome],
-            pch.If.Select(condition => condition.Kind).ToArray());
-        Assert.Equal([ContactsFollowQuickReference.IRevolutionRepairerId], pch.If[0].Values.ToArray());
-        Assert.Equal("repairs@irevolutionrepairnetwork.co.uk", Assert.Single(pch.Then.CcAdd));
-        Assert.Empty(Rules("SBL").Cc);
-        Assert.Equal("SBL@connexus.co.uk", Assert.Single(Rules("SBL").NeverCc));
-        Assert.True(Rules("BLACK").Attach.Estimate);
-        Assert.True(Rules("ALS").Attach.Estimate);
+            [SendingFact.RefPrefix, SendingFact.PreviousJob],
+            Rules("PCH").Rules[1].If.Select(group => Assert.Single(group).Fact).ToArray());
+        Assert.Empty(Addresses(Rules("SBL"), Act.Cc));
+        Assert.Equal("SBL@connexus.co.uk", Assert.Single(Addresses(Rules("SBL"), Act.NeverCc)));
+        Assert.True(Rules("BLACK").MayAttach(SendingFile.Estimate));
+        Assert.True(Rules("ALS").MayAttach(SendingFile.Estimate));
     }
 
     [Fact]
@@ -680,7 +785,6 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.True(principal.IsActive);
         Assert.Equal("physical_address", principal.InspectionMode);
         Assert.Equal(180.00m, principal.DefaultFee);
-        Assert.Null(principal.SalvageMatrixJson);
         Assert.Null(principal.PredecessorId);
         Assert.Equal(PrincipalReportSendingRules.Default, principals["PRIVATE"].Rules);
         var organization = organizations[principal.OrganizationId];
@@ -723,13 +827,12 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal(180.00m, principal.DefaultFee);
         Assert.Null(principal.InspectionReportNameFirst);
         Assert.Null(principal.AuditReportNameFirst);
-        Assert.Null(principal.SalvageMatrixJson);
-        var offering = PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
-        };
+        var offering = EveryCase(
+            [ReplyAll, FeeNoteSeparate, Attach(SendingFile.OfferExternalEstimates), Attach(SendingFile.OfferRepairInvoices)]);
         Assert.Equal(offering, principals["ULA"].Rules);
-        // Stored as the serializer writes it, the two Offer ticks after the rest.
+        Assert.True(principal.ReportImages);
+        Assert.Null(principal.SendFromMailbox);
+        // Stored as the serializer writes it, the two Offer files after the rest.
         Assert.Equal(EfOrganizationAdministration.ToReportSendingJson(offering), principal.ReportSendingRulesJson);
         var organization = organizations[principal.OrganizationId];
         Assert.Equal("United Legal Assistance Limited", organization.Name);
@@ -778,8 +881,8 @@ public sealed class PrincipalReportSendingSeedTests
         Assert.Equal("original_engineer_report", principal.AuditWorkflow);
         Assert.Equal("none", principal.PrincipalInvoice);
         Assert.Equal(180.00m, principal.DefaultFee);
-        Assert.Null(principal.SalvageMatrixJson);
         Assert.Equal(PrincipalReportSendingRules.Default, principals["PHOUSE"].Rules);
+        Assert.Equal(EfOrganizationAdministration.DefaultReportSendingJson, principal.ReportSendingRulesJson);
         var organization = organizations[principal.OrganizationId];
         Assert.Equal("Parkhouse", organization.Name);
         Assert.Equal("principal", organization.Role);
@@ -812,6 +915,43 @@ public sealed class PrincipalReportSendingSeedTests
             .Replace("{", "{{", StringComparison.Ordinal)
             .Replace("}", "}}", StringComparison.Ordinal));
         Assert.Equal(principals.Count, await context.Principals.CountAsync());
+        Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
+        Assert.Equal(linkCount, await links.CountAsync());
+    }
+
+    /// <summary>
+    /// Easy Claim (operator, 26 November 2026; R1302): one active Claim
+    /// Source with its name and nothing else, linked to RJS and no other
+    /// Principal, and RJS's sending rules do not copy it. The seed met again
+    /// changes nothing.
+    /// </summary>
+    [Fact]
+    public async Task EasyClaimIsAClaimSourceLinkedToRjsOnly()
+    {
+        using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
+        var (principals, organizations) = await LoadAsync(factory);
+
+        var easyClaim = organizations[Guid.Parse(EasyClaimIsAnRjsClaimSource.ClaimSourceId)];
+        Assert.Equal("Easy Claim", easyClaim.Name);
+        Assert.Equal("claim_source", easyClaim.Role);
+        Assert.True(easyClaim.Active);
+        Assert.Null(easyClaim.Address);
+        Assert.Null(easyClaim.Postcode);
+        Assert.Null(easyClaim.Email);
+        Assert.Null(easyClaim.Telephone);
+        Assert.Null(easyClaim.NotesOnEveryCase);
+        Assert.Single(organizations.Values, item => item.Role == "claim_source" && item.NormalizedName == "EASY CLAIM");
+        var rjs = principals["RJS"].Principal;
+        Assert.DoesNotContain(
+            easyClaim.Id.ToString("D"), rjs.ReportSendingRulesJson, StringComparison.OrdinalIgnoreCase);
+
+        var contextFactory = factory.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var links = context.Set<ContactPrincipalLinkEntity>().AsNoTracking();
+        Assert.Equal(rjs.Id, (await links.SingleAsync(link => link.OrganizationId == easyClaim.Id)).PrincipalId);
+        var linkCount = await links.CountAsync();
+
+        await context.Database.ExecuteSqlRawAsync(EasyClaimIsAnRjsClaimSource.SeedSql);
         Assert.Equal(organizations.Count, await context.Organizations.CountAsync());
         Assert.Equal(linkCount, await links.CountAsync());
     }

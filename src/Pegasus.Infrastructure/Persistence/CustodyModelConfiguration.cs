@@ -8,14 +8,22 @@ internal static class CustodyModelConfiguration
     {
         modelBuilder.Entity<CaseDocumentEntity>(entity =>
         {
-            entity.ToTable("CaseDocuments", table => table.HasCheckConstraint(
-                "CK_CaseDocuments_CustodyFolder",
-                "[CustodyFolder] IN (N'case', N'audit')"));
+            entity.ToTable("CaseDocuments", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_CaseDocuments_CustodyFolder",
+                    "[CustodyFolder] IN (N'case', N'audit')");
+                // The Case's folder has one subfolder (R1238); the Audit's a. folder has none.
+                table.HasCheckConstraint(
+                    "CK_CaseDocuments_CustodySubfolder",
+                    "[CustodySubfolder] IS NULL OR ([CustodySubfolder] = N'market-research' AND [CustodyFolder] = N'case')");
+            });
             entity.HasKey(value => value.Id);
             entity.Property(value => value.CustodyFolder)
                 .HasMaxLength(20)
                 .IsRequired()
                 .HasDefaultValue(CaseCustodyFolders.Case);
+            entity.Property(value => value.CustodySubfolder).HasMaxLength(40);
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
             entity.Property(value => value.Ordinal).IsRequired();
             entity.HasIndex(value => new { value.CaseId, value.SourceOccurrenceIdentity }).IsUnique();

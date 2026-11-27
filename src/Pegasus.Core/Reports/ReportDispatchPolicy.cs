@@ -82,14 +82,6 @@ public sealed record ReportDispatchFacts(
     /// </summary>
     public string? OriginalSender { get; init; }
 
-    /// <summary>
-    /// The instruction e-mail's subject and plain text, which "Instruction
-    /// mentions" conditions are searched in. Null when the Case holds no
-    /// instruction text, and then no such condition holds. It is read for the
-    /// plan and never stored with a send.
-    /// </summary>
-    public string? InstructionText { get; init; }
-
     /// <summary>The Case's type, which "Case type" conditions compare.</summary>
     public CaseType? CaseType { get; init; }
 
@@ -111,6 +103,12 @@ public sealed record ReportDispatchFacts(
     /// looks it up when a rule names one.
     /// </summary>
     public bool PreviousJob { get; init; }
+
+    /// <summary>
+    /// The names of the contacts the Case chose and the rules name, by id,
+    /// for the rule labels; a contact not here is labelled by its id.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, string> ContactNames { get; init; } = new Dictionary<Guid, string>();
 
     /// <summary>The effective sender of the instruction, however the Case holds it.</summary>
     public string? Sender => Instruction?.EffectiveSender ?? OriginalSender;
@@ -168,6 +166,9 @@ public sealed record ReportDispatchPlan(
     /// less any <see cref="FiledEstimates"/> already attaches (R1151, R1158).
     /// </summary>
     public IReadOnlyList<OfferedCaseFile> OfferedFiles { get; init; } = [];
+
+    /// <summary>The files the actions that applied attach or offer, after the last one that named each.</summary>
+    public ReportSendingAttachments Attach { get; init; } = ReportSendingAttachments.None;
 }
 
 /// <summary>
@@ -176,8 +177,11 @@ public sealed record ReportDispatchPlan(
 /// stops it, and what staff do after sending. Which mailbox it leaves from is
 /// <see cref="ResolveCaseMailSender"/>'s. Pure: it reads the facts, never a
 /// clock, a store or a mailbox. It asks staff nothing: a rule reads what the
-/// Case holds, and a fact the Case has not set means its condition does not
-/// hold (operator, 12 November 2026; R1023, R1024).
+/// Case holds, and a fact the Case has not set does not meet an "is"
+/// condition (operator, 12 November 2026; R1023, R1024) and does meet an "is
+/// not" one (operator, 25 November 2026; R1269). Nothing happens on a send
+/// that no action says: the every-Case actions apply, then each applying
+/// rule's, in order.
 /// </summary>
 public static class ReportDispatchPolicy
 {
@@ -186,6 +190,9 @@ public static class ReportDispatchPolicy
     public const string NoFiledEstimateWarning = "No recognised estimate is filed on this Case.";
     public const string NoSeparateFeeNoteWarning =
         "This Principal expects the fee note as a separate document and none is confirmed.";
+
+    /// <summary>The source of a recipient an every-Case action adds.</summary>
+    public const string EveryCaseSource = "On every Case";
 
     /// <summary>"morning" before 12:00 Europe/London, else "afternoon".</summary>
     public static string Greeting(DateTimeOffset nowUtc) =>
@@ -221,23 +228,30 @@ public static class ReportDispatchPolicy
             facts.Sender?.Trim().ToUpperInvariant() ?? "",
             facts.ClaimSourceId?.ToString("N") ?? "",
             facts.RepairerId?.ToString("N") ?? "",
-            facts.Outcome?.Trim() ?? "",
-            facts.InstructionText is null ? "" : Compact(facts.InstructionText));
+            facts.Outcome?.Trim() ?? "");
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
 
     /// <summary>
-    /// Whether <paramref name="rule"/> holds for the Case: with All, every
-    /// condition holds; with Any, at least one does. A condition whose fact
-    /// the Case has not set does not hold.
+    /// Whether <paramref name="rule"/> applies to the Case: some group of its
+    /// conditions has every condition met.
     /// </summary>
     public static bool Evaluate(ReportSendingRule rule, ReportDispatchFacts facts)
     {
         ArgumentNullException.ThrowIfNull(rule);
         ArgumentNullException.ThrowIfNull(facts);
-        return rule.Match == ReportSendingRuleMatch.All
-            ? rule.If.All(condition => Condition(condition, facts))
-            : rule.If.Any(condition => Condition(condition, facts));
+        return rule.If.Any(group => group.All(condition => Holds(condition, facts)));
+    }
+
+    /// <summary>
+    /// Whether one condition is met: "is" when the Case holds the fact and it
+    /// is among the values, "is not" otherwise, an unset fact included (R1269).
+    /// </summary>
+    public static bool Holds(ReportSendingCondition condition, ReportDispatchFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+        ArgumentNullException.ThrowIfNull(facts);
+        return Is(condition, facts) != condition.Not;
     }
 
     /// <summary>The plan for <paramref name="facts"/>.</summary>
@@ -246,18 +260,87 @@ public static class ReportDispatchPolicy
         ArgumentNullException.ThrowIfNull(facts);
         ArgumentNullException.ThrowIfNull(facts.Rules);
         var rules = facts.Rules;
-        var ruleList = rules.Rules;
-        var applied = Enumerable.Range(0, ruleList.Count)
-            .Where(index => Evaluate(ruleList[index], facts))
-            .ToArray();
+
+        // Nothing is decided until an action says so: the every-Case actions
+        // first, then each applying rule's, in rule order.
+        var applied = new List<(IReadOnlyList<ReportSendingAction> Actions, Func<string> Source)>
+        {
+            (rules.EveryCase, () => EveryCaseSource)
+        };
+        for (var index = 0; index < rules.Rules.Count; index++)
+        {
+            var rule = rules.Rules[index];
+            if (Evaluate(rule, facts))
+            {
+                var ruleIndex = index;
+                applied.Add((rule.Then, () => RuleLabel(ruleIndex, rule, facts)));
+            }
+        }
+
+        List<ReportDispatchRecipient>? sendTo = null;
+        var sendToOnly = false;
+        var replyAll = false;
+        var ccAdded = new List<ReportDispatchRecipient>();
+        var excluded = new List<ReportDispatchRemoval>();
+        var attach = ReportSendingAttachments.None;
+        var holds = new List<string>();
+        string? stop = null;
+        var tasks = new List<string>();
+        foreach (var (actions, source) in applied)
+        {
+            foreach (var action in actions)
+            {
+                switch (action.Kind)
+                {
+                    case ReportSendingActionKind.SendTo:
+                        // A later Send to replaces the To list.
+                        sendTo = [];
+                        foreach (var address in action.Addresses ?? [])
+                        {
+                            Add(sendTo, address, source());
+                        }
+                        break;
+                    case ReportSendingActionKind.SendToOnly:
+                        sendToOnly = true;
+                        break;
+                    case ReportSendingActionKind.ReplyAll:
+                        replyAll = true;
+                        break;
+                    case ReportSendingActionKind.Cc:
+                        foreach (var address in action.Addresses ?? [])
+                        {
+                            Add(ccAdded, address, source());
+                        }
+                        break;
+                    case ReportSendingActionKind.NeverCc:
+                        foreach (var address in action.Addresses ?? [])
+                        {
+                            Exclude(excluded, address, ReferenceEquals(actions, rules.EveryCase) ? "never cc" : source());
+                        }
+                        break;
+                    case ReportSendingActionKind.Attach when action.File is { } file:
+                        attach = attach.With(file, true);
+                        break;
+                    case ReportSendingActionKind.DoNotAttach when action.File is { } file:
+                        attach = attach.With(file, false);
+                        break;
+                    case ReportSendingActionKind.Hold when action.Text is { } text:
+                        holds.Add(text);
+                        break;
+                    case ReportSendingActionKind.Stop when action.Text is { } text:
+                        stop ??= text;
+                        break;
+                    case ReportSendingActionKind.Task when action.Text is { } text:
+                        tasks.Add(text);
+                        break;
+                }
+            }
+        }
 
         var to = new List<ReportDispatchRecipient>();
-        if (rules.SendTo.Count > 0)
+        if (sendTo is { Count: > 0 })
         {
-            foreach (var address in rules.SendTo)
-            {
-                Add(to, address, "Principal To");
-            }
+            to.AddRange(sendTo);
         }
         else
         {
@@ -265,43 +348,24 @@ public static class ReportDispatchPolicy
         }
 
         var cc = new List<ReportDispatchRecipient>();
-        if (!rules.SendToOnly)
+        if (!sendToOnly)
         {
-            if (rules.ReplyAll && facts.Instruction is { } instruction)
+            if (replyAll && facts.Instruction is { } instruction)
             {
                 foreach (var address in instruction.Cc)
                 {
                     Add(cc, address, "Instruction Cc");
                 }
             }
-            foreach (var address in rules.Cc)
+            foreach (var recipient in ccAdded)
             {
-                Add(cc, address, "Principal Cc");
-            }
-            foreach (var index in applied)
-            {
-                foreach (var address in ruleList[index].Then.CcAdd)
-                {
-                    Add(cc, address, RuleLabel(index, ruleList[index], facts));
-                }
+                Add(cc, recipient.Address, recipient.Source);
             }
         }
 
         // Removals win. Excluded is every address the rules keep out, so one
         // staff type in later is taken out too; Removed is what left the
         // copies made above.
-        var excluded = new List<ReportDispatchRemoval>();
-        foreach (var address in rules.NeverCc)
-        {
-            Exclude(excluded, address, "never cc");
-        }
-        foreach (var index in applied)
-        {
-            foreach (var address in ruleList[index].Then.CcRemove)
-            {
-                Exclude(excluded, address, RuleLabel(index, ruleList[index], facts));
-            }
-        }
         var removed = excluded
             .Where(removal => cc.Concat(to).Any(recipient => Same(recipient.Address, removal.Address)))
             .ToArray();
@@ -312,43 +376,6 @@ public static class ReportDispatchPolicy
                 !excluded.Any(removal => Same(removal.Address, candidate.Address))
                 && !to.Any(recipient => Same(recipient.Address, candidate.Address)))
         ];
-
-        var stop = applied.Select(index => ruleList[index].Then.Stop).FirstOrDefault(text => text is not null);
-
-        var holds = new List<string>();
-        if (rules.Hold is { } principalHold)
-        {
-            holds.Add(principalHold);
-        }
-        holds.AddRange(applied.Select(index => ruleList[index].Then.Hold).OfType<string>());
-
-        // A rule's Rate card is the reminder to check the report's estimate
-        // against the card, after that rule's own reminder.
-        var tasks = new List<string>();
-        tasks.AddRange(rules.Reminders);
-        foreach (var index in applied)
-        {
-            if (ruleList[index].Then.Remind is { } remind)
-            {
-                tasks.Add(remind);
-            }
-            if (ruleList[index].Then.RateCard)
-            {
-                tasks.Add(RateCardTask);
-            }
-        }
-        if (rules.GarageFigures && string.Equals(facts.Outcome, "repairable", StringComparison.Ordinal))
-        {
-            tasks.Add(GarageFiguresTask);
-        }
-
-        // Each applied rule's attach override replaces the flags it names, in
-        // rule order, so a later rule wins. The report itself was generated
-        // from the Principal's own Report images.
-        var attach = applied
-            .Select(index => ruleList[index].Then.Attach)
-            .OfType<ReportSendingAttachOverride>()
-            .Aggregate(rules.Attach, (current, named) => named.Over(current));
 
         var required = new List<CaseReportArtifactKind>();
         if (attach.VehicleImagesDocument)
@@ -361,17 +388,17 @@ public static class ReportDispatchPolicy
         }
         var missing = required.Where(kind => !facts.ConfirmedArtifacts.Contains(kind)).ToArray();
 
-        // The Audatex tick attaches the estimates filed in that format; the
-        // Estimate tick attaches the recognised ones in any other.
+        // The Audatex file attaches the estimates filed in that format; the
+        // Estimate file attaches the recognised ones in any other.
         FiledEstimateAttachment[] filed =
         [
             .. facts.FiledEstimates
                 .Where(estimate => IsAudatex(estimate) ? attach.Audatex : attach.Estimate)
         ];
 
-        // The Offer ticks list the Case's External estimates and Repair
+        // The Offer files list the Case's External estimates and Repair
         // invoices for staff to tick (R1151); a file the Estimate or Audatex
-        // tick already attaches is not offered a second time (R1158).
+        // file already attaches is not offered a second time (R1158).
         OfferedCaseFile[] offered =
         [
             .. facts.OfferableFiles
@@ -410,7 +437,8 @@ public static class ReportDispatchPolicy
             [.. tasks.Distinct(StringComparer.Ordinal)])
         {
             Greeting = Greeting(nowUtc),
-            OfferedFiles = offered
+            OfferedFiles = offered,
+            Attach = attach
         };
     }
 
@@ -466,48 +494,29 @@ public static class ReportDispatchPolicy
         return char.ToUpperInvariant(spaced[0]) + spaced[1..];
     }
 
-    /// <summary>
-    /// Whether <paramref name="text"/> mentions any of <paramref name="values"/>,
-    /// ignoring case and spaces ("Car Claims" is "CarClaims").
-    /// </summary>
-    public static bool Mentions(string text, IReadOnlyList<string> values)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(values);
-        var haystack = Compact(text);
-        return values
-            .Select(Compact)
-            .Any(needle => needle.Length > 0 && haystack.Contains(needle, StringComparison.Ordinal));
-    }
-
-    private static string Compact(string value) =>
-        string.Concat(value.Where(character => !char.IsWhiteSpace(character))).ToUpperInvariant();
-
     private static bool IsAudatex(FiledEstimateAttachment estimate) =>
         string.Equals(estimate.Provider, EstimateFormats.AudatexProvider, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Whether one condition holds. It reads only what the Case holds, so a
-    /// Case with no Claim Source, Repairer, outcome, type, sender or
-    /// instruction text meets no condition on that fact (R1024).
+    /// Whether the Case's fact is among the condition's values. It reads only
+    /// what the Case holds, so a Case with no Claim Source, Repairer, outcome,
+    /// type or sender is not among any (R1024).
     /// </summary>
-    private static bool Condition(ReportSendingCondition condition, ReportDispatchFacts facts) =>
-        condition.Kind switch
+    private static bool Is(ReportSendingCondition condition, ReportDispatchFacts facts) =>
+        condition.Fact switch
         {
-            ReportSendingConditionKind.ClaimSource => facts.ClaimSourceId is { } claimSource
+            ReportSendingFact.ClaimSource => facts.ClaimSourceId is { } claimSource
                 && Contains(condition.Values, claimSource.ToString("D")),
-            ReportSendingConditionKind.Repairer => facts.RepairerId is { } repairer
+            ReportSendingFact.Repairer => facts.RepairerId is { } repairer
                 && Contains(condition.Values, repairer.ToString("D")),
-            ReportSendingConditionKind.Outcome => !string.IsNullOrWhiteSpace(facts.Outcome)
+            ReportSendingFact.Outcome => !string.IsNullOrWhiteSpace(facts.Outcome)
                 && Contains(condition.Values, facts.Outcome.Trim()),
-            ReportSendingConditionKind.CaseType => CaseTypeHolds(condition.Values, facts),
-            ReportSendingConditionKind.SenderNot => !string.IsNullOrWhiteSpace(facts.Sender)
-                && !Contains(condition.Values, facts.Sender!.Trim()),
-            ReportSendingConditionKind.Mentions => !string.IsNullOrWhiteSpace(facts.InstructionText)
-                && Mentions(facts.InstructionText, condition.Values),
-            ReportSendingConditionKind.RefPrefix => condition.Values.Any(prefix =>
+            ReportSendingFact.CaseType => CaseTypeHolds(condition.Values, facts),
+            ReportSendingFact.Sender => !string.IsNullOrWhiteSpace(facts.Sender)
+                && Contains(condition.Values, facts.Sender!.Trim()),
+            ReportSendingFact.RefPrefix => condition.Values.Any(prefix =>
                 facts.CaseReference.StartsWith($"{prefix}.", StringComparison.OrdinalIgnoreCase)),
-            ReportSendingConditionKind.PreviousJob => facts.PreviousJob,
+            ReportSendingFact.PreviousJob => facts.PreviousJob,
             _ => false
         };
 
@@ -543,20 +552,35 @@ public static class ReportDispatchPolicy
     private static bool Contains(IReadOnlyList<string> values, string value) =>
         values.Contains(value, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// "Rule {n}: {its conditions}", a group's conditions joined by ", " and
+    /// the groups by " or "; a Claim Source or Repairer it is met by is the
+    /// Case's own, and an "is not" condition reads "{fact} not {values}".
+    /// </summary>
     private static string RuleLabel(int index, ReportSendingRule rule, ReportDispatchFacts facts)
     {
-        var parts = rule.If.Select(condition => condition.Kind switch
+        string Contacts(IReadOnlyList<string> values) => string.Join(" or ", values.Select(value =>
+            Guid.TryParse(value, out var id) && facts.ContactNames.TryGetValue(id, out var name) ? name : value));
+        string Words(ReportSendingCondition condition)
         {
-            ReportSendingConditionKind.ClaimSource => $"Claim Source {facts.ClaimSourceName}".Trim(),
-            ReportSendingConditionKind.Repairer => $"Repairer {facts.RepairerName}".Trim(),
-            ReportSendingConditionKind.Outcome => $"Outcome {string.Join(" or ", condition.Values.Select(value => OutcomeWords(value)))}",
-            ReportSendingConditionKind.SenderNot => $"Sender not {string.Join(" or ", condition.Values)}",
-            ReportSendingConditionKind.CaseType => $"Case type {string.Join(" or ", condition.Values.Select(CaseTypeWords))}",
-            ReportSendingConditionKind.RefPrefix => $"Reference prefix {string.Join(" or ", condition.Values)}",
-            ReportSendingConditionKind.PreviousJob => "Previous job",
-            _ => $"Mentions {string.Join(" or ", condition.Values)}"
-        });
-        return $"Rule {index + 1}: {string.Join(", ", parts)}";
+            var not = condition.Not ? " not" : "";
+            return condition.Fact switch
+            {
+                ReportSendingFact.ClaimSource => condition.Not
+                    ? $"Claim Source not {Contacts(condition.Values)}"
+                    : $"Claim Source {facts.ClaimSourceName}".Trim(),
+                ReportSendingFact.Repairer => condition.Not
+                    ? $"Repairer not {Contacts(condition.Values)}"
+                    : $"Repairer {facts.RepairerName}".Trim(),
+                ReportSendingFact.Outcome => $"Outcome{not} {string.Join(" or ", condition.Values.Select(value => OutcomeWords(value)))}",
+                ReportSendingFact.Sender => $"Sender{not} {string.Join(" or ", condition.Values)}",
+                ReportSendingFact.CaseType => $"Case type{not} {string.Join(" or ", condition.Values.Select(CaseTypeWords))}",
+                ReportSendingFact.RefPrefix => $"Reference prefix{not} {string.Join(" or ", condition.Values)}",
+                _ => condition.Not ? "No previous job" : "Previous job"
+            };
+        }
+        var groups = rule.If.Select(group => string.Join(", ", group.Select(Words)));
+        return $"Rule {index + 1}: {string.Join(" or ", groups)}";
     }
 
     private static string? Clean(string? address) =>

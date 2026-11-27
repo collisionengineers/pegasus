@@ -624,6 +624,70 @@ public sealed class CaseDataCompletenessPersistenceTests
             repairer);
     }
 
+    /// <summary>
+    /// R1264: an instruction whose attachment text names one active Repairer
+    /// linked to the Case's Principal creates its Case holding that Repairer,
+    /// sourced to the instruction's text. An inactive linked Repairer and an
+    /// unlinked one named in the same text are not counted.
+    /// </summary>
+    [Fact]
+    public async Task AnAttachmentNamingALinkedRepairerCreatesTheCaseHoldingIt()
+    {
+        var linkedId = Guid.NewGuid();
+        await using var harness = await CaseDataHarness.CreateAsync(
+            beforeAcceptance: async (seed, receiptId) =>
+            {
+                var qdos = await SeededPrincipals.QdosAsync(seed);
+                var inactiveId = Guid.NewGuid();
+                var unlinkedId = Guid.NewGuid();
+                seed.Organizations.AddRange(
+                    new OrganizationEntity
+                    {
+                        Id = linkedId, Name = "Text Fill Fixture Quayside Coachworks", Role = "repairer", Active = true, Version = 0
+                    },
+                    new OrganizationEntity
+                    {
+                        Id = inactiveId, Name = "Text Fill Fixture Moorland Garage", Role = "repairer", Active = false, Version = 0
+                    },
+                    new OrganizationEntity
+                    {
+                        Id = unlinkedId, Name = "Text Fill Fixture Harbour Motors", Role = "repairer", Active = true, Version = 0
+                    });
+                seed.Add(new ContactPrincipalLinkEntity { PrincipalId = qdos.Id, OrganizationId = linkedId });
+                seed.Add(new ContactPrincipalLinkEntity { PrincipalId = qdos.Id, OrganizationId = inactiveId });
+                seed.IntakeSearchDocuments.AddRange(
+                    new IntakeSearchDocumentEntity
+                    {
+                        Id = Guid.NewGuid(), IntakeReceiptId = receiptId, Ordinal = 0,
+                        SourceLabel = "message body", Text = "Please inspect the attached instruction."
+                    },
+                    new IntakeSearchDocumentEntity
+                    {
+                        Id = Guid.NewGuid(), IntakeReceiptId = receiptId, Ordinal = 1, AttachmentOrdinal = 0,
+                        SourceLabel = "attachment 1", AttachmentFileName = "instructions.pdf",
+                        Text = "The vehicle is at TEXT FILL FIXTURE QUAYSIDECOACHWORKS. It was first taken to "
+                            + "Text Fill Fixture Moorland Garage and Text Fill Fixture Harbour Motors."
+                    });
+                await seed.SaveChangesAsync();
+            });
+
+        await using var read = await harness.Factory.CreateDbContextAsync();
+        var repairerId = await read.CaseDataFields.AsNoTracking()
+            .SingleAsync(item => item.WorkId == harness.CaseId
+                && item.FieldName == CaseDataFieldNames.RepairerId
+                && item.ValueKind == CaseDataCodes.Confirmed);
+        Assert.Equal(linkedId.ToString("D"), repairerId.Value);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, repairerId.SourceKind);
+        Assert.Equal("instruction text", repairerId.SourceLabel);
+        Assert.Equal(NamedInText.PolicyKey, repairerId.PolicyKey);
+        Assert.Equal(NamedInText.PolicyVersion, repairerId.PolicyVersion);
+        var repairerName = await read.CaseDataFields.AsNoTracking()
+            .SingleAsync(item => item.WorkId == harness.CaseId
+                && item.FieldName == CaseDataFieldNames.RepairerName
+                && item.ValueKind == CaseDataCodes.Confirmed);
+        Assert.Equal("Text Fill Fixture Quayside Coachworks", repairerName.Value);
+    }
+
     [Fact]
     public async Task AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues()
     {
@@ -808,14 +872,16 @@ public sealed class CaseDataCompletenessPersistenceTests
                 InspectionAddressStaffDecision.AcceptSuggestion,
             string? correctedAddress = null,
             long? mileage = FixtureMileage,
-            bool registered = true)
+            bool registered = true,
+            Func<PegasusDbContext, Guid, Task>? beforeAcceptance = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var factory = new PooledDbContextFactory<PegasusDbContext>(
                 new DbContextOptionsBuilder<PegasusDbContext>()
                     .UseSqlServer(database.ConnectionString)
                     .Options);
-            return await OpenAsync(database, shared: null, factory, addressDecision, correctedAddress, mileage, registered);
+            return await OpenAsync(
+                database, shared: null, factory, addressDecision, correctedAddress, mileage, registered, beforeAcceptance);
         }
 
         /// <summary>The instruction's mileage in the fixture.</summary>
@@ -833,7 +899,8 @@ public sealed class CaseDataCompletenessPersistenceTests
                 InspectionAddressStaffDecision.AcceptSuggestion,
                 correctedAddress: null,
                 mileage,
-                registered: true);
+                registered: true,
+                beforeAcceptance: null);
 
         private static async Task<CaseDataHarness> OpenAsync(
             LocalDbTestDatabase database,
@@ -842,7 +909,8 @@ public sealed class CaseDataCompletenessPersistenceTests
             InspectionAddressStaffDecision addressDecision,
             string? correctedAddress,
             long? mileage,
-            bool registered)
+            bool registered,
+            Func<PegasusDbContext, Guid, Task>? beforeAcceptance)
         {
             var receiptId = Guid.NewGuid();
             try
@@ -852,6 +920,11 @@ public sealed class CaseDataCompletenessPersistenceTests
                 var staffActor = ActionActor.Staff(staffId, [StaffRole.User]);
                 var sourceHash = new string('a', 64);
                 await SeedAsync(factory, receiptId, sourceHash, mileage, registered);
+                if (beforeAcceptance is not null)
+                {
+                    await using var seedContext = await factory.CreateDbContextAsync();
+                    await beforeAcceptance(seedContext, receiptId);
+                }
 
                 var addressStore = new InspectionAddressResolutionStore(factory, timeProvider);
                 var address = await addressStore.GetAsync(receiptId, CancellationToken.None);

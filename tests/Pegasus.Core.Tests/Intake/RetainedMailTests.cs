@@ -397,6 +397,21 @@ public sealed class RetainedMailTests
         Assert.Null(Assert.Single(queries.PreviewReads).Summary);
     }
 
+    [Fact]
+    public async Task GetAsksForTheConversationOnlyWhenTheCallerDoes()
+    {
+        var detail = ClassifiedDetail("mailbox-a", MailCategory.Cancellation);
+        var queries = new Queries { DetailToReturn = detail };
+        var sut = new GetRetainedMail(queries, new NoStaffAccounts());
+
+        await sut.ExecuteAsync(Caseworker(), detail.Summary.Id, CancellationToken.None);
+        await sut.ExecuteAsync(Caseworker(), detail.Summary.Id, null, withConversation: true, CancellationToken.None);
+
+        Assert.Equal(2, queries.ConversationAsked.Count);
+        Assert.False(queries.ConversationAsked[0]);
+        Assert.True(queries.ConversationAsked[1]);
+    }
+
     private static MailClassificationDossier Unclassified() =>
         new(1, MailClassificationResult.Unclassified([], "Fixture.", "test", 1), "system-worker:poll", NowUtc, []);
 
@@ -912,6 +927,8 @@ public sealed class RetainedMailTests
 
         internal int FullReads { get; private set; }
 
+        internal List<bool> ConversationAsked { get; } = [];
+
         internal Guid? OriginReceiptId { get; private set; }
 
         internal List<string> TokenReads { get; } = [];
@@ -962,9 +979,11 @@ public sealed class RetainedMailTests
         public Task<RetainedMailDetail?> GetAsync(
             Guid id,
             CancellationToken cancellationToken,
-            string? searchTerm = null)
+            string? searchTerm = null,
+            bool withConversation = false)
         {
             FullReads++;
+            ConversationAsked.Add(withConversation);
             return Task.FromResult(DetailToReturn);
         }
 
@@ -1010,6 +1029,9 @@ public sealed class RetainedMailTests
             throw new NotSupportedException();
 
         public Task<int> CountAwaitingAutomationDecisionAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RetainedMailOriginal?> GetOriginalAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 

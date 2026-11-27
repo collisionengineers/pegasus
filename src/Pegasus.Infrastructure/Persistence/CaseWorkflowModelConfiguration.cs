@@ -133,7 +133,8 @@ internal static class CaseWorkflowModelConfiguration
             // mutation, so it carries no fresh version and is exempted here
             // exactly as operator_note and case_guidance_applied are. So is
             // what the two sent-mail tidies moved to Deleted Items or could
-            // not (R959).
+            // not (R959), and market research submitted from Pegasus Desktop
+            // (R1314).
             entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique()
                 .HasFilter(
                     "[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' "
@@ -141,7 +142,8 @@ internal static class CaseWorkflowModelConfiguration
                     + "AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached' "
                     + "AND [EventType] <> 'correspondence_sent' "
                     + "AND [EventType] <> 'instruction_moved_to_deleted_items' AND [EventType] <> 'instruction_move_failed' "
-                    + "AND [EventType] <> 'correspondence_moved_to_deleted_items' AND [EventType] <> 'correspondence_move_failed'");
+                    + "AND [EventType] <> 'correspondence_moved_to_deleted_items' AND [EventType] <> 'correspondence_move_failed' "
+                    + "AND [EventType] <> 'market_research_submitted'");
             entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 

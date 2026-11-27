@@ -213,7 +213,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 // The startup warm-up reads in the background; a test host
                 // skips it so its own command counts stay exact.
                 ["Startup:Warmup"] = "false",
-                // Nor does it run the automatic valuation pass in the background.
+                // Nor does it run the automatic request pass in the background.
                 ["Valuation:AutomaticPassInterval"] = "00:00:00",
             };
 
@@ -319,12 +319,12 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         CaseWebTestSupport.Substitute<IListCaseEstimates>(services, reads);
         CaseWebTestSupport.Substitute<ILabourRateCardStore>(services, reads);
         CaseWebTestSupport.Substitute<IUnroadworthyReasonBankStore>(services, reads);
-        CaseWebTestSupport.Substitute<IPrincipalSalvageMatrixQueries>(services, reads);
         CaseWebTestSupport.Substitute<ICaseReportSnapshotSource>(services, reads);
         CaseWebTestSupport.Substitute<ICaseReportGenerationStore>(services, reads);
         CaseWebTestSupport.Substitute<ISendToAiControl>(services, reads);
         CaseWebTestSupport.Substitute<IListCaseValuations>(services, reads);
         CaseWebTestSupport.Substitute<IListAppliedValuations>(services, reads);
+        CaseWebTestSupport.Substitute<IMarketResearchSubmissionQueries>(services, reads);
         CaseWebTestSupport.Substitute<IValuationPresetStore>(services, reads);
         CaseWebTestSupport.Substitute<IContactDirectoryQueries>(services, reads);
         CaseWebTestSupport.Substitute<ILeaseCaseForEdit>(services, reads);

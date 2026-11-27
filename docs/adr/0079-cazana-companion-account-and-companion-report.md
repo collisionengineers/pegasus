@@ -75,6 +75,11 @@ delivered to the Web App as versioned Key Vault references
 secret-scoped grant to the Web identity. Both are Production required
 settings, read on each valuation rather than when the host or a Case page is
 built. Neither the credentials nor the JWT ever reaches a URL or log.
+Amended 26 November 2026 (R1288): the account is no longer deployment
+configuration. It is held in the database, protected with the Web host's key
+ring, and replaced by an Administrator
+([ADR-0091](0091-integration-logins-in-the-database.md)); the two settings are
+read once by that release's import and removed in the next.
 
 **The month is a date.** Cazana values on a day: the current London month is
 valued today, an earlier month on its last day, and a later month today and

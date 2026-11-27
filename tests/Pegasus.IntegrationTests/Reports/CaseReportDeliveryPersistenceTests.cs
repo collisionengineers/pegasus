@@ -43,39 +43,47 @@ public sealed class CaseReportDeliveryPersistenceTests
     /// authorised, remind staff to send the WhatsApp, and stop the send of an
     /// Inspection report, which every Case here is.
     /// </summary>
-    private static readonly PrincipalReportSendingRules HeldRules = PrincipalReportSendingRules.Default with
-    {
-        Hold = HoldText,
-        Reminders = ["Send the WhatsApp."],
-        Rules =
-        [
-            new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.CaseType, ["Inspection"])],
-                new([], [], Remind: "Chase the images.", Stop: StopText))
-        ]
-    };
+    private static readonly PrincipalReportSendingRules HeldRules = Held(HoldText, "Inspection");
 
     /// <summary>The same rules with a Stop no Case here meets: its rule names the Audit report.</summary>
-    private static readonly PrincipalReportSendingRules HeldRulesWithNoStop = HeldRules with
-    {
-        Rules =
-        [
-            new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.CaseType, ["Audit"])],
-                new([], [], Remind: "Chase the images.", Stop: StopText))
-        ]
-    };
+    private static readonly PrincipalReportSendingRules HeldRulesWithNoStop = Held(HoldText, "Audit");
 
     /// <summary>A Principal whose one rule removes a copy on a previous job (Report Sending SOP v8).</summary>
     private static readonly PrincipalReportSendingRules PreviousJobRules = PrincipalReportSendingRules.Default with
     {
         Rules =
         [
-            new(ReportSendingRuleMatch.All,
-                [new(ReportSendingConditionKind.PreviousJob, [])],
-                new([], ["repairs@garage.example"]))
+            new(
+                [[new(ReportSendingFact.PreviousJob, [])]],
+                [new(ReportSendingActionKind.NeverCc, Addresses: ["repairs@garage.example"])])
         ]
     };
+
+    /// <summary>
+    /// The default actions, a Hold of <paramref name="hold"/> and a task on
+    /// every Case, and one rule on the Case type that adds a task and a Stop.
+    /// </summary>
+    private static PrincipalReportSendingRules Held(string hold, string caseType) => new(
+        [
+            .. PrincipalReportSendingRules.Default.EveryCase,
+            new(ReportSendingActionKind.Hold, Text: hold),
+            new(ReportSendingActionKind.Task, Text: "Send the WhatsApp.")
+        ],
+        [
+            new(
+                [[new(ReportSendingFact.CaseType, [caseType])]],
+                [
+                    new(ReportSendingActionKind.Task, Text: "Chase the images."),
+                    new(ReportSendingActionKind.Stop, Text: StopText)
+                ])
+        ]);
+
+    /// <summary>The default actions and <paramref name="actions"/> on every Case.</summary>
+    private static PrincipalReportSendingRules EveryCase(params ReportSendingAction[] actions) =>
+        PrincipalReportSendingRules.Default with
+        {
+            EveryCase = [.. PrincipalReportSendingRules.Default.EveryCase, .. actions]
+        };
 
     [Fact]
     public async Task SendHandsTheTransportTheConfirmedArtifactAndTheReviewedRecipients()
@@ -255,7 +263,6 @@ public sealed class CaseReportDeliveryPersistenceTests
         Assert.Equal("Report delivery test", facts.PrincipalName);
         Assert.Equal(PrincipalReportSendingRules.Default, facts.Rules);
         Assert.Null(facts.Instruction);
-        Assert.Null(facts.InstructionText);
         Assert.Equal(RouteSender, facts.OriginalSender);
         Assert.Equal(RouteSender, facts.Sender);
         Assert.Null(facts.Registration);
@@ -266,7 +273,7 @@ public sealed class CaseReportDeliveryPersistenceTests
     /// The instruction is the retained message of the Case's origin receipt,
     /// held in the approved mailbox it is replied from. Its sender is the
     /// route decision's effective sender, never the retained row's own
-    /// sender, and its text is its subject and plain-text body.
+    /// sender.
     /// </summary>
     [Fact]
     public async Task TheDispatchFactsJoinTheRetainedInstructionAndTheMailboxHoldingIt()
@@ -287,7 +294,6 @@ public sealed class CaseReportDeliveryPersistenceTests
         Assert.Equal(RouteSender, instruction.EffectiveSender);
         Assert.Equal(["copy@principal.example"], instruction.Cc);
         Assert.Equal("Claim for AB12 CDE", instruction.Subject);
-        Assert.Equal("Claim for AB12 CDE\nPlease inspect the vehicle.", facts.InstructionText);
         Assert.Equal(RouteSender, facts.Sender);
     }
 
@@ -312,11 +318,10 @@ public sealed class CaseReportDeliveryPersistenceTests
     }
 
     /// <summary>
-    /// An uploaded e-mail sits in no mailbox: it gives the instruction text
-    /// the rules search, but nothing to reply to.
+    /// An uploaded e-mail sits in no mailbox: it gives nothing to reply to.
     /// </summary>
     [Fact]
-    public async Task AnUploadedEmailGivesItsTextButNothingToReplyTo()
+    public async Task AnUploadedEmailGivesNothingToReplyTo()
     {
         await using var harness = await Harness.CreateAsync();
         await harness.SeedUploadedInstructionAsync();
@@ -325,7 +330,6 @@ public sealed class CaseReportDeliveryPersistenceTests
 
         Assert.NotNull(facts);
         Assert.Null(facts.Instruction);
-        Assert.Equal("Uploaded claim\nSent through the CarClaims portal.", facts.InstructionText);
         Assert.Equal(RouteSender, facts.Sender);
     }
 
@@ -478,8 +482,7 @@ public sealed class CaseReportDeliveryPersistenceTests
     [Fact]
     public async Task ANewMessageLeavesFromTheChosenOutgoingMailbox()
     {
-        await using var harness = await Harness.CreateAsync(
-            PrincipalReportSendingRules.Default with { SendFromMailbox = InstructionMailboxAddress });
+        await using var harness = await Harness.CreateAsync(sendFromMailbox: InstructionMailboxAddress);
 
         var command = await harness.SendAsync(harness.Request());
 
@@ -490,26 +493,37 @@ public sealed class CaseReportDeliveryPersistenceTests
     }
 
     /// <summary>
-    /// The instruction's own text meets a rule that reads whether it
-    /// mentions something, so the copy the rule adds is made.
+    /// A Case with no Claim Source meets a rule's "Claim Source is not"
+    /// condition (R1269), so the copy the rule adds is made, labelled by its
+    /// rule; the every-Case Cc is labelled "On every Case".
     /// </summary>
     [Fact]
-    public async Task AnInstructionThatMentionsARulesTextMeetsItsCondition()
+    public async Task ACaseWithNoClaimSourceMeetsAnIsNotCondition()
     {
-        await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
-        {
-            Rules =
+        var claimSource = Guid.NewGuid().ToString("D");
+        await using var harness = await Harness.CreateAsync(new PrincipalReportSendingRules(
             [
-                new(ReportSendingRuleMatch.All,
-                    [new(ReportSendingConditionKind.Mentions, ["Car Claims"])],
-                    new(["carclaims@principal.example"], []))
-            ]
-        });
-        await harness.SeedRetainedInstructionAsync(cc: [], body: "Sent through the CarClaims portal.");
+                .. PrincipalReportSendingRules.Default.EveryCase,
+                new(ReportSendingActionKind.Cc, Addresses: ["always@principal.example"])
+            ],
+            [
+                new(
+                    [[new(ReportSendingFact.ClaimSource, [claimSource], Not: true)]],
+                    [new(ReportSendingActionKind.Cc, Addresses: ["carclaims@principal.example"])])
+            ]));
+        await harness.SeedRetainedInstructionAsync(cc: []);
 
+        var facts = (await harness.FactsAsync())!;
+        var plan = ReportDispatchPolicy.Plan(facts, StartUtc);
         var command = await harness.SendAsync(harness.Request() with { ReviewedRecipients = null });
 
-        Assert.Equal("carclaims@principal.example", Assert.Single(command.Mail.Cc).Address);
+        Assert.Null(facts.ClaimSourceId);
+        Assert.Equal(
+            [("always@principal.example", ReportDispatchPolicy.EveryCaseSource), ("carclaims@principal.example", $"Rule 1: Claim Source not {claimSource}")],
+            plan.Cc.Select(recipient => (recipient.Address, recipient.Source)).ToArray());
+        Assert.Equal(
+            ["always@principal.example", "carclaims@principal.example"],
+            command.Mail.Cc.Select(recipient => recipient.Address).ToArray());
     }
 
     /// <summary>
@@ -594,7 +608,7 @@ public sealed class CaseReportDeliveryPersistenceTests
             StringComparison.Ordinal);
 
         var drawn = complete with { DispatchFingerprint = await harness.FingerprintAsync() };
-        await harness.SetRulesAsync(HeldRules with { Hold = "Check the WhatsApp group." });
+        await harness.SetRulesAsync(Held("Check the WhatsApp group.", "Inspection"));
 
         Assert.Equal(CaseReportDeliveryPolicy.DispatchChanged, await harness.RefusalAsync(drawn));
     }
@@ -602,10 +616,8 @@ public sealed class CaseReportDeliveryPersistenceTests
     [Fact]
     public async Task ARequiredCompanionThatIsNotGeneratedRefusesTheSend()
     {
-        await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true }
-        });
+        await using var harness = await Harness.CreateAsync(
+            EveryCase(new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.VehicleImagesDocument)));
 
         Assert.Contains(
             CaseReportDeliveryPolicy.CompanionWords(CaseReportArtifactKind.ImagePack),
@@ -621,10 +633,8 @@ public sealed class CaseReportDeliveryPersistenceTests
     [Fact]
     public async Task AFiledEstimateTheRulesAttachGoesWithTheReportAndMustStillMatchItsVersion()
     {
-        await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { Audatex = true }
-        });
+        await using var harness = await Harness.CreateAsync(
+            EveryCase(new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex)));
         var filed = await harness.SeedFiledEstimateAsync();
 
         var command = await harness.SendAsync(harness.Request());
@@ -640,10 +650,9 @@ public sealed class CaseReportDeliveryPersistenceTests
             () => readiness.RequireReadyAsync(command.Report, CancellationToken.None));
     }
 
-    private static readonly PrincipalReportSendingRules OfferingRules = PrincipalReportSendingRules.Default with
-    {
-        Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true, OfferRepairInvoices = true }
-    };
+    private static readonly PrincipalReportSendingRules OfferingRules = EveryCase(
+        new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates),
+        new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferRepairInvoices));
 
     /// <summary>
     /// The files the Offer ticks may offer (R1151) are the Case's External
@@ -716,10 +725,9 @@ public sealed class CaseReportDeliveryPersistenceTests
     [Fact]
     public async Task ASendNamingAFileThatIsNotOfferedIsRefusedAndSendsNothing()
     {
-        await using var harness = await Harness.CreateAsync(PrincipalReportSendingRules.Default with
-        {
-            Attach = ReportSendingAttachments.Default with { Audatex = true, OfferExternalEstimates = true }
-        });
+        await using var harness = await Harness.CreateAsync(EveryCase(
+            new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.Audatex),
+            new ReportSendingAction(ReportSendingActionKind.Attach, File: ReportSendingFile.OfferExternalEstimates)));
         var invoice = await harness.SeedCaseFileAsync(DocumentSemanticRole.RepairInvoice);
         var removed = await harness.SeedCaseFileAsync(DocumentSemanticRole.ExternalEstimate, removed: true);
         var attached = await harness.SeedCaseFileAsync(
@@ -811,7 +819,8 @@ public sealed class CaseReportDeliveryPersistenceTests
 
         public EfCaseReportGenerationStore Store { get; }
 
-        public static async Task<Harness> CreateAsync(PrincipalReportSendingRules? rules = null)
+        public static async Task<Harness> CreateAsync(
+            PrincipalReportSendingRules? rules = null, string? sendFromMailbox = null)
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             try
@@ -824,7 +833,7 @@ public sealed class CaseReportDeliveryPersistenceTests
                 // persistence suite on a User actor so every positive and
                 // stale/readiness refusal below exercises the broadened path.
                 var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-                var caseId = await SeedCaseAsync(factory, rules ?? PrincipalReportSendingRules.Default);
+                var caseId = await SeedCaseAsync(factory, rules ?? PrincipalReportSendingRules.Default, sendFromMailbox);
                 var artifact = await SeedConfirmedGenerationAsync(factory, caseId);
                 var lease = await new CaseEditLeases(
                         new EfCaseWorkflowStore(factory, new FixedTimeProvider(StartUtc)), new InProcessCaseEditSignal())
@@ -1284,7 +1293,8 @@ public sealed class CaseReportDeliveryPersistenceTests
 
         private static async Task<Guid> SeedCaseAsync(
             PooledDbContextFactory<PegasusDbContext> factory,
-            PrincipalReportSendingRules rules)
+            PrincipalReportSendingRules rules,
+            string? sendFromMailbox)
         {
             await using var context = await factory.CreateDbContextAsync();
             var organizationId = Guid.NewGuid();
@@ -1303,6 +1313,7 @@ public sealed class CaseReportDeliveryPersistenceTests
                     Code = "DVRP",
                     IsActive = true,
                     ReportSendingRulesJson = EfOrganizationAdministration.ToReportSendingJson(rules),
+                    SendFromMailbox = sendFromMailbox,
                     Version = 0
                 },
                 new IntakeReceiptEntity

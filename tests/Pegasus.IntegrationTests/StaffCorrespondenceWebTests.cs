@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -8,7 +9,9 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -94,7 +97,7 @@ public sealed class StaffCorrespondenceWebTests
             html);
         Assert.Equal(
             "instructions@principal.example; images@repairer.example; office@repairer.example",
-            InputValue(html, "To"));
+            Recipients(html, "To"));
         Assert.Equal(facts.Subject(), InputValue(html, "Subject"));
         var body = TextAreaValue(html, "Body").Replace("\r\n", "\n", StringComparison.Ordinal);
         Assert.Equal(
@@ -122,10 +125,12 @@ public sealed class StaffCorrespondenceWebTests
             ["instructions@principal.example", "images@repairer.example", "office@repairer.example"],
             command.To.Select(recipient => recipient.Address));
 
-        // The status page the send lands on fills nothing in again.
+        // The status page the send lands on shows the send and offers no
+        // second form for it (R1330).
         using var status = await client.GetAsync(response.Headers.Location);
         var statusHtml = await status.Content.ReadAsStringAsync();
-        Assert.Equal(string.Empty, InputValue(statusHtml, "To"));
+        Assert.Contains("data-mail-send-status", statusHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"To\"", statusHtml, StringComparison.Ordinal);
         Assert.Single(recipients.CaseIds);
     }
 
@@ -346,6 +351,320 @@ public sealed class StaffCorrespondenceWebTests
     }
 
     /// <summary>What Graph answers that leaves a send's outcome unknown: a 503, or no answer in time.</summary>
+    /// <summary>
+    /// The one send-e-mail dialogue (operator, 27 November 2026; R1329,
+    /// R1330): Reply all's To and Cc are Send report's boxes, starting on the
+    /// original's recipients; what staff leave in them is what is sent, and
+    /// a To emptied is refused without a send.
+    /// </summary>
+    [Fact]
+    public async Task AReplysToAndCcAreBoxesStaffChangeBeforeSending()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var caseId = await SeedSupportedCaseAsync(baseFactory, seedClient, "SC08 BOXES", "SC08-BOXES");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await IntakeWebDriver.GetHtmlAsync(
+            client, $"/Inbox/{seeded.MessageId:D}?handler=Dialog&compose=reply-all");
+
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", html, StringComparison.Ordinal);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceTo\" type=\"email\" value=\"reply@example.invalid\"", html);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceTo\" type=\"email\" value=\"other-to@example.invalid\"", html);
+        Assert.Matches("<span class=\"recip-box\">\\s*<input name=\"CorrespondenceCc\" type=\"email\" value=\"copy@example.invalid\"", html);
+        Assert.Contains("data-add-mail-recipient", html, StringComparison.Ordinal);
+
+        var form = RetainedReplyForm(html, InputValue(html, "CorrespondenceOperationKey"), "Reviewed response.");
+        form["FixedCorrespondenceCaseReference"] = InputValue(html, "FixedCorrespondenceCaseReference");
+        form["CorrespondenceTo"] = string.Empty;
+        using (var refused = await client.PostAsync(
+                   $"/Inbox/{seeded.MessageId:D}?handler=ReplyAll", new FormUrlEncodedContent(form)))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Contains("At least one recipient is required.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
+        Assert.Equal(0, send.SendCalls);
+
+        form["CorrespondenceTo"] = "changed@example.invalid";
+        form["CorrespondenceCc"] = string.Empty;
+        using var sent = await client.PostAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=ReplyAll", new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailComposeMode.ReplyAll, command.ComposeMode);
+        Assert.Equal("changed@example.invalid", Assert.Single(command.To).Address);
+        Assert.Empty(command.Cc);
+    }
+
+    /// <summary>
+    /// Send chaser opens in the one send-e-mail dialogue over the Case
+    /// (R1330): the composer is fetched into the Case's e-mail dialogue mount,
+    /// and a send from it lands back on the Case with the dialogue reopening
+    /// on the send's status.
+    /// </summary>
+    [Fact]
+    public async Task SendChaserOpensInTheDialogueOverTheCaseAndReturnsThere()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send, chaserRecipients: new FixedChaserRecipients(ChaserRecipients));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = WebUtility.HtmlDecode(await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        Assert.Matches("<a[^>]*data-send-chaser data-mail-compose-open[^>]*>", page);
+        Assert.Contains($"data-mail-chaser=\"/Cases/{caseId:D}/Chaser\"", page, StringComparison.OrdinalIgnoreCase);
+
+        var dialogue = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}/Chaser?handler=Dialog");
+        Assert.Contains("data-dialog=\"mailMessageDialog\"", dialogue, StringComparison.Ordinal);
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", dialogue, StringComparison.Ordinal);
+        Assert.Equal("true", InputValue(dialogue, "Dialog"));
+        Assert.Equal(
+            "instructions@principal.example; images@repairer.example; office@repairer.example",
+            Recipients(dialogue, "To"));
+
+        using var response = await client.PostAsync(
+            FormAction(dialogue, "Send"),
+            new FormUrlEncodedContent(new Dictionary<string, string>(ChaserForm(dialogue, mailboxId))
+            {
+                ["Dialog"] = "true"
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var landing = response.Headers.Location!.ToString();
+        Assert.Contains($"/Cases/{caseId:D}", landing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=chaser", landing, StringComparison.Ordinal);
+        Assert.Contains("mailOperationId=", landing, StringComparison.Ordinal);
+        Assert.Equal(StaffMailPurpose.CaseChaser, Assert.Single(send.Commands).Purpose);
+    }
+
+    private const string RejectionReason = "Outside the area we cover.";
+
+    /// <summary>
+    /// Close case's E-mail the Principal (operator, 27 November 2026; R1321 to
+    /// R1325): the tick stands in the dialog for the rejection alone; ticked,
+    /// the Case closes and the landing opens the Case's e-mail dialogue as a
+    /// reply to the instruction e-mail, its Message the Case rejection
+    /// template rendered for the Case with the reason just given. The same
+    /// address pre-fills nothing while the Case is open, and a Case with an
+    /// instruction e-mail has no new message.
+    /// </summary>
+    [Fact]
+    public async Task ClosingAsRejectedWithTheTickOpensAReplyToTheInstructionOnTheRejectionTemplate()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var instruction = await SeedRetainedCorrespondenceAsync(baseFactory, caseId);
+        await MakeInstructionEmailAsync(baseFactory, caseId, instruction.ReceiptId);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var composerUrl =
+            $"/Inbox/{instruction.MessageId:D}?handler=Dialog&compose=reply&template=CaseRejection&returnCase={caseId:D}&returnSection=files";
+
+        var page = WebUtility.HtmlDecode(await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        Assert.Matches(
+            "<div data-close-email-principal=\"CollisionEngineersRejected\">\\s*<label class=\"check\"><input type=\"checkbox\" name=\"emailPrincipal\" value=\"true\" /> E-mail the Principal</label>",
+            page);
+        Assert.DoesNotContain("data-mail-new-message", page, StringComparison.Ordinal);
+        Assert.Equal(
+            string.Empty,
+            TextAreaValue(await IntakeWebDriver.GetHtmlAsync(client, composerUrl), "CorrespondenceBody"));
+
+        using var closed = await CloseCaseAsync(
+            factory, client, caseId, CaseClosureOutcome.CollisionEngineersRejected, emailPrincipal: true);
+
+        Assert.Equal(HttpStatusCode.Redirect, closed.StatusCode);
+        var landing = closed.Headers.Location!.ToString();
+        Assert.Contains($"/Cases/{caseId:D}", landing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"open={instruction.MessageId:D}", landing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=reply", landing, StringComparison.Ordinal);
+        Assert.Contains("template=CaseRejection", landing, StringComparison.Ordinal);
+        var header = await CaseHeaderAsync(factory, caseId);
+        Assert.Equal(CaseLifecycleState.CollisionEngineersRejected, header.Workflow.State);
+
+        var composer = await IntakeWebDriver.GetHtmlAsync(client, composerUrl);
+        Assert.Equal(
+            RejectionBody(factory, header),
+            TextAreaValue(composer, "CorrespondenceBody").Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.Equal("Re: Source subject", InputValue(composer, "CorrespondenceSubject"));
+        Assert.Contains("reply@example.invalid", composer, StringComparison.Ordinal);
+
+        using var newMessage = await client.GetAsync($"/Cases/{caseId:D}/NewMessage?handler=Dialog");
+        Assert.Equal(HttpStatusCode.NotFound, newMessage.StatusCode);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    /// <summary>
+    /// A rejected Case with no instruction e-mail (operator, 27 November 2026;
+    /// R1323, R1326, R1327): the landing names no message, and the Case's
+    /// e-mail dialogue opens as a new message, To on the report's recipients,
+    /// the subject the registration and the claimant, Message the Case
+    /// rejection template. Its send is a new general message for the Case,
+    /// and the dialogue reopens on the send's status. An open Case has none.
+    /// </summary>
+    [Fact]
+    public async Task ClosingAsRejectedWithNoInstructionEmailOpensANewMessageInTheDialogue()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        var mailboxId = await SeedSendableMailboxAsync(baseFactory);
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var dialogueUrl = $"/Cases/{caseId:D}/NewMessage?handler=Dialog&returnCase={caseId:D}&returnSection=files";
+        using (var open = await client.GetAsync(dialogueUrl))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, open.StatusCode);
+        }
+
+        using var closed = await CloseCaseAsync(
+            factory, client, caseId, CaseClosureOutcome.CollisionEngineersRejected, emailPrincipal: true);
+
+        Assert.Equal(HttpStatusCode.Redirect, closed.StatusCode);
+        var landing = closed.Headers.Location!.ToString();
+        Assert.Contains($"/Cases/{caseId:D}", landing, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=new", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("open=", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("template=", landing, StringComparison.Ordinal);
+        var header = await CaseHeaderAsync(factory, caseId);
+        Assert.Equal(CaseLifecycleState.CollisionEngineersRejected, header.Workflow.State);
+        var page = WebUtility.HtmlDecode(await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        Assert.Contains(
+            $"data-mail-new-message=\"/Cases/{caseId:D}/NewMessage\"", page, StringComparison.OrdinalIgnoreCase);
+
+        var dialogue = await IntakeWebDriver.GetHtmlAsync(client, dialogueUrl);
+        // The one send-e-mail dialogue (R1330), under the e-mail dialogue's id.
+        Assert.Contains("id=\"mailMessageDialog\"", dialogue, StringComparison.Ordinal);
+        Assert.Contains("class=\"dialog mail-compose-dialog dialog--send\"", dialogue, StringComparison.Ordinal);
+        Assert.Matches("<h2 id=\"mailMessageDialog-title\"[^>]*>New message</h2>", dialogue);
+        Assert.Equal(await ReportRecipientsAsync(factory, caseId), Recipients(dialogue, "To"));
+        Assert.Equal(
+            CaseMailSubject.RegistrationAndClaimant(header.Summary.Registration, header.Summary.Claimant),
+            InputValue(dialogue, "Subject"));
+        Assert.Equal(
+            RejectionBody(factory, header),
+            TextAreaValue(dialogue, "Body").Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.Contains($"<option value=\"{mailboxId:D}\"", dialogue, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, send.SendCalls);
+
+        var form = ChaserForm(dialogue, mailboxId);
+        form["To"] = "claims@principal.example";
+        using var response = await client.PostAsync(FormAction(dialogue, "Send"), new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var sent = response.Headers.Location!.ToString();
+        Assert.Contains($"/Cases/{caseId:D}", sent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=new", sent, StringComparison.Ordinal);
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.GeneralCorrespondence, command.Purpose);
+        Assert.Equal(StaffMailComposeMode.New, command.ComposeMode);
+        Assert.Null(command.OriginalMessage);
+        Assert.Equal(mailboxId, command.ApprovedMailboxId);
+        Assert.Equal(caseId, command.ContextId);
+        Assert.Equal(header.Workflow.Version, command.ExpectedContextVersion);
+        Assert.Equal("claims@principal.example", Assert.Single(command.To).Address);
+        Assert.Equal(RejectionBody(factory, header), command.Body.Replace("\r\n", "\n", StringComparison.Ordinal));
+
+        var status = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Cases/{caseId:D}/NewMessage?handler=Dialog&mailOperationId={ExtractOperationId(response.Headers.Location):D}");
+        Assert.Contains("data-mail-send-status", status, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The tick belongs to the rejection (R1322): left on a cancellation it
+    /// changes nothing, and the closed Case has no rejection e-mail. Without
+    /// staff mail the dialog draws no tick.
+    /// </summary>
+    [Fact]
+    public async Task TheEmailTickOnAnotherOutcomeClosesWithNoEmail()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(baseFactory, new(false, true));
+        await SeedSendableMailboxAsync(baseFactory);
+        using (var offline = IntakeWebDriver.CreateClient(baseFactory))
+        {
+            Assert.DoesNotContain(
+                "name=\"emailPrincipal\"",
+                await IntakeWebDriver.GetHtmlAsync(offline, $"/Cases/{caseId:D}"),
+                StringComparison.Ordinal);
+        }
+        using var factory = Configure(baseFactory, send);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var closed = await CloseCaseAsync(
+            factory, client, caseId, CaseClosureOutcome.PrincipalCancelled, emailPrincipal: true);
+
+        Assert.Equal(HttpStatusCode.Redirect, closed.StatusCode);
+        var landing = closed.Headers.Location!.ToString();
+        Assert.DoesNotContain("compose=", landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("open=", landing, StringComparison.Ordinal);
+        Assert.Equal(
+            CaseLifecycleState.PrincipalCancelled,
+            (await CaseHeaderAsync(factory, caseId)).Workflow.State);
+        using var newMessage = await client.GetAsync($"/Cases/{caseId:D}/NewMessage");
+        Assert.Equal(HttpStatusCode.NotFound, newMessage.StatusCode);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    /// <summary>Closes the Case as Actions → Close case posts it from the page in read mode.</summary>
+    private static async Task<HttpResponseMessage> CloseCaseAsync(
+        WebApplicationFactory<Program> factory,
+        HttpClient client,
+        Guid caseId,
+        CaseClosureOutcome outcome,
+        bool emailPrincipal)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["id"] = caseId.ToString("D"),
+            ["expectedVersion"] = (await CaseVersionAsync(factory, caseId)).ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+            ["reason"] = RejectionReason,
+            ["outcome"] = outcome.ToString()
+        };
+        if (emailPrincipal)
+        {
+            form["emailPrincipal"] = "true";
+        }
+        return await client.PostAsync($"/Cases/{caseId:D}/Closure?handler=Close", new FormUrlEncodedContent(form));
+    }
+
+    /// <summary>The Case rejection's built-in body for <paramref name="header"/>, with the reason the close gave.</summary>
+    private static string RejectionBody(WebApplicationFactory<Program> factory, CaseHeader header)
+    {
+        var facts = new CaseRejectionFacts(
+            ReportDispatchPolicy.Greeting(factory.Services.GetRequiredService<TimeProvider>().GetUtcNow()),
+            header.Summary.Registration,
+            header.Summary.Claimant,
+            header.Summary.Reference,
+            header.Summary.Principal,
+            RejectionReason);
+        return EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseRejection), facts.Values());
+    }
+
+    /// <summary>The To addresses the Case's report would be sent to, as the Send report dialog plans them.</summary>
+    private static async Task<string> ReportRecipientsAsync(WebApplicationFactory<Program> factory, Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var facts = await scope.ServiceProvider.GetRequiredService<IReportRecipientSuggestionQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.NotNull(facts);
+        return string.Join(
+            "; ",
+            ReportDispatchPolicy.Plan(facts, scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow())
+                .To.Select(recipient => recipient.Address));
+    }
+
     private static Exception AmbiguousProviderAnswer(bool timedOut) => timedOut
         ? new TaskCanceledException("The request timed out.", new TimeoutException())
         : new HttpRequestException("Microsoft Graph returned 503.", null, HttpStatusCode.ServiceUnavailable);
@@ -358,7 +677,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["OperationKey"] = InputValue(html, "OperationKey"),
             ["ExpectedContextVersion"] = InputValue(html, "ExpectedContextVersion"),
-            ["To"] = InputValue(html, "To"),
+            ["To"] = Recipients(html, "To"),
+            ["Cc"] = Recipients(html, "Cc"),
             ["Subject"] = InputValue(html, "Subject"),
             ["Body"] = TextAreaValue(html, "Body")
         };
@@ -385,14 +705,13 @@ public sealed class StaffCorrespondenceWebTests
     private static async Task SetSendFromAsync(
         IntakeWebApplicationFactory factory, Guid caseId, string address)
     {
-        var json = EfOrganizationAdministration.ToReportSendingJson(
-            Pegasus.Core.Reports.PrincipalReportSendingRules.Default with { SendFromMailbox = address });
+        // Send from is the Principal's own setting since 25 November 2026 (R1267).
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE Principals SET ReportSendingRulesJson = {json} WHERE Id = (SELECT PrincipalId FROM Cases WHERE Id = {caseId})");
+            $"UPDATE Principals SET SendFromMailbox = {address} WHERE Id = (SELECT PrincipalId FROM Cases WHERE Id = {caseId})");
     }
 
     /// <summary>A failed retained reply names its reason in operator words.</summary>
@@ -418,6 +737,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -468,6 +789,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = token,
             ["CorrespondenceOperationKey"] = operationKey,
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -629,6 +952,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: FW: Claim PK12TMZ",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1055,6 +1380,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1146,6 +1473,8 @@ public sealed class StaffCorrespondenceWebTests
                 ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
                 ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
                 ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+                ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+                ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
                 ["FixedCorrespondenceCaseReference"] = InputValue(html, "FixedCorrespondenceCaseReference"),
                 ["CorrespondenceCaseReference"] = typedReference,
                 ["CorrespondenceSubject"] = "Re: Source subject",
@@ -1185,6 +1514,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1419,8 +1750,9 @@ public sealed class StaffCorrespondenceWebTests
         Assert.DoesNotContain("compose=reply", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("compose=forward", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"CorrespondenceOperationKey\"", html, StringComparison.OrdinalIgnoreCase);
-        // The Case's dialog offers what the record offers.
-        using var content = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?handler=Content");
+        // The dialog, opened from the Case or the Inbox, offers what the record offers.
+        using var content = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Dialog&returnCase={caseId:D}&returnSection=files");
         Assert.Equal(HttpStatusCode.OK, content.StatusCode);
         var fragment = await content.Content.ReadAsStringAsync();
         Assert.DoesNotContain("compose=reply", fragment, StringComparison.OrdinalIgnoreCase);
@@ -1438,44 +1770,54 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Empty(send.Commands);
     }
 
+    /// <summary>
+    /// R1278: the Case page opens the Inbox's own dialog, whose Reply, Reply
+    /// all and Forward carry the Case back and whose composer has the Case
+    /// chosen. A Case that is not the message's own is not carried.
+    /// </summary>
     [Fact]
-    public async Task CaseDialogContentOffersTheRecordsReplyAndForwardWithItsCaseChosen()
+    public async Task TheDialogOpenedFromTheCaseOffersReplyAndForwardThatReturnToIt()
     {
         var send = new RecordingStaffMailSend();
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
         var associatedCaseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 ASSOCIATED", "SC08-MSG-DIALOG-ASSOCIATED");
-        var dialogCaseId = await SeedSupportedCaseAsync(
+        var otherCaseId = await SeedSupportedCaseAsync(
             baseFactory, seedClient, "SC08 DIALOG", "SC08-MSG-DIALOG");
         var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
         using var factory = Configure(baseFactory, send);
         using var client = IntakeWebDriver.CreateClient(factory);
-        var dialogReference = await CaseReferenceAsync(factory, dialogCaseId);
-        Assert.NotEqual(await CaseReferenceAsync(factory, associatedCaseId), dialogReference);
+        var associatedReference = await CaseReferenceAsync(factory, associatedCaseId);
 
-        using var content = await client.GetAsync(
-            $"/Inbox/{seeded.MessageId:D}?handler=Content&correspondenceCaseReference={dialogReference}");
-        Assert.Equal(HttpStatusCode.OK, content.StatusCode);
-        var fragment = await content.Content.ReadAsStringAsync();
-        Assert.Contains("data-message-actions", fragment, StringComparison.Ordinal);
+        var fragment = WebUtility.HtmlDecode(await IntakeWebDriver.GetHtmlAsync(
+            client, $"/Inbox/{seeded.MessageId:D}?handler=Dialog&returnCase={associatedCaseId:D}&returnSection=files"));
         foreach (var (mode, label) in new[] { ("reply", "Reply"), ("reply-all", "Reply all"), ("forward", "Forward") })
         {
-            Assert.Contains(
-                $"href=\"/Inbox?open={seeded.MessageId:D}&amp;compose={mode}&amp;correspondenceCaseReference={dialogReference}\"",
+            var link = Regex.Match(
                 fragment,
-                StringComparison.Ordinal);
-            Assert.Contains($">{label}</a>", fragment, StringComparison.Ordinal);
+                $"<a[^>]*href=\"/Inbox/{seeded.MessageId:D}\\?[^\"]*compose={Regex.Escape(mode)}(&[^\"]*)?\"[^>]*>[\\s\\S]*?</a>",
+                RegexOptions.IgnoreCase);
+            Assert.True(link.Success, $"The dialog offers no {label}.");
+            Assert.Contains($"returnCase={associatedCaseId:D}", link.Value, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("returnSection=files", link.Value, StringComparison.Ordinal);
+            Assert.Contains(label, link.Value, StringComparison.Ordinal);
         }
-        Assert.DoesNotContain("<form", fragment, StringComparison.OrdinalIgnoreCase);
 
-        // Reply opens the record's composer with the dialog's Case chosen.
-        using var composer = await client.GetAsync(
-            $"/Inbox/{seeded.MessageId:D}?compose=reply&correspondenceCaseReference={dialogReference}");
-        Assert.Equal(HttpStatusCode.OK, composer.StatusCode);
-        var html = await composer.Content.ReadAsStringAsync();
-        Assert.Equal(dialogReference, InputValue(html, "CorrespondenceCaseReference"));
-        Assert.Contains("reply@example.invalid", html, StringComparison.Ordinal);
+        // Reply opens the composer in the dialog with the Case chosen, and its
+        // send carries the Case back.
+        var composer = await IntakeWebDriver.GetHtmlAsync(
+            client,
+            $"/Inbox/{seeded.MessageId:D}?handler=Dialog&compose=reply&returnCase={associatedCaseId:D}&returnSection=files");
+        Assert.Equal(associatedReference, InputValue(composer, "CorrespondenceCaseReference"));
+        Assert.Equal(associatedCaseId.ToString("D"), InputValue(composer, "returnCase"), ignoreCase: true);
+        Assert.Equal("files", InputValue(composer, "returnSection"));
+        Assert.Contains("reply@example.invalid", composer, StringComparison.Ordinal);
+
+        // Another Case is not the message's: nothing carries it.
+        var elsewhere = await IntakeWebDriver.GetHtmlAsync(
+            client, $"/Inbox/{seeded.MessageId:D}?handler=Dialog&returnCase={otherCaseId:D}&returnSection=files");
+        Assert.DoesNotContain("returnCase=", elsewhere, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, send.SendCalls);
     }
 
@@ -1618,6 +1960,8 @@ public sealed class StaffCorrespondenceWebTests
             ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceSubject"] = "Re: Source subject",
             ["CorrespondenceBody"] = "Reviewed response."
         };
@@ -1976,6 +2320,22 @@ public sealed class StaffCorrespondenceWebTests
         return value.Success ? WebUtility.HtmlDecode(value.Groups["value"].Value) : string.Empty;
     }
 
+    /// <summary>
+    /// Every address the composer drew in the boxes named <paramref name="name"/>,
+    /// as one field: a box holding several addresses is read as all of them (R1329).
+    /// </summary>
+    private static string Recipients(string html, string name) =>
+        string.Join(
+            "; ",
+            Regex.Matches(
+                    html,
+                    $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                .Select(tag => Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase))
+                .Where(value => value.Success)
+                .Select(value => WebUtility.HtmlDecode(value.Groups["value"].Value))
+                .Where(value => value.Length > 0));
+
     private static string ButtonFormAction(string html, string handler)
     {
         var button = Regex.Match(
@@ -2045,6 +2405,8 @@ public sealed class StaffCorrespondenceWebTests
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["CorrespondenceOperationKey"] = operationKey,
         ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
+        ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
+        ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
         ["CorrespondenceCaseReference"] = InputValue(html, "CorrespondenceCaseReference"),
         ["CorrespondenceSubject"] = "Re: Source subject",
         ["CorrespondenceBody"] = body

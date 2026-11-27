@@ -1231,6 +1231,16 @@ public sealed record SaveEstimateRequest(
     public CaseWorkSelector Work { get; init; } = CaseWorkSelector.Current;
 
     /// <summary>
+    /// A new specification that waits for Use repair spec whoever recorded it:
+    /// what the assistant in Pegasus Desktop files under a member of staff's
+    /// name (R1306; <see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated(ActionActor, RepairSpecificationSourceRoute, bool)"/>).
+    /// Left out of the request's replay identity unless it is set, so a save
+    /// recorded before the mark existed still replays.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AwaitsUse { get; init; }
+
+    /// <summary>
     /// The write advances the Case but leaves the lease it was made under in
     /// place: a Glass's return landing its estimate under the staff member's
     /// own session (operator, 6 October 2026). Every other staff write ends

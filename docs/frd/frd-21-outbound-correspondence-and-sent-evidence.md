@@ -9,7 +9,9 @@
   proof.
 - Staff send Reply, Reply all, Forward, Send chaser and Send report from an
   Outgoing approved mailbox, never from their own address. There is no
-  Compose and no default sender. Only signed-in staff with the casework right,
+  Compose and no default sender; the one new message that answers nothing is
+  a rejected Case's e-mail to its Principal when the Case has no instruction
+  e-mail (27 November 2026, R1323). Only signed-in staff with the casework right,
   or the Automation Actor under its `automation.send` scope, can send.
 - Every send is one durable operation. Graph saying "accepted" means
   submitted, not sent. The Sent item that Graph later writes is the evidence.
@@ -247,8 +249,9 @@ the Case's Report section, which opens the report composer dialog while the
 Case is being edited (operator, 4 November 2026, R665, R668;
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md)). There is
 no Compose: Pegasus starts no new correspondence that is not a reply, a
-forward, a chaser, a report or a photo link e-mail (operator, 12 October
-2026; 9 November 2026, [R773](../rulings.md)). The controls
+forward, a chaser, a report, a photo link e-mail or a rejection e-mail
+(operator, 12 October 2026; 9 November 2026, [R773](../rulings.md);
+27 November 2026, [R1323](../rulings.md)). The controls
 exist only when the outbound capability is composed into the application.
 Otherwise those surfaces show no send control and no composer. The technical
 decision is [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md).
@@ -309,7 +312,13 @@ a staff member's own address or any mailbox outside the allowlist.
 35 MB, 36,700,160 encoded bytes (operator, 12 October 2026); there is no
 per-mailbox limit.
 
-**What the composer carries.** To, Subject, Message, Case / PO and From. The
+**What the composer carries.** Every staff send is the one send-e-mail
+dialogue, Send report's (operator, 27 November 2026; [R1330](../rulings.md);
+[design](../design/README.md)): From, To and Cc in two columns, To and Cc as
+boxes staff change, one per address (each after the first To removable, with
+Add To recipient and Add Cc recipient; [R1329](../rulings.md)), then Subject,
+Message and the attachments, and Cancel and Send. The e-mail dialogue's
+composer carries To, Cc, Subject, Message, Case / PO and From. The
 report composer carries From, To and Cc (each box after the first To
 removable), Subject prefilled with the derived subject, Message, and Files,
 one row per document with its include tick, its name as its preview and
@@ -336,8 +345,31 @@ association, and may be changed before sending. A Triage outcome reply's
 Message opens with the Triage outcome template from Administration, rendered
 from the Triage's registration and finding
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
-before Send. A Case chaser opened from the Case's Send chaser is a staff
-send with purpose `CaseChaser` on its own chaser composer
+before Send. A rejection e-mail is opened only by Close case's **E-mail
+the Principal**, once the Case is closed as Collision Engineers rejected
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case); operator,
+27 November 2026; [R1321](../rulings.md) to [R1327](../rulings.md)). For a
+Case with an instruction e-mail it is that message's Reply in the message
+dialog, unchanged but for its Message, which opens with the Case rejection
+template rendered from the Case and the reason the close gave
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); the
+template is applied only when the composer is first drawn, only to a Reply,
+and only while the composer's Case stands closed as Collision Engineers
+rejected. For a Case with no instruction e-mail it is a new message in the
+same dialog (`/Cases/{id}/NewMessage`, which is also its page without
+script): From is the Outgoing mailbox staff choose, starting on the default
+(see From which mailbox); To starts on the addresses the Case's report would
+be sent to, as the Principal's report sending rules plan them
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules);
+[R1326](../rulings.md)); Subject opens with the registration and the
+claimant ([R1327](../rulings.md)); Message is the template; staff change any
+of it and may attach the Case's files. Its send is a general correspondence
+send for the Case with no original message, recorded and shown as any other,
+and the dialog reopens on the send's status. No other Case has a new message:
+one that is not closed as Collision Engineers rejected, and one that has an
+instruction e-mail, are refused. A Case chaser opened from the Case's Send chaser is a staff
+send with purpose `CaseChaser` in the one send-e-mail dialogue over the Case,
+whose page is its own chaser composer
 (`/Cases/{id}/Chaser`): a reply to the Case's instruction email, or, with
 no instruction email, a new message, from the Outgoing mailbox staff choose
 as From, starting on the default (see From which mailbox; R652, R655). To
@@ -371,8 +403,9 @@ for it** is retired (operator, 11 November 2026; [R948](../rulings.md)).
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
 absent. A Reply-To header that is present but unusable gives an empty list.
-The reply screen shows the retained targets and the chosen recipients so
-staff can confirm them. If the retained metadata is missing or the target
+A Reply's To and Cc boxes start on the retained targets, and Reply all's on
+all the original's recipients; staff change them before sending, and what
+the boxes hold is sent (operator, 27 November 2026; [R1329](../rulings.md)). If the retained metadata is missing or the target
 list is empty, Reply and Reply all are refused. The transport Sender, To and
 Cc are never used as substitutes. There is one exception: when the message
 is a Collision Engineers staff forward (the transport sender is on the staff
@@ -400,6 +433,14 @@ correspondence was sent, with the subject
 ([FRD-16](frd-16-case-record-workspace.md#files)). Draft text is not evidence
 until that Sent item exists. A send that Graph refuses leaves no evidence and
 shows as a failure on the composer, never as sent.
+
+The poll also keeps each Sent item's original bytes, in the store intake
+keeps received originals in and under the same content address, so the
+message dialog can show it as it was sent (operator, 26 November 2026,
+R1279; [FRD-20](frd-20-mailbox-workspace.md#message-dialog-and-message-detail)).
+A Sent item retained before that has no kept original and shows as plain
+text. The original is not filed to Box, and failing to keep it never fails
+the poll.
 
 **No Flag, no Delete control. Two moves to Deleted Items.** There is no flag
 control, no delete control and no staff action that moves a chosen message to

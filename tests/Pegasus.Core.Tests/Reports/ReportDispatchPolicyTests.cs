@@ -8,11 +8,13 @@ namespace Pegasus.Core.Tests.Reports;
 
 /// <summary>
 /// The one report dispatch plan (Report Sending SOP v8, rule R12; operator,
-/// 6 October 2026): recipients in the SOP's order with removals winning,
-/// rules that read only what the Case holds (operator, 12 November 2026;
-/// R1023, R1024), the reply or new message, required companions and filed
-/// estimates, holds, a rule's Stop and after-send tasks. Pure: every case
-/// here is facts in, plan out.
+/// 6 October 2026), built from an every-Case list and "If … Then …" rules
+/// (operator, 25 November 2026; R1267): nothing happens unless an action says
+/// so, the every-Case actions apply first and then each applying rule's in
+/// order, an "is" condition reads only what the Case holds (R1024) and its
+/// "is not" holds on an unset fact (R1269), removals win, the first Stop is
+/// kept and tasks are created after sending (R1270). Pure: every case here is
+/// facts in, plan out.
 /// </summary>
 public sealed class ReportDispatchPolicyTests
 {
@@ -39,15 +41,61 @@ public sealed class ReportDispatchPolicyTests
         Assert.All(plan.Cc, copy => Assert.Equal("Instruction Cc", copy.Source));
         Assert.Empty(plan.Removed);
         Assert.Empty(plan.Excluded);
+        Assert.Equal(new ReportSendingAttachments(FeeNoteSeparate: true), plan.Attach);
+    }
+
+    /// <summary>
+    /// Nothing happens that no action says: with an empty every-Case list the
+    /// report still goes to the original sender, but no copy is kept and
+    /// nothing is attached, so no separate fee note is expected.
+    /// </summary>
+    [Fact]
+    public void AnEmptyEveryCaseListKeepsNoCopyAndAttachesNothing()
+    {
+        var plan = Plan(Only([]), instruction: Instruction(cc: ["a@insurer.example"]));
+
+        Assert.Equal(Sender, Assert.Single(plan.To).Address);
+        Assert.Empty(plan.Cc);
+        Assert.Equal(ReportSendingAttachments.None, plan.Attach);
+        Assert.Empty(plan.Warnings);
+        Assert.Empty(plan.Holds);
+        Assert.Null(plan.Stop);
+        Assert.Empty(plan.AfterSendTasks);
     }
 
     [Fact]
-    public void FixedSendToAddressesReplaceTheOriginalSender()
+    public void ASendToOnEveryCaseReplacesTheOriginalSender()
     {
-        var plan = Plan(Rules() with { SendTo = ["fixed@principal.example", "other@principal.example"] });
+        var plan = Plan(Every([SendTo(["fixed@principal.example", "other@principal.example"])]));
 
         Assert.Equal(["fixed@principal.example", "other@principal.example"], plan.To.Select(item => item.Address));
-        Assert.All(plan.To, item => Assert.Equal("Principal To", item.Source));
+        Assert.All(plan.To, item => Assert.Equal(ReportDispatchPolicy.EveryCaseSource, item.Source));
+        Assert.Equal("On every Case", ReportDispatchPolicy.EveryCaseSource);
+    }
+
+    /// <summary>
+    /// A later Send to replaces the To list (R1272 item O): a rule's replaces
+    /// the every-Case one, and a later applying rule's replaces an earlier
+    /// one's; a rule that does not apply changes nothing.
+    /// </summary>
+    [Fact]
+    public void ALaterSendToReplacesTheToList()
+    {
+        var rules = Every(
+            [SendTo(["every@principal.example"])],
+            [
+                Rule(ClaimSource(CarId), [SendTo(["first@rule.example", "second@rule.example"])]),
+                Rule(ClaimSource(SmcId), [SendTo(["not@rule.example"])]),
+                Rule(ClaimSource(CarId), [SendTo(["last@rule.example"])])
+            ]);
+
+        var applied = Plan(rules, claimSource: CarId, claimSourceName: "Car 2 Go");
+        var none = Plan(rules, claimSource: EasdonsId);
+
+        var to = Assert.Single(applied.To);
+        Assert.Equal("last@rule.example", to.Address);
+        Assert.Equal("Rule 3: Claim Source Car 2 Go", to.Source);
+        Assert.Equal("every@principal.example", Assert.Single(none.To).Address);
     }
 
     /// <summary>
@@ -57,7 +105,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void WithoutAMailboxInstructionTheUploadedInstructionsSenderIsAddressed()
     {
-        var facts = Facts(Rules() with { Cc = ["always@principal.example"] }, withInstruction: false)
+        var facts = Facts(Every([Cc(["always@principal.example"])]), withInstruction: false)
             with { OriginalSender = "uploaded@insurer.example" };
 
         var plan = ReportDispatchPolicy.Plan(facts, Now);
@@ -65,7 +113,7 @@ public sealed class ReportDispatchPolicyTests
         var to = Assert.Single(plan.To);
         Assert.Equal("uploaded@insurer.example", to.Address);
         Assert.Equal("Original sender", to.Source);
-        // Reply all keeps an instruction's copies; with no instruction only the Principal's Cc remains.
+        // Reply all keeps an instruction's copies; with no instruction only the every-Case Cc remains.
         Assert.Equal("always@principal.example", Assert.Single(plan.Cc).Address);
     }
 
@@ -73,13 +121,9 @@ public sealed class ReportDispatchPolicyTests
     public void SendToOnlyEmptiesEveryCopy()
     {
         var plan = Plan(
-            Rules() with
-            {
-                SendTo = ["fixed@principal.example"],
-                SendToOnly = true,
-                Cc = ["always@principal.example"],
-                Rules = [Rule(ReportSendingRuleMatch.All, new(["car@rule.example"], []), ClaimSource(CarId))]
-            },
+            Every(
+                [SendTo(["fixed@principal.example"]), new(ReportSendingActionKind.SendToOnly), Cc(["always@principal.example"])],
+                [Rule(ClaimSource(CarId), [Cc(["car@rule.example"])])]),
             instruction: Instruction(cc: ["a@insurer.example"]),
             claimSource: CarId);
 
@@ -87,30 +131,51 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal("fixed@principal.example", Assert.Single(plan.To).Address);
     }
 
+    /// <summary>A rule's Send to only switches every copy off for that send alone.</summary>
+    [Fact]
+    public void ARulesSendToOnlyEmptiesEveryCopyWhenItApplies()
+    {
+        var rules = Every(
+            [SendTo(["fixed@principal.example"]), Cc(["always@principal.example"])],
+            [Rule(ClaimSource(CarId), [new(ReportSendingActionKind.SendToOnly)])]);
+
+        Assert.Empty(Plan(rules, claimSource: CarId).Cc);
+        Assert.Equal(2, Plan(rules, instruction: Instruction(cc: ["a@insurer.example"]), claimSource: SmcId).Cc.Count);
+    }
+
     [Fact]
     public void WithoutReplyAllTheInstructionsCopiesAreDropped()
     {
         var plan = Plan(
-            Rules() with { ReplyAll = false, Cc = ["always@principal.example"] },
+            Only([Cc(["always@principal.example"])]),
             instruction: Instruction(cc: ["a@insurer.example"]));
 
         var copy = Assert.Single(plan.Cc);
         Assert.Equal("always@principal.example", copy.Address);
-        Assert.Equal("Principal Cc", copy.Source);
+        Assert.Equal("On every Case", copy.Source);
+    }
+
+    /// <summary>A rule's Reply all keeps the instruction's copies for that send alone.</summary>
+    [Fact]
+    public void ARulesReplyAllKeepsTheInstructionsCopiesWhenItApplies()
+    {
+        var rules = Only([], [Rule(ClaimSource(CarId), [new(ReportSendingActionKind.ReplyAll)])]);
+
+        Assert.Equal(
+            "a@insurer.example",
+            Assert.Single(Plan(rules, instruction: Instruction(cc: ["a@insurer.example"]), claimSource: CarId).Cc).Address);
+        Assert.Empty(Plan(rules, instruction: Instruction(cc: ["a@insurer.example"]), claimSource: SmcId).Cc);
     }
 
     [Fact]
-    public void CopiesComeFromTheInstructionThePrincipalAndEveryRuleThatHolds()
+    public void CopiesComeFromTheInstructionEveryCaseAndEveryRuleThatApplies()
     {
-        var rules = Rules() with
-        {
-            Cc = ["principal@principal.example"],
-            Rules =
+        var rules = Every(
+            [Cc(["principal@principal.example"])],
             [
-                Rule(ReportSendingRuleMatch.All, new(["car@rule.example"], []), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new(["smc@rule.example"], []), ClaimSource(SmcId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [Cc(["car@rule.example"])]),
+                Rule(ClaimSource(SmcId), [Cc(["smc@rule.example"])])
+            ]);
 
         var plan = Plan(rules, instruction: Instruction(cc: ["a@insurer.example"]), claimSource: CarId, claimSourceName: "Car 2 Go");
 
@@ -118,22 +183,16 @@ public sealed class ReportDispatchPolicyTests
             ["a@insurer.example", "principal@principal.example", "car@rule.example"],
             plan.Cc.Select(copy => copy.Address));
         Assert.Equal(
-            ["Instruction Cc", "Principal Cc", "Rule 1: Claim Source Car 2 Go"],
+            ["Instruction Cc", "On every Case", "Rule 1: Claim Source Car 2 Go"],
             plan.Cc.Select(copy => copy.Source));
     }
 
     [Fact]
     public void NeverCcAndRuleRemovalsAlwaysWinAndAreRecordedWithTheirReason()
     {
-        var rules = Rules() with
-        {
-            Cc = ["principal@principal.example"],
-            NeverCc = ["never@insurer.example"],
-            Rules =
-            [
-                Rule(ReportSendingRuleMatch.All, new([], ["Removed@insurer.example"]), ClaimSource(CarId))
-            ]
-        };
+        var rules = Every(
+            [Cc(["principal@principal.example"]), NeverCc(["never@insurer.example"])],
+            [Rule(ClaimSource(CarId), [NeverCc(["Removed@insurer.example"])])]);
 
         var plan = Plan(
             rules,
@@ -158,15 +217,12 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ExcludedListsEveryAddressKeptOutEvenOneThePlanNeverCopied()
     {
-        var rules = Rules() with
-        {
-            NeverCc = ["never@insurer.example"],
-            Rules =
+        var rules = Every(
+            [NeverCc(["never@insurer.example"])],
             [
-                Rule(ReportSendingRuleMatch.All, new([], ["gone@insurer.example"]), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], ["kept@insurer.example"]), ClaimSource(SmcId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [NeverCc(["gone@insurer.example"])]),
+                Rule(ClaimSource(SmcId), [NeverCc(["kept@insurer.example"])])
+            ]);
 
         var plan = Plan(rules, claimSource: CarId, claimSourceName: "Car 2 Go");
 
@@ -179,14 +235,12 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ARuleThatAddsAndAnotherThatRemovesTheSameAddressLeaveItRemoved()
     {
-        var rules = Rules() with
-        {
-            Rules =
+        var rules = Every(
+            [],
             [
-                Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], ["x@rule.example"]), ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [Cc(["x@rule.example"])]),
+                Rule(ClaimSource(CarId), [NeverCc(["x@rule.example"])])
+            ]);
 
         var plan = Plan(rules, claimSource: CarId, claimSourceName: "Car 2 Go");
 
@@ -198,7 +252,7 @@ public sealed class ReportDispatchPolicyTests
     public void CopiesAreDeduplicatedWithoutCaseAndNeverRepeatATo()
     {
         var plan = Plan(
-            Rules() with { Cc = ["A@Insurer.example", "handler@insurer.example"] },
+            Every([Cc(["A@Insurer.example", "handler@insurer.example"])]),
             instruction: Instruction(cc: ["a@insurer.example", "HANDLER@insurer.example"]));
 
         Assert.Equal("a@insurer.example", Assert.Single(plan.Cc).Address);
@@ -210,20 +264,20 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void AClaimSourceTheCaseHasDecidesTheRule()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []), ClaimSource(CarId));
+        var rule = Rule(ClaimSource(CarId), [Cc(["x@rule.example"])]);
 
-        var holds = Plan(Rules() with { Rules = [rule] }, claimSource: CarId);
-        var other = Plan(Rules() with { Rules = [rule] }, claimSource: SmcId);
+        var holds = Plan(Every([], [rule]), claimSource: CarId);
+        var other = Plan(Every([], [rule]), claimSource: SmcId);
 
         Assert.Equal("x@rule.example", Assert.Single(holds.Cc).Address);
         Assert.Empty(other.Cc);
     }
 
     [Fact]
-    public void AnUnsetClaimSourceMeetsNoRule()
+    public void AnUnsetClaimSourceMeetsNoIsCondition()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []), ClaimSource(CarId));
-        var facts = Facts(Rules() with { Rules = [rule] });
+        var rule = Rule(ClaimSource(CarId), [Cc(["x@rule.example"])]);
+        var facts = Facts(Every([], [rule]));
 
         var plan = ReportDispatchPolicy.Plan(facts, Now);
 
@@ -232,33 +286,29 @@ public sealed class ReportDispatchPolicyTests
     }
 
     /// <summary>
-    /// A rule reads only what the Case holds: a Case with no Claim Source,
-    /// Repairer, outcome, type, sender or instruction text meets no condition
-    /// on that fact, so such a rule copies, holds, stops and reminds nothing
-    /// (operator, 12 November 2026; R1023, R1024).
+    /// An "is" condition reads only what the Case holds: a Case with no Claim
+    /// Source, Repairer, outcome, type or sender meets no "is" condition on
+    /// that fact, so such a rule copies, holds, stops and tasks nothing
+    /// (operator, 12 November 2026; R1023, R1024). Each "is not" of the same
+    /// conditions holds (R1269).
     /// </summary>
     [Fact]
-    public void AFactTheCaseHasNotSetMeetsNoCondition()
+    public void AFactTheCaseHasNotSetMeetsNoIsConditionAndEveryIsNot()
     {
         ReportSendingCondition[] conditions =
         [
             ClaimSource(CarId),
             Repairer(EasdonsId),
-            new(ReportSendingConditionKind.Outcome, ["repairable", "total_loss"]),
-            new(ReportSendingConditionKind.CaseType, ["Inspection", "Audit", "InspectionAndAudit"]),
-            new(ReportSendingConditionKind.SenderNot, ["boss@insurer.example"]),
-            Mentions("Luton")
+            new(ReportSendingFact.Outcome, ["repairable", "total_loss"]),
+            new(ReportSendingFact.CaseType, ["Inspection", "Audit", "InspectionAndAudit"]),
+            new(ReportSendingFact.Sender, ["boss@insurer.example"]),
+            new(ReportSendingFact.RefPrefix, ["a"]),
+            new(ReportSendingFact.PreviousJob, [])
         ];
-        var rules = Rules() with
-        {
-            Rules =
-            [
-                .. conditions.Select(condition => Rule(
-                    ReportSendingRuleMatch.Any,
-                    new(["x@rule.example"], [], Remind: "Tell Andy.", Hold: "Wait.", Stop: "Stop."),
-                    condition))
-            ]
-        };
+        IReadOnlyList<ReportSendingAction> then =
+            [Cc(["x@rule.example"]), AddTask("Tell Andy."), Hold("Wait."), Stop("Stop.")];
+        var rules = Every([], [.. conditions.Select(condition => Rule(condition, then))]);
+        var negated = Every([], [.. conditions.Select(condition => Rule(condition with { Not = true }, then))]);
         // No instruction and no uploaded sender: every fact above is unset.
         var facts = Facts(rules, withInstruction: false);
 
@@ -269,86 +319,123 @@ public sealed class ReportDispatchPolicyTests
         Assert.Empty(plan.Holds);
         Assert.Null(plan.Stop);
         Assert.Empty(plan.AfterSendTasks);
+
+        Assert.All(negated.Rules, rule => Assert.True(ReportDispatchPolicy.Evaluate(rule, facts)));
+        var negatedPlan = ReportDispatchPolicy.Plan(facts with { Rules = negated }, Now);
+        Assert.Equal("x@rule.example", Assert.Single(negatedPlan.Cc).Address);
+        Assert.Equal("Stop.", negatedPlan.Stop);
     }
 
+    /// <summary>
+    /// Each fact's "is" holds only when the Case holds a value among the
+    /// condition's, and its "is not" is exactly the negation, so it holds on
+    /// another value and on an unset fact (R1024, R1269).
+    /// </summary>
     [Theory]
-    [InlineData("all-tt", ReportSendingRuleMatch.All, true, true, true)]
-    [InlineData("all-tf", ReportSendingRuleMatch.All, true, false, false)]
-    [InlineData("all-fn", ReportSendingRuleMatch.All, false, null, false)]
-    [InlineData("all-tn", ReportSendingRuleMatch.All, true, null, false)]
-    [InlineData("any-ff", ReportSendingRuleMatch.Any, false, false, false)]
-    [InlineData("any-tf", ReportSendingRuleMatch.Any, true, false, true)]
-    [InlineData("any-tn", ReportSendingRuleMatch.Any, true, null, true)]
-    [InlineData("any-fn", ReportSendingRuleMatch.Any, false, null, false)]
-    public void AllNeedsEveryConditionAndAnyOneAndAnUnsetFactHoldsForNeither(
-        string row, ReportSendingRuleMatch match, bool? first, bool? second, bool expected)
+    [InlineData("ClaimSource")]
+    [InlineData("Repairer")]
+    [InlineData("Outcome")]
+    [InlineData("CaseType")]
+    [InlineData("Sender")]
+    [InlineData("RefPrefix")]
+    [InlineData("PreviousJob")]
+    public void IsNotIsTheNegationOfIsOnASetAndAnUnsetFact(string fact)
+    {
+        var plain = Facts(Rules(), withInstruction: false);
+        IReadOnlyList<string> values;
+        ReportDispatchFacts matching, other, unset = plain;
+        switch (fact)
+        {
+            case "ClaimSource":
+                values = [CarId.ToString("D")];
+                matching = plain with { ClaimSourceId = CarId };
+                other = plain with { ClaimSourceId = SmcId };
+                break;
+            case "Repairer":
+                values = [EasdonsId.ToString("D")];
+                matching = plain with { RepairerId = EasdonsId };
+                other = plain with { RepairerId = SmcId };
+                break;
+            case "Outcome":
+                values = ["repairable"];
+                matching = plain with { Outcome = "repairable" };
+                other = plain with { Outcome = "total_loss" };
+                break;
+            case "CaseType":
+                values = ["Audit"];
+                matching = plain with { CaseType = CaseType.Audit };
+                other = plain with { CaseType = CaseType.Inspection };
+                break;
+            case "Sender":
+                values = ["boss@insurer.example"];
+                matching = plain with { Instruction = Instruction(sender: "BOSS@insurer.example") };
+                other = plain with { Instruction = Instruction() };
+                break;
+            case "RefPrefix":
+                // A reference is always set; one without the prefix stands for unset.
+                values = ["a"];
+                matching = plain with { CaseReference = "a.PCH26118" };
+                other = plain with { CaseReference = "b.PCH26118" };
+                unset = plain with { CaseReference = "PCH26118" };
+                break;
+            default:
+                // Previous job takes no value: false is its unset.
+                values = [];
+                matching = plain with { PreviousJob = true };
+                other = plain;
+                break;
+        }
+        var parsed = Enum.Parse<ReportSendingFact>(fact);
+        var isCondition = new ReportSendingCondition(parsed, values);
+        var notCondition = isCondition with { Not = true };
+
+        Assert.True(ReportDispatchPolicy.Holds(isCondition, matching));
+        Assert.False(ReportDispatchPolicy.Holds(isCondition, other));
+        Assert.False(ReportDispatchPolicy.Holds(isCondition, unset));
+        Assert.False(ReportDispatchPolicy.Holds(notCondition, matching));
+        Assert.True(ReportDispatchPolicy.Holds(notCondition, other));
+        Assert.True(ReportDispatchPolicy.Holds(notCondition, unset));
+    }
+
+    /// <summary>
+    /// A rule applies when any group has every condition met: the groups are
+    /// joined by or and a group's conditions by and. The Case's Claim Source
+    /// is Car 2 Go and its Repairer unset: a condition names the Case's Claim
+    /// Source for true, another for false, and the unset Repairer for null.
+    /// </summary>
+    [Theory]
+    [InlineData("and-tt", false, true, true, true)]
+    [InlineData("and-tf", false, true, false, false)]
+    [InlineData("and-fn", false, false, null, false)]
+    [InlineData("and-tn", false, true, null, false)]
+    [InlineData("or-ff", true, false, false, false)]
+    [InlineData("or-tf", true, true, false, true)]
+    [InlineData("or-tn", true, true, null, true)]
+    [InlineData("or-fn", true, false, null, false)]
+    public void AGroupNeedsEveryConditionAndARuleAnyGroup(
+        string row, bool anyGroup, bool? first, bool? second, bool expected)
     {
         Assert.NotEmpty(row);
-        // The Case's Claim Source is Car 2 Go; Repairer is unset. A condition
-        // is true when it names the Case's Claim Source, false when it names
-        // another, and reads the unset Repairer for null, which does not hold.
         ReportSendingCondition Condition(bool? value) => value switch
         {
             true => ClaimSource(CarId),
             false => ClaimSource(SmcId),
             _ => Repairer(EasdonsId)
         };
-        var rule = Rule(match, new(["x@rule.example"], []), Condition(first), Condition(second));
-        var facts = Facts(Rules() with { Rules = [rule] }) with { ClaimSourceId = CarId };
+        IReadOnlyList<IReadOnlyList<ReportSendingCondition>> groups = anyGroup
+            ? [[Condition(first)], [Condition(second)]]
+            : [[Condition(first), Condition(second)]];
+        var rule = new ReportSendingRule(groups, [Cc(["x@rule.example"])]);
+        var facts = Facts(Every([], [rule])) with { ClaimSourceId = CarId };
 
         Assert.Equal(expected, ReportDispatchPolicy.Evaluate(rule, facts));
-    }
-
-    // ---- Instruction mentions is searched -----------------------------------
-
-    [Fact]
-    public void InstructionMentionsIsSearchedIgnoringCaseAndSpaces()
-    {
-        var rules = Rules() with
-        {
-            Rules = [Rule(ReportSendingRuleMatch.All, new(["claims@rule.example"], []), Mentions("Car Claims"))]
-        };
-        var mentioned = Facts(rules) with { InstructionText = "Instruction from CARCLAIMS Ltd" };
-        var notMentioned = Facts(rules) with { InstructionText = "Instruction from Luton" };
-
-        var holds = ReportDispatchPolicy.Plan(mentioned, Now);
-        var fails = ReportDispatchPolicy.Plan(notMentioned, Now);
-
-        Assert.Equal("claims@rule.example", Assert.Single(holds.Cc).Address);
-        Assert.Empty(fails.Cc);
-    }
-
-    [Theory]
-    [InlineData("none", null)]
-    [InlineData("blank", "  \n ")]
-    public void InstructionMentionsDoesNotHoldWhenTheCaseHoldsNoInstructionText(string row, string? text)
-    {
-        Assert.NotEmpty(row);
-        var rule = Rule(ReportSendingRuleMatch.All, new(["claims@rule.example"], []), Mentions("Car Claims"));
-        var facts = Facts(Rules() with { Rules = [rule] }) with { InstructionText = text };
-
-        var plan = ReportDispatchPolicy.Plan(facts, Now);
-
-        Assert.False(ReportDispatchPolicy.Evaluate(rule, facts));
-        Assert.Empty(plan.Cc);
-    }
-
-    [Fact]
-    public void MentionsIgnoresCaseAndEveryWhitespace()
-    {
-        Assert.True(ReportDispatchPolicy.Mentions("Instruction for CarClaims", ["car claims"]));
-        Assert.True(ReportDispatchPolicy.Mentions("Car\tClaims\nLtd", ["CARCLAIMS"]));
-        Assert.True(ReportDispatchPolicy.Mentions("From Luton", ["Swinton", "luton"]));
-        Assert.False(ReportDispatchPolicy.Mentions("Instruction", ["Luton", "  "]));
-        Assert.False(ReportDispatchPolicy.Mentions("Instruction", []));
     }
 
     [Fact]
     public void AnOutcomeRuleReadsTheRecordedOutcomeCode()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-            new ReportSendingCondition(ReportSendingConditionKind.Outcome, ["total_loss", "cash_in_lieu"]));
-        var rules = Rules() with { Rules = [rule] };
+        var rule = Rule(new ReportSendingCondition(ReportSendingFact.Outcome, ["total_loss", "cash_in_lieu"]), [Cc(["x@rule.example"])]);
+        var rules = Every([], [rule]);
 
         Assert.True(ReportDispatchPolicy.Evaluate(rule, Facts(rules) with { Outcome = "cash_in_lieu" }));
         Assert.False(ReportDispatchPolicy.Evaluate(rule, Facts(rules) with { Outcome = "repairable" }));
@@ -362,9 +449,8 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ACaseTypeRuleReadsTheCasesType()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-            new ReportSendingCondition(ReportSendingConditionKind.CaseType, ["Audit", "InspectionAndAudit"]));
-        var rules = Rules() with { Rules = [rule] };
+        var rule = Rule(new ReportSendingCondition(ReportSendingFact.CaseType, ["Audit", "InspectionAndAudit"]), [Cc(["x@rule.example"])]);
+        var rules = Every([], [rule]);
 
         Assert.True(ReportDispatchPolicy.Evaluate(rule, Facts(rules) with { CaseType = CaseType.Audit }));
         Assert.True(ReportDispatchPolicy.Evaluate(rule, Facts(rules) with { CaseType = CaseType.InspectionAndAudit }));
@@ -383,10 +469,9 @@ public sealed class ReportDispatchPolicyTests
     {
         static bool Holds(string value, CaseType? caseType, CaseWorkKind? reportWork)
         {
-            var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-                new ReportSendingCondition(ReportSendingConditionKind.CaseType, [value]));
+            var rule = Rule(new ReportSendingCondition(ReportSendingFact.CaseType, [value]), [Cc(["x@rule.example"])]);
             return ReportDispatchPolicy.Evaluate(
-                rule, Facts(Rules() with { Rules = [rule] }) with { CaseType = caseType, ReportWork = reportWork });
+                rule, Facts(Every([], [rule])) with { CaseType = caseType, ReportWork = reportWork });
         }
 
         // The Inspection report of an Inspection + Audit Case.
@@ -419,12 +504,18 @@ public sealed class ReportDispatchPolicyTests
         Assert.False(Holds("Inspection", null, CaseWorkKind.Primary));
     }
 
+    /// <summary>
+    /// Sender reads the effective sender however the Case holds it; "is not"
+    /// holds for another sender and, unlike the retired "Sender not", for a
+    /// Case with no sender (R1269).
+    /// </summary>
     [Fact]
-    public void SenderNotReadsTheEffectiveSenderHoweverTheCaseHoldsIt()
+    public void SenderReadsTheEffectiveSenderHoweverTheCaseHoldsIt()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-            new ReportSendingCondition(ReportSendingConditionKind.SenderNot, ["boss@insurer.example"]));
-        var rules = Rules() with { Rules = [rule] };
+        var rule = Rule(
+            new ReportSendingCondition(ReportSendingFact.Sender, ["boss@insurer.example"], Not: true),
+            [Cc(["x@rule.example"])]);
+        var rules = Every([], [rule]);
 
         Assert.True(ReportDispatchPolicy.Evaluate(rule, Facts(rules)));
         Assert.False(
@@ -432,7 +523,7 @@ public sealed class ReportDispatchPolicyTests
         Assert.False(
             ReportDispatchPolicy.Evaluate(
                 rule, Facts(rules, withInstruction: false) with { OriginalSender = "boss@insurer.example" }));
-        Assert.False(ReportDispatchPolicy.Evaluate(rule, Facts(rules, withInstruction: false)));
+        Assert.True(ReportDispatchPolicy.Evaluate(rule, Facts(rules, withInstruction: false)));
     }
 
     // ---- Reference prefix and Previous job (Report Sending SOP v8) -----------
@@ -441,9 +532,8 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void AReferencePrefixReadsTheReportReference()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-            new ReportSendingCondition(ReportSendingConditionKind.RefPrefix, ["a"]));
-        var rules = Rules() with { Rules = [rule] };
+        var rule = Rule(new ReportSendingCondition(ReportSendingFact.RefPrefix, ["a"]), [Cc(["x@rule.example"])]);
+        var rules = Every([], [rule]);
         ReportDispatchFacts For(string reference) => Facts(rules) with { CaseReference = reference };
 
         Assert.True(ReportDispatchPolicy.Evaluate(rule, For("a.PCH26118")));
@@ -460,9 +550,8 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void APreviousJobReadsTheCrossCaseLookup()
     {
-        var rule = Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []),
-            new ReportSendingCondition(ReportSendingConditionKind.PreviousJob, []));
-        var facts = Facts(Rules() with { Rules = [rule] });
+        var rule = Rule(new ReportSendingCondition(ReportSendingFact.PreviousJob, []), [Cc(["x@rule.example"])]);
+        var facts = Facts(Every([], [rule]));
 
         Assert.True(ReportDispatchPolicy.Evaluate(rule, facts with { PreviousJob = true }));
         Assert.False(ReportDispatchPolicy.Evaluate(rule, facts with { PreviousJob = false }));
@@ -471,41 +560,33 @@ public sealed class ReportDispatchPolicyTests
     }
 
     /// <summary>
-    /// PCH under Report Sending SOP v8: a repairable iRevolution job copies
-    /// iRevolution, reminds and checks the rate card; an audit job (the
-    /// instruction says audit, the reference carries the a. prefix, or the
-    /// vehicle is a previous job) removes that copy, and the removal wins.
+    /// PCH under Report Sending SOP v8, as built: a repairable iRevolution job
+    /// copies iRevolution and adds its tasks; an audit job (the reference
+    /// carries the a. prefix, or the vehicle is a previous job) keeps that
+    /// copy out, and the removal wins. "The instruction says audit" was an
+    /// Instruction mentions condition and is gone (R1268).
     /// </summary>
     [Theory]
-    [InlineData("repairable job", "PCH26118", "Instruction for AB12 CDE", false, true)]
-    [InlineData("audit mentioned", "PCH26118", "Audit instruction for AB12 CDE", false, false)]
-    [InlineData("audit reference", "a.PCH26118", "Instruction for AB12 CDE", false, false)]
-    [InlineData("previous job", "PCH26118", "Instruction for AB12 CDE", true, false)]
+    [InlineData("repairable job", "PCH26118", false, true)]
+    [InlineData("audit reference", "a.PCH26118", false, false)]
+    [InlineData("previous job", "PCH26118", true, false)]
     public void TheAuditRuleRemovesTheCopyTheRepairableRuleAdds(
-        string row, string reference, string text, bool previousJob, bool copied)
+        string row, string reference, bool previousJob, bool copied)
     {
         Assert.NotEmpty(row);
-        var rules = Rules() with
-        {
-            SendTo = ["SBL@connexus.example"],
-            ReplyAll = false,
-            Rules =
+        var rules = Only(
+            [SendTo(["SBL@connexus.example"])],
             [
-                Rule(ReportSendingRuleMatch.All,
-                    new(["repairs@irevolution.example"], [], Remind: "Authorise the garage", RateCard: true),
-                    ClaimSource(CarId),
-                    new ReportSendingCondition(ReportSendingConditionKind.Outcome, ["repairable"])),
-                Rule(ReportSendingRuleMatch.Any,
-                    new([], ["repairs@irevolution.example"]),
-                    Mentions("audit"),
-                    new ReportSendingCondition(ReportSendingConditionKind.RefPrefix, ["a"]),
-                    new ReportSendingCondition(ReportSendingConditionKind.PreviousJob, []))
-            ]
-        };
+                new ReportSendingRule(
+                    [[ClaimSource(CarId), new ReportSendingCondition(ReportSendingFact.Outcome, ["repairable"])]],
+                    [Cc(["repairs@irevolution.example"]), AddTask("Authorise the garage"), AddTask(ReportDispatchPolicy.RateCardTask)]),
+                new ReportSendingRule(
+                    [[new ReportSendingCondition(ReportSendingFact.RefPrefix, ["a"])], [new ReportSendingCondition(ReportSendingFact.PreviousJob, [])]],
+                    [NeverCc(["repairs@irevolution.example"])])
+            ]);
         var facts = Facts(rules, instruction: Instruction(cc: ["handler@pch.example"])) with
         {
             CaseReference = reference,
-            InstructionText = text,
             ClaimSourceId = CarId,
             ClaimSourceName = "iRevolution Repair Network",
             Outcome = "repairable",
@@ -522,8 +603,74 @@ public sealed class ReportDispatchPolicyTests
         {
             var removal = Assert.Single(plan.Removed);
             Assert.Equal("repairs@irevolution.example", removal.Address);
-            Assert.Equal("Rule 2: Mentions audit, Reference prefix a, Previous job", removal.Reason);
+            Assert.Equal("Rule 2: Reference prefix a or Previous job", removal.Reason);
         }
+    }
+
+    // ---- rule labels ---------------------------------------------------------
+
+    /// <summary>
+    /// A rule's recipient is labelled "Rule n:" and its conditions, a group's
+    /// joined by ", " and the groups by " or "; a met Claim Source is the
+    /// Case's own (R1272 item S).
+    /// </summary>
+    [Fact]
+    public void ARulesLabelReadsItsGroupsJoinedByOr()
+    {
+        var rules = Every(
+            [],
+            [
+                new ReportSendingRule(
+                    [
+                        [ClaimSource(CarId), new ReportSendingCondition(ReportSendingFact.Outcome, ["repairable", "total_loss"])],
+                        [new ReportSendingCondition(ReportSendingFact.PreviousJob, [], Not: true)]
+                    ],
+                    [Cc(["x@rule.example"])])
+            ]);
+
+        var plan = Plan(Facts(rules) with { ClaimSourceId = CarId, ClaimSourceName = "Car 2 Go", Outcome = "repairable" });
+
+        Assert.Equal(
+            "Rule 1: Claim Source Car 2 Go, Outcome Repairable or Total loss or No previous job",
+            Assert.Single(plan.Cc, copy => copy.Address == "x@rule.example").Source);
+    }
+
+    /// <summary>
+    /// An "is not" condition reads "{fact} not {values}"; a Claim Source or
+    /// Repairer it names is labelled by the contact's name where the facts
+    /// hold it, else by its id.
+    /// </summary>
+    [Fact]
+    public void AnIsNotConditionIsLabelledWithNot()
+    {
+        const string unknownId = "00000000-0000-4000-8000-0000000000aa";
+        var rules = Every(
+            [],
+            [
+                new ReportSendingRule(
+                    [
+                        [new ReportSendingCondition(ReportSendingFact.ClaimSource, [SmcId.ToString("D"), unknownId], Not: true)],
+                        [
+                            new ReportSendingCondition(ReportSendingFact.Repairer, [EasdonsId.ToString("D")], Not: true),
+                            new ReportSendingCondition(ReportSendingFact.Outcome, ["total_loss"], Not: true),
+                            new ReportSendingCondition(ReportSendingFact.Sender, ["boss@insurer.example"], Not: true),
+                            new ReportSendingCondition(ReportSendingFact.CaseType, ["InspectionAndAudit"], Not: true),
+                            new ReportSendingCondition(ReportSendingFact.RefPrefix, ["a"], Not: true)
+                        ]
+                    ],
+                    [Cc(["x@rule.example"])])
+            ]);
+
+        var plan = Plan(Facts(rules) with
+        {
+            ClaimSourceId = CarId,
+            ContactNames = new Dictionary<Guid, string> { [SmcId] = "SMC", [EasdonsId] = "Easdons" }
+        });
+
+        Assert.Equal(
+            $"Rule 1: Claim Source not SMC or {unknownId} or Repairer not Easdons, Outcome not Total loss, "
+                + "Sender not boss@insurer.example, Case type not Inspection and audit, Reference prefix not a",
+            Assert.Single(plan.Cc, copy => copy.Address == "x@rule.example").Source);
     }
 
     // ---- subject ---------------------------------------------------------------
@@ -534,9 +681,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void AReplyKeepsTheInstructionsSubject()
     {
-        var plan = Plan(
-            Rules() with { SendFromMailbox = "info@collisionengineers.example" },
-            instruction: Instruction(subject: "Claim AB12 CDE"));
+        var plan = Plan(Rules(), instruction: Instruction(subject: "Claim AB12 CDE"));
 
         Assert.Equal("Re: Claim AB12 CDE", plan.Subject);
         Assert.Null(plan.Stop);
@@ -570,9 +715,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void WithNoInstructionTheReportIsANewMessageNamedForTheRegistration()
     {
-        var facts = Facts(
-            Rules() with { SendTo = ["fixed@principal.example"], SendFromMailbox = "info@collisionengineers.example" },
-            withInstruction: false);
+        var facts = Facts(Every([SendTo(["fixed@principal.example"])]), withInstruction: false);
 
         var plan = ReportDispatchPolicy.Plan(facts, Now);
 
@@ -583,9 +726,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ANewMessageIsNamedForTheReferenceWhenTheCaseHasNoRegistration()
     {
-        var facts = Facts(
-            Rules() with { SendTo = ["fixed@principal.example"], SendFromMailbox = "info@collisionengineers.example" },
-            withInstruction: false) with { Registration = null };
+        var facts = Facts(Every([SendTo(["fixed@principal.example"])]), withInstruction: false) with { Registration = null };
 
         Assert.Equal("DVR-31001 Report", ReportDispatchPolicy.Plan(facts, Now).Subject);
     }
@@ -593,7 +734,7 @@ public sealed class ReportDispatchPolicyTests
     // ---- stops ----------------------------------------------------------------
 
     /// <summary>
-    /// Only a rule's Stop stops a delivery: a Case with no instruction and
+    /// Only a Stop action stops a delivery: a Case with no instruction and
     /// nobody to send to is not stopped by the plan.
     /// </summary>
     [Fact]
@@ -606,91 +747,91 @@ public sealed class ReportDispatchPolicyTests
     }
 
     [Fact]
-    public void TheFirstStopThatHoldsStopsTheDeliveryAndAnUnsetFactStopsNothing()
+    public void TheFirstStopThatAppliesStopsTheDeliveryAndAnUnsetFactStopsNothing()
     {
-        var rules = Rules() with
-        {
-            Rules =
+        var rules = Every(
+            [],
             [
-                Rule(ReportSendingRuleMatch.All, new([], [], Stop: "Never sent."), ClaimSource(SmcId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Stop: "First stop."), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Stop: "Second stop."), ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(SmcId), [Stop("Never sent.")]),
+                Rule(ClaimSource(CarId), [Stop("First stop.")]),
+                Rule(ClaimSource(CarId), [Stop("Second stop.")])
+            ]);
 
         Assert.Equal("First stop.", Plan(rules, claimSource: CarId).Stop);
         // Claim Source unset: no stop rule holds.
         Assert.Null(ReportDispatchPolicy.Plan(Facts(rules), Now).Stop);
+        // An every-Case Stop is met first.
+        Assert.Equal(
+            "Every Case.",
+            Plan(rules with { EveryCase = [Stop("Every Case.")] }, claimSource: CarId).Stop);
     }
 
     // ---- holds and after-send tasks ------------------------------------------
 
     [Fact]
-    public void HoldsAreThePrincipalsHoldAndEveryRuleHoldThatApplies()
+    public void HoldsAreTheEveryCaseHoldsAndEveryRuleHoldThatApplies()
     {
-        var rules = Rules() with
-        {
-            Hold = "Authorise the garage.",
-            Rules =
+        var rules = Every(
+            [Hold("Authorise the garage.")],
             [
-                Rule(ReportSendingRuleMatch.All, new([], [], Hold: "Check the WhatsApp group."), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Hold: "Not this one."), ClaimSource(SmcId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Hold: "Authorise the garage."), ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [Hold("Check the WhatsApp group.")]),
+                Rule(ClaimSource(SmcId), [Hold("Not this one.")]),
+                Rule(ClaimSource(CarId), [Hold("Authorise the garage.")])
+            ]);
 
         var plan = Plan(rules, claimSource: CarId);
 
         Assert.Equal(["Authorise the garage.", "Check the WhatsApp group."], plan.Holds);
     }
 
+    /// <summary>
+    /// Tasks are the every-Case tasks then each applying rule's, in order and
+    /// once each; Garage figures is an ordinary rule, "If Outcome is
+    /// Repairable, then Add a Case task" (R1270).
+    /// </summary>
     [Fact]
-    public void AfterSendTasksAreTheRemindersTheRuleRemindsAndTheGarageFigures()
+    public void AfterSendTasksAreEveryTaskThatAppliesInOrderAndOnce()
     {
-        var rules = Rules() with
-        {
-            Reminders = ["Send the WhatsApp.", "Send the WhatsApp."],
-            GarageFigures = true,
-            Rules =
+        var garageFigures = Rule(
+            new ReportSendingCondition(ReportSendingFact.Outcome, ["repairable"]),
+            [AddTask(ReportDispatchPolicy.GarageFiguresTask)]);
+        var withoutGarageFigures = Every(
+            [AddTask("Send the WhatsApp."), AddTask("Send the WhatsApp.")],
             [
-                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Tell Andy."), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Not this one."), ClaimSource(SmcId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Send the WhatsApp."), ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [AddTask("Tell Andy.")]),
+                Rule(ClaimSource(SmcId), [AddTask("Not this one.")]),
+                Rule(ClaimSource(CarId), [AddTask("Send the WhatsApp.")])
+            ]);
+        var rules = withoutGarageFigures with { Rules = [.. withoutGarageFigures.Rules, garageFigures] };
 
         var repairable = ReportDispatchPolicy.Plan(
             Facts(rules) with { ClaimSourceId = CarId, Outcome = "repairable" }, Now);
         var totalLoss = ReportDispatchPolicy.Plan(
             Facts(rules) with { ClaimSourceId = CarId, Outcome = "total_loss" }, Now);
-        var unticked = ReportDispatchPolicy.Plan(
-            Facts(rules with { GarageFigures = false }) with { ClaimSourceId = CarId, Outcome = "repairable" }, Now);
+        var without = ReportDispatchPolicy.Plan(
+            Facts(withoutGarageFigures) with { ClaimSourceId = CarId, Outcome = "repairable" }, Now);
 
         Assert.Equal(
             ["Send the WhatsApp.", "Tell Andy.", ReportDispatchPolicy.GarageFiguresTask],
             repairable.AfterSendTasks);
         Assert.Equal(["Send the WhatsApp.", "Tell Andy."], totalLoss.AfterSendTasks);
-        Assert.Equal(["Send the WhatsApp.", "Tell Andy."], unticked.AfterSendTasks);
+        Assert.Equal(["Send the WhatsApp.", "Tell Andy."], without.AfterSendTasks);
     }
 
     /// <summary>
-    /// A rule's Rate card is the after-sending reminder to check the estimate
-    /// against the card, after that rule's own reminder and once however many
-    /// rules ask for it (operator, 16 October 2026).
+    /// The rate card check is an ordinary task: after the rule's own task,
+    /// and once however many rules add it.
     /// </summary>
     [Fact]
-    public void ARulesRateCardJoinsTheTasksAfterItsReminderOnce()
+    public void ARateCardTaskJoinsTheTasksInRuleOrderOnce()
     {
-        var rules = Rules() with
-        {
-            Reminders = ["Send the WhatsApp."],
-            Rules =
+        var rules = Every(
+            [AddTask("Send the WhatsApp.")],
             [
-                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Tell Andy.", RateCard: true), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], RateCard: true), ClaimSource(SmcId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Remind: "Call the garage.", RateCard: true), ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(CarId), [AddTask("Tell Andy."), AddTask(ReportDispatchPolicy.RateCardTask)]),
+                Rule(ClaimSource(SmcId), [AddTask(ReportDispatchPolicy.RateCardTask)]),
+                Rule(ClaimSource(CarId), [AddTask("Call the garage."), AddTask(ReportDispatchPolicy.RateCardTask)])
+            ]);
 
         var plan = ReportDispatchPolicy.Plan(Facts(rules) with { ClaimSourceId = CarId }, Now);
         var other = ReportDispatchPolicy.Plan(Facts(rules) with { ClaimSourceId = EasdonsId }, Now);
@@ -706,10 +847,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void AnImagesDocumentAndAFigureBreakdownAreRequiredAndMissingUntilConfirmed()
     {
-        var rules = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true, FigureBreakdown = true }
-        };
+        var rules = Every([Attach(ReportSendingFile.VehicleImagesDocument), Attach(ReportSendingFile.FigureBreakdown)]);
 
         var missing = Plan(rules);
         var partly = ReportDispatchPolicy.Plan(
@@ -730,54 +868,56 @@ public sealed class ReportDispatchPolicyTests
     }
 
     /// <summary>
-    /// A rule that holds replaces the attach flags it names for this send, in
-    /// rule order so a later rule wins, and a flag it leaves unnamed keeps the
-    /// Principal's (Report Sending SOP v8, rule R14). Companions, filed
-    /// estimates and warnings all read the result.
+    /// Attach and Do not attach switch one file for the send, the last action
+    /// that names it winning, every-Case first and then the applying rules in
+    /// order (R1272 item P). Companions, filed estimates, warnings and the
+    /// plan's flags all read the result.
     /// </summary>
     [Fact]
-    public void AnAppliedRulesAttachOverrideChangesTheCompanionsEstimatesAndWarnings()
+    public void TheLastActionNamingAFileDecidesTheCompanionsEstimatesAndWarnings()
     {
-        var rules = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { VehicleImagesDocument = true, Audatex = true },
-            Rules =
+        var rules = Every(
+            [Attach(ReportSendingFile.VehicleImagesDocument), Attach(ReportSendingFile.Audatex)],
             [
-                Rule(ReportSendingRuleMatch.All,
-                    new([], [], Attach: new(VehicleImagesDocument: false, FigureBreakdown: true, FeeNoteSeparate: false)),
-                    ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(Audatex: false, Estimate: true)), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(Estimate: false)), ClaimSource(CarId)),
-                Rule(ReportSendingRuleMatch.All, new([], [], Attach: new(FigureBreakdown: false)), ClaimSource(SmcId))
-            ]
-        };
+                Rule(ClaimSource(CarId),
+                [
+                    DoNotAttach(ReportSendingFile.VehicleImagesDocument),
+                    Attach(ReportSendingFile.FigureBreakdown),
+                    DoNotAttach(ReportSendingFile.FeeNoteSeparate)
+                ]),
+                Rule(ClaimSource(CarId), [DoNotAttach(ReportSendingFile.Audatex), Attach(ReportSendingFile.Estimate)]),
+                Rule(ClaimSource(CarId), [DoNotAttach(ReportSendingFile.Estimate)]),
+                Rule(ClaimSource(SmcId), [DoNotAttach(ReportSendingFile.FigureBreakdown)])
+            ]);
         var facts = Facts(rules) with { FiledEstimates = [AudatexFiled, GlassFiled] };
 
-        var principal = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = EasdonsId }, Now);
-        var overridden = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = CarId }, Now);
+        var everyCase = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = EasdonsId }, Now);
+        var applied = ReportDispatchPolicy.Plan(facts with { ClaimSourceId = CarId }, Now);
 
-        Assert.Equal([CaseReportArtifactKind.ImagePack], principal.RequiredCompanions);
-        Assert.Equal([CaseReportArtifactKind.ImagePack], principal.MissingCompanions);
-        Assert.Equal([AudatexFiled], principal.FiledEstimates);
-        Assert.Contains(ReportDispatchPolicy.NoSeparateFeeNoteWarning, principal.Warnings);
+        Assert.Equal([CaseReportArtifactKind.ImagePack], everyCase.RequiredCompanions);
+        Assert.Equal([CaseReportArtifactKind.ImagePack], everyCase.MissingCompanions);
+        Assert.Equal([AudatexFiled], everyCase.FiledEstimates);
+        Assert.Contains(ReportDispatchPolicy.NoSeparateFeeNoteWarning, everyCase.Warnings);
+        Assert.Equal(
+            new ReportSendingAttachments(FeeNoteSeparate: true, Audatex: true, VehicleImagesDocument: true),
+            everyCase.Attach);
 
         // The images document is no longer required and the figure breakdown is;
         // Audatex is off, and the third rule's Estimate off beats the second's on.
-        Assert.Equal([CaseReportArtifactKind.RepairSpecification], overridden.RequiredCompanions);
-        Assert.Equal([CaseReportArtifactKind.RepairSpecification], overridden.MissingCompanions);
-        Assert.Empty(overridden.FiledEstimates);
-        Assert.Empty(overridden.Warnings);
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], applied.RequiredCompanions);
+        Assert.Equal([CaseReportArtifactKind.RepairSpecification], applied.MissingCompanions);
+        Assert.Empty(applied.FiledEstimates);
+        Assert.Empty(applied.Warnings);
+        Assert.Equal(new ReportSendingAttachments(FigureBreakdown: true), applied.Attach);
     }
 
     [Fact]
-    public void TheAudatexTickAttachesTheAudatexEstimatesAndTheEstimateTickTheOthers()
+    public void TheAudatexFileAttachesTheAudatexEstimatesAndTheEstimateFileTheOthers()
     {
         var facts = Facts(Rules()) with { FiledEstimates = [AudatexFiled, GlassFiled, UnknownFiled] };
 
-        PrincipalReportSendingRules Ticks(bool estimate, bool audatex) =>
-            Rules() with { Attach = ReportSendingAttachments.Default with { Estimate = estimate, Audatex = audatex } };
         IReadOnlyList<StaffMailAttachment> Filed(bool estimate, bool audatex) =>
-            [.. ReportDispatchPolicy.Plan(facts with { Rules = Ticks(estimate, audatex) }, Now).FiledEstimates.Select(filed => filed.Attachment)];
+            [.. ReportDispatchPolicy.Plan(facts with { Rules = Files(estimate, audatex) }, Now).FiledEstimates.Select(filed => filed.Attachment)];
 
         Assert.Equal([AudatexFiled.Attachment], Filed(estimate: false, audatex: true));
         Assert.Equal([GlassFiled.Attachment, UnknownFiled.Attachment], Filed(estimate: true, audatex: false));
@@ -787,22 +927,18 @@ public sealed class ReportDispatchPolicyTests
         Assert.Empty(Filed(estimate: false, audatex: false));
         Assert.DoesNotContain(
             ReportDispatchPolicy.NoFiledEstimateWarning,
-            ReportDispatchPolicy.Plan(facts with { Rules = Ticks(true, true) }, Now).Warnings);
+            ReportDispatchPolicy.Plan(facts with { Rules = Files(true, true) }, Now).Warnings);
     }
 
     [Theory]
-    [InlineData("estimate tick, Audatex filed", true, false, "Audatex")]
-    [InlineData("Audatex tick, other filed", false, true, "Glass's")]
-    [InlineData("estimate tick, nothing filed", true, false, null)]
-    [InlineData("Audatex tick, nothing filed", false, true, null)]
-    public void ATickWithNoMatchingFiledEstimateWarns(string row, bool estimate, bool audatex, string? filedProvider)
+    [InlineData("estimate, Audatex filed", true, false, "Audatex")]
+    [InlineData("Audatex, other filed", false, true, "Glass's")]
+    [InlineData("estimate, nothing filed", true, false, null)]
+    [InlineData("Audatex, nothing filed", false, true, null)]
+    public void AFileWithNoMatchingFiledEstimateWarns(string row, bool estimate, bool audatex, string? filedProvider)
     {
         Assert.NotEmpty(row);
-        var rules = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { Estimate = estimate, Audatex = audatex }
-        };
-        var facts = Facts(rules) with
+        var facts = Facts(Files(estimate, audatex)) with
         {
             FiledEstimates = filedProvider is null
                 ? []
@@ -829,49 +965,38 @@ public sealed class ReportDispatchPolicyTests
     // ---- R1151, R1158: offered Case files -----------------------------------
 
     /// <summary>
-    /// Each Offer tick offers the Case's files of its own type, in the Case's
-    /// order, and nothing while it is off (R1151).
+    /// Each Offer file offers the Case's files of its own type, in the Case's
+    /// order, and nothing while no action attaches it (R1151).
     /// </summary>
     [Fact]
-    public void EachOfferTickOffersOnlyTheCasesFilesOfItsType()
+    public void EachOfferFileOffersOnlyTheCasesFilesOfItsType()
     {
         var facts = Facts(Rules()) with { OfferableFiles = [ExternalOffered, InvoiceOffered, SecondExternalOffered] };
 
-        PrincipalReportSendingRules Ticks(bool estimates, bool invoices) =>
-            Rules() with
-            {
-                Attach = ReportSendingAttachments.Default with
-                {
-                    OfferExternalEstimates = estimates,
-                    OfferRepairInvoices = invoices
-                }
-            };
+        PrincipalReportSendingRules Offers(bool estimates, bool invoices) =>
+            Files(estimate: false, audatex: false, offerEstimates: estimates, offerInvoices: invoices);
         IReadOnlyList<OfferedCaseFile> Offered(bool estimates, bool invoices) =>
-            ReportDispatchPolicy.Plan(facts with { Rules = Ticks(estimates, invoices) }, Now).OfferedFiles;
+            ReportDispatchPolicy.Plan(facts with { Rules = Offers(estimates, invoices) }, Now).OfferedFiles;
 
         Assert.Equal([ExternalOffered, SecondExternalOffered], Offered(estimates: true, invoices: false));
         Assert.Equal([InvoiceOffered], Offered(estimates: false, invoices: true));
         Assert.Equal([ExternalOffered, InvoiceOffered, SecondExternalOffered], Offered(estimates: true, invoices: true));
         Assert.Empty(Offered(estimates: false, invoices: false));
         // Offering adds no warning and no hold.
-        var plan = ReportDispatchPolicy.Plan(facts with { Rules = Ticks(true, true) }, Now);
+        var plan = ReportDispatchPolicy.Plan(facts with { Rules = Offers(true, true) }, Now);
         Assert.DoesNotContain(ReportDispatchPolicy.NoFiledEstimateWarning, plan.Warnings);
         Assert.Empty(plan.Holds);
     }
 
     /// <summary>
-    /// A file the Estimate or Audatex tick already attaches is not offered a
-    /// second time (R1158); with that tick off it is offered.
+    /// A file the Estimate file already attaches is not offered a second time
+    /// (R1158); without it the file is offered.
     /// </summary>
     [Fact]
-    public void AFileTheEstimateTickAttachesIsNotOfferedASecondTime()
+    public void AFileTheEstimateAttachesIsNotOfferedASecondTime()
     {
         var recognised = new FiledEstimateAttachment(ExternalOffered.Attachment, "Glass's");
-        var rules = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { Estimate = true, OfferExternalEstimates = true }
-        };
-        var facts = Facts(rules) with
+        var facts = Facts(Files(estimate: true, audatex: false, offerEstimates: true)) with
         {
             FiledEstimates = [recognised],
             OfferableFiles = [ExternalOffered, SecondExternalOffered]
@@ -882,25 +1007,21 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal([SecondExternalOffered], plan.OfferedFiles);
 
         var estimateOff = ReportDispatchPolicy.Plan(
-            facts with { Rules = rules with { Attach = rules.Attach with { Estimate = false } } }, Now);
+            facts with { Rules = Files(estimate: false, audatex: false, offerEstimates: true) }, Now);
         Assert.Empty(estimateOff.FiledEstimates);
         Assert.Equal([ExternalOffered, SecondExternalOffered], estimateOff.OfferedFiles);
     }
 
-    /// <summary>An applied rule's override turns an Offer tick on or off for the send (R1151).</summary>
+    /// <summary>An applying rule turns an Offer file on or off for the send (R1151).</summary>
     [Fact]
-    public void AnAppliedRulesOverrideTurnsAnOfferTickOnOrOff()
+    public void AnApplyingRuleTurnsAnOfferFileOnOrOff()
     {
-        var rules = Rules() with
-        {
-            Attach = ReportSendingAttachments.Default with { OfferExternalEstimates = true },
-            Rules =
+        var rules = Every(
+            [Attach(ReportSendingFile.OfferExternalEstimates)],
             [
-                Rule(ReportSendingRuleMatch.All,
-                    new([], [], Attach: new(OfferExternalEstimates: false, OfferRepairInvoices: true)),
-                    ClaimSource(CarId))
-            ]
-        };
+                Rule(ClaimSource(CarId),
+                    [DoNotAttach(ReportSendingFile.OfferExternalEstimates), Attach(ReportSendingFile.OfferRepairInvoices)])
+            ]);
         var facts = Facts(rules) with { OfferableFiles = [ExternalOffered, InvoiceOffered] };
 
         Assert.Equal([ExternalOffered], ReportDispatchPolicy.Plan(facts with { ClaimSourceId = SmcId }, Now).OfferedFiles);
@@ -913,23 +1034,12 @@ public sealed class ReportDispatchPolicyTests
         var plan = Plan(Rules());
         var confirmed = ReportDispatchPolicy.Plan(
             Facts(Rules()) with { ConfirmedArtifacts = [CaseReportArtifactKind.FeeNote] }, Now);
-        var notSeparate = Plan(Rules() with { Attach = ReportSendingAttachments.Default with { FeeNoteSeparate = false } });
+        var notSeparate = Plan(Only([new(ReportSendingActionKind.ReplyAll)]));
 
         Assert.Contains(ReportDispatchPolicy.NoSeparateFeeNoteWarning, plan.Warnings);
         Assert.Empty(plan.Holds);
         Assert.DoesNotContain(ReportDispatchPolicy.NoSeparateFeeNoteWarning, confirmed.Warnings);
         Assert.Empty(notSeparate.Warnings);
-    }
-
-    [Fact]
-    public void AReportWithoutVehicleImagesRaisesNoWarning()
-    {
-        var plan = ReportDispatchPolicy.Plan(
-            Facts(Rules() with { Attach = ReportSendingAttachments.Default with { ReportImages = false } })
-                with { ConfirmedArtifacts = [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote] }, Now);
-
-        Assert.Empty(plan.Warnings);
-        Assert.Empty(plan.Holds);
     }
 
     // ---- the greeting --------------------------------------------------------
@@ -964,25 +1074,25 @@ public sealed class ReportDispatchPolicyTests
     [InlineData("claim source")]
     [InlineData("repairer")]
     [InlineData("outcome")]
-    [InlineData("instruction text")]
-    [InlineData("rate card")]
-    [InlineData("attach override")]
+    [InlineData("task")]
+    [InlineData("attach")]
+    [InlineData("not")]
     public void TheFingerprintChangesWithEveryFactTheRulesRead(string fact)
     {
         var facts = FingerprintFacts();
-        ReportDispatchFacts WithActions(ReportSendingActions then) =>
-            facts with { Rules = facts.Rules with { Rules = [Rule(ReportSendingRuleMatch.All, then, ClaimSource(CarId))] } };
+        ReportDispatchFacts WithRule(ReportSendingRule rule) =>
+            facts with { Rules = facts.Rules with { Rules = [rule] } };
         var changed = fact switch
         {
-            "rules" => facts with { Rules = facts.Rules with { Hold = "Wait." } },
-            "rate card" => WithActions(new(["x@rule.example"], [], RateCard: true)),
-            "attach override" => WithActions(new(["x@rule.example"], [], Attach: new(Estimate: true))),
+            "rules" => facts with { Rules = facts.Rules with { EveryCase = [.. facts.Rules.EveryCase, Hold("Wait.")] } },
+            "task" => WithRule(Rule(ClaimSource(CarId), [Cc(["x@rule.example"]), AddTask(ReportDispatchPolicy.RateCardTask)])),
+            "attach" => WithRule(Rule(ClaimSource(CarId), [Cc(["x@rule.example"]), Attach(ReportSendingFile.Estimate)])),
+            "not" => WithRule(Rule(ClaimSource(CarId) with { Not = true }, [Cc(["x@rule.example"])])),
             "instruction" => facts with { Instruction = facts.Instruction! with { RetainedMessageId = Guid.NewGuid() } },
             "sender" => facts with { Instruction = facts.Instruction! with { EffectiveSender = "other@insurer.example" } },
             "claim source" => facts with { ClaimSourceId = SmcId },
             "repairer" => facts with { RepairerId = Guid.NewGuid() },
-            "outcome" => facts with { Outcome = "total_loss" },
-            _ => facts with { InstructionText = "Instruction from Luton" }
+            _ => facts with { Outcome = "total_loss" }
         };
 
         Assert.NotEqual(facts.Fingerprint, changed.Fingerprint);
@@ -1001,7 +1111,8 @@ public sealed class ReportDispatchPolicyTests
             {
                 History = new(2, new DateOnly(2026, 9, 1)),
                 ConfirmedArtifacts = [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.FeeNote],
-                FiledEstimates = [AudatexFiled]
+                FiledEstimates = [AudatexFiled],
+                ContactNames = new Dictionary<Guid, string> { [CarId] = "Car 2 Go" }
             }).Fingerprint);
     }
 
@@ -1018,7 +1129,7 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ReconcileLeavesOutACopyStaffRemovedThatTheFormShowed()
     {
-        var facts = Facts(Rules() with { Cc = ["always@principal.example"] });
+        var facts = Facts(Every([Cc(["always@principal.example"])]));
         var plan = ReportDispatchPolicy.Plan(facts, Now);
 
         var (review, removed) = ReportDispatchPolicy.Reconcile(plan, new([Sender], []));
@@ -1031,12 +1142,10 @@ public sealed class ReportDispatchPolicyTests
     [Fact]
     public void ReconcileStripsEveryExcludedAddressWhereverItCameFrom()
     {
-        var rules = Rules() with
-        {
-            NeverCc = ["never@insurer.example"],
-            Rules = [Rule(ReportSendingRuleMatch.All, new([], ["gone@insurer.example"]), Mentions("Luton"))]
-        };
-        var facts = Facts(rules) with { InstructionText = "Instruction from Luton" };
+        var rules = Every(
+            [NeverCc(["never@insurer.example"])],
+            [Rule(ClaimSource(CarId), [NeverCc(["gone@insurer.example"])])]);
+        var facts = Facts(rules) with { ClaimSourceId = CarId, ClaimSourceName = "Car 2 Go" };
         var plan = ReportDispatchPolicy.Plan(facts, Now);
 
         // Neither address was copied by the plan; staff typed both.
@@ -1048,7 +1157,7 @@ public sealed class ReportDispatchPolicyTests
         Assert.Equal([Sender], review.To);
         Assert.Equal(["ok@insurer.example"], review.Cc);
         Assert.Equal(
-            [("never@insurer.example", "never cc"), ("gone@insurer.example", "Rule 1: Mentions Luton")],
+            [("never@insurer.example", "never cc"), ("gone@insurer.example", "Rule 1: Claim Source Car 2 Go")],
             removed.Select(removal => (removal.Address, removal.Reason)));
     }
 
@@ -1056,7 +1165,7 @@ public sealed class ReportDispatchPolicyTests
     public void ReconcileReportsTheCopiesThePlanItselfRemoved()
     {
         var facts = Facts(
-            Rules() with { NeverCc = ["never@insurer.example"] },
+            Every([NeverCc(["never@insurer.example"])]),
             instruction: Instruction(cc: ["never@insurer.example", "ok@insurer.example"]));
         var plan = ReportDispatchPolicy.Plan(facts, Now);
 
@@ -1101,20 +1210,58 @@ public sealed class ReportDispatchPolicyTests
     private static StaffMailAttachment EstimateAttachment(string fileName) => new(
         Guid.NewGuid(), Guid.NewGuid(), new string('e', 64), 500, fileName, "application/pdf");
 
+    /// <summary>The default rules: Reply all, with the separate fee note.</summary>
     private static PrincipalReportSendingRules Rules() => PrincipalReportSendingRules.Default;
 
+    /// <summary>The default every-Case actions and then <paramref name="more"/>, with <paramref name="rules"/>.</summary>
+    private static PrincipalReportSendingRules Every(
+        IReadOnlyList<ReportSendingAction> more,
+        IReadOnlyList<ReportSendingRule>? rules = null) =>
+        new([.. PrincipalReportSendingRules.Default.EveryCase, .. more], rules ?? []);
+
+    /// <summary>Exactly <paramref name="everyCase"/> on every Case, with <paramref name="rules"/>.</summary>
+    private static PrincipalReportSendingRules Only(
+        IReadOnlyList<ReportSendingAction> everyCase,
+        IReadOnlyList<ReportSendingRule>? rules = null) =>
+        new(everyCase, rules ?? []);
+
+    /// <summary>The default rules with the estimate and offer files switched on as asked.</summary>
+    private static PrincipalReportSendingRules Files(
+        bool estimate, bool audatex, bool offerEstimates = false, bool offerInvoices = false)
+    {
+        var actions = new List<ReportSendingAction>();
+        if (estimate) actions.Add(Attach(ReportSendingFile.Estimate));
+        if (audatex) actions.Add(Attach(ReportSendingFile.Audatex));
+        if (offerEstimates) actions.Add(Attach(ReportSendingFile.OfferExternalEstimates));
+        if (offerInvoices) actions.Add(Attach(ReportSendingFile.OfferRepairInvoices));
+        return Every(actions);
+    }
+
+    private static ReportSendingAction SendTo(IReadOnlyList<string> addresses) => new(ReportSendingActionKind.SendTo, addresses);
+
+    private static ReportSendingAction Cc(IReadOnlyList<string> addresses) => new(ReportSendingActionKind.Cc, addresses);
+
+    private static ReportSendingAction NeverCc(IReadOnlyList<string> addresses) => new(ReportSendingActionKind.NeverCc, addresses);
+
+    private static ReportSendingAction Attach(ReportSendingFile file) => new(ReportSendingActionKind.Attach, File: file);
+
+    private static ReportSendingAction DoNotAttach(ReportSendingFile file) => new(ReportSendingActionKind.DoNotAttach, File: file);
+
+    private static ReportSendingAction Hold(string text) => new(ReportSendingActionKind.Hold, Text: text);
+
+    private static ReportSendingAction Stop(string text) => new(ReportSendingActionKind.Stop, Text: text);
+
+    private static ReportSendingAction AddTask(string text) => new(ReportSendingActionKind.Task, Text: text);
+
     private static ReportSendingCondition ClaimSource(Guid id) =>
-        new(ReportSendingConditionKind.ClaimSource, [id.ToString("D")]);
+        new(ReportSendingFact.ClaimSource, [id.ToString("D")]);
 
     private static ReportSendingCondition Repairer(Guid id) =>
-        new(ReportSendingConditionKind.Repairer, [id.ToString("D")]);
+        new(ReportSendingFact.Repairer, [id.ToString("D")]);
 
-    private static ReportSendingCondition Mentions(string text) =>
-        new(ReportSendingConditionKind.Mentions, [text]);
-
-    private static ReportSendingRule Rule(
-        ReportSendingRuleMatch match, ReportSendingActions then, params ReportSendingCondition[] conditions) =>
-        new(match, conditions, then);
+    /// <summary>A rule of one condition.</summary>
+    private static ReportSendingRule Rule(ReportSendingCondition condition, IReadOnlyList<ReportSendingAction> then) =>
+        new([[condition]], then);
 
     private static ReportInstructionMessage Instruction(
         string? sender = Sender,
@@ -1131,14 +1278,15 @@ public sealed class ReportDispatchPolicyTests
         withInstruction ? instruction ?? Instruction() : null);
 
     private static ReportDispatchFacts FingerprintFacts() =>
-        Facts(Rules() with { Rules = [Rule(ReportSendingRuleMatch.All, new(["x@rule.example"], []), ClaimSource(CarId))] })
+        Facts(Every([], [Rule(ClaimSource(CarId), [Cc(["x@rule.example"])])]))
             with
             {
                 ClaimSourceId = CarId,
                 RepairerId = EasdonsId,
-                Outcome = "repairable",
-                InstructionText = "Instruction for AB12 CDE"
+                Outcome = "repairable"
             };
+
+    private static ReportDispatchPlan Plan(ReportDispatchFacts facts) => ReportDispatchPolicy.Plan(facts, Now);
 
     private static ReportDispatchPlan Plan(
         PrincipalReportSendingRules rules,

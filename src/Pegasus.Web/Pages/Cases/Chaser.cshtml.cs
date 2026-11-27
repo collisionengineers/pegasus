@@ -9,7 +9,9 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case ribbon's Send chaser (operator, 12 October 2026): a reply to the
+/// The Case ribbon's Send chaser (operator, 12 October 2026), in the one
+/// send-e-mail dialogue over the Case (R1330; <c>?handler=Dialog</c>), and as
+/// this page without script or after a refused send: a reply to the
 /// Case's instruction email; with no instruction email to reply to, a new
 /// message. It opens addressed, titled and worded from the Case, its From on
 /// the default sender (<see cref="ResolveCaseMailSender"/>: the mailbox the
@@ -34,14 +36,21 @@ public sealed class ChaserModel(
     [BindProperty(SupportsGet = true)]
     public Guid? OperationId { get; set; }
 
+    /// <summary>The chaser was sent from the dialogue over the Case, so the send lands back there.</summary>
+    [BindProperty]
+    public bool Dialog { get; set; }
+
+    public bool InDialog { get; private set; }
+
     [BindProperty]
     public Guid? FromMailboxId { get; set; }
 
+    /// <summary>One box per address (R1329).</summary>
     [BindProperty]
-    public string? To { get; set; }
+    public List<string> To { get; set; } = [];
 
     [BindProperty]
-    public string? Cc { get; set; }
+    public List<string> Cc { get; set; } = [];
 
     [BindProperty]
     public string? Subject { get; set; }
@@ -68,7 +77,21 @@ public sealed class ChaserModel(
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// A send still in flight or of unknown outcome is never sent again from
+    /// here, and one that was sent has nothing left to send.
+    /// </summary>
+    public bool OffersForm => StaffMailAvailable && Senders.Mailboxes.Count > 0
+        && Operation?.State is null or StaffMailState.Failed;
+
+    public Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
+        ShowAsync(inDialog: false, cancellationToken);
+
+    /// <summary>The same composer in the dialogue over the Case, fetched on open.</summary>
+    public Task<IActionResult> OnGetDialogAsync(CancellationToken cancellationToken) =>
+        ShowAsync(inDialog: true, cancellationToken);
+
+    private async Task<IActionResult> ShowAsync(bool inDialog, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -88,11 +111,16 @@ public sealed class ChaserModel(
         {
             Operation = await staffMailSend.GetAsync(actor, operationId, cancellationToken);
         }
-        else
+        if (OffersForm)
         {
             await PrefillAsync(actor, cancellationToken);
         }
 
+        InDialog = inDialog;
+        if (inDialog)
+        {
+            return Partial("Shared/_ChaserComposer", this);
+        }
         return Page();
     }
 
@@ -108,10 +136,16 @@ public sealed class ChaserModel(
             return NotFound();
         }
 
-        var to = ParseRecipients(To);
+        // Each box is read as typed, so an address that is not one is refused, not dropped.
+        var to = StaffMailReplyRecipients.Parse(string.Join("; ", To));
+        var cc = StaffMailReplyRecipients.Parse(string.Join("; ", Cc));
         if (to.Length == 0)
         {
             ModelState.AddModelError(nameof(To), "At least one recipient is required.");
+        }
+        if (to.Concat(cc).Any(recipient => !StaffMailReplyRecipients.IsMailboxAddress(recipient.Address)))
+        {
+            ModelState.AddModelError(nameof(To), "Enter valid recipient addresses.");
         }
         if (string.IsNullOrWhiteSpace(Subject))
         {
@@ -159,7 +193,7 @@ public sealed class ChaserModel(
                     sender.Mode,
                     sender.ReplyTo?.Original,
                     to,
-                    ParseRecipients(Cc),
+                    cc,
                     Subject!.Trim(),
                     Body!.Trim(),
                     selection.Attachments,
@@ -194,8 +228,18 @@ public sealed class ChaserModel(
         {
             Pegasus.Web.Pages.Mail.StaffMailSendLog.Refused(logger, Operation.Id, sender.Mailbox.Id, Operation.FailureCode);
         }
+        if (Dialog)
+        {
+            // Back on the Case, where the dialogue reopens on the send's status.
+            return RedirectToPage(
+                "/Cases/Details",
+                new { id = Id, compose = ComposeLanding, mailOperationId = Operation.Id });
+        }
         return RedirectToPage(new { id = Id, operationId = Operation.Id });
     }
+
+    /// <summary>The landing value that reopens this composer over the Case (site.js).</summary>
+    public const string ComposeLanding = "chaser";
 
     private async Task<bool> LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
@@ -225,11 +269,11 @@ public sealed class ChaserModel(
             details.Workflow.DueWork?.MissingMaterialReason,
             details.Summary.Principal,
             details.Summary.Claimant);
-        if (string.IsNullOrWhiteSpace(To))
+        if (To.All(string.IsNullOrWhiteSpace))
         {
             var recipients = await chaserRecipients.GetAsync(Id, cancellationToken)
                 ?? CaseChaserRecipients.None;
-            To = string.Join("; ", CaseChaserAddressing.To(recipients));
+            To = [.. CaseChaserAddressing.To(recipients)];
         }
         if (string.IsNullOrWhiteSpace(Subject))
         {
@@ -241,10 +285,4 @@ public sealed class ChaserModel(
                 actor, EmailTemplatePurpose.CaseChaser, facts.Values(), cancellationToken);
         }
     }
-
-    private static StaffMailRecipient[] ParseRecipients(string? value) =>
-        (value ?? string.Empty)
-            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(address => new StaffMailRecipient(address, DisplayName: null))
-            .ToArray();
 }

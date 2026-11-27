@@ -2,8 +2,6 @@
 .inbox-layout { grid-template-columns: minmax(0, 1fr); }
 .inbox-filter { border-bottom: 1px solid var(--line, #d2d8db); }
 .inbox-row-action { margin: 0; }
-.message-attachments .attachment-outcome { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-.message-attachments .attachment-reason { color: var(--muted, #626b70); font-size: 12px; }
 
 /* The v42 ledger (v42 I): one head row and one grid row per message, seven
    columns — tick, Case, Type, Subject, Sender, Received, actions. The tick
@@ -114,30 +112,28 @@
 }
 .inbox-bulk-count { min-width: 22px; text-align: center; font-size: 12px; font-weight: 700; }
 
-/* v41 I2, I17: the message dialog is wider than dialog--wide: it holds the body
-   and Decision the full page holds. */
-.dialog.dialog--mail { width: min(100%, 880px); max-height: calc(100vh - 40px); display: flex; flex-direction: column; }
-.dialog--mail .dialog-body { overflow: auto; min-height: 340px; }
+/* v41 I2, I17: the message dialog is wider than dialog--wide. v54 D13: one
+   size whatever it shows, reading or composing; only its body scrolls. */
+.dialog.dialog--mail {
+  width: min(100%, 880px); height: min(700px, calc(100vh - 40px)); max-height: calc(100vh - 40px);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.dialog--mail > .dialog-head, .dialog--mail > .dialog-foot { flex: 0 0 auto; }
+.dialog--mail > .dialog-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .dialog--mail .dialog-head { align-items: flex-start; gap: 16px; padding-bottom: 10px; }
 .dialog--mail .dialog-head h2 { min-width: 0; }
-.dialog--mail > .tabs { margin: 0; padding: 0 20px; }
-.dialog--mail .mail-route, .page-title .mail-route { margin: 0; }
 .mail-dialog-title { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .mail-dialog-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; align-self: flex-start; }
 .mail-dialog-nav { flex-shrink: 0; gap: 2px; padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--line, #d2d8db); }
 .mail-dialog-nav .icon-button[disabled] { opacity: .35; cursor: default; }
-.mail-compose { max-width: 900px; }
-/* v41 I15: From, To and the Case sit on one line; it wraps only when it must. */
-.mail-compose-route { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
-.mail-compose-route .mail-route { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.mail-compose-route .field { flex: 1 1 14rem; min-width: 0; margin: 0; }
-.mail-compose-route .case-picker { flex: 0 1 22rem; }
 
-/* The message on the left; Decision on the right, holding the Classification
-   chips and the Case picker. */
-.mail-read { min-width: 0; }
+/* The head's context bar: the Case, the message's one outcome beside it (v54
+   D12), the Type and an open Query. */
 .mail-context-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--muted, #626b70); }
 .mail-context-sep { color: var(--line-strong, #b7c0c4); }
+.mail-context-bar .status { min-height: 20px; padding: 0 7px; }
+.mail-outcome { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mail-outcome-reason { color: var(--muted, #626b70); font-size: 12px; }
 .mail-settings-menu { position: relative; }
 .mail-settings-menu > summary { list-style: none; }
 .mail-settings-menu > summary::-webkit-details-marker { display: none; }
@@ -157,33 +153,93 @@
 .mail-settings-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .mail-settings-foot { margin: 0; padding: 8px 0 10px; border-top: 1px solid var(--line, #d2d8db); font-size: 11px; color: var(--muted); }
 .mail-type-select { width: 100%; height: 32px; }
-.mail-inline-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line, #d2d8db); }
 .inbox-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; }
 .inbox-toolbar .inbox-search-box { flex: 1 1 220px; }
 .inbox-toolbar select, .inbox-toolbar input, .inbox-toolbar .btn { height: 32px; }
-.mail-read .mail-body p { margin: 0 0 12px; max-width: 72ch; }
-.mail-decision .decision-body { padding-bottom: 12px; }
-.mail-decision-block { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #d2d8db); }
 .mail-decision-label { font-size: 10px; color: var(--muted); }
-.mail-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-/* The chips are the shared .chip; the Decision column draws a pressed one pale,
-   with the tick, as drawn (v41 I9). */
-.mail-chips .chip {
-  height: auto;
-  min-height: 26px;
-  padding: 2px 10px;
-  border-color: var(--line-strong);
-  background: #fff;
-  color: var(--ink);
+
+/* v54 D1 to D4, D9, D10: the conversation as one stack, oldest first. Each
+   message is a native details; the opened one is unfolded and marked with the
+   navy edge. Reading, the stack runs edge to edge in the dialog's body and the
+   notices above it keep their padding. */
+.dialog--mail > .dialog-body.mail-reading { padding: 0; }
+.mail-reading > .notice, .mail-reading > .validation-summary, .mail-reading > .panel { margin: 12px 20px; }
+.mail-stack { min-width: 0; }
+.mail-msg { border-bottom: 1px solid var(--line, #d2d8db); }
+.mail-msg--opened { box-shadow: inset 3px 0 var(--navy); }
+.mail-msg-row {
+  display: grid; grid-template-columns: 14px auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  min-height: var(--row); padding: 6px 20px; list-style: none; cursor: pointer;
+  background: var(--surface); color: var(--ink); font-size: 12.5px;
 }
-.mail-chips .chip:hover { background: var(--surface-2); }
-.mail-chips .chip[aria-pressed="true"] { border-color: var(--navy); background: var(--navy-bg); color: var(--ink); font-weight: 700; }
-.mail-chips .chip .icon { color: var(--green); }
-.mail-decision .case-picker .field-hint { margin: 0; }
-.mail-decision-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line, #d2d8db); }
+.mail-msg-row::-webkit-details-marker { display: none; }
+.mail-msg-row:hover { background: #f3f6f7; }
+.mail-msg[open] > .mail-msg-row { background: var(--surface-2); }
+.mail-msg-row:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+.mail-msg-row .mail-msg-chevron { width: 14px; height: 14px; color: var(--muted); transition: transform 140ms ease; }
+.mail-msg[open] > .mail-msg-row .mail-msg-chevron { transform: rotate(90deg); }
+.mail-msg-row strong { font-weight: 650; white-space: nowrap; }
+.mail-dir { color: var(--ink); font-size: 12px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.mail-dir--sent, .mail-dir--quoted { color: var(--muted); }
+.mail-msg-address, .mail-msg-excerpt {
+  min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap;
+}
+.mail-msg[open] > .mail-msg-row > .mail-msg-excerpt,
+.mail-msg:not([open]) > .mail-msg-row > .mail-msg-address { display: none; }
+.mail-msg-row .mail-att-pill { font-size: 12px; }
+.mail-msg-time { color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mail-msg-main { padding: 12px 20px 20px 44px; }
+.mail-to { margin: 0 0 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+/* The sender's words: body size, real paragraphs, a column of about 72 characters (v54 D9). */
+.mail-text { max-width: 72ch; color: var(--ink); font-size: 13.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.mail-text p { margin: 0 0 12px; }
+.mail-text p:last-child { margin-bottom: 0; }
+/* v54 D5 to D8 (R1277, R1280): a message shown as sent is one white sheet
+   with a hairline border, the width of the message, no mat around it. Its
+   recipients line shares a line with the small switch to plain text, which
+   is pressed while plain text shows. The sheet waits with the viewer's spinner. */
+.mail-msg-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mail-msg-meta:not(:has(> :not([hidden]))) { display: none; }
+.mail-msg-meta .mail-to { min-width: 0; margin-bottom: 0; padding-top: 7px; }
+.mail-format { flex: 0 0 auto; width: 32px; height: 32px; margin-left: auto; }
+.mail-format .icon { width: 15px; height: 15px; }
+.mail-msg-meta .mail-format[aria-pressed="true"] { background: var(--navy-bg); color: var(--navy); }
+.mail-sent { position: relative; }
+.mail-sent[aria-busy="true"] { min-height: 64px; }
+.mail-sent[aria-busy="true"]::after {
+  content: ""; position: absolute; top: 16px; left: 50%; width: 2rem; height: 2rem; margin-left: -1rem;
+  border: 3px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: pegasus-spin .9s linear infinite;
+}
+.mail-sent-frame { display: block; box-sizing: content-box; width: calc(100% - 2px); border: 1px solid var(--line); background: var(--surface); }
+.mail-sent[aria-busy="true"] > .mail-sent-frame { height: 0; visibility: hidden; }
+/* A message's files as rows under it: glyph, name, Type and size, then View and Download (v54 D10). */
+.mail-files { max-width: 72ch; margin-top: 18px; border-top: 1px solid var(--line, #d2d8db); }
+.mail-file {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 44px; padding: 4px 0; border-bottom: 1px solid var(--line, #d2d8db);
+}
+.mail-file-glyph { color: var(--muted); }
+.mail-file-main { display: grid; min-width: 0; }
+.mail-file-name { font-size: 12.5px; font-weight: 650; overflow-wrap: anywhere; }
+.mail-file-meta { color: var(--muted); font-size: 12px; }
+.mail-file-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+/* A file opened from the e-mail dialog shows over it, wherever the page draws its viewer (v54 D11). */
+.evidence-viewer { z-index: 1100; }
 
 @media (max-width: 900px) {
-  .mail-split { grid-template-columns: minmax(0, 1fr); }
+  .mail-msg-row { grid-template-columns: 14px auto auto minmax(0, 1fr) auto; padding: 6px 13px; }
+  .mail-msg-row .mail-att-pill, .mail-msg-row > .mail-msg-nofiles { display: none; }
+  .mail-msg-main { padding: 12px 13px 18px; }
+  .mail-reading > .notice, .mail-reading > .validation-summary, .mail-reading > .panel { margin: 10px 13px; }
+  .mail-file { grid-template-columns: 18px minmax(0, 1fr); }
+  .mail-file-actions { grid-column: 2; justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-msg-row .mail-msg-chevron { transition: none; }
+}
+@media (forced-colors: active) {
+  .mail-msg--opened { border-left: 3px solid CanvasText; }
+  .mail-msg-meta .mail-format[aria-pressed="true"] { outline: 2px solid CanvasText; }
 }
 @media (max-width: 760px) {
   .inbox-layout.pane-layout--2 { grid-template-columns: minmax(0, 1fr); }

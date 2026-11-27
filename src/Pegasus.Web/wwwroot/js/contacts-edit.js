@@ -1,127 +1,135 @@
-// Contacts edit enhancements. The form remains fully usable without this
+// Contacts edit enhancements. Every form remains fully usable without this
 // asset; site.js owns the shared data-dialog-open/close contract.
 (function () {
     'use strict';
 
-    // Salvage matrix: Add band appends a blank row to its category's table and
-    // Remove takes its row away. Each table's spare row is the pattern.
-    var salvageEditor = document.querySelector('[data-salvage-matrix-editor]');
-    if (salvageEditor) {
-        var blankBands = {};
-        salvageEditor.querySelectorAll('[data-salvage-bands]').forEach(function (body) {
-            var spare = body.lastElementChild;
-            if (spare) {
-                var blank = spare.cloneNode(true);
-                blank.querySelectorAll('input:not([type="hidden"])').forEach(function (input) {
-                    input.value = '';
+    // The Sending rules dialog (v55). Without script its And, Or, Add action
+    // and remove buttons post the draft and the server draws it again with a
+    // row more or fewer, and every row shows all its value controls. With
+    // script the same rows are added and removed in place, from the dialog's
+    // own templates, and each row shows only the value its fact or action
+    // reads. Rows are posted as Cond.{group}.{row}.* and Action.{row}.*; the
+    // server reads them in the order of their numbers, so a new row takes a
+    // number above the rest.
+    document.querySelectorAll('[data-sending-rule-form]').forEach(function (form) {
+        var numberAfter = function (selector, part) {
+            var highest = -1;
+            form.querySelectorAll(selector).forEach(function (control) {
+                var value = parseInt((control.getAttribute('name') || '').split('.')[part], 10);
+                if (!isNaN(value) && value > highest) { highest = value; }
+            });
+            return String(highest + 1);
+        };
+        var fit = function (row) {
+            var choice = row.querySelector('[data-rule-choice]');
+            if (!choice) { return; }
+            var value = choice.value;
+            row.querySelectorAll('[data-rule-value]').forEach(function (holder) {
+                holder.hidden = holder.getAttribute('data-rule-value').split(' ').indexOf(value) < 0;
+            });
+            var option = choice.options[choice.selectedIndex];
+            row.querySelectorAll('[data-rule-named]').forEach(function (box) {
+                if (option) { box.setAttribute('aria-label', option.text); }
+            });
+            row.querySelectorAll('[data-rule-task-list]').forEach(function (box) {
+                if (value === 'Task') { box.setAttribute('list', box.getAttribute('data-rule-task-list')); } else { box.removeAttribute('list'); }
+            });
+        };
+        // The structural buttons act in place, so they no longer submit.
+        var prepare = function (root) {
+            root.querySelectorAll('[data-rule-change]').forEach(function (button) { button.type = 'button'; });
+            root.querySelectorAll('[data-rule-condition], [data-rule-action]').forEach(fit);
+        };
+        var instantiate = function (selector, numbers) {
+            var template = form.querySelector(selector);
+            if (!template) { return null; }
+            var fragment = template.content.cloneNode(true);
+            fragment.querySelectorAll('[name], [value], [data-rule-group]').forEach(function (element) {
+                ['name', 'value', 'data-rule-group'].forEach(function (attribute) {
+                    var text = element.getAttribute(attribute);
+                    if (text === null) { return; }
+                    Object.keys(numbers).forEach(function (key) { text = text.split(key).join(numbers[key]); });
+                    element.setAttribute(attribute, text);
                 });
-                blankBands[body.getAttribute('data-salvage-bands')] = blank;
-            }
+            });
+            prepare(fragment);
+            return fragment;
+        };
+        var focusFirst = function (element) {
+            var control = element && element.querySelector('select, input:not([type="hidden"])');
+            if (control) { control.focus(); }
+        };
+
+        prepare(form);
+        form.addEventListener('change', function (event) {
+            var row = event.target.closest('[data-rule-condition], [data-rule-action]');
+            if (row && event.target.matches('[data-rule-choice]')) { fit(row); }
         });
-        salvageEditor.addEventListener('click', function (event) {
-            var add = event.target.closest('[data-add-salvage-band]');
-            if (add) {
-                var category = add.getAttribute('data-add-salvage-band');
-                var body = salvageEditor.querySelector('[data-salvage-bands="' + category + '"]');
-                if (body && blankBands[category]) {
-                    var row = blankBands[category].cloneNode(true);
-                    body.appendChild(row);
-                    row.querySelector('input:not([type="hidden"])').focus();
+        form.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-rule-change]');
+            if (!button) { return; }
+            event.preventDefault();
+            var buttonRow = button.closest('.button-row');
+            var row;
+            var card = button.closest('[data-rule-group]');
+            if (button.hasAttribute('data-rule-add-group')) {
+                var ifBlock = button.closest('[data-rule-if]');
+                var group = numberAfter('[data-rule-if] [name$=".Fact"]', 1);
+                var groupFragment = instantiate('[data-rule-group-template]', { '__G__': group });
+                if (!groupFragment) { return; }
+                // The first group has no "or" before it.
+                if (!ifBlock.querySelector('[data-rule-group]')) {
+                    var divider = groupFragment.querySelector('[data-rule-or]');
+                    if (divider) { divider.remove(); }
                 }
+                var newCard = groupFragment.querySelector('[data-rule-group]');
+                ifBlock.insertBefore(groupFragment, buttonRow);
+                focusFirst(newCard);
                 return;
             }
-            var remove = event.target.closest('[data-remove-salvage-band]');
-            if (remove) {
-                var removed = remove.closest('tr');
-                var bands = removed.closest('[data-salvage-bands]');
-                removed.remove();
-                var addFor = salvageEditor.querySelector('[data-add-salvage-band="' + bands.getAttribute('data-salvage-bands') + '"]');
-                if (addFor) { addFor.focus(); }
-            }
-        });
-    }
-
-    // Report sending: Add address / Add reminder append an input to its list;
-    // Add rule clones the spare blank rule under the next number, and each
-    // condition shows only the value field its kind reads.
-    var sendingEditor = document.querySelector('[data-report-sending-editor]');
-    if (sendingEditor) {
-        var rulesHost = sendingEditor.querySelector('[data-rs-rules]');
-        var textKinds = ['Mentions', 'SenderNot', 'RefPrefix'];
-        var syncCondition = function (condition) {
-            var kind = condition.querySelector('[data-rs-kind]').value;
-            condition.querySelectorAll('[data-rs-value]').forEach(function (field) {
-                var reads = field.getAttribute('data-rs-value');
-                field.hidden = kind === '' || (reads === 'Text' ? textKinds.indexOf(kind) < 0 : reads !== kind);
-            });
-        };
-        var syncRules = function () {
-            sendingEditor.querySelectorAll('[data-rs-condition]').forEach(syncCondition);
-        };
-        syncRules();
-        // Each rule's legend reads its place in the list ("Rule 1", "Rule 2", ...).
-        var numberRules = function () {
-            if (!rulesHost) { return; }
-            rulesHost.querySelectorAll('[data-rs-rule] > legend').forEach(function (legend, index) {
-                legend.textContent = legend.textContent.replace(/[0-9]+\s*$/, String(index + 1));
-            });
-        };
-
-        var blankRule = null;
-        var nextRule = 0;
-        if (rulesHost) {
-            var spareRule = rulesHost.querySelector('[data-rs-rule]:last-child');
-            if (spareRule) { blankRule = spareRule.cloneNode(true); }
-            rulesHost.querySelectorAll('input[name="RuleIndex"]').forEach(function (input) {
-                nextRule = Math.max(nextRule, parseInt(input.value, 10) + 1);
-            });
-        }
-
-        sendingEditor.addEventListener('change', function (event) {
-            var condition = event.target.closest('[data-rs-condition]');
-            if (condition && event.target.matches('[data-rs-kind]')) { syncCondition(condition); }
-        });
-        sendingEditor.addEventListener('click', function (event) {
-            var add = event.target.closest('[data-rs-add]');
-            if (add) {
-                var name = add.getAttribute('data-rs-add');
-                var list = sendingEditor.querySelector('[data-rs-items="' + name + '"]');
-                var input = document.createElement('input');
-                input.name = name;
-                input.type = add.getAttribute('data-rs-type') || 'text';
-                input.autocomplete = 'off';
-                input.setAttribute('aria-label', add.getAttribute('data-rs-label') || name);
-                list.appendChild(input);
-                input.focus();
-                return;
-            }
-            if (event.target.closest('[data-add-rs-rule]')) {
-                if (rulesHost && blankRule) {
-                    var number = nextRule++;
-                    var row = blankRule.cloneNode(true);
-                    row.querySelectorAll('[name],[id],[for]').forEach(function (element) {
-                        ['name', 'id', 'for'].forEach(function (attribute) {
-                            var value = element.getAttribute(attribute);
-                            if (value) { element.setAttribute(attribute, value.replace(/^Rule[0-9]+/, 'Rule' + number)); }
+            if (card && buttonRow && buttonRow.parentElement === card) {
+                var groupNumber = card.getAttribute('data-rule-group');
+                var conditionFragment = instantiate('[data-rule-condition-template]', {
+                    '__G__': groupNumber,
+                    '__C__': (function () {
+                        var highest = -1;
+                        card.querySelectorAll('[name$=".Fact"]').forEach(function (select) {
+                            var value = parseInt(select.getAttribute('name').split('.')[2], 10);
+                            if (!isNaN(value) && value > highest) { highest = value; }
                         });
-                    });
-                    row.querySelector('input[name="RuleIndex"]').value = String(number);
-                    rulesHost.appendChild(row);
-                    numberRules();
-                    syncRules();
-                    row.querySelector('select, input:not([type="hidden"])').focus();
-                }
+                        return String(highest + 1);
+                    })()
+                });
+                if (!conditionFragment) { return; }
+                row = conditionFragment.querySelector('[data-rule-condition]');
+                card.insertBefore(conditionFragment, buttonRow);
+                focusFirst(row);
                 return;
             }
-            var remove = event.target.closest('[data-remove-rs-rule]');
-            if (remove) {
-                remove.closest('[data-rs-rule]').remove();
-                numberRules();
-                var addRule = sendingEditor.querySelector('[data-add-rs-rule]');
-                if (addRule) { addRule.focus(); }
+            if (button.hasAttribute('data-rule-add-action')) {
+                var actionFragment = instantiate('[data-rule-action-template]', { '__A__': numberAfter('[data-rule-then] [name$=".Kind"]', 1) });
+                if (!actionFragment) { return; }
+                row = actionFragment.querySelector('[data-rule-action]');
+                button.closest('[data-rule-then]').insertBefore(actionFragment, buttonRow);
+                focusFirst(row);
+                return;
             }
+            row = button.closest('[data-rule-condition], [data-rule-action]');
+            if (!row) { return; }
+            var block = row.closest('[data-rule-if], [data-rule-then]');
+            row.remove();
+            // A group left with no condition goes, with the "or" that joined it.
+            if (card && !card.querySelector('[data-rule-condition]')) {
+                var before = card.previousElementSibling;
+                var after = card.nextElementSibling;
+                if (before && before.hasAttribute('data-rule-or')) { before.remove(); }
+                else if (after && after.hasAttribute('data-rule-or')) { after.remove(); }
+                card.remove();
+            }
+            var next = block && block.querySelector(':scope > .button-row [data-rule-change]');
+            if (next) { next.focus(); }
         });
-    }
+    });
 
     // Notes on every Case grows to its text, so every line shows without
     // scrolling inside the box; without script it keeps its four rows.
@@ -137,17 +145,20 @@
         if (document.fonts) { document.fonts.ready.then(fit); }
     });
 
-    var imageBased = document.getElementById('LocationIsImageBasedAssessment');
-    if (!imageBased) {
+    // Inspection mode: the default inspection location belongs to a physical
+    // address, so it shows only for that mode. Without script it always shows,
+    // and Image Based Assessment clears it when the contact is saved.
+    var mode = document.querySelector('[data-inspection-mode]');
+    if (!mode) {
         return;
     }
 
     var physicalFields = document.querySelectorAll('[data-location-physical]');
     var toggleLocation = function () {
         physicalFields.forEach(function (field) {
-            field.hidden = imageBased.checked;
+            field.hidden = mode.value === 'ImageBasedAssessment';
         });
     };
-    imageBased.addEventListener('change', toggleLocation);
+    mode.addEventListener('change', toggleLocation);
     toggleLocation();
 })();

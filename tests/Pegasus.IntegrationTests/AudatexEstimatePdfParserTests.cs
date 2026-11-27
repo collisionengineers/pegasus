@@ -361,6 +361,67 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal(2.1m, result.SourceTotals!.PanelWorkUnits);
     }
 
+    /// <summary>
+    /// Page one's header, above the assessment number, names the company that
+    /// produced the report; the vehicle details give its VIN and odometer
+    /// (R1140, R1141). The layout is the real reports' (R1281).
+    /// </summary>
+    [Fact]
+    public void ReadsTheHeaderVinAndOdometerTheReportPrints()
+    {
+        var result = Parse(AudatexEstimateFixture.Build(
+            header: "TEL: COLLISION ENGINEERS", vin: "WVWZZZ1KZAW000001", odometer: "24,534 miles"));
+
+        Assert.Equal("TEL: COLLISION ENGINEERS 1 TEST ROAD", result.Header);
+        Assert.Equal("WVWZZZ1KZAW000001", result.Vin);
+        Assert.Equal(24534L, result.Mileage);
+        Assert.Equal("miles", result.MileageUnit);
+        // The lines are read exactly as before.
+        Assert.Equal(6, result.Lines.Count);
+    }
+
+    /// <summary>A report with no header, VIN or odometer states none of them.</summary>
+    [Fact]
+    public void AReportThatPrintsNoneStatesNone()
+    {
+        var result = Parse(AudatexEstimateFixture.Build());
+
+        Assert.Null(result.Header);
+        Assert.Null(result.Vin);
+        Assert.Null(result.Mileage);
+        Assert.Null(result.MileageUnit);
+    }
+
+    /// <summary>
+    /// "Not Known" is no reading; a reading with no unit is in miles (R1080)
+    /// and one in kilometres keeps its unit; a word in the Model Specs column
+    /// beside an empty value is never read as the value.
+    /// </summary>
+    [Theory]
+    [InlineData("not-known", "Not Known", null, null)]
+    [InlineData("no-unit", "34277", 34277L, "miles")]
+    [InlineData("km", "51200 km", 51200L, "kilometres")]
+    public void ReadsTheOdometerAsPrinted(string name, string odometer, long? mileage, string? unit)
+    {
+        Assert.NotEmpty(name);
+        var result = Parse(AudatexEstimateFixture.Build(odometer: odometer, vin: string.Empty));
+
+        Assert.Equal(mileage, result.Mileage);
+        Assert.Equal(unit, result.MileageUnit);
+        Assert.Null(result.Vin);
+    }
+
+    /// <summary>A VIN the report prints twice differently is not returned; the same one twice is.</summary>
+    [Theory]
+    [InlineData("WVWZZZ1KZAW000001", "WVWZZZ1KZAW000001")]
+    [InlineData("WVWZZZ1KZAW000002", null)]
+    public void AVinPrintedTwiceIsReturnedOnlyWhenTheyAgree(string secondVin, string? expected)
+    {
+        var result = Parse(AudatexEstimateFixture.Build(vin: "WVWZZZ1KZAW000001", secondVin: secondVin));
+
+        Assert.Equal(expected, result.Vin);
+    }
+
     [Fact]
     public void RejectsAPdfThatIsNotAnAudatexReport()
     {

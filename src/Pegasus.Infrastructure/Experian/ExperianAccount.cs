@@ -1,13 +1,14 @@
+using Pegasus.Core.Identity;
+
 namespace Pegasus.Infrastructure.Experian;
 
 /// <summary>
 /// One Experian Automotive API account and where it signs in: Collision
-/// Engineers' client and user credentials, delivered from Key Vault, and the
-/// two endpoint addresses (ADR-0089). Experian issues an account per
-/// permission, so each act is handed its own: <c>Experian:HistoryAccount</c>
-/// holds condition records for Run Experian check and
-/// <c>Experian:CapAccount</c> holds CAP valuations (R1207, R1215). The
-/// addresses are shared.
+/// Engineers' client and user credentials, held in the database (R1288,
+/// ADR-0091), and the two endpoint addresses, which are settings (ADR-0089).
+/// Experian issues an account per permission, so each act is handed its own:
+/// the history login holds condition records for Run Experian check and the
+/// CAP login holds CAP valuations (R1207, R1215). The addresses are shared.
 ///
 /// <para>
 /// A class rather than a record on purpose: a record's generated
@@ -17,6 +18,7 @@ namespace Pegasus.Infrastructure.Experian;
 public sealed class ExperianAccount
 {
     private ExperianAccount(
+        long generation,
         Uri baseUri,
         Uri tokenUri,
         string clientId,
@@ -24,6 +26,7 @@ public sealed class ExperianAccount
         string username,
         string password)
     {
+        Generation = generation;
         BaseUri = baseUri;
         TokenUri = tokenUri;
         ClientId = clientId;
@@ -31,6 +34,9 @@ public sealed class ExperianAccount
         Username = username;
         Password = password;
     }
+
+    /// <summary>The login's generation: a token signed in under another is not reused.</summary>
+    public long Generation { get; }
 
     /// <summary>The API root, for example <c>https://sandbox-uk-api.experian.com/ukci/automotive</c>.</summary>
     public Uri BaseUri { get; }
@@ -46,37 +52,39 @@ public sealed class ExperianAccount
 
     public string Password { get; }
 
-    /// <summary>The account Run Experian check signs in with: condition records (R1215).</summary>
-    public const string HistoryAccountSection = "Experian:HistoryAccount";
-
-    /// <summary>The account CAP's Get valuation signs in with: CAP valuations (R1207, R1215).</summary>
-    public const string CapAccountSection = "Experian:CapAccount";
-
     /// <summary>
-    /// A host hands over its own configuration lookup and names the account's
-    /// section, so which keys the account needs is decided here. A value the
-    /// platform left as an unresolved Key Vault reference is named as that,
-    /// not as a bad secret. Both addresses are HTTPS on an Experian host.
+    /// The login as the database holds it (R1288, ADR-0091), read on each
+    /// call, and the two addresses from the host's configuration lookup. A
+    /// login not set, or one the key ring can no longer read, is named as
+    /// that, never as a bad secret. Both addresses are HTTPS on an Experian
+    /// host.
     /// </summary>
-    public static ExperianAccount Create(Func<string, string?> read, string section)
+    internal static ExperianAccount Create(IntegrationLoginMaterial? login, Func<string, string?> read)
     {
         ArgumentNullException.ThrowIfNull(read);
-        ArgumentException.ThrowIfNullOrWhiteSpace(section);
+        if (login is null
+            || login.Login is not (IntegrationLogin.ExperianHistory or IntegrationLogin.ExperianCap))
+        {
+            throw new InvalidOperationException("The Experian login is not set.");
+        }
+
+        var loginName = login.Login == IntegrationLogin.ExperianHistory ? "Experian history" : "Experian CAP";
         return new(
+            login.Generation,
             ExperianUri(read, "Experian:BaseUri"),
             ExperianUri(read, "Experian:TokenUri"),
-            Require(read, $"{section}:ClientId").Trim(),
-            Require(read, $"{section}:ClientSecret"),
-            Require(read, $"{section}:Username").Trim(),
+            login.Require(IntegrationLoginField.ClientId, loginName).Trim(),
+            login.Require(IntegrationLoginField.ClientSecret, loginName),
+            login.Require(IntegrationLoginField.Username, loginName).Trim(),
             // A password is used exactly as it was stored.
-            Require(read, $"{section}:Password"));
+            login.Require(IntegrationLoginField.Password, loginName));
     }
 
     public override string ToString() => nameof(ExperianAccount);
 
     private static Uri ExperianUri(Func<string, string?> read, string key)
     {
-        var value = Require(read, key).Trim();
+        var value = Setting(read, key).Trim();
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps
             || !uri.Host.EndsWith(".experian.com", StringComparison.OrdinalIgnoreCase)
@@ -89,33 +97,14 @@ public sealed class ExperianAccount
         return uri;
     }
 
-    private static string Require(Func<string, string?> read, string key)
+    private static string Setting(Func<string, string?> read, string key)
     {
         var value = read(key);
-        if (string.IsNullOrWhiteSpace(value) || HasControlCharacter(value))
+        if (string.IsNullOrWhiteSpace(value) || IntegrationLoginMaterial.HasControlCharacter(value))
         {
             throw new InvalidOperationException($"{key} is required for the Experian check.");
         }
 
-        if (KeyVaultReference.IsUnresolved(value))
-        {
-            throw new InvalidOperationException(
-                $"{key} is an unresolved Key Vault reference; the platform has not resolved the secret.");
-        }
-
         return value;
-    }
-
-    private static bool HasControlCharacter(string value)
-    {
-        foreach (var character in value)
-        {
-            if (char.IsControl(character))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

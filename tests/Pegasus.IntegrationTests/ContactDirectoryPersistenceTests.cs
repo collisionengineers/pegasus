@@ -173,16 +173,59 @@ public sealed class ContactDirectoryPersistenceTests
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
+        // The mode is the Principal's, so its version moves with the contact's
+        // (R1267); the Cases already made keep the mode they took.
+        var principal = await context.Principals
+            .Where(item => item.OrganizationId == request.OrganizationId)
+            .Select(item => new { item.InspectionMode, item.Version })
+            .SingleAsync();
         Assert.Equal(
-            PrincipalInspectionModePolicy.ImageBasedAssessmentCode,
-            await context.Principals
-                .Where(item => item.OrganizationId == request.OrganizationId)
-                .Select(item => item.InspectionMode)
-                .SingleAsync());
+            (PrincipalInspectionModePolicy.ImageBasedAssessmentCode, 1L),
+            (principal.InspectionMode, principal.Version));
         var history = await context.ActionHistory.SingleAsync(item => item.CorrelationId == changedKey);
         Assert.Equal(("contact", request.OrganizationId.ToString("D"), "contact_saved"), (history.AggregateType, history.AggregateId, history.EventKind));
         Assert.Equal(CaseInspectionMode.PhysicalAddress, HistoryRecord(history.BeforeJson).PrincipalInspectionMode);
         Assert.Equal(CaseInspectionMode.ImageBasedAssessment, HistoryRecord(history.AfterJson).PrincipalInspectionMode);
+    }
+
+    /// <summary>
+    /// A new Principal that posts no fee takes the standard one; one that
+    /// posts a fee keeps it; and a fee, a default inspection location or a
+    /// Send from mailbox is refused for any other type (R1266, R1267).
+    /// </summary>
+    [Fact]
+    public async Task ANewPrincipalTakesTheStandardFeeAndOtherTypesTakeNoCaseDefaults()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var standard = await SaveAsync(database, NewPrincipal("Standard fee principal", "CPF01") with { DefaultFee = null });
+        var agreed = await SaveAsync(database, NewPrincipal("Agreed fee principal", "CPF02") with
+        {
+            DefaultFee = 199.99m,
+            SendFromMailbox = "engineers@collisionengineers.co.uk"
+        });
+
+        Assert.Equal(PrincipalDefaultFeePolicy.Standard, standard.DefaultFee);
+        Assert.Equal(199.99m, agreed.DefaultFee);
+        Assert.Equal("engineers@collisionengineers.co.uk", agreed.SendFromMailbox);
+        await using (var scope = database.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var stored = await context.Principals.AsNoTracking()
+                .SingleAsync(item => item.OrganizationId == agreed.OrganizationId);
+            Assert.Equal((199.99m, "engineers@collisionengineers.co.uk", 0L), (stored.DefaultFee, stored.SendFromMailbox, stored.Version));
+        }
+
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewContact(Guid.NewGuid(), 0) with { DefaultFee = 180.00m }));
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewContact(Guid.NewGuid(), 0) with
+        {
+            SendFromMailbox = "engineers@collisionengineers.co.uk"
+        }));
+        await Assert.ThrowsAsync<ArgumentException>(() => SaveAsync(database, NewPrincipal("Bad send from", "CPF03") with
+        {
+            SendFromMailbox = "not an address"
+        }));
     }
 
     /// <summary>
@@ -522,14 +565,14 @@ public sealed class ContactDirectoryPersistenceTests
 
         statements.Reset();
         var fromSender = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("intermediary"), CancellationToken.None);
+            context, Receipt("intermediary"), "CSF01", null, CancellationToken.None);
         Assert.InRange(statements.Count, 0, 1);
         Assert.NotNull(fromSender);
         Assert.Equal(IntakeClaimSourceOrigin.Sender, fromSender.Origin);
         Assert.Equal(sender.OrganizationId, fromSender.ClaimSource.OrganizationId);
 
         var fromInstruction = await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("intermediary", introducer), CancellationToken.None);
+            context, Receipt("intermediary", introducer), "CSF01", null, CancellationToken.None);
         Assert.NotNull(fromInstruction);
         Assert.Equal(IntakeClaimSourceOrigin.Instruction, fromInstruction.Origin);
         Assert.Equal(named.OrganizationId, fromInstruction.ClaimSource.OrganizationId);
@@ -537,7 +580,7 @@ public sealed class ContactDirectoryPersistenceTests
         // A direct Principal's own mail names no Claim Source and reads nothing.
         statements.Reset();
         Assert.Null(await CaseDataSnapshotFactory.EstablishClaimSourceAsync(
-            context, Receipt("direct_principal"), CancellationToken.None));
+            context, Receipt("direct_principal"), "CSF01", null, CancellationToken.None));
         Assert.Empty(statements.Statements);
     }
 
@@ -585,20 +628,20 @@ public sealed class ContactDirectoryPersistenceTests
 
         statements.Reset();
         var established = await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("FILL FIXTURE BODYSHOP")), CancellationToken.None);
+            context, Receipt(RepairerName("FILL FIXTURE BODYSHOP")), "AX", null, CancellationToken.None);
         Assert.InRange(statements.Count, 0, 1);
         Assert.NotNull(established);
         Assert.Equal(named.OrganizationId, established.Repairer.OrganizationId);
 
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("Fill fixture closed bodyshop")), CancellationToken.None));
+            context, Receipt(RepairerName("Fill fixture closed bodyshop")), "AX", null, CancellationToken.None));
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(RepairerName("Fill fixture source only")), CancellationToken.None));
+            context, Receipt(RepairerName("Fill fixture source only")), "AX", null, CancellationToken.None));
 
         // An instruction that names no repairer reads nothing.
         statements.Reset();
         Assert.Null(await CaseDataSnapshotFactory.EstablishRepairerAsync(
-            context, Receipt(), CancellationToken.None));
+            context, Receipt(), "AX", null, CancellationToken.None));
         Assert.Empty(statements.Statements);
     }
 
@@ -797,7 +840,8 @@ public sealed class ContactDirectoryPersistenceTests
         code,
         CaseInspectionMode.PhysicalAddress,
         [],
-        Guid.NewGuid().ToString("N"));
+        Guid.NewGuid().ToString("N"),
+        DefaultFee: PrincipalDefaultFeePolicy.Standard);
 
     private static CaseEntity Case(
         PrincipalEntity principal,

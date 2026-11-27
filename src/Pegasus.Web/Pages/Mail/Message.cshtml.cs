@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Pegasus.Core.Actors;
@@ -56,30 +57,82 @@ public sealed class MessageModel(
     IMarkCaseQueryDone markCaseQueryDone,
     DismissRetainedMail dismissRetainedMail,
     RestoreRetainedMail restoreRetainedMail,
-    IGetRetainedMailAttachmentOutcomes attachmentOutcomes,
+    IGetRetainedMailOutcome messageOutcome,
+    IRenderMailAsSent asSentRenderer,
     GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
+    RenderCaseRejectionEmail renderCaseRejection,
     ILogger<MessageModel> logger) : StaffPageModel
 {
     /// <summary>
-    /// One attachment's outcome in operator words (message planning, 13 September):
-    /// Case created, Unidentified, Vehicle images, Could not be read (with the reason
-    /// and its Unidentified item) or Processing failed. Nothing links to a receipt.
+    /// The message's outcome in operator words (message planning, 13 September):
+    /// Case created, Linked to Case, Unidentified, Vehicle images, Could not be
+    /// read (with the reason) or Processing failed. Said once, as a chip beside
+    /// the Case in the head (v54 D12); it links only to an Image Intake or
+    /// Unidentified record, because the Case is linked beside it.
     /// </summary>
-    public sealed record AttachmentOutcome(
+    public sealed record MailOutcome(
         string Label,
         string Tone,
         string? Href = null,
         string? LinkText = null,
         string? Reason = null);
 
-    /// <summary>An attachment row: the retained attachment, its outcome and the viewer address of its retained file.</summary>
-    public sealed record AttachmentRow(
-        RetainedMailAttachment Attachment,
-        AttachmentOutcome Outcome,
-        string? ViewerHref);
+    /// <summary>The head's outcome chip; null where there is nothing to state beyond what Type says.</summary>
+    public MailOutcome? Outcome { get; private set; }
 
-    public IReadOnlyList<AttachmentRow> AttachmentRows { get; private set; } = [];
+    /// <summary>
+    /// One file of a conversation message: its Type word, its glyph, and what
+    /// its row offers (v54 D10, R1275, R1280). A file with a retained asset
+    /// has its download; an image or a PDF is also viewed inline, and a Word
+    /// file Box holds as its PDF rendering. A file with no asset is a plain row.
+    /// </summary>
+    /// <param name="DownloadHref">The retained file itself; null where the message's files were not retained as assets.</param>
+    /// <param name="ViewHref">The inline address the viewer draws; null where it draws nothing of the file's own.</param>
+    /// <param name="ViewMediaType">What the viewer draws <paramref name="ViewHref"/> as.</param>
+    /// <param name="PdfHref">The PDF rendering of a Word file Box holds.</param>
+    public sealed record ConversationFile(
+        RetainedMailAttachment Attachment,
+        string? TypeLabel,
+        string Glyph,
+        string? DownloadHref = null,
+        string? ViewHref = null,
+        string? ViewMediaType = null,
+        string? PdfHref = null);
+
+    /// <summary>
+    /// One message of the dialog's stack (v54 D1 to D4): who sent it, its
+    /// direction, its recipients line, its time, its text and its files.
+    /// </summary>
+    /// <param name="Key">The message's id, or <c>quoted-N</c> for a quoted message Pegasus does not keep.</param>
+    /// <param name="DirectionCode">received, sent or quoted.</param>
+    /// <param name="TimeAttribute">The <c>datetime</c> value of its time; null where the time is the header's own text or absent.</param>
+    /// <param name="Body">The presented text; null when it has none.</param>
+    /// <param name="AsSentId">The kept message whose view as sent the row offers (v54 D5, D6); null when it offers none.</param>
+    /// <param name="AsSentVersion">The kept original's version, which names the view's address; null when not known.</param>
+    public sealed record ConversationRow(
+        string Key,
+        string DirectionCode,
+        string DirectionLabel,
+        string Who,
+        string? Address,
+        IReadOnlyList<string> RouteParts,
+        string? TimeAttribute,
+        string? TimeText,
+        string Excerpt,
+        MailBodyPresentation.Presented? Body,
+        IReadOnlyList<ConversationFile> Files,
+        bool IsOpened,
+        Guid? AsSentId = null,
+        string? AsSentVersion = null);
+
+    private IReadOnlyList<ConversationRow>? conversationRows;
+
+    /// <summary>
+    /// The conversation, oldest first, as the dialog stacks it. A message read
+    /// without its conversation is one row of its own.
+    /// </summary>
+    public IReadOnlyList<ConversationRow> ConversationRows => conversationRows ??= BuildConversationRows();
 
     /// <summary>The list this message was opened from was the Dismissed scope.</summary>
     public bool ListDismissed { get; private set; }
@@ -131,9 +184,6 @@ public sealed class MessageModel(
 
     private bool NoCaseFoundFilter { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "section")]
-    public string? Section { get; set; }
-
     [BindProperty]
     public int ExpectedClassificationVersion { get; set; }
 
@@ -183,6 +233,14 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "aiJob")]
     public Guid? AiJobId { get; set; }
 
+    /// <summary>
+    /// The template a reply's composer first opens on. Only the Case
+    /// rejection is one, named by Close case's landing (FRD-13 Close case;
+    /// R1321 to R1323); any other value pre-fills nothing.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "template")]
+    public string? Template { get; set; }
+
     /// <summary>The draft the composer holds, for its one AI line; null when none applied.</summary>
     public AiJobRecord? AiDraft { get; private set; }
 
@@ -194,11 +252,49 @@ public sealed class MessageModel(
     public QueryDraft? QueryResponseJob { get; private set; }
 
     /// <summary>
-    /// The Case page the Correspondence tab's Tag as query returns to after
-    /// its one-click correction; absent on the Inbox record's own dialog.
+    /// The Case page the dialog was opened from (R1278): the Case whose
+    /// Correspondence or Queries list holds the message. A write made in the
+    /// dialog returns there with the message open, and the dialog states no
+    /// list scope. Honoured only as <see cref="ReturnCase"/>, once it is the
+    /// message's own Case; any other id is ignored.
     /// </summary>
-    [BindProperty]
+    [BindProperty(SupportsGet = true, Name = "returnCase")]
     public Guid? ReturnCaseId { get; set; }
+
+    /// <summary>The Case page's list the dialog was opened from: <c>files</c> (Correspondence) or <c>queries</c>.</summary>
+    [BindProperty(SupportsGet = true, Name = "returnSection")]
+    public string? ReturnSection { get; set; }
+
+    /// <summary>The checked return Case: <see cref="ReturnCaseId"/> when it is the message's own Case, else null.</summary>
+    public Guid? ReturnCase { get; private set; }
+
+    /// <summary>The return Case's Case/PO, for the record page's way back to it.</summary>
+    public string? ReturnCaseReference { get; private set; }
+
+    /// <summary>The return Case is a Triage Case, whose Correspondence is under its Files tab.</summary>
+    private bool returnCaseIsTriage;
+
+    /// <summary>The return list as every form and link carries it; null without a return Case.</summary>
+    public string? ReturnSectionRouteValue => ReturnCase is null
+        ? null
+        : string.Equals(ReturnSection, "queries", StringComparison.Ordinal) ? "queries" : "files";
+
+    /// <summary>
+    /// The return Case page's <c>section</c>, as its own section links name
+    /// it; a Triage Case has no sections.
+    /// </summary>
+    public string? ReturnCaseSection => returnCaseIsTriage ? null : ReturnSectionRouteValue;
+
+    /// <summary>
+    /// The tab the return list is under, as the Files tabs remember it in the
+    /// address (<c>#case-files-correspondence</c>, a Triage Case's
+    /// <c>#triage-files-correspondence</c>); Queries is a section of its own.
+    /// </summary>
+    public string? ReturnCaseFragment => ReturnSectionRouteValue switch
+    {
+        "files" => returnCaseIsTriage ? "triage-files-correspondence" : "case-files-correspondence",
+        _ => null
+    };
 
     /// <summary>Whether the reply form offers the tick: a reply or reply-all to a message that holds an open query.</summary>
     public bool OffersMarkQueryDone =>
@@ -222,15 +318,20 @@ public sealed class MessageModel(
     [BindProperty]
     public long ExpectedCorrespondenceCaseVersion { get; set; }
 
+    /// <summary>
+    /// One box per address, which staff change before sending on every mode
+    /// (operator, 27 November 2026; R1329): a Reply starts on the original's
+    /// reply targets, Reply all on all its recipients, a Forward empty.
+    /// </summary>
     [BindProperty]
-    public string? CorrespondenceTo { get; set; }
+    public List<string> CorrespondenceTo { get; set; } = [];
 
     /// <summary>The mailbox staff chose for Reply or Reply all; none leaves from the default.</summary>
     [BindProperty]
     public Guid? CorrespondenceFromMailboxId { get; set; }
 
     [BindProperty]
-    public string? CorrespondenceCc { get; set; }
+    public List<string> CorrespondenceCc { get; set; } = [];
 
     [BindProperty]
     public string? CorrespondenceSubject { get; set; }
@@ -326,8 +427,24 @@ public sealed class MessageModel(
     /// </summary>
     public bool OffersChangeLinkedCase =>
         CurrentDestination is not null
+        && !ReturnCaseIsBeingEdited
         && AssociationReceipt is { } receipt
         && IntakeAssociationDestinationPolicy.CanOfferToChange(receipt);
+
+    /// <summary>Whether Unlink is drawn, with its reason dialog: the message is linked.</summary>
+    public bool OffersUnlink => CurrentDestination is not null && !ReturnCaseIsBeingEdited;
+
+    /// <summary>
+    /// The Case page the dialog was opened from is in this member of staff's
+    /// edit session: its edit lease is theirs, and the lease refuses a link
+    /// write, so Change and Unlink are not drawn for it (R1278 C6).
+    /// </summary>
+    private bool ReturnCaseIsBeingEdited =>
+        ReturnCase is { } returnCaseId
+        && CurrentCase is { ActiveEditLease: { } lease } linked
+        && linked.Summary.CaseId == returnCaseId
+        && TryGetActor(out var actor)
+        && CaseEditAuthority.IsHolder(lease.HolderKind, lease.Holder, actor);
 
     public MailFolderScope ListFolder { get; private set; } = MailFolderScope.Inbox;
 
@@ -363,6 +480,12 @@ public sealed class MessageModel(
     public StaffMailOperation? CorrespondenceOperation { get; private set; }
 
     public bool CanCorrespond => CanForward || CanReply;
+
+    /// <summary>
+    /// The dialog draws only its composer: the subject alone in its head, and
+    /// neither the context bar nor the conversation.
+    /// </summary>
+    public bool DialogComposing => InDialog && CanCorrespond && CorrespondenceMode is not null;
 
     public bool CanForward => StaffMailAvailable && CorrespondenceMailbox is not null;
 
@@ -415,7 +538,10 @@ public sealed class MessageModel(
         RetainedMailDetail? detail;
         try
         {
-            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+            // The dialog's composer stands alone, so only a read that draws
+            // the record reads the conversation it stacks.
+            detail = await getRetainedMail.ExecuteAsync(
+                actor, id, SearchTerm, withConversation: !(inDialog && CorrespondenceMode is not null), cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -432,9 +558,9 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         if (StaffMailAvailable)
         {
@@ -448,6 +574,10 @@ public sealed class MessageModel(
         {
             CorrespondenceMode = null;
         }
+        if (!DialogComposing)
+        {
+            await LoadOutcomeAsync(actor, cancellationToken);
+        }
         if (inDialog)
         {
             return Partial("Shared/_MessageDialog", this);
@@ -456,70 +586,287 @@ public sealed class MessageModel(
     }
 
     /// <summary>
-    /// The message's head, text and attachment names as a fragment, for the
-    /// Case's Correspondence dialog, with the record's Reply, Reply all and
-    /// Forward where the record offers them. Each opens the record's composer
-    /// with the dialog's Case (<see cref="CorrespondenceCaseReference"/>)
-    /// chosen. The same actor and read as the record, and like it a read that
-    /// changes nothing.
+    /// Takes the return Case once the Case page names one that lists the
+    /// message (R1278): its own Case, or the Case whose Correspondence holds
+    /// it, as a Sent item of a send made for the Case is held without being
+    /// linked. Any other id is ignored, so a write never returns to a Case the
+    /// query string names alone. Only a named Case that is not the message's
+    /// own costs a read: the Case's Correspondence, as its page lists it.
     /// </summary>
-    public async Task<IActionResult> OnGetContentAsync(
-        Guid id,
+    private async Task AcceptReturnCaseAsync(
+        ActionActor actor,
+        RetainedMailSummary summary,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
+        if (ReturnCase is not null || ReturnCaseId is not { } candidate || candidate == Guid.Empty)
         {
-            return Forbid();
+            return;
         }
+        if (candidate == summary.CaseId)
+        {
+            ReturnCase = candidate;
+            ReturnCaseReference = summary.CaseReference;
+            returnCaseIsTriage = summary.IsTriageCase;
+            return;
+        }
+        if (await CorrespondenceListsAsync(actor, candidate, summary.Id, cancellationToken) is { } listing)
+        {
+            ReturnCase = candidate;
+            ReturnCaseReference = listing.Reference;
+            returnCaseIsTriage = listing.IsTriage;
+        }
+    }
 
+    /// <summary>
+    /// Whether <paramref name="caseId"/>'s Correspondence lists the message,
+    /// read as the Case page reads it: the Files section's list for a Case, the
+    /// Triage record's for a Triage Case. The Case's reference and kind when
+    /// it lists it; null when it does not (or the Case cannot be read).
+    /// </summary>
+    private async Task<(string Reference, bool IsTriage)?> CorrespondenceListsAsync(
+        ActionActor actor,
+        Guid caseId,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // The documents are not read: only the Correspondence is wanted.
+            var files = await HttpContext.RequestServices.GetRequiredService<IGetCaseFilesSection>()
+                .ExecuteAsync(
+                    new GetCaseSectionQuery(caseId, actor, Documents: Array.Empty<Pegasus.Core.Documents.CaseDocument>()),
+                    cancellationToken);
+            if (files is not null)
+            {
+                return files.CorrespondenceEmails.Any(email => email.RetainedMessageId == messageId)
+                    ? (files.Frame.Summary.Reference, false)
+                    : null;
+            }
+            var triage = await getTriage.ExecuteAsync(new(caseId, actor), cancellationToken);
+            return triage is not null && triage.Correspondence.Any(email => email.RetainedMessageId == messageId)
+                ? (triage.Record.Reference, true)
+                : null;
+        }
+        catch (Exception exception) when (exception is ArgumentException or KeyNotFoundException or StaffAuthorizationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="AcceptReturnCaseAsync(ActionActor, RetainedMailSummary, CancellationToken)"/>
+    /// for a write that has not read the message: it is read only when a
+    /// return Case is named, and before the write, so an Unlink still returns
+    /// to the Case it unlinked from.
+    /// </summary>
+    private async Task AcceptReturnCaseAsync(ActionActor actor, Guid id, CancellationToken cancellationToken)
+    {
+        if (ReturnCase is not null || ReturnCaseId is not { } candidate || candidate == Guid.Empty)
+        {
+            return;
+        }
         RetainedMailDetail? detail;
         try
         {
             detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
         }
-        catch (StaffAuthorizationException)
+        catch (Exception exception) when (exception is ArgumentException or StaffAuthorizationException)
         {
-            return Forbid();
+            // The write refuses the same message and actor itself.
+            return;
         }
-        catch (ArgumentException)
+        if (detail is not null)
         {
-            return NotFound();
+            await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         }
-
-        if (detail is null)
-        {
-            return NotFound();
-        }
-
-        Detail = detail;
-        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
-            ? reference
-            : null;
-        if (StaffMailAvailable)
-        {
-            await LoadRetainedOperationAsync(actor, cancellationToken);
-            await ResolveCorrespondenceSendersAsync(cancellationToken);
-        }
-        return Partial("Shared/_MessageContent", this);
     }
 
-    /// <summary>The route line under a message's subject: its forwarder and its To and Cc recipients.</summary>
-    public static IReadOnlyList<string> RouteParts(RetainedMailDetail detail)
+    /// <summary>A message's recipients line: its forwarder and its To and Cc recipients.</summary>
+    private static List<string> RouteParts(RetainedMailDetail detail) =>
+        RouteParts(IndexModel.ForwarderLine(detail.Summary), detail.ToAddresses, detail.CcAddresses);
+
+    private static List<string> RouteParts(
+        string? forwarder,
+        IReadOnlyList<string> toAddresses,
+        IReadOnlyList<string> ccAddresses)
     {
         var parts = new List<string>();
-        if (IndexModel.ForwarderLine(detail.Summary) is { } forwarder)
+        if (!string.IsNullOrWhiteSpace(forwarder))
         {
             parts.Add($"Forwarded by {forwarder}");
         }
-        if (detail.ToAddresses.Count > 0)
+        if (toAddresses.Count > 0)
         {
-            parts.Add($"To {string.Join(", ", detail.ToAddresses)}");
+            parts.Add($"To {string.Join(", ", toAddresses)}");
         }
-        if (detail.CcAddresses.Count > 0)
+        if (ccAddresses.Count > 0)
         {
-            parts.Add($"Cc {string.Join(", ", detail.CcAddresses)}");
+            parts.Add($"Cc {string.Join(", ", ccAddresses)}");
         }
         return parts;
+    }
+
+    /// <summary>The longest a folded message's one line of text runs before it is cut.</summary>
+    private const int ExcerptLength = 120;
+
+    private const string SenderNotRecorded = "Sender not recorded";
+
+    private List<ConversationRow> BuildConversationRows()
+    {
+        var summary = Detail.Summary;
+        var openedId = summary.Id;
+        // The opened message names its sender as the record always has: the
+        // proven original sender of a staff forward, whose forwarder is on
+        // its recipients line.
+        var openedName = IndexModel.ForwarderLine(summary) is null ? summary.SenderDisplayName : null;
+        var openedAddress = summary.EffectiveSenderAddress ?? summary.SenderAddress;
+        if (Detail.Conversation is not { Count: > 0 } conversation)
+        {
+            return
+            [
+                Row(
+                    openedId.ToString("D"),
+                    Detail.Folder == MailFolderScope.Sent ? RetainedMailDirection.Sent : RetainedMailDirection.Received,
+                    openedName,
+                    openedAddress,
+                    RouteParts(Detail),
+                    summary.ReceivedAtUtc,
+                    quotedSentLocal: null,
+                    quotedSentText: null,
+                    Detail.BodyPlainText,
+                    Detail.Attachments,
+                    summary.IntakeReceiptId,
+                    isOpened: true)
+            ];
+        }
+
+        var rows = new List<ConversationRow>(conversation.Count);
+        var quoted = 0;
+        foreach (var message in conversation)
+        {
+            var isOpened = message.Id == openedId;
+            rows.Add(Row(
+                message.Id is { } id ? id.ToString("D") : $"quoted-{++quoted}",
+                message.Direction,
+                // A staff forward's row names its original sender where the forwarded
+                // header gave a name (R1275): the record itself knows only the address.
+                isOpened ? openedName ?? message.SenderDisplayName : message.SenderDisplayName,
+                isOpened ? openedAddress : message.SenderAddress,
+                // The opened message's line is the record's own, as it always read.
+                isOpened
+                    ? RouteParts(Detail)
+                    : RouteParts(message.ForwardedByAddress, message.ToAddresses, message.CcAddresses),
+                message.ReceivedAtUtc,
+                message.QuotedSentLocal,
+                message.QuotedSentText,
+                message.Text,
+                // A quoted message has no files of its own.
+                message.Direction == RetainedMailDirection.Quoted ? [] : message.Attachments,
+                message.IntakeReceiptId,
+                isOpened) with
+            {
+                // Only a kept message offers its view as sent (v54 D5, D6).
+                AsSentId = message.OffersAsSent ? message.Id : null,
+                // The address names the original and the rules it was rendered by, so a
+                // browser's kept copy is never one made under older rules.
+                AsSentVersion = message.OffersAsSent && !string.IsNullOrWhiteSpace(message.AsSentVersion)
+                    ? GetMailAsSent.VersionOf(message.AsSentVersion, asSentRenderer.Version)
+                    : null
+            });
+        }
+        return rows;
+    }
+
+    private static ConversationRow Row(
+        string key,
+        RetainedMailDirection direction,
+        string? senderDisplayName,
+        string? senderAddress,
+        IReadOnlyList<string> routeParts,
+        DateTimeOffset? receivedAtUtc,
+        DateTime? quotedSentLocal,
+        string? quotedSentText,
+        string? text,
+        IReadOnlyList<RetainedMailAttachment> attachments,
+        Guid? intakeReceiptId,
+        bool isOpened)
+    {
+        var name = string.IsNullOrWhiteSpace(senderDisplayName) ? null : senderDisplayName.Trim();
+        var address = string.IsNullOrWhiteSpace(senderAddress) ? null : senderAddress.Trim();
+        var (timeAttribute, timeText) = (receivedAtUtc, quotedSentLocal) switch
+        {
+            ({ } received, _) => (received.ToString("O", CultureInfo.InvariantCulture), OperatorLabels.OfficeTime(received)),
+            // A quoted header's time is the wall-clock time it wrote, in no zone.
+            (null, { } local) => (
+                local.ToString("yyyy-MM-dd'T'HH:mm", CultureInfo.InvariantCulture),
+                local.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)),
+            _ => ((string?)null, string.IsNullOrWhiteSpace(quotedSentText) ? null : quotedSentText.Trim())
+        };
+        return new(
+            key,
+            direction switch
+            {
+                RetainedMailDirection.Sent => "sent",
+                RetainedMailDirection.Quoted => "quoted",
+                _ => "received"
+            },
+            OperatorLabels.Inbox.Direction(direction),
+            name ?? address ?? SenderNotRecorded,
+            address,
+            routeParts,
+            timeAttribute,
+            timeText,
+            Excerpt(text),
+            string.IsNullOrWhiteSpace(text) ? null : MailBodyPresentation.Present(text),
+            attachments.Select(attachment => ConversationFileOf(attachment, intakeReceiptId)).ToArray(),
+            isOpened);
+    }
+
+    private static ConversationFile ConversationFileOf(RetainedMailAttachment attachment, Guid? intakeReceiptId)
+    {
+        var kind = Pegasus.Core.Documents.CaseDocumentPreviews.KindOf(attachment.MediaType, attachment.FileName);
+        var typeLabel = OperatorLabels.Inbox.FileType(kind);
+        var glyph = kind switch
+        {
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf => "icon-file-text",
+            Pegasus.Core.Documents.CaseDocumentPreviewKind.Image => "icon-file-image",
+            _ => "icon-file"
+        };
+        if (intakeReceiptId is not { } receiptId || attachment.IntakeAssetId is not { } assetId)
+        {
+            return new(attachment, typeLabel, glyph);
+        }
+        // The viewer draws a PDF or an admitted image itself, before a Case
+        // as after (R1275); a Word file only as the rendering Box makes of
+        // its copy. Another image type is the download the route answers.
+        var drawn = kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.Pdf
+            || (kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.Image
+                && Pegasus.Core.Documents.CaseDocumentPreviews.IsInlineIntakeImage(attachment.MediaType));
+        return new(
+            attachment,
+            typeLabel,
+            glyph,
+            DownloadHref: IntakeImageAddress.Asset(receiptId, assetId, contentHash: null),
+            ViewHref: drawn ? IntakeImageAddress.AssetView(receiptId, assetId) : null,
+            ViewMediaType: drawn
+                ? Pegasus.Core.Documents.CaseDocumentPreviews.ShownMediaType(attachment.MediaType, attachment.FileName)
+                : null,
+            PdfHref: kind == Pegasus.Core.Documents.CaseDocumentPreviewKind.WordAsPdf && attachment.IsHeldInBox
+                ? IntakeImageAddress.AssetPdf(receiptId, assetId)
+                : null);
+    }
+
+    /// <summary>A folded message's one line: its text with the whitespace collapsed, cut near <see cref="ExcerptLength"/>.</summary>
+    private static string Excerpt(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+        var collapsed = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return collapsed.Length <= ExcerptLength
+            ? collapsed
+            : string.Concat(collapsed.AsSpan(0, ExcerptLength).TrimEnd(), "…");
     }
 
     /// <summary>
@@ -535,7 +882,8 @@ public sealed class MessageModel(
                 new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
                 cancellationToken),
             OperatorLabels.Inbox.DismissedNotice,
-            next);
+            next,
+            cancellationToken);
 
     /// <summary>Restore on the record of a dismissed message.</summary>
     public Task<IActionResult> OnPostRestoreAsync(
@@ -546,13 +894,15 @@ public sealed class MessageModel(
                 new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
                 cancellationToken),
             OperatorLabels.Inbox.RestoredNotice,
-            next);
+            next,
+            cancellationToken);
 
     private async Task<IActionResult> ChangeDismissalAsync(
         Guid id,
         Func<ActionActor, Task<RetainedMailDismissal?>> change,
         string notice,
-        Guid? next)
+        Guid? next,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -562,6 +912,7 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
 
         try
         {
@@ -580,59 +931,57 @@ public sealed class MessageModel(
         }
 
         TempData["Confirmation"] = notice;
-        // From the dialog the message has left its list: the Inbox opens the one
-        // that followed it, else the one before it, else shows the list (v41 I10).
+        // From the dialog the message has left its list: the Inbox, or the Case
+        // page it was opened from, opens the one that followed it, else the one
+        // before it, else shows the list (v41 I10; R1278).
+        if (ReturnCase is { } returnCaseId)
+        {
+            return LandOnCase(returnCaseId, InDialog ? next : id, null, null);
+        }
         return InDialog ? LandOnInbox(next, null, null) : LandOnRecord(id);
     }
 
-    private async Task LoadAttachmentOutcomesAsync(ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>
+    /// The message's one outcome, decided by Core from its receipt (the one
+    /// the record already read is passed, to spare a second read). A message
+    /// with no receipt has nothing to state beyond its Type, and neither has
+    /// one whose receipt reached no destination of its own.
+    /// </summary>
+    private async Task LoadOutcomeAsync(ActionActor actor, CancellationToken cancellationToken)
     {
-        if (ActiveSection != "attachments" || Detail.Attachments.Count == 0)
+        if (Detail.Summary.IntakeReceiptId is null)
         {
+            Outcome = null;
             return;
         }
 
         var receipt = AssociationReceipt;
-        var assets = receipt?.AssetRecords ?? [];
-        // Core decides each attachment's own outcome (Case, Unidentified, Vehicle
-        // images, Could not be read, Processing failed) from its receipt and assets.
-        var outcomes = receipt is null
-            ? []
-            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, receipt, cancellationToken);
-        AttachmentRows = Detail.Attachments
-            .Select(attachment =>
-            {
-                var asset = attachment.IntakeAssetId is { } assetId
-                    ? assets.SingleOrDefault(item => item.Id == assetId)
-                    : null;
-                var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
-                return new AttachmentRow(
-                    attachment,
-                    Describe(outcome, receipt),
-                    receipt is not null && asset is not null
-                        ? $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"
-                        : null);
-            })
-            .ToArray();
+        var outcome = receipt is null
+            ? null
+            : await messageOutcome.ExecuteAsync(actor, receipt.Id, receipt, cancellationToken);
+        Outcome = outcome is { Kind: AttachmentOutcomeKind.NoDestination }
+            ? null
+            : Describe(outcome, receipt);
     }
 
-    /// <summary>One attachment's outcome in operator words, with the record it opens.</summary>
-    private AttachmentOutcome Describe(RetainedMailAttachmentOutcome? outcome, IntakeReceipt? receipt)
+    /// <summary>The message's outcome in operator words, with the Image Intake or Unidentified record it opens.</summary>
+    private MailOutcome Describe(RetainedMailOutcome? outcome, IntakeReceipt? receipt)
     {
         if (outcome is null)
         {
             return new("Not yet processed", "neutral");
         }
 
+        // The Case is linked beside the chip, so the chip itself links nowhere.
         var href = outcome.Record is { } record
             ? record.Kind switch
             {
-                AttachmentOutcomeRecordKind.Case => $"/Cases/{record.Id:D}",
                 AttachmentOutcomeRecordKind.ImageIntake => $"/VehicleImages/{record.Id:D}",
-                _ => $"/Unidentified/{record.Id:D}"
+                AttachmentOutcomeRecordKind.Unidentified => $"/Unidentified/{record.Id:D}",
+                _ => null
             }
             : null;
-        var linkText = outcome.Record?.Reference;
+        var linkText = href is null ? null : outcome.Record?.Reference;
         return outcome.Kind switch
         {
             AttachmentOutcomeKind.CaseCreated => new("Case created", "green", href, linkText),
@@ -738,6 +1087,7 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
 
         try
         {
@@ -1000,6 +1350,9 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        // Read before the write: an Unlink or a Change returns to the Case it
+        // was opened from, which the message no longer names afterwards.
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
 
         try
         {
@@ -1134,6 +1487,7 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
         RefuseInvalidCorrection(
             ModelState, ClassificationKey, WorkType, CorrectionReason, out var category, out var workType);
         if (!ModelState.IsValid)
@@ -1168,12 +1522,6 @@ public sealed class MessageModel(
         }
 
         ClassificationNotice = "Type corrected. The previous decision and evidence remain in permanent history.";
-        if (ReturnCaseId is { } returnCaseId && returnCaseId != Guid.Empty)
-        {
-            // Tag as query from the Case's Correspondence tab lands back on
-            // that tab (operator, 11 October 2026).
-            return RedirectToPage("/Cases/Details", new { id = returnCaseId, section = "files" });
-        }
         return LandOn(id);
     }
 
@@ -1198,6 +1546,7 @@ public sealed class MessageModel(
             {
                 return NotFound();
             }
+            await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
 
             await openCaseQuery.ExecuteAsync(
                 new(caseId, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey, id, null, null),
@@ -1230,6 +1579,7 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
 
         try
         {
@@ -1333,6 +1683,7 @@ public sealed class MessageModel(
         {
             return NotFound();
         }
+        await AcceptReturnCaseAsync(actor, id, cancellationToken);
 
         try
         {
@@ -1376,7 +1727,8 @@ public sealed class MessageModel(
         RetainedMailDetail? detail;
         try
         {
-            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+            // The record page draws the conversation, whatever else it shows.
+            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, withConversation: true, cancellationToken);
         }
         catch (ArgumentException)
         {
@@ -1387,9 +1739,13 @@ public sealed class MessageModel(
             return NotFound();
         }
         Detail = detail;
+        conversationRows = null;
+        // The record page keeps the Case it was reached from, so its way back
+        // and the next write return there.
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
+        await LoadOutcomeAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         // A refused send read the message's latest operation earlier in this
         // request, and it has written none since.
@@ -1439,6 +1795,7 @@ public sealed class MessageModel(
         if (detail is null)
             return NotFound();
         Detail = detail;
+        await AcceptReturnCaseAsync(actor, detail.Summary, cancellationToken);
 
         // The durable send boundary owns idempotency: a same-key replay
         // returns its operation, and a fresh key is a further reply.
@@ -1479,15 +1836,10 @@ public sealed class MessageModel(
                 "The send operation has expired. Reload the message and try again.");
         }
 
-        var (to, cc) = mode switch
-        {
-            StaffMailComposeMode.Reply => StaffMailReplyRecipients.Reply(detail),
-            StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(detail, SenderFor(mode)?.Address),
-            StaffMailComposeMode.Forward => (
-                StaffMailReplyRecipients.Parse(CorrespondenceTo),
-                StaffMailReplyRecipients.Parse(CorrespondenceCc)),
-            _ => ([], [])
-        };
+        // What staff left in the boxes is sent, on every mode (R1329); each
+        // box is read as typed, so an address that is not one is refused.
+        var to = StaffMailReplyRecipients.Parse(string.Join("; ", CorrespondenceTo));
+        var cc = StaffMailReplyRecipients.Parse(string.Join("; ", CorrespondenceCc));
         var sender = SenderFor(mode);
         if (sender is null)
             ModelState.AddModelError(nameof(CorrespondenceFromMailboxId), new CaseMailSenderRequiredException().Message);
@@ -1669,10 +2021,12 @@ public sealed class MessageModel(
                 StaffMailComposeMode.ReplyAll => StaffMailReplyRecipients.ReplyAll(Detail, SenderFor(mode)?.Address),
                 _ => ([], [])
             };
-            if (mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
+            // The boxes start on the reply's recipients when the composer is
+            // first drawn; a refused send redraws what staff left in them.
+            if (initializeForm && mode is StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
             {
-                CorrespondenceTo = string.Join("; ", recipients.Item1.Select(item => item.Address));
-                CorrespondenceCc = string.Join("; ", recipients.Item2.Select(item => item.Address));
+                CorrespondenceTo = [.. recipients.Item1.Select(item => item.Address)];
+                CorrespondenceCc = [.. recipients.Item2.Select(item => item.Address)];
             }
             if (initializeForm)
             {
@@ -1680,8 +2034,37 @@ public sealed class MessageModel(
                 CorrespondenceSubject = SubjectFor(mode, Detail.Summary);
             }
             await ApplyAiDraftAsync(mode, prefill: initializeForm, cancellationToken);
+            if (initializeForm)
+            {
+                await ApplyRejectionTemplateAsync(actor, mode, cancellationToken);
+            }
         }
         return true;
+    }
+
+    /// <summary>
+    /// A reply opened from Close case on the Case rejection template (R1321,
+    /// R1323): when the form is first drawn, Message is the template rendered
+    /// for the composer's Case, which must stand closed as Collision Engineers
+    /// rejected (R1322). To, From, the subject and the send are the reply's
+    /// own. Anything else (another mode, another Case, an AI draft, another
+    /// template name) pre-fills nothing.
+    /// </summary>
+    private async Task ApplyRejectionTemplateAsync(
+        ActionActor actor, StaffMailComposeMode mode, CancellationToken cancellationToken)
+    {
+        if (mode != StaffMailComposeMode.Reply
+            || AiDraft is not null
+            || CorrespondenceCase is not { } rejected
+            || !string.Equals(Template, nameof(EmailTemplatePurpose.CaseRejection), StringComparison.Ordinal)
+            || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        {
+            return;
+        }
+        if (await renderCaseRejection.ExecuteAsync(actor, rejected, cancellationToken) is { } rejection)
+        {
+            CorrespondenceBody = rejection.Body;
+        }
     }
 
     /// <summary>
@@ -1997,10 +2380,33 @@ public sealed class MessageModel(
     /// <summary>
     /// Where a write lands. The dialog's writes return to the Inbox with this
     /// message open, so the list behind it shows the change; the page's return to
-    /// the page.
+    /// the page. Opened from a Case page, every write returns to that Case
+    /// with this message open (R1278).
     /// </summary>
     private RedirectToPageResult LandOn(Guid id, string? compose = null, Guid? mailOperationId = null) =>
-        InDialog ? LandOnInbox(id, compose, mailOperationId) : LandOnRecord(id, compose, mailOperationId);
+        ReturnCase is { } returnCaseId
+            ? LandOnCase(returnCaseId, id, compose, mailOperationId)
+            : InDialog ? LandOnInbox(id, compose, mailOperationId) : LandOnRecord(id, compose, mailOperationId);
+
+    /// <summary>
+    /// The Case page the dialog was opened from, at the list it was opened
+    /// from (the Files section's Correspondence tab, or Queries), with
+    /// <paramref name="open"/> opened by script; with none, the page alone.
+    /// A Triage Case's Correspondence is under its Files tab.
+    /// </summary>
+    private RedirectToPageResult LandOnCase(Guid caseId, Guid? open, string? compose, Guid? mailOperationId) =>
+        RedirectToPage(
+            "/Cases/Details",
+            pageHandler: null,
+            routeValues: new
+            {
+                id = caseId,
+                section = ReturnCaseSection,
+                open,
+                compose,
+                mailOperationId
+            },
+            fragment: ReturnCaseFragment);
 
     private RedirectToPageResult LandOnRecord(Guid id, string? compose = null, Guid? mailOperationId = null) =>
         RedirectToPage(new
@@ -2214,13 +2620,16 @@ public sealed class MessageModel(
         }
     }
 
+    // Opened from the Case page that lists it, the message was in no Inbox
+    // list, so nothing is stated (R1278). Run after the return Case is taken.
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
-        ListDismissed != (detail.Summary.DismissedAtUtc is not null)
+        ReturnCase is null
+        && (ListDismissed != (detail.Summary.DismissedAtUtc is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
-            || !MatchesQueue(detail.Summary);
+            || !MatchesQueue(detail.Summary));
 
     private bool TryParseListContext(out MailFolderScope listFolder)
     {
@@ -2285,14 +2694,6 @@ public sealed class MessageModel(
             modelState.AddModelError(nameof(CorrectionReason), OperatorLabels.Inbox.CorrectionReasonRequired);
         }
     }
-
-    /// <summary>The record's tabs: Message, Attachments and Thread. The Case folded into Decision on Message (v41 I9).</summary>
-    public string ActiveSection => Section switch
-    {
-        "attachments" => "attachments",
-        "thread" => "thread",
-        _ => "message"
-    };
 
     public string? FolderRouteValue => IndexModel.ListFolderCode(ListFolder, ListDismissed);
 

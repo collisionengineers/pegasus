@@ -69,6 +69,11 @@ public static class DependencyInjection
         services.AddLogging();
         services.AddScoped<IActionLogQueries, EfActionLogQueries>();
         services.AddScoped<ListActionLogs>();
+        // The classifier's runs (FRD-08, FRD-17; R1318). The live runs' read
+        // is the hosted test instance's alone and is added by its Web.
+        services.AddScoped<IClassifierRunStore, EfClassifierRunStore>();
+        services.AddScoped<RecordClassifierRun>();
+        services.AddScoped<ListClassifierRuns>();
         services.AddScoped<IV1ActivityReportQueries, EfV1ActivityReportQueries>();
         services.AddScoped<GetV1ActivityReport>();
         services.AddScoped<IMonthlyReportActivityQueries, EfMonthlyReportActivityQueries>();
@@ -156,6 +161,9 @@ public static class DependencyInjection
         services.AddScoped<SearchApprovedMailboxes>();
         services.AddScoped<SearchOldSystemCaseFolders>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
+        // An e-mail as it was sent (R1277, R1279): its kept original, rendered safe.
+        services.AddSingleton<IRenderMailAsSent, MimeKitMailAsSentRenderer>();
+        services.AddScoped<GetMailAsSent>();
         services.AddScoped<ReadUploadedImage>();
         services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();
@@ -233,7 +241,7 @@ public static class DependencyInjection
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ICloseUnidentified, CloseUnidentified>();
         services.AddScoped<ReopenUnidentified>();
-        services.AddScoped<IGetRetainedMailAttachmentOutcomes, GetRetainedMailAttachmentOutcomes>();
+        services.AddScoped<IGetRetainedMailOutcome, GetRetainedMailOutcome>();
         services.AddScoped<IPreCaseImagePreparationStore, EfPreCaseImagePreparationStore>();
         services.AddScoped<PreCaseImagePreparations>();
         services.AddScoped<IGetPreCaseImagePreparations>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
@@ -352,7 +360,6 @@ public static class DependencyInjection
         services.AddScoped<ICaseInstructionEmailQueries, EfCaseInstructionEmailQueries>();
         services.AddScoped<ResolveCaseMailSender>();
         services.AddScoped<ICaseChaserRecipientQueries, EfCaseChaserRecipientQueries>();
-        services.AddScoped<IPrincipalSalvageMatrixQueries, EfPrincipalSalvageMatrixQueries>();
         services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         services.AddScoped<IFiledEstimateAttachmentQueries, EfFiledEstimateAttachmentQueries>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
@@ -372,7 +379,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
         services.AddScoped<IOrganizationAdministrationQueries>(
             provider => provider.GetRequiredService<EfOrganizationAdministration>());
-        services.AddScoped<IUpdatePrincipalDefaultInspectionLocation, UpdatePrincipalDefaultInspectionLocation>();
         services.AddScoped<EfPrincipalCredentialStore>();
         services.AddScoped<IPrincipalCredentialStore>(
             provider => provider.GetRequiredService<EfPrincipalCredentialStore>());
@@ -399,7 +405,6 @@ public static class DependencyInjection
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
-        services.AddScoped<IUpdatePrincipalSalvageMatrix, UpdatePrincipalSalvageMatrix>();
         services.AddScoped<IUpdatePrincipalReportSending, UpdatePrincipalReportSending>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
@@ -491,6 +496,7 @@ public static class DependencyInjection
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseClosureReasonQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
         services.AddScoped<RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
@@ -505,6 +511,7 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.Operations.GetEmailTemplate>();
         services.AddScoped<Pegasus.Core.Operations.UpdateEmailTemplate>();
         services.AddScoped<Pegasus.Core.Operations.RenderEmailTemplate>();
+        services.AddScoped<RenderCaseRejectionEmail>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -595,7 +602,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfValuationStore>());
         services.AddScoped<IAppliedValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
-        services.AddScoped<IAutomaticGuideValuationStore, EfAutomaticGuideValuationStore>();
+        services.AddScoped<IAutomaticRequestStore, EfAutomaticRequestStore>();
         services.AddScoped<IGuideValuationFetchLedger, EfGuideValuationFetchLedger>();
         services.AddScoped<EfValuationPresetStore>();
         services.AddScoped<IValuationPresetStore>(provider =>
@@ -606,6 +613,10 @@ public static class DependencyInjection
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();
+        // The Valuation section's market research space (issue 2166): read
+        // wherever the Case page is, whoever files the submissions.
+        services.AddScoped<IMarketResearchSubmissionQueries, EfMarketResearchSubmissionQueries>();
+        services.AddScoped<ListCaseMarketResearch>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();
@@ -619,7 +630,7 @@ public static class DependencyInjection
         // not connected.
         services.AddScoped<RunVehicleHistoryCheck>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();
-        services.AddScoped<IAutomaticGuideValuationControl, EfSendToAiControlStore>();
+        services.AddScoped<IAutomaticRequestControl, EfSendToAiControlStore>();
         services.AddScoped<Pegasus.Core.Cases.ICaseReferenceSuffixControl, EfSendToAiControlStore>();
         services.AddScoped<EfAiJobStore>();
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
@@ -831,6 +842,9 @@ public static class DependencyInjection
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
             // A document staged in parts for the call that adds it (R203).
             services.AddScoped<DocumentUploads>();
+            // Market research submitted from Pegasus Desktop (issue 2166).
+            services.AddScoped<IMarketResearchSubmissionStore, EfMarketResearchSubmissionStore>();
+            services.AddScoped<SubmitMarketResearch>();
         }
         return services;
     }
@@ -878,7 +892,21 @@ public static class DependencyInjection
             provider.GetRequiredService<EfPerUserExternalCredentialStore>());
         services.AddScoped<IPerUserExternalCredentialAdministration>(provider =>
             provider.GetRequiredService<EfPerUserExternalCredentialStore>());
+        AddIntegrationLoginStore(services);
         return services;
+    }
+
+    /// <summary>
+    /// The integrations' logins (R1288, ADR-0091), protected with the host's
+    /// key ring, so only a host with Data Protection composes them: the Web.
+    /// One singleton over the context factory, because the valuation and
+    /// Experian providers that read it on each call are singletons too.
+    /// </summary>
+    private static void AddIntegrationLoginStore(IServiceCollection services)
+    {
+        services.TryAddSingleton<EfIntegrationLoginStore>();
+        services.TryAddSingleton<IIntegrationLoginAdministration>(provider =>
+            provider.GetRequiredService<EfIntegrationLoginStore>());
     }
 
     public static IServiceCollection AddPegasusReportRendering(this IServiceCollection services)
@@ -1082,21 +1110,21 @@ public static class DependencyInjection
 
     /// <summary>
     /// Connects Experian as the vehicle history check (ADR-0089) with the
-    /// Experian account that holds condition records (R1215). A host that
-    /// does not call this has no provider, so the Vehicle history area says
-    /// Experian is not connected and offers no Run Experian check. The account
-    /// comes through a factory and is read on each check, because the platform
-    /// can hand over an unresolved Key Vault reference, which must not fail the
-    /// host at build.
+    /// Experian login that holds condition records (R1215). A host that does
+    /// not call this has no provider, so the Vehicle history area says
+    /// Experian is not connected and offers no Run Experian check. The login
+    /// is read from the database on each check (R1288), so one not set leaves
+    /// the check unavailable rather than failing the host; the two addresses
+    /// come from <paramref name="readSetting"/>.
     /// </summary>
     public static IServiceCollection AddExperianVehicleHistoryCheck(
         this IServiceCollection services,
-        Func<IServiceProvider, ExperianAccount> accountFactory)
+        Func<string, string?> readSetting)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(accountFactory);
+        ArgumentNullException.ThrowIfNull(readSetting);
 
-        AddExperianClient(services, nameof(ExperianVehicleHistoryProvider), accountFactory);
+        AddExperianClient(services, nameof(ExperianVehicleHistoryProvider), IntegrationLogin.ExperianHistory, readSetting);
         services.AddSingleton<IVehicleHistoryCheckProvider>(provider => new ExperianVehicleHistoryProvider(
             provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianVehicleHistoryProvider)),
             provider.GetRequiredService<ILogger<ExperianVehicleHistoryProvider>>()));
@@ -1105,20 +1133,19 @@ public static class DependencyInjection
 
     /// <summary>
     /// Connects CAP as a guide valuation source, valued through Experian
-    /// (ADR-0089, R1201) with the Experian account that holds CAP valuations
+    /// (ADR-0089, R1201) with the Experian login that holds CAP valuations
     /// (R1207). A host that does not call this has no CAP provider, so the
     /// Case's CAP card says it is unavailable and offers no Get valuation. The
-    /// account comes through a factory and is read on each valuation, for the
-    /// history check's reason.
+    /// login is read on each valuation, for the history check's reason.
     /// </summary>
     public static IServiceCollection AddExperianCapValuation(
         this IServiceCollection services,
-        Func<IServiceProvider, ExperianAccount> accountFactory)
+        Func<string, string?> readSetting)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(accountFactory);
+        ArgumentNullException.ThrowIfNull(readSetting);
 
-        AddExperianClient(services, nameof(ExperianCapValuationProvider), accountFactory);
+        AddExperianClient(services, nameof(ExperianCapValuationProvider), IntegrationLogin.ExperianCap, readSetting);
         services.AddSingleton<IGuideValuationProvider>(provider => new ExperianCapValuationProvider(
             provider.GetRequiredKeyedService<ExperianClient>(nameof(ExperianCapValuationProvider)),
             provider.GetRequiredService<TimeProvider>(),
@@ -1128,38 +1155,43 @@ public static class DependencyInjection
 
     /// <summary>
     /// One Experian act's own client, keyed by the act. Experian issues its
-    /// permissions per account (R1207), so each act signs in with the account
-    /// its host hands it and keeps its own token; neither reads the other's.
+    /// permissions per account (R1207), so each act signs in with its own
+    /// login and keeps its own token; neither reads the other's.
     /// </summary>
     private static void AddExperianClient(
         IServiceCollection services,
         string act,
-        Func<IServiceProvider, ExperianAccount> accountFactory)
+        IntegrationLogin login,
+        Func<string, string?> readSetting)
     {
+        AddIntegrationLoginStore(services);
         // Each call is bounded once by ExperianClient.CallTimeout.
         services.AddHttpClient(
             ExperianClient.HttpClientName,
             client => client.Timeout = Timeout.InfiniteTimeSpan);
-        services.AddKeyedSingleton<ExperianClient>(act, (provider, _) => new ExperianClient(
-            provider.GetRequiredService<IHttpClientFactory>(),
-            () => accountFactory(provider),
-            provider.GetRequiredService<TimeProvider>()));
+        services.AddKeyedSingleton<ExperianClient>(act, (provider, _) =>
+        {
+            var logins = provider.GetRequiredService<EfIntegrationLoginStore>();
+            return new ExperianClient(
+                provider.GetRequiredService<IHttpClientFactory>(),
+                async cancellationToken => ExperianAccount.Create(
+                    await logins.ReadAsync(login, cancellationToken),
+                    readSetting),
+                provider.GetRequiredService<TimeProvider>());
+        });
     }
 
     /// <summary>
     /// Connects Cazana as a guide valuation source (ADR-0079). A host that
     /// does not call this has no Cazana provider, so the Case's Cazana card
-    /// says it is unavailable and offers no Get valuation. The account comes
-    /// through a factory and is read on each valuation, because the platform
-    /// can hand over an unresolved Key Vault reference, which must not fail
-    /// the host at build.
+    /// says it is unavailable and offers no Get valuation. The login is read
+    /// from the database on each valuation (R1288), so one not set leaves the
+    /// card unavailable rather than failing the host.
     /// </summary>
-    public static IServiceCollection AddCazanaGuideValuation(
-        this IServiceCollection services,
-        Func<IServiceProvider, CazanaCompanionAccount> accountFactory)
+    public static IServiceCollection AddCazanaGuideValuation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(accountFactory);
+        AddIntegrationLoginStore(services);
 
         // Each call is bounded once, headers and body together, by
         // CazanaCompanionClient.CallTimeout; a second timer here would only
@@ -1169,7 +1201,7 @@ public static class DependencyInjection
             client => client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddSingleton<IGuideValuationProvider>(provider => new CazanaGuideValuationProvider(
             provider.GetRequiredService<IHttpClientFactory>(),
-            () => accountFactory(provider),
+            ReadLogin<CazanaCompanionAccount>(provider, IntegrationLogin.Cazana, CazanaCompanionAccount.Create),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<CazanaGuideValuationProvider>>()));
         return services;
@@ -1178,18 +1210,19 @@ public static class DependencyInjection
     /// <summary>
     /// Connects Brego as a guide valuation source (ADR-0084). A host that
     /// does not call this has no Brego provider, so the Case's Brego card
-    /// says it is unavailable and offers no Get valuation. The account comes
-    /// through a factory and is read on each valuation, because the platform
-    /// can hand over an unresolved Key Vault reference, which must not fail
-    /// the host at build.
+    /// says it is unavailable and offers no Get valuation. The account and
+    /// its stored sign-in are read from the database on each valuation, and a
+    /// renewed sign-in is written back there (R1288). The same host composes
+    /// <see cref="IBregoAccountLink"/>, through which an Administrator signs
+    /// the account in on the Integrations page (R1290); a host without Brego
+    /// has none.
     /// </summary>
-    public static IServiceCollection AddBregoGuideValuation(
-        this IServiceCollection services,
-        Func<IServiceProvider, BregoValuationAccount> accountFactory,
-        Func<IServiceProvider, IBregoSessionStore?>? sessionStoreFactory = null)
+    public static IServiceCollection AddBregoGuideValuation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(accountFactory);
+        AddIntegrationLoginStore(services);
+        services.TryAddSingleton<IBregoSessionStore>(provider =>
+            provider.GetRequiredService<EfIntegrationLoginStore>());
 
         // Each call is bounded once, headers and body together, by
         // BregoClient.CallTimeout or BregoClient.PdfCallTimeout; cookies are
@@ -1204,36 +1237,69 @@ public static class DependencyInjection
             });
         services.AddSingleton<IGuideValuationProvider>(provider => new BregoGuideValuationProvider(
             provider.GetRequiredService<IHttpClientFactory>(),
-            () => accountFactory(provider),
+            ReadLogin<BregoValuationAccount>(provider, IntegrationLogin.Brego, BregoValuationAccount.Create),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<BregoGuideValuationProvider>>(),
-            sessionStoreFactory?.Invoke(provider)));
+            provider.GetRequiredService<IBregoSessionStore>())
+        {
+            MailSignIn = ComposeBregoMailSignIn(provider)
+        });
+
+        // The Integrations page signs the account in over the same client
+        // and the same login row (R1290).
+        services.TryAddSingleton<IBregoAccountLink>(provider => new BregoAccountLink(
+            provider.GetRequiredService<IHttpClientFactory>(),
+            provider.GetRequiredService<EfIntegrationLoginStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<BregoAccountLink>>(),
+            ComposeBregoMailSignIn(provider)));
         return services;
     }
 
     /// <summary>
     /// Connects Glass's as a guide valuation source (ADR-0060). A host that
     /// does not call this has no Glass's provider, so the Case's Glass's card
-    /// says it is unavailable and offers no Get valuation. The account comes
-    /// through a factory and is read on each valuation, because the
-    /// platform can hand over an unresolved Key Vault reference, which must
-    /// not fail the host at build; the Glass's
-    /// origin and request timeout are the estimate adapter's own.
+    /// says it is unavailable and offers no Get valuation. The login is read
+    /// from the database on each valuation (R1288), so one not set leaves the
+    /// card unavailable rather than failing the host; the Glass's origin and
+    /// request timeout are the estimate adapter's own.
     /// </summary>
-    public static IServiceCollection AddGlassGuideValuation(
-        this IServiceCollection services,
-        Func<IServiceProvider, GlassValuationAccount> accountFactory)
+    public static IServiceCollection AddGlassGuideValuation(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(accountFactory);
+        AddIntegrationLoginStore(services);
 
         services.AddSingleton<IGuideValuationProvider>(provider => new GlassGuideValuationProvider(
             provider.GetRequiredService<IHttpClientFactory>(),
             () => provider.GetRequiredService<GlassRepairEstimateOptions>(),
-            () => accountFactory(provider),
+            ReadLogin<GlassValuationAccount>(provider, IntegrationLogin.GlassValuation, GlassValuationAccount.Create),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<GlassGuideValuationProvider>>()));
         return services;
+    }
+
+    /// <summary>
+    /// Brego's sign-in mail where the host composes the Web's Graph reads
+    /// (R1294): Production and the live-Graph test instance. None elsewhere,
+    /// so nothing there reads a mailbox or asks Brego to send one.
+    /// </summary>
+    private static BregoMailSignIn? ComposeBregoMailSignIn(IServiceProvider provider) =>
+        provider.GetService<IBregoSignInMailReader>() is { } reader
+            ? new BregoMailSignIn(reader, provider.GetRequiredService<TimeProvider>())
+            : null;
+
+    /// <summary>
+    /// A provider's account, read from the database on each call (R1288): a
+    /// login not set or unreadable reaches the account class as none, which
+    /// refuses it as configuration, so the provider's card is unavailable.
+    /// </summary>
+    private static Func<CancellationToken, Task<TAccount>> ReadLogin<TAccount>(
+        IServiceProvider provider,
+        IntegrationLogin login,
+        Func<IntegrationLoginMaterial?, TAccount> create)
+    {
+        var logins = provider.GetRequiredService<EfIntegrationLoginStore>();
+        return async cancellationToken => create(await logins.ReadAsync(login, cancellationToken));
     }
 
     /// <summary>
@@ -1415,6 +1481,11 @@ public static class DependencyInjection
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(GraphMailClient))));
         // The approved-mailbox search behind pegasus_mail_mailbox_search (R561).
         services.Replace(ServiceDescriptor.Scoped<IApprovedMailboxSearchSource, GraphApprovedMailboxSearchSource>());
+        // Brego's sign-in mail, read from the Brego account's own mailbox
+        // (R1294): read only, and never an approved mailbox.
+        services.AddSingleton<IBregoSignInMailReader>(provider => new GraphBregoSignInMailReader(
+            provider.GetRequiredService<GraphApprovedMailboxResolver>(),
+            provider.GetRequiredService<GraphMailClient>()));
         return services;
     }
 

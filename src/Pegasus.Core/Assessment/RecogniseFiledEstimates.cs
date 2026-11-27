@@ -56,6 +56,119 @@ public interface IEstimateRecognitionCandidates
     /// a while, so it cannot take a place in every run ahead of newer files.
     /// </summary>
     void Defer(Guid versionId);
+
+    /// <summary>
+    /// Records what a newly recognised Audatex estimate states on the Case it
+    /// is filed on, as system work, before its answer is recorded: the type
+    /// its header gives each of its untyped files there
+    /// (<see cref="FiledEstimateTypePolicy"/>), and the Case's empty mileage
+    /// and VIN, never replacing a value (R1140, R1141). It records nothing on
+    /// a closed or archived Case, and once only for a version. It throws an
+    /// <see cref="IntakeDependencyUnavailableException"/> while a member of
+    /// staff is editing the Case, so the version is read again later.
+    /// </summary>
+    Task RecordReadingAsync(
+        EstimateRecognitionCandidate candidate,
+        FiledEstimateReading reading,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// What a filed Audatex estimate states for the Case it is filed on: the type
+/// its header gives it, and its VIN and odometer reading (R1140, R1141).
+/// </summary>
+public sealed record FiledEstimateReading(
+    DocumentSemanticRole? HeaderType,
+    string? Vin,
+    long? Mileage,
+    string? MileageUnit)
+{
+    /// <summary>The policy a Case mileage filled from a filed estimate records (R1141).</summary>
+    public const string MileagePolicyKey = "filed-estimate-mileage";
+    public const int MileagePolicyVersion = 1;
+
+    /// <summary>
+    /// The Case history's line for what the reading recorded (operator,
+    /// 26 November 2026; R1282). A VIN it filled records the line of its own
+    /// that every filled VIN records.
+    /// </summary>
+    public static string HistoryLine(string fileName) => $"Estimate read: {fileName}";
+
+    /// <summary>
+    /// The reading of a parsed Audatex estimate, or null when it is another
+    /// format's or states none of the three.
+    /// </summary>
+    public static FiledEstimateReading? From(ParsedEstimate parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        if (parsed.Route != RepairSpecificationSourceRoute.AudatexPdf)
+        {
+            return null;
+        }
+
+        var reading = new FiledEstimateReading(
+            FiledEstimateTypePolicy.HeaderType(parsed.Header),
+            GlassVinFillPolicy.Carried(parsed.Vin),
+            parsed.Mileage,
+            parsed.Mileage is null ? null : parsed.MileageUnit);
+        return reading is { HeaderType: null, Vin: null, Mileage: null } ? null : reading;
+    }
+}
+
+/// <summary>
+/// Which type a filed Audatex estimate takes from its header, and which of
+/// its files may take it (operator, 17 and 26 November 2026; R1140, R1281,
+/// R1285). A header naming Collision Engineers is a CE estimate, any other
+/// header an External estimate, and a report whose header cannot be read
+/// stays as it was filed. A type staff or the Automation Actor chose is never
+/// overwritten.
+/// </summary>
+public static class FiledEstimateTypePolicy
+{
+    /// <summary>The company whose header makes an estimate a CE estimate.</summary>
+    public const string CollisionEngineers = "Collision Engineers";
+
+    /// <summary>
+    /// The source identity a file dropped on the Repair Spec import is filed
+    /// under, followed by the import's operation key.
+    /// </summary>
+    public const string ImportDropIdentityPrefix = "estimate-import:";
+
+    /// <summary>The type <paramref name="header"/> gives an estimate, or null when it is blank.</summary>
+    public static DocumentSemanticRole? HeaderType(string? header) =>
+        string.IsNullOrWhiteSpace(header)
+            ? null
+            : header.Contains(CollisionEngineers, StringComparison.OrdinalIgnoreCase)
+                ? DocumentSemanticRole.CeEstimate
+                : DocumentSemanticRole.ExternalEstimate;
+
+    /// <summary>
+    /// Whether a filed file's type is one nobody chose, so its header may set
+    /// it: a mailed attachment as intake filed it (Instruction or
+    /// Correspondence: an Audatex estimate is neither, R1285), an upload left
+    /// on the picker's Other (R1281), or the Repair Spec import's dropped
+    /// file, which offers no choice. Never a file whose type was changed
+    /// after filing, one the Automation Actor added with its type, a
+    /// generated one, an original source or an Audit report.
+    /// </summary>
+    public static bool MayType(
+        DocumentSource source,
+        DocumentSemanticRole role,
+        string? sourceOccurrenceIdentity,
+        bool typeChangedAfterFiling) =>
+        !typeChangedAfterFiling
+        && source switch
+        {
+            DocumentSource.Intake or DocumentSource.ExternalCorrespondence =>
+                role is DocumentSemanticRole.Instruction
+                    or DocumentSemanticRole.Correspondence
+                    or DocumentSemanticRole.Other,
+            DocumentSource.StaffUpload =>
+                role == DocumentSemanticRole.Other
+                || (role == DocumentSemanticRole.ExternalEstimate
+                    && sourceOccurrenceIdentity?.StartsWith(ImportDropIdentityPrefix, StringComparison.Ordinal) == true),
+            _ => false
+        };
 }
 
 public sealed record RecogniseFiledEstimatesResult(
@@ -71,6 +184,8 @@ public sealed record RecogniseFiledEstimatesResult(
 /// repair spec only for a file the import itself would read
 /// (<see cref="EstimateFormats"/>) and a delivery can tell an Audatex
 /// estimate from any other (<see cref="EstimateFormats.AudatexProvider"/>).
+/// A newly recognised Audatex estimate first records what it states on its
+/// Case (<see cref="IEstimateRecognitionCandidates.RecordReadingAsync"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -156,15 +271,14 @@ public sealed class RecogniseFiledEstimates(
                 continue;
             }
 
-            string? provider;
+            ParsedEstimate? parsed;
             try
             {
-                provider = EstimateFormats.Parse(parsers, candidate.FileName, candidate.MediaType, content)
-                    .ProviderName;
+                parsed = EstimateFormats.Parse(parsers, candidate.FileName, candidate.MediaType, content);
             }
             catch (EstimateParseRejectedException)
             {
-                provider = null;
+                parsed = null;
             }
             catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
             {
@@ -177,12 +291,30 @@ public sealed class RecogniseFiledEstimates(
                 continue;
             }
 
+            var provider = parsed?.ProviderName;
             if (candidate.IsRecognised)
             {
                 await candidates.RecordProviderAsync(
                     candidate.VersionId, provider ?? string.Empty, cancellationToken);
                 if (provider is null) failures++; else estimates++;
                 continue;
+            }
+            // What the estimate states is recorded on its Case first, so a
+            // Case being edited defers the version and nothing is lost; an
+            // estimate recognised before is never read for it again (R1281).
+            if (parsed is not null && FiledEstimateReading.From(parsed) is { } reading)
+            {
+                try
+                {
+                    await candidates.RecordReadingAsync(candidate, reading, cancellationToken);
+                }
+                catch (Exception exception) when (IsRecoverable(exception, cancellationToken))
+                {
+                    failures++;
+                    firstFailure ??= exception.GetType().Name;
+                    candidates.Defer(candidate.VersionId);
+                    continue;
+                }
             }
             await candidates.RecordAsync(candidate.VersionId, provider is not null, provider, cancellationToken);
             if (provider is not null) estimates++; else notEstimates++;

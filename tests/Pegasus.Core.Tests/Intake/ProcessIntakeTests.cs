@@ -2800,6 +2800,9 @@ public sealed class ProcessIntakeTests
             return Task.FromResult(key);
         }
 
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
+
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
             CancellationToken cancellationToken)
@@ -3008,6 +3011,9 @@ public sealed class ProcessIntakeTests
             DateTimeOffset firstSeenAtUtc,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("The overlap test only stores.");
+
+        public Task<ReadOnlyMemory<byte>?> ReadByHashAsync(string contentHash, CancellationToken cancellationToken) =>
+            Task.FromResult<ReadOnlyMemory<byte>?>(null);
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,

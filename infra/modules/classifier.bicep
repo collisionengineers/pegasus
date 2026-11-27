@@ -81,6 +81,16 @@ resource reviewedTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2
   name: 'reviewed'
 }
 
+// Each run the classifier records in Pegasus, kept here too, partitioned by
+// the UTC date it started on, so the hosted test instance can read
+// production's runs without reaching production's database (R1319). The
+// instance's read role on this account is granted by hand, not here: its
+// registration is not a production resource.
+resource runsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = {
+  parent: classifierTableService
+  name: 'runs'
+}
+
 resource classifierTelemetryPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(applicationInsights.id, classifierIdentity.id, monitoringMetricsPublisherRole)
   scope: applicationInsights
@@ -91,7 +101,7 @@ resource classifierTelemetryPublisher 'Microsoft.Authorization/roleAssignments@2
   }
 }
 
-// Host storage (timer locks, deployment package) and the reviewed table. The
+// Host storage (timer locks, deployment package), the reviewed and runs tables. The
 // classifier has no queue trigger, so it holds no queue role.
 resource classifierStorageBlobOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(classifierStorage.id, classifierIdentity.id, blobDataOwnerRole)
@@ -167,6 +177,7 @@ resource classifierApp 'Microsoft.Web/sites@2024-04-01' = if (classifierActivati
     classifierStorageTableContributor
     classifierTelemetryPublisher
     reviewedTable
+    runsTable
   ]
 }
 

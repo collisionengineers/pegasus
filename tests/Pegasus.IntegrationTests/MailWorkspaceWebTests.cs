@@ -84,6 +84,13 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.PreviousMessage}\"", fragment, StringComparison.Ordinal);
         Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.NextMessage}\"", fragment, StringComparison.Ordinal);
         Assert.Contains($"mailbox={FirstMailboxFilter}", fragment, StringComparison.Ordinal);
+        // One column and no tabs (v54 D1): one stack, the opened message the only one unfolded.
+        Assert.DoesNotContain("class=\"tabs\"", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("section=", fragment, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(fragment, "data-mail-stack"));
+        var opened = Assert.Single(OpenMessages(fragment));
+        Assert.Contains("data-mail-opened", opened, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-msg=\"{messageId:D}\"", opened, StringComparison.Ordinal);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -108,66 +115,183 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The record's Content handler is the Case Correspondence dialog's body:
-    /// the message's head, text and attachment names as a fragment, read the
-    /// way the record reads it, with nothing to act on and nothing changed.
+    /// A message as sent (v54 D5 to D8; R1277, R1280) is its own document under
+    /// its own policy: no script, no form, pictures and inline styles only,
+    /// framed by Pegasus alone and sandboxed. A message whose original cannot be
+    /// read (a seeded message keeps none) is the empty answer, never kept by the
+    /// browser; an unknown message is 404 and an actor with no role is refused.
     /// </summary>
     [Fact]
-    public async Task MessageContentIsAReadOnlyFragmentOfTheRecord()
+    public async Task AMessageAsSentIsItsOwnSandboxedDocumentAndTheEmptyAnswerWithoutAnOriginal()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var messageId = Assert.Single(await SeedAsync(
             factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        bool readBefore;
-        int classificationHistoryBefore;
-        int associationHistoryBefore;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            readBefore = await context.RetainedMailboxMessages
-                .Where(item => item.Id == messageId)
-                .Select(item => item.IsRead)
-                .SingleAsync();
-            classificationHistoryBefore = await context.IntakeMailClassificationHistory.CountAsync();
-            associationHistoryBefore = await context.IntakeMutationHistory.CountAsync();
-        }
-
-        using var response = await client.GetAsync($"/Inbox/{messageId:D}?handler=Content");
+        using var response = await client.GetAsync($"/Inbox/{messageId:D}/AsSent");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        var fragment = await response.Content.ReadAsStringAsync();
-        Assert.Contains("data-message-content", fragment, StringComparison.Ordinal);
-        Assert.Contains("From A Sender", fragment, StringComparison.Ordinal);
-        Assert.Contains("To intake@collisionengineers.co.uk", fragment, StringComparison.Ordinal);
-        Assert.Contains("Please inspect the vehicle at the address supplied.", fragment, StringComparison.Ordinal);
-        Assert.Contains("<li>estimate.pdf</li>", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<form", fragment, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", fragment, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("utf-8", response.Content.Headers.ContentType?.CharSet);
+        Assert.Equal(
+            "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; "
+            + "form-action 'none'; base-uri 'none'; frame-ancestors 'self'; "
+            + "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox",
+            Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("no-referrer", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
+        Assert.Equal("noindex", Assert.Single(response.Headers.GetValues("X-Robots-Tag")));
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.True(response.Headers.CacheControl.Private);
+        Assert.Null(response.Headers.ETag);
+        var document = await response.Content.ReadAsStringAsync();
+        Assert.Equal(
+            "<!DOCTYPE html><html data-mail-as-sent=\"none\"><head><meta charset=\"utf-8\"></head><body></body></html>",
+            document);
 
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            Assert.Equal(readBefore, await context.RetainedMailboxMessages
-                .Where(item => item.Id == messageId)
-                .Select(item => item.IsRead)
-                .SingleAsync());
-            Assert.Equal(classificationHistoryBefore, await context.IntakeMailClassificationHistory.CountAsync());
-            Assert.Equal(associationHistoryBefore, await context.IntakeMutationHistory.CountAsync());
-        }
-
-        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}?handler=Content");
+        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}/AsSent");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        using var rolelessRequest = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"/Inbox/{messageId:D}?handler=Content");
+
+        using var rolelessRequest = new HttpRequestMessage(HttpMethod.Get, $"/Inbox/{messageId:D}/AsSent");
         rolelessRequest.Headers.Add("X-Test-Roleless", "1");
         using var roleless = await client.SendAsync(rolelessRequest);
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    /// <summary>
+    /// A kept original with formatting answers its rendered document: whole,
+    /// with no script, named by its version, kept by the browser for a week
+    /// when its address carries <c>v</c> and checked again when it does not,
+    /// and not sent again to a browser that holds it.
+    /// </summary>
+    [Fact]
+    public async Task AMessageWithFormattingAnswersItsRenderedDocumentNamedByItsVersion()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        _ = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 0);
+        var original = Encoding.UTF8.GetBytes("""
+            From: A Sender <sender@example.invalid>
+            To: intake@collisionengineers.co.uk
+            Subject: Formatted instruction
+            Message-ID: <formatted-0@example.invalid>
+            MIME-Version: 1.0
+            Content-Type: multipart/alternative; boundary="part"
+
+            --part
+            Content-Type: text/plain; charset=utf-8
+
+            Please inspect the vehicle at the address supplied.
+            --part
+            Content-Type: text/html; charset=utf-8
+
+            <html><body><p>Please <b>inspect</b> the vehicle at the address supplied.</p><script>alert(1)</script><a href="https://example.invalid/claim">Claim</a></body></html>
+            --part--
+
+            """.ReplaceLineEndings("\r\n"));
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(original));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            _ = await scope.ServiceProvider.GetRequiredService<IIntakeArtifactStore>()
+                .StoreAsync(hash, original, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+                new(
+                    TestMailboxId.From(FirstMailboxId),
+                    FirstMailboxAddress,
+                    "formatted-0",
+                    $"{FirstMailboxId.Length}:{FirstMailboxId}formatted-0",
+                    NowUtc.AddMinutes(-5),
+                    original.Length,
+                    hash,
+                    new(
+                        "inbox",
+                        $"conversation-{FirstMailboxId}-formatted",
+                        "<formatted-0@example.invalid>",
+                        [],
+                        "sender@example.invalid",
+                        "A Sender",
+                        ["intake@collisionengineers.co.uk"],
+                        [],
+                        ["sender@example.invalid"],
+                        "Formatted instruction",
+                        "Please inspect the vehicle at the address supplied.",
+                        [],
+                        IsRead: false,
+                        HasHtmlBody: true),
+                    NowUtc),
+                CancellationToken.None);
+        }
+        var messageId = await MessageIdAsync(factory, FirstMailboxId, "formatted-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var kept = await client.GetAsync($"/Inbox/{messageId:D}/AsSent?v={hash}");
+        Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        Assert.Equal("text/html", kept.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(
+            "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; "
+            + "form-action 'none'; base-uri 'none'; frame-ancestors 'self'; "
+            + "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox",
+            Assert.Single(kept.Headers.GetValues("Content-Security-Policy")));
+        Assert.Equal("nosniff", Assert.Single(kept.Headers.GetValues("X-Content-Type-Options")));
+        var document = await kept.Content.ReadAsStringAsync();
+        Assert.StartsWith("<!DOCTYPE html>", document, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script", document, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-mail-as-sent=\"none\"", document, StringComparison.Ordinal);
+        Assert.Contains("inspect", document, StringComparison.Ordinal);
+        var etag = kept.Headers.ETag;
+        Assert.NotNull(etag);
+        Assert.True(kept.Headers.CacheControl!.Private);
+        Assert.Equal(TimeSpan.FromDays(7), kept.Headers.CacheControl.MaxAge);
+
+        using var unversioned = await client.GetAsync($"/Inbox/{messageId:D}/AsSent");
+        Assert.Equal(HttpStatusCode.OK, unversioned.StatusCode);
+        Assert.True(unversioned.Headers.CacheControl!.NoCache);
+        Assert.Null(unversioned.Headers.CacheControl.MaxAge);
+        Assert.Equal(etag, unversioned.Headers.ETag);
+
+        using var revalidation = new HttpRequestMessage(HttpMethod.Get, $"/Inbox/{messageId:D}/AsSent?v={hash}");
+        revalidation.Headers.IfNoneMatch.Add(etag);
+        using var held = await client.SendAsync(revalidation);
+        Assert.Equal(HttpStatusCode.NotModified, held.StatusCode);
+    }
+
+    /// <summary>
+    /// A received message kept with its receipt offers its view as sent (v54
+    /// D5, D6): the record keeps its plain text and adds the holder naming the
+    /// view's address and the small switch, both hidden until the script shows
+    /// the view. A message no receipt holds offers neither.
+    /// </summary>
+    [Fact]
+    public async Task AMessageKeptWithItsOriginalOffersItsViewAsSentBesideItsPlainText()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        // ids[0] is the newer message, kept as identity -1; only it has a receipt.
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        foreach (var path in new[] { $"/Inbox/{ids[0]:D}?handler=Dialog", $"/Inbox/{ids[0]:D}" })
+        {
+            var html = await GetHtmlAsync(client, path);
+            var offered = Between(html, $"data-mail-msg=\"{ids[0]:D}\"", "</details>");
+            Assert.Contains($"data-mail-sent-src=\"/Inbox/{ids[0]:D}/AsSent", offered, StringComparison.Ordinal);
+            Assert.Matches("<div class=\"mail-sent\" data-mail-sent[^>]*\\shidden", offered);
+            Assert.Contains($"data-mail-sent-title=\"{OperatorLabels.Inbox.AsSent}\"", offered, StringComparison.Ordinal);
+            var button = Regex.Match(offered, "<button[^>]*data-mail-format[^>]*>").Value;
+            Assert.Contains($"aria-label=\"{OperatorLabels.Inbox.PlainText}\"", button, StringComparison.Ordinal);
+            Assert.Contains("aria-pressed=\"false\"", button, StringComparison.Ordinal);
+            Assert.Contains($"title=\"{OperatorLabels.Inbox.PlainText}\"", button, StringComparison.Ordinal);
+            Assert.Contains($"data-mail-format-as-sent=\"{OperatorLabels.Inbox.AsSent}\"", button, StringComparison.Ordinal);
+            Assert.Matches("\\shidden>$", button);
+            Assert.Contains("icon-text", offered, StringComparison.Ordinal);
+            // The plain text is still in the response, shown.
+            Assert.Contains("<div class=\"mail-text\" data-mail-text>", offered, StringComparison.Ordinal);
+            Assert.Contains("Please inspect the vehicle at the address supplied.", offered, StringComparison.Ordinal);
+
+            var plain = Between(html, $"data-mail-msg=\"{ids[1]:D}\"", "</details>");
+            Assert.DoesNotContain("data-mail-sent", plain, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-mail-format", plain, StringComparison.Ordinal);
+            Assert.Contains("Please inspect the vehicle at the address supplied.", plain, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -262,7 +386,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($"mailbox={FirstMailboxFilter}", backLinkMarkup, StringComparison.Ordinal);
 
         // The message page carries the list's query forward on every internal
-        // link (the tabs use the same asp-route-* set). The route value is the
+        // link (Reply and Dismiss use the same asp-route-* set). The route value is the
         // mailbox id, not the seed key.
         Assert.Contains($"mailbox={FirstMailboxFilter}", messageHtml, StringComparison.Ordinal);
         Assert.Contains("search=estimate", messageHtml, StringComparison.Ordinal);
@@ -1417,7 +1541,8 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// The ledger row counts attachments in its pill beside the subject (v42 I);
-    /// the message record's Attachments tab names every file.
+    /// the message names every file on a row under it, with its Type and size
+    /// (v54 D10).
     /// </summary>
     [Fact]
     public async Task TheRowCountsAttachmentsWhileTheMessageNamesThem()
@@ -1440,10 +1565,81 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains($"class=\"mail-att-pill\" title=\"{OperatorLabels.Inbox.AttachmentCount(3)}\"", row, StringComparison.Ordinal);
         Assert.DoesNotContain("front.jpg", row, StringComparison.Ordinal);
 
-        var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
-        Assert.Contains("front.jpg", attachments, StringComparison.Ordinal);
-        Assert.Contains("rear.png", attachments, StringComparison.Ordinal);
-        Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        var files = WebUtility.HtmlDecode(Between(record, "data-mail-files", "</details>"));
+        Assert.Equal(3, CountOccurrences(files, "data-mail-file>"));
+        Assert.Contains("front.jpg", files, StringComparison.Ordinal);
+        Assert.Contains("rear.png", files, StringComparison.Ordinal);
+        Assert.Contains("estimate.pdf", files, StringComparison.Ordinal);
+        Assert.Contains($"{OperatorLabels.Inbox.Image} · under 0.1 MB", files, StringComparison.Ordinal);
+        Assert.Contains($"{OperatorLabels.Inbox.Pdf} · under 0.1 MB", files, StringComparison.Ordinal);
+        // The opened message's row counts its files with the list's own pill.
+        Assert.Contains($"class=\"mail-att-pill\" title=\"{OperatorLabels.Inbox.AttachmentCount(3)}\"", record, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A message's files are one viewer set (v54 D10, D11; R1275, R1280): a
+    /// retained PDF is viewed inline, a Word file Box holds as its PDF
+    /// rendering, and one it does not hold reads Preview unavailable; each has
+    /// its Download, and no row offers Open file. The Inbox draws the viewer
+    /// the rows open, with no pre-Case image tools.
+    /// </summary>
+    [Fact]
+    public async Task AMessagesFilesAreOneViewerSetWithViewAndDownload()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            attachments:
+            [
+                new("estimate.pdf", "application/pdf", 2048),
+                new("report.docx", IntakeUploadFilePolicy.DocxMediaType, 4096),
+                new("letter.docx", IntakeUploadFilePolicy.DocxMediaType, 4096)
+            ]));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var pdfAssetId = Guid.NewGuid();
+        var unheldWordAssetId = Guid.NewGuid();
+        var heldWordAssetId = Guid.NewGuid();
+        await SeedAttachmentAssetAsync(factory, receiptId, 0, pdfAssetId, "estimate.pdf", "application/pdf", heldInBox: true);
+        await SeedAttachmentAssetAsync(factory, receiptId, 1, unheldWordAssetId, "report.docx", IntakeUploadFilePolicy.DocxMediaType, heldInBox: false);
+        await SeedAttachmentAssetAsync(factory, receiptId, 2, heldWordAssetId, "letter.docx", IntakeUploadFilePolicy.DocxMediaType, heldInBox: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var dialog = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
+        var files = WebUtility.HtmlDecode(Between(dialog, "data-mail-files", "</details>"));
+        Assert.StartsWith("data-mail-files data-evidence-set", files, StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(files, "data-mail-file>"));
+        Assert.DoesNotContain("Open file", files, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"status", files, StringComparison.Ordinal);
+
+        // The PDF: View opens the viewer inline, and saves the file itself.
+        var pdfAsset = $"/Received/{receiptId:D}/Asset/{pdfAssetId:D}";
+        Assert.Equal(1, CountOccurrences(files, "data-evidence-item"));
+        Assert.Contains($"href=\"{pdfAsset}?inline=true\"", files, StringComparison.Ordinal);
+        Assert.Contains("data-media-type=\"application/pdf\"", files, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"estimate.pdf\"", files, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{pdfAsset}\"", files, StringComparison.Ordinal);
+
+        // The Word file Box holds is viewed as its PDF rendering.
+        var heldWord = $"/Received/{receiptId:D}/Asset/{heldWordAssetId:D}";
+        Assert.Equal(1, CountOccurrences(files, "data-document-preview"));
+        Assert.Contains($"href=\"{heldWord}?handler=Pdf&renderer={Pegasus.Core.Documents.CaseDocumentPreviews.RenditionIdentity}\"", files, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{heldWord}\"", files, StringComparison.Ordinal);
+
+        // The Word file Box does not hold: Preview unavailable, and its Download.
+        Assert.Equal(1, CountOccurrences(files, "data-mail-unavailable"));
+        Assert.Contains($"data-mail-unavailable>{OperatorLabels.Inbox.PreviewUnavailable}</span>", files, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Received/{receiptId:D}/Asset/{unheldWordAssetId:D}\" download", files, StringComparison.Ordinal);
+        Assert.Contains($"aria-label=\"{CaseWorkspaceLabels.Viewer.Download} report.docx\"", files, StringComparison.Ordinal);
+        Assert.Equal(3, CountOccurrences(files, "icon-download"));
+
+        var inbox = await GetHtmlAsync(client, "/Inbox");
+        Assert.Contains("data-evidence-viewer", inbox, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-precase-tools", inbox, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1663,7 +1859,7 @@ public sealed class MailWorkspaceWebTests
 
         // The oldest-first order survives the message round-trip: the pane's
         // full-detail entry opens the message with it, Back returns to the same
-        // scope and order, and so does every section tab.
+        // scope and order, and so does the record's own Dismiss.
         var oldest = await GetHtmlAsync(
             client,
             $"/Inbox?mailbox={FirstMailboxFilter}&sort=oldest&pageNumber=2");
@@ -1676,7 +1872,11 @@ public sealed class MailWorkspaceWebTests
             $"/Inbox?mailbox={FirstMailboxFilter}&amp;sort=oldest&amp;pageNumber=2",
             detail,
             StringComparison.Ordinal);
-        Assert.Contains("sort=oldest&amp;section=attachments", detail, StringComparison.Ordinal);
+        var dismissForm = Regex.Match(detail, "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>").Value;
+        Assert.Contains("sort=oldest", dismissForm, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2", dismissForm, StringComparison.Ordinal);
+        // One column: no section rides any of the record's links.
+        Assert.DoesNotContain("section=", Between(detail, "<article class=\"record\">", "</article>"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1971,8 +2171,13 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    /// <summary>
+    /// The record is one column (v54 D1, D10, D12): the conversation oldest
+    /// first with the opened message unfolded, its text and its files with
+    /// their sizes, and no outcome chip for a message no receipt has processed.
+    /// </summary>
     [Fact]
-    public async Task MessageDetailShowsTheBodyAttachmentsThreadOutcomeAndTheWayBack()
+    public async Task MessageDetailShowsTheConversationBodyFilesAndTheWayBack()
     {
         using var factory = new IntakeWebApplicationFactory();
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
@@ -1992,20 +2197,23 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
         Assert.Contains("data-message-dismissal=\"dismiss\"", message, StringComparison.Ordinal);
 
-        var attachments = await GetHtmlAsync(
-            client,
-            $"/Inbox/{ids[0]:D}{query}&section=attachments");
-        Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
-        // Nothing was processed, so the attachments tab states that rather than blanking.
-        Assert.Contains("data-attachment-outcome=\"Not yet processed\"", attachments, StringComparison.Ordinal);
-        // Megabytes, never bytes.
-        Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
-        // The byte count standing alone, not inside a random key or identifier.
-        Assert.DoesNotMatch(@"(?<![0-9A-Za-z-])2048(?![0-9A-Za-z-])", attachments);
+        // The conversation, oldest first, is in the one response: the earlier
+        // message folded, the opened one unfolded.
+        var stack = Between(message, "data-mail-stack", "<div class=\"dialog-foot\">");
+        var earlier = stack.IndexOf($"data-mail-msg=\"{ids[1]:D}\"", StringComparison.Ordinal);
+        var opened = stack.IndexOf($"data-mail-msg=\"{ids[0]:D}\"", StringComparison.Ordinal);
+        Assert.True(earlier >= 0 && opened > earlier, "The conversation is not drawn oldest first.");
+        Assert.Contains($"data-mail-msg=\"{ids[0]:D}\"", Assert.Single(OpenMessages(stack)), StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Received}<", stack, StringComparison.Ordinal);
 
-        var thread = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}&section=thread");
-        Assert.Contains("Message 0 from instructions", thread, StringComparison.Ordinal);
-        Assert.Contains("Message 1 from instructions", thread, StringComparison.Ordinal);
+        var files = Between(stack, "data-mail-files", "</details>");
+        Assert.Contains("estimate.pdf", files, StringComparison.Ordinal);
+        // Megabytes, never bytes.
+        Assert.Contains("under 0.1 MB", files, StringComparison.Ordinal);
+        // The byte count standing alone, not inside a random key or identifier.
+        Assert.DoesNotMatch(@"(?<![0-9A-Za-z-])2048(?![0-9A-Za-z-])", stack);
+        // No receipt has processed the message, so the head states no outcome beyond its Type.
+        Assert.DoesNotContain("data-mail-outcome", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2766,6 +2974,101 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// R1278: a Sent item is in a Case's Correspondence without being linked
+    /// to it, as the Sent item of a send made for the Case. Opened from that
+    /// Case, the dialog carries the Case back on its forms, states no Inbox
+    /// scope, and its Dismiss lands on the Case's Correspondence.
+    /// </summary>
+    [Fact]
+    public async Task ASentItemInACasesCorrespondenceReturnsToTheCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        _ = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = (await AcceptReceiptAsync(
+            factory, await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"))).Identity.CaseId;
+        await SeedSentMessageAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, "We can inspect the vehicle on Thursday at ten.");
+        var sentId = await MessageIdAsync(factory, FirstMailboxId, SentMessageIdentity);
+        await SeedCorrespondenceSendAsync(factory, caseId, FirstMailboxId, SentMessageIdentity);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        // The Case's Correspondence lists the Sent item.
+        var casePage = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-mail-row=\"{sentId:D}\"", casePage, StringComparison.OrdinalIgnoreCase);
+
+        var dialog = await GetHtmlAsync(
+            client, $"/Inbox/{sentId:D}?handler=Dialog&returnCase={caseId:D}&returnSection=files");
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.", dialog, StringComparison.Ordinal);
+        var form = Regex.Match(
+            dialog,
+            "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
+        var action = FormAction(form);
+        Assert.Contains("dialog=true", action, StringComparison.Ordinal);
+        Assert.Contains($"returnCase={caseId:D}", action, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("returnSection=files", action, StringComparison.Ordinal);
+
+        using var dismiss = await client.PostAsync(
+            action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(dialog, "__RequestVerificationToken"),
+                ["operationKey"] = FormInput(form, "operationKey"),
+                ["next"] = string.Empty
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+        var location = dismiss.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.StartsWith($"/Cases/{caseId:D}?", location, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        Assert.EndsWith("#case-files-correspondence", location, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// R1278 C6: opened from the Case it is linked to while the member of
+    /// staff holds that Case's edit lease, the dialog offers neither Change nor
+    /// Unlink for it; with no lease held it offers Unlink.
+    /// </summary>
+    [Fact]
+    public async Task WhileTheCaseIsEditedItsDialogOffersNoChangeOrUnlink()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = (await AcceptReceiptAsync(
+            factory, await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"))).Identity.CaseId;
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromCase = $"/Inbox/{messageId:D}?handler=Dialog&returnCase={caseId:D}&returnSection=files";
+
+        var reading = await GetHtmlAsync(client, fromCase);
+        Assert.Contains("data-dialog-open=\"unlinkCaseDialog\"", reading, StringComparison.Ordinal);
+
+        // The signed-in Administrator takes the Case's edit lease, as Edit does.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(caseId, CancellationToken.None);
+            _ = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new ClaimCaseEditLeaseRequest(
+                    caseId,
+                    workflow!.Version,
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    $"dialog-edit-lease:{caseId:N}"),
+                CancellationToken.None);
+        }
+
+        var editing = await GetHtmlAsync(client, fromCase);
+        Assert.DoesNotContain("data-dialog-open=\"unlinkCaseDialog\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"changeLinkedCaseDialog\"", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"unlinkCaseDialog\"", editing, StringComparison.Ordinal);
+        // The Inbox's own dialog is not the Case page's edit session.
+        Assert.Contains(
+            "data-dialog-open=\"unlinkCaseDialog\"",
+            await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Register images (v41 I17): the offer sits in the record's foot and its dialog
     /// posts from the record. The message's image-only receipt becomes a
     /// vehicle-images record under the registration staff give.
@@ -2857,11 +3160,11 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// The message record carries Dismiss (Restore once dismissed), and its
-    /// Attachments tab states an outcome per attachment in operator words with
-    /// nothing linking to a receipt.
+    /// files carry no outcome of their own (v54 D10): the outcome is the
+    /// message's, said once in the head, and nothing links to a receipt.
     /// </summary>
     [Fact]
-    public async Task TheMessageRecordDismissesAndStatesAttachmentOutcomes()
+    public async Task TheMessageRecordDismissesAndItsFilesCarryNoOutcomeOfTheirOwn()
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
@@ -2871,13 +3174,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-message-dismissal=\"dismiss\"", record, StringComparison.Ordinal);
         Assert.DoesNotContain("data-record-kind", record, StringComparison.Ordinal);
 
-        var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
-        var table = Between(attachments, "data-message-attachments", "</table>");
-        Assert.Contains("<th scope=\"col\">Outcome</th>", table, StringComparison.Ordinal);
-        Assert.Contains("estimate.pdf", table, StringComparison.Ordinal);
-        // The seeded message has no intake receipt yet, so its outcome is stated plainly.
-        Assert.Contains("data-attachment-outcome=\"Not yet processed\"", table, StringComparison.Ordinal);
-        Assert.DoesNotContain("Retained", table, StringComparison.Ordinal);
+        var files = Between(record, "data-mail-files", "</details>");
+        Assert.Contains("estimate.pdf", files, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"status", files, StringComparison.Ordinal);
+        Assert.DoesNotContain("Retained", files, StringComparison.Ordinal);
+        // The seeded message has no intake receipt yet: nothing has an outcome to state.
+        Assert.DoesNotContain("data-mail-outcome", record, StringComparison.Ordinal);
 
         var dismissForm = Regex.Match(record, "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
         using (var dismiss = await client.PostAsync(
@@ -2896,6 +3198,97 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-message-dismissal=\"restore\"", dismissedRecord, StringComparison.Ordinal);
         Assert.DoesNotContain("This message is no longer in the view you opened it from.", dismissedRecord, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The conversation is every kept message of it in the mailbox, received or
+    /// sent, each marked with its direction (v54 D2), and all of it is in the
+    /// one fragment: the folded message unfolds in place without a fetch.
+    /// </summary>
+    [Fact]
+    public async Task TheDialogStacksTheConversationsSentAndReceivedMessagesWithTheirDirections()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await SeedSentMessageAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, "We can inspect the vehicle on Thursday at ten.");
+        var sentId = await MessageIdAsync(factory, FirstMailboxId, SentMessageIdentity);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var fragment = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
+
+        var stack = Between(fragment, "data-mail-stack", "<div class=\"dialog-foot\">");
+        Assert.Equal(2, CountOccurrences(stack, "data-mail-msg="));
+        var sent = stack.IndexOf($"data-mail-msg=\"{sentId:D}\" data-mail-dir=\"sent\"", StringComparison.Ordinal);
+        var received = stack.IndexOf($"data-mail-msg=\"{messageId:D}\" data-mail-dir=\"received\"", StringComparison.Ordinal);
+        Assert.True(sent >= 0 && received > sent, "The Sent message and the received one are not stacked oldest first.");
+        Assert.Contains($">{OperatorLabels.Inbox.Sent}</span>", stack, StringComparison.Ordinal);
+        Assert.Contains($">{OperatorLabels.Inbox.Received}</span>", stack, StringComparison.Ordinal);
+        Assert.Contains("We can inspect the vehicle on Thursday at ten.", stack, StringComparison.Ordinal);
+        Assert.Contains($"data-mail-msg=\"{messageId:D}\"", Assert.Single(OpenMessages(stack)), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The outcome is the message's, said once as a chip beside its Case in the
+    /// head (v54 D12), however many files the message carries; the Case beside
+    /// it carries the link, and no file row carries an outcome.
+    /// </summary>
+    [Fact]
+    public async Task TheOutcomeIsSaidOnceInTheHeadForAMessageWithTwoAttachments()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            attachments:
+            [
+                new("estimate.pdf", "application/pdf", 2048),
+                new("front.jpg", "image/jpeg", 4096)
+            ]));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var accepted = await AcceptReceiptAsync(
+            factory, await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+
+        Assert.Equal(1, CountOccurrences(record, "data-mail-outcome"));
+        var bar = Between(record, "data-mail-context-bar", "</div>");
+        Assert.Contains("data-mail-outcome=\"Case created\"", bar, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"status status--green\">Case created</span>", bar, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(bar, $"href=\"/Cases/{accepted.Identity.CaseId:D}\""));
+        var files = Between(record, "data-mail-files", "</details>");
+        Assert.Equal(2, CountOccurrences(files, "data-mail-file>"));
+        Assert.DoesNotContain("class=\"status", files, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The sender's paragraphs (v54 D9): a blank line starts a paragraph and a
+    /// single line break stays a line break inside it, in the dialog, which
+    /// the Case page opens too (R1278).
+    /// </summary>
+    [Fact]
+    public async Task ABlankLineStartsAParagraphAndASingleLineBreakStaysInIt()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            body: "Good morning,\n\nThe vehicle is at the bodyshop.\nIt can be seen on Thursday.\n\nKind regards"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var dialog = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?handler=Dialog");
+        var text = Between(dialog, "data-mail-text", "</div>");
+        Assert.Matches(TwoLineParagraph, text);
+        Assert.Matches(@"<p>\s*Good morning,\s*</p>", text);
+    }
+
+    /// <summary>One paragraph of two lines: one <c>p</c> holding a <c>br</c>.</summary>
+    private const string TwoLineParagraph =
+        @"<p>\s*The vehicle is at the bodyshop\.\s*<br\s*/?>\s*It can be seen on Thursday\.\s*</p>";
 
     /// <summary>Row gutter ticks, not the select-all whose attribute contains the same prefix.</summary>
     private static int RowTicks(string html) =>
@@ -2959,8 +3352,8 @@ public sealed class MailWorkspaceWebTests
             "Different thread message body.");
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var matching = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?search=needle&section=thread");
-        var nonmatching = await GetHtmlAsync(client, $"/Inbox/{ids[1]:D}?search=needle&section=thread");
+        var matching = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?search=needle");
+        var nonmatching = await GetHtmlAsync(client, $"/Inbox/{ids[1]:D}?search=needle");
 
         Assert.Contains("search=needle", matching, StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -2973,6 +3366,13 @@ public sealed class MailWorkspaceWebTests
             StringComparison.Ordinal);
         Assert.Contains("search=needle", nonmatching, StringComparison.Ordinal);
     }
+
+    /// <summary>The opening tags of the conversation's unfolded messages.</summary>
+    private static string[] OpenMessages(string html) =>
+        Regex.Matches(html, "<details\\b[^>]*\\sdata-mail-msg=[^>]*>")
+            .Select(match => match.Value)
+            .Where(tag => Regex.IsMatch(tag, "\\sopen(=|\\s|>)"))
+            .ToArray();
 
     private static int CountOccurrences(string text, string value)
     {
@@ -3246,6 +3646,54 @@ public sealed class MailWorkspaceWebTests
             .SingleAsync();
     }
 
+    /// <summary>
+    /// Retains one of a receipt's attachments as an asset, labelled as the
+    /// attachment search document that maps it to the message's file, with
+    /// confirmed Box custody when <paramref name="heldInBox"/>.
+    /// </summary>
+    private static async Task SeedAttachmentAssetAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        int attachmentOrdinal,
+        Guid assetId,
+        string fileName,
+        string mediaType,
+        bool heldInBox)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var sourceLabel = $"message, attachment {attachmentOrdinal + 1}";
+        var asset = new IntakeAssetEntity
+        {
+            Id = assetId,
+            IntakeReceiptId = receiptId,
+            SourceLabel = sourceLabel,
+            FileName = fileName,
+            MediaType = mediaType,
+            Kind = "attachment",
+            Disposition = "attachment",
+            ContentLength = 2048,
+            ContentHash = new string('A', 64),
+            StorageKey = $"test:{assetId:N}"
+        };
+        if (heldInBox)
+        {
+            asset.ConfirmCustody($"box-file-{assetId:N}", $"box-version-{assetId:N}", "box-folder");
+        }
+        context.Set<IntakeAssetEntity>().Add(asset);
+        context.Set<IntakeSearchDocumentEntity>().Add(new IntakeSearchDocumentEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receiptId,
+            Ordinal = 100 + attachmentOrdinal,
+            AttachmentOrdinal = attachmentOrdinal,
+            SourceLabel = sourceLabel,
+            AttachmentFileName = fileName
+        });
+        await context.SaveChangesAsync();
+    }
+
     private static async Task<Guid> MessageIdAsync(
         IntakeWebApplicationFactory factory,
         string mailboxId,
@@ -3313,7 +3761,8 @@ public sealed class MailWorkspaceWebTests
         string mailboxAddress,
         int count,
         DateTimeOffset? lastCompletedAtUtc = null,
-        IReadOnlyList<RetainedMailboxAttachment>? attachments = null)
+        IReadOnlyList<RetainedMailboxAttachment>? attachments = null,
+        string? body = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
@@ -3362,7 +3811,7 @@ public sealed class MailWorkspaceWebTests
                         // A reader stores the sender as the reply address when the message names no Reply-To.
                         ["sender@example.invalid"],
                         $"Message {index} from {mailboxId}",
-                        "Please inspect the vehicle at the address supplied.",
+                        body ?? "Please inspect the vehicle at the address supplied.",
                         attachments ?? [new("estimate.pdf", "application/pdf", 2048)],
                         IsRead: false),
                     NowUtc),
@@ -3376,6 +3825,95 @@ public sealed class MailWorkspaceWebTests
             .OrderByDescending(item => item.ReceivedAtUtc)
             .Select(item => item.Id)
             .ToArrayAsync();
+    }
+
+    /// <summary>The immutable id of the message <see cref="SeedSentMessageAsync"/> keeps.</summary>
+    private const string SentMessageIdentity = "sent-0";
+
+    /// <summary>
+    /// Keeps a message staff sent from the mailbox, in its Sent Items and in the
+    /// conversation <see cref="SeedAsync"/> keeps its messages in, half an hour
+    /// before them.
+    /// </summary>
+    private static async Task SeedSentMessageAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string mailboxAddress,
+        string body)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>().RetainAsync(
+            new(
+                TestMailboxId.From(mailboxId),
+                mailboxAddress,
+                SentMessageIdentity,
+                $"{mailboxId.Length}:{mailboxId}{SentMessageIdentity}",
+                NowUtc.AddMinutes(-30),
+                1024,
+                new string('C', 64),
+                new(
+                    "sent-items",
+                    $"conversation-{mailboxId}",
+                    $"<{SentMessageIdentity}@example.invalid>",
+                    [],
+                    mailboxAddress,
+                    "Desk",
+                    ["sender@example.invalid"],
+                    [],
+                    [],
+                    $"Inspection for {mailboxId}",
+                    body,
+                    [],
+                    IsRead: true),
+                NowUtc,
+                MailFolderScope.Sent),
+            CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A send made for the Case that its Sent item <paramref name="immutableMessageId"/>
+    /// in <paramref name="mailboxId"/> was observed for, so the Case's
+    /// Correspondence lists that Sent item.
+    /// </summary>
+    private static async Task SeedCorrespondenceSendAsync(
+        IntakeWebApplicationFactory factory,
+        Guid caseId,
+        string mailboxId,
+        string immutableMessageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var operationId = Guid.NewGuid();
+        context.Set<StaffMailSendOperationEntity>().Add(new()
+        {
+            Id = operationId,
+            ActorKind = ActorKind.Staff,
+            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            MailboxId = TestMailboxId.From(mailboxId),
+            MailboxGeneration = 1,
+            OperationKey = $"case-correspondence-{operationId:N}",
+            PayloadHash = new string('d', 64),
+            Purpose = Pegasus.Core.Operations.StaffMailPurpose.GeneralCorrespondence,
+            ContextId = caseId,
+            ContextVersion = 1,
+            ComposeMode = Pegasus.Core.Operations.StaffMailComposeMode.New,
+            RecipientsJson = "[]",
+            Subject = "Inspection",
+            Body = "We can inspect the vehicle on Thursday at ten.",
+            AttachmentsJson = "[]",
+            State = Pegasus.Core.Operations.StaffMailState.Sent,
+            AttemptStage = Pegasus.Core.Operations.StaffMailAttemptStage.ObserveSent,
+            CorrelationMarker = $"marker-{operationId:N}",
+            CreatedAtUtc = NowUtc.AddMinutes(-32),
+            RequestedAtUtc = NowUtc.AddMinutes(-32),
+            ObservedSentImmutableMessageId = immutableMessageId,
+            ProviderSentAtUtc = NowUtc.AddMinutes(-31),
+            ObservedSentAtUtc = NowUtc.AddMinutes(-30),
+            Version = 3,
+            ConcurrencyToken = Guid.NewGuid()
+        });
+        await context.SaveChangesAsync();
     }
 
     private static Task StoreForwardedRouteAsync(
