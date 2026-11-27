@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -357,6 +358,29 @@ public static class MarketResearchSubmissionPolicy
     }
 
     /// <summary>
+    /// The adverts of a record as it is kept, by number, for the market
+    /// research space. A record that cannot be read as schema version 1 has
+    /// none, so one submission's record never stops the Case page; a field
+    /// the schema does not name is ignored.
+    /// </summary>
+    public static IReadOnlyList<MarketResearchRecordAdvert> StoredAdverts(string recordJson)
+    {
+        MarketResearchRecord? record;
+        try
+        {
+            record = JsonSerializer.Deserialize<MarketResearchRecord>(recordJson, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+
+        return record is { SchemaVersion: SchemaVersion, Adverts: { } adverts }
+            ? [.. adverts.Where(advert => advert is not null).OrderBy(advert => advert.Number)]
+            : [];
+    }
+
+    /// <summary>
     /// What makes a second call under one operation key the same submission:
     /// who sent it, the Case, the review mark, the month, the record and each
     /// file's upload, name, type and kind. A staged upload's identifier is
@@ -456,5 +480,93 @@ public sealed class SubmitMarketResearch(IMarketResearchSubmissionStore store, D
         }
 
         return await store.SubmitAsync(new(command, inputHash, recordJson, contents), cancellationToken);
+    }
+}
+
+/// <summary>
+/// One file of a submission as it can be opened now: the Case document it
+/// was filed as, in the Case's folder or its <c>market-research</c> subfolder.
+/// </summary>
+/// <param name="AdvertNumber">The advert a screenshot shows; null for the report and the pack.</param>
+public sealed record MarketResearchSpaceFile(
+    MarketResearchFileKind Kind,
+    int? AdvertNumber,
+    Guid OccurrenceId,
+    Guid VersionId,
+    string FileName,
+    string MediaType);
+
+/// <summary>A submission as it is kept: who sent it and when, its proposed value, its record and its files.</summary>
+/// <param name="Files">The files that can still be opened, in the order they were sent.</param>
+public sealed record StoredMarketResearchSubmission(
+    Guid SubmissionId,
+    string SubmittedBy,
+    DateTimeOffset SubmittedAtUtc,
+    decimal ProposedValue,
+    string RecordJson,
+    IReadOnlyList<MarketResearchSpaceFile> Files);
+
+public interface IMarketResearchSubmissionQueries
+{
+    /// <summary>The Case's submissions, newest first, in a number of statements that does not grow with them.</summary>
+    Task<IReadOnlyList<StoredMarketResearchSubmission>> ListForCaseAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// One submission as the Valuation section's market research space shows it
+/// (operator, 26 and 27 November 2026; R1313, R1316, R1317): who submitted
+/// it and when, its proposed value, its adverts and its files. Which way it
+/// came is not part of it: the space says nothing of acceptance or review.
+/// </summary>
+/// <param name="Adverts">The record's adverts by number; none when the record cannot be read.</param>
+public sealed record CaseMarketResearchSubmission(
+    Guid SubmissionId,
+    string SubmittedByDisplayName,
+    DateTimeOffset SubmittedAtUtc,
+    decimal ProposedValue,
+    IReadOnlyList<MarketResearchRecordAdvert> Adverts,
+    IReadOnlyList<MarketResearchSpaceFile> Files);
+
+/// <summary>
+/// The market research submitted to a Case, newest first, for the Valuation
+/// section's space (issue 2166). The Case page's own authorization admits the
+/// reader, as it does for the section's other valuations.
+/// </summary>
+public sealed class ListCaseMarketResearch(
+    IMarketResearchSubmissionQueries queries,
+    IStaffAccountQueries staffAccounts)
+{
+    public async Task<IReadOnlyList<CaseMarketResearchSubmission>> ExecuteAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+
+        var stored = await queries.ListForCaseAsync(caseId, cancellationToken);
+        if (stored.Count == 0)
+        {
+            return [];
+        }
+
+        // Only a member of staff submits (MarketResearchSubmissionPolicy.Validate).
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            stored.Select(submission => Guid.TryParse(submission.SubmittedBy, out var staffId) ? staffId : Guid.Empty),
+            cancellationToken);
+        return
+        [
+            .. stored.Select(submission => new CaseMarketResearchSubmission(
+                submission.SubmissionId,
+                ActorDisplayNames.Resolve(ActorKind.Staff, submission.SubmittedBy, names),
+                submission.SubmittedAtUtc,
+                submission.ProposedValue,
+                MarketResearchSubmissionPolicy.StoredAdverts(submission.RecordJson),
+                submission.Files))
+        ];
     }
 }

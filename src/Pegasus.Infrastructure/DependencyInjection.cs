@@ -606,6 +606,10 @@ public static class DependencyInjection
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();
+        // The Valuation section's market research space (issue 2166): read
+        // wherever the Case page is, whoever files the submissions.
+        services.AddScoped<IMarketResearchSubmissionQueries, EfMarketResearchSubmissionQueries>();
+        services.AddScoped<ListCaseMarketResearch>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<IAssessmentAccessSource, EfAssessmentAccessSource>();

@@ -1,0 +1,164 @@
+@*
+    The market research space (issue 2166; operator, 26 and 27 November 2026;
+    R1313, R1316, R1317): the research submitted to the Case from Pegasus
+    Desktop, under the valuation calculation, newest first. It is the same in
+    both modes and holds no control: nothing here is edited, and the report's
+    own actions stay on its row in Files.
+
+    One submission says who submitted it and when, its proposed value, its
+    adverts as one table, and links to its files. Nothing is said of
+    acceptance or review. The Advert Evidence Pack and the screenshots are
+    kept in the Case folder's market-research subfolder and are listed
+    nowhere else, so these links are the way to them; each is the authorised
+    route every Case document is read by, opened in the Case viewer. The
+    Market Valuation Evidence link stands while the report is one of the
+    Case's documents, and a screenshot's link is in its advert's row.
+
+    A Case with no submission draws nothing, and a submission whose record
+    cannot be read draws its line and links without the table, its
+    screenshots' links beside the pack's.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
+@using Pegasus.Core.Assessment
+@using Pegasus.Core.Documents
+@using Pegasus.Web.Presentation
+@using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
+@{
+    var submissions = Model.MarketResearchSubmissions;
+    var caseId = (Model.ValuationSection?.Frame.Workflow ?? Model.Case!.Workflow).CaseId;
+
+    string Text(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}
+@if (submissions.Count > 0)
+{
+    <div class="sub-panel" data-market-research aria-labelledby="case-market-research-title">
+        <h3 id="case-market-research-title">@ValuationLabels.MarketResearch</h3>
+        <div class="stack">
+            @foreach (var submission in submissions)
+            {
+                var report = submission.Files.FirstOrDefault(file => file.Kind == MarketResearchFileKind.Report);
+                var pack = submission.Files.FirstOrDefault(file => file.Kind == MarketResearchFileKind.EvidencePack);
+                var screenshots = submission.Files
+                    .Where(file => file.Kind == MarketResearchFileKind.Screenshot)
+                    .ToLookup(file => file.AdvertNumber);
+                // A screenshot with no row to stand in (the record could not
+                // be read) is still listed here and nowhere else, so its link
+                // stands beside the pack's.
+                var drawnAdverts = submission.Adverts.Select(advert => (int?)advert.Number).ToHashSet();
+                var unplaced = screenshots
+                    .Where(group => !drawnAdverts.Contains(group.Key))
+                    .SelectMany(group => group)
+                    .ToArray();
+                @* The viewer steps through one submission's files. *@
+                <div class="stack" data-market-research-submission="@submission.SubmissionId" data-evidence-set>
+                    <div class="cluster cluster--between">
+                        <span data-market-research-submitted>@ValuationLabels.SubmittedBy(submission.SubmittedByDisplayName, submission.SubmittedAtUtc)</span>
+                        @if (report is not null || pack is not null || unplaced.Length > 0)
+                        {
+                            <span class="cluster">
+                                @if (report is not null)
+                                {
+                                    @* Written by the AI (R1239), as its Documents row says. *@
+                                    FileLink(caseId, report, ValuationLabels.MarketValuationEvidence, "report");
+                                    @OperatorLabels.SourceTagWord.Ai.Render()
+                                }
+                                @if (pack is not null)
+                                {
+                                    FileLink(caseId, pack, ValuationLabels.AdvertEvidencePack, "pack");
+                                }
+                                @foreach (var screenshot in unplaced)
+                                {
+                                    FileLink(caseId, screenshot, ValuationLabels.Screenshot, "screenshot");
+                                }
+                            </span>
+                        }
+                    </div>
+                    <dl class="detail-list">
+                        <div>
+                            <dt>@ValuationLabels.ProposedValue</dt>
+                            <dd class="mono" data-market-research-proposed>@ValuationCalculationPolicy.FormatMoney(submission.ProposedValue)</dd>
+                        </div>
+                    </dl>
+                    @if (submission.Adverts.Count > 0)
+                    {
+                        <div class="table-wrap">
+                            <table class="table table--compact" data-market-research-adverts aria-labelledby="case-market-research-title">
+                                <thead>
+                                    <tr>
+                                        <th>@ValuationLabels.AdvertNumber</th>
+                                        <th>@ValuationLabels.AdvertSite</th>
+                                        <th>@ValuationLabels.AdvertVehicle</th>
+                                        <th>@ValuationLabels.AdvertYear</th>
+                                        <th class="num">@ValuationLabels.AdvertMileage</th>
+                                        <th class="num">@ValuationLabels.AdvertPrice</th>
+                                        <th>@ValuationLabels.AdvertSeller</th>
+                                        <th>@ValuationLabels.AdvertComment</th>
+                                        <th><span class="sr-only">@ValuationLabels.Screenshot</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var advert in submission.Adverts)
+                                    {
+                                        <tr data-market-research-advert="@advert.Number">
+                                            <td>@advert.Number.ToString(CultureInfo.InvariantCulture)</td>
+                                            <td>@Text(advert.Source)</td>
+                                            <td>@Text(advert.Vehicle)</td>
+                                            <td>@(advert.Year?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                                            <td class="num">@(advert.Mileage?.ToString("N0", CultureInfo.InvariantCulture) ?? "—")</td>
+                                            <td class="num">@ValuationCalculationPolicy.FormatMoney(advert.Price)</td>
+                                            <td>@Text(advert.Seller)</td>
+                                            <td class="wrap">@Text(advert.Comment)</td>
+                                            <td class="row-actions nowrap">
+                                                <span class="cluster">
+                                                    @foreach (var screenshot in screenshots[advert.Number])
+                                                    {
+                                                        FileLink(caseId, screenshot, ValuationLabels.Screenshot, "screenshot");
+                                                    }
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@functions {
+    // One file's link, opened as its Documents row would open it: a Word
+    // document as its PDF rendering, anything else the browser draws as the
+    // viewer's own item, and a file it does not draw as the saved download.
+    private void FileLink(Guid caseId, MarketResearchSpaceFile file, string label, string kind)
+    {
+        var previewKind = CaseDocumentPreviews.KindOf(file.MediaType, file.FileName);
+        var download = CaseFileAddresses.Download(caseId, file.OccurrenceId, file.VersionId);
+        if (previewKind == CaseDocumentPreviewKind.WordAsPdf)
+        {
+            <a class="btn btn--small"
+               href="@CaseFileAddresses.PdfRendition(caseId, file.OccurrenceId, file.VersionId)"
+               data-document-preview data-busy-label="@OperatorLabels.Busy.Loading" data-no-inplace
+               data-download-href="@download"
+               data-file-name="@file.FileName"
+               data-market-research-file="@kind"><span>@label</span></a>
+        }
+        else if (previewKind != CaseDocumentPreviewKind.None)
+        {
+            <a class="btn btn--small"
+               href="@CaseFileAddresses.Preview(caseId, file.OccurrenceId, file.VersionId)"
+               data-evidence-item
+               data-download-href="@download"
+               data-media-type="@CaseDocumentPreviews.ShownMediaType(file.MediaType, file.FileName)"
+               data-file-name="@file.FileName"
+               data-market-research-file="@kind"><span>@label</span></a>
+        }
+        else
+        {
+            <a class="btn btn--small" href="@download" download data-market-research-file="@kind"><span>@label</span></a>
+        }
+    }
+}

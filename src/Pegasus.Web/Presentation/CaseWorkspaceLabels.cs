@@ -966,6 +966,30 @@ public static class CaseWorkspaceLabels
         // Research is filed without ending the edit (FRD-24).
         public const string ResearchFiledNote = "The result is filed here without ending your edit. Save or refresh to see it.";
 
+        // The market research space under the calculation (issue 2166). Its
+        // words are the operator's (27 November 2026; R1317): each is already
+        // on the Case page or in the Advert Evidence Pack. A submission says
+        // who submitted it and when, and nothing of acceptance or review
+        // (operator, 26 November 2026; R1313, R1316).
+        public const string MarketResearch = "Market research";
+
+        /// <summary>One submission's line: "Submitted by {name}, {date}", the date in the office's zone.</summary>
+        public static string SubmittedBy(string name, DateTimeOffset submittedAtUtc) =>
+            "Submitted by " + name + ", " + OperatorLabels.OfficeDate(submittedAtUtc);
+
+        public const string ProposedValue = "Proposed value";
+        public const string AdvertNumber = "No.";
+        public const string AdvertSite = "Site";
+        public const string AdvertVehicle = "Vehicle";
+        public const string AdvertYear = "Year";
+        public const string AdvertMileage = "Mileage";
+        public const string AdvertPrice = "Price";
+        public const string AdvertSeller = "Seller";
+        public const string AdvertComment = "Comment";
+        public const string MarketValuationEvidence = "Market Valuation Evidence";
+        public const string AdvertEvidencePack = "Advert Evidence Pack";
+        public const string Screenshot = "Screenshot";
+
         public static string SourceLabel(ValuationSource source) => ValuationPolicy.SourceName(source);
 
         /// <summary>The hook slug for a source, one list beside its label.</summary>
