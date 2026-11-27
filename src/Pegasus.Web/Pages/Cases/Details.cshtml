@@ -190,5 +190,9 @@
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
 @* The Inbox's own e-mail dialog opens here, over the Case, from its
    Correspondence and its Queries (R1278). It sits outside the record and its
-   dialogs, so the Case's own form handling leaves its forms alone. *@
-<div data-mail-dialog-root data-mail-return-case="@summary.CaseId"></div>
+   dialogs, so the Case's own form handling leaves its forms alone. A Case
+   closed as Collision Engineers rejected also names where its new message is
+   drawn, which Close case's landing opens when there is no instruction
+   e-mail to answer (R1323). *@
+<div data-mail-dialog-root data-mail-return-case="@summary.CaseId"
+     data-mail-new-message="@(workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.CollisionEngineersRejected ? Url.Page("/Cases/NewMessage", new { id = summary.CaseId }) : null)"></div>

@@ -22,7 +22,7 @@ public sealed record TriageOutcomeReply(string Registration, TriageFinding? Find
             [EmailTemplates.Registration] = Registration,
             [EmailTemplates.Roadworthiness] = Finding?.Roadworthiness is { } roadworthiness ? Label(roadworthiness) : null,
             [EmailTemplates.RepairOutcome] = Finding?.Assessment is { } assessment ? Label(assessment) : null,
-            [EmailTemplates.FindingReason] = Finding?.Reason
+            [EmailTemplates.Reason] = Finding?.Reason
         };
 
     public static string Label(RoadworthinessFinding finding) => finding switch

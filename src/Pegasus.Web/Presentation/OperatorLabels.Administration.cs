@@ -147,6 +147,11 @@ public static partial class OperatorLabels
         public const string Reply = "Reply";
         public const string ReplyAll = "Reply all";
         public const string Forward = "Forward";
+        /// <summary>
+        /// The e-mail dialogue's heading for a message that answers none: a
+        /// rejected Case with no instruction e-mail (operator, 27 November 2026; R1327).
+        /// </summary>
+        public const string NewMessage = "New message";
         /// <summary>The reply composer's tick that marks the replied message's open query done on observed Sent.</summary>
         public const string MarkQueryDone = "Mark query done";
         /// <summary>

@@ -1961,7 +1961,7 @@
 
     var CONTEXT = ['mailbox', 'folder', 'pageNumber', 'search', 'queue', 'sort'];
     // What a landing names for the message it opens, beside `open` itself.
-    var LANDING = ['compose', 'mailOperationId', 'correspondenceCaseReference', 'markQueryDone', 'aiJob'];
+    var LANDING = ['compose', 'mailOperationId', 'correspondenceCaseReference', 'markQueryDone', 'aiJob', 'template'];
     var DIALOG = 'mailMessageDialog';
     var latest = 0;
     var opener = null;
@@ -2204,6 +2204,24 @@
     // landing's own parameters ride to the record once and leave the address.
     var address = new URL(window.location.href);
     var opening = address.searchParams.get('open');
+    // A Case with no e-mail to answer opens a new message instead (R1323):
+    // the landing says `compose=new` and names no message, and the mount
+    // names the address that draws the new message for its Case.
+    var fresh = !opening && address.searchParams.get('compose') === 'new'
+        ? mount.getAttribute('data-mail-new-message')
+        : null;
+    if (fresh) {
+        var composer = new URL(fresh, window.location.href);
+        LANDING.forEach(function (key) {
+            if (key !== 'compose' && address.searchParams.has(key)) {
+                composer.searchParams.set(key, address.searchParams.get(key));
+            }
+            address.searchParams.delete(key);
+        });
+        window.history.replaceState(window.history.state, '', address.toString());
+        listName = address.searchParams.get('section') === 'queries' ? 'queries' : 'files';
+        load(composer.toString());
+    }
     if (opening) {
         var url = new URL('/Inbox/' + encodeURIComponent(opening), window.location.href);
         LANDING.forEach(function (key) {
@@ -2447,6 +2465,39 @@
         dialog.querySelectorAll('[data-delete-case-correspondence]').forEach(function (tick) {
             tick.checked = false;
         });
+    });
+})();
+
+// --- Close case: the rejection's e-mail tick ----------------------------------
+// E-mail the Principal is offered only while the outcome it names is chosen
+// (FRD-13 Close case; R1322, R1325): each open of the dialog and each change
+// of Outcome shows or hides it, and hiding unticks it. Without script it
+// stays in view, and the handler ignores it for any other outcome. Ticked,
+// the close is a plain post and not one the Case page answers in place
+// (case-workspace.js): the page it lands on opens the e-mail dialogue as it
+// loads (R1321), which a page updated in place never does.
+(function () {
+    'use strict';
+    function syncWithin(root) {
+        root.querySelectorAll('[data-close-email-principal]').forEach(function (holder) {
+            var form = holder.closest('form');
+            var outcome = form ? form.querySelector('select[name="outcome"]') : null;
+            var tick = holder.querySelector('input[type="checkbox"]');
+            if (!outcome || !tick) { return; }
+            var offered = outcome.value === holder.getAttribute('data-close-email-principal');
+            holder.hidden = !offered;
+            if (!offered) { tick.checked = false; }
+            form.toggleAttribute('data-no-inplace', tick.checked);
+        });
+    }
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        if (event.target instanceof Element) { syncWithin(event.target); }
+    });
+    document.addEventListener('change', function (event) {
+        var control = event.target;
+        var changed = (control instanceof HTMLSelectElement && control.name === 'outcome')
+            || (control instanceof HTMLInputElement && control.name === 'emailPrincipal');
+        if (changed && control.form) { syncWithin(control.form); }
     });
 })();
 

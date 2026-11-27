@@ -61,6 +61,7 @@ public sealed class MessageModel(
     IRenderMailAsSent asSentRenderer,
     GetIntakeOfferedActions offeredActions,
     Pegasus.Web.Intake.StaffIntakeActions intakeActions,
+    RenderCaseRejectionEmail renderCaseRejection,
     ILogger<MessageModel> logger) : StaffPageModel
 {
     /// <summary>
@@ -231,6 +232,14 @@ public sealed class MessageModel(
     /// </summary>
     [BindProperty(SupportsGet = true, Name = "aiJob")]
     public Guid? AiJobId { get; set; }
+
+    /// <summary>
+    /// The template a reply's composer first opens on. Only the Case
+    /// rejection is one, named by Close case's landing (FRD-13 Close case;
+    /// R1321 to R1323); any other value pre-fills nothing.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "template")]
+    public string? Template { get; set; }
 
     /// <summary>The draft the composer holds, for its one AI line; null when none applied.</summary>
     public AiJobRecord? AiDraft { get; private set; }
@@ -2023,8 +2032,37 @@ public sealed class MessageModel(
                 CorrespondenceSubject = SubjectFor(mode, Detail.Summary);
             }
             await ApplyAiDraftAsync(mode, prefill: initializeForm, cancellationToken);
+            if (initializeForm)
+            {
+                await ApplyRejectionTemplateAsync(actor, mode, cancellationToken);
+            }
         }
         return true;
+    }
+
+    /// <summary>
+    /// A reply opened from Close case on the Case rejection template (R1321,
+    /// R1323): when the form is first drawn, Message is the template rendered
+    /// for the composer's Case, which must stand closed as Collision Engineers
+    /// rejected (R1322). To, From, the subject and the send are the reply's
+    /// own. Anything else (another mode, another Case, an AI draft, another
+    /// template name) pre-fills nothing.
+    /// </summary>
+    private async Task ApplyRejectionTemplateAsync(
+        ActionActor actor, StaffMailComposeMode mode, CancellationToken cancellationToken)
+    {
+        if (mode != StaffMailComposeMode.Reply
+            || AiDraft is not null
+            || CorrespondenceCase is not { } rejected
+            || !string.Equals(Template, nameof(EmailTemplatePurpose.CaseRejection), StringComparison.Ordinal)
+            || !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        {
+            return;
+        }
+        if (await renderCaseRejection.ExecuteAsync(actor, rejected, cancellationToken) is { } rejection)
+        {
+            CorrespondenceBody = rejection.Body;
+        }
     }
 
     /// <summary>

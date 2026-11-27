@@ -311,9 +311,11 @@ Case chaser
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing)), and
 the Photo link e-mail
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-e-mail); operator,
-9 November 2026; R773) and the Photo link (text)
+9 November 2026; R773), the Photo link (text)
 ([FRD-28](frd-28-guided-photo-capture.md#the-photo-link-text); operator,
-10 November 2026; R919).
+10 November 2026; R919) and the Case rejection
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case); operator,
+27 November 2026; [R1324](../rulings.md)).
 
 **Edit** opens a dialog: the body, up to 5000 characters, a row of
 placeholder buttons that insert at the cursor, and Cancel and Save. The
@@ -332,7 +334,13 @@ built-in body is the one sentence the due-chaser sweep writes, without the
 reference, and the sign-off. The Photo link's are `{registration}`,
 `{claimant}`, `{photo link}`, `{link expiry}` and `{principal name}`; its
 built-in body is the one FRD-28 gives. The Photo link (text) has the same
-placeholders and the short built-in body FRD-28 gives for the text. A body naming any other placeholder
+placeholders and the short built-in body FRD-28 gives for the text. The Case
+rejection's are `{greeting}` (the report delivery's), `{registration}`,
+`{claimant}`, `{case reference}`, `{principal name}` and `{reason}`, the
+reason staff gave in the Close case dialog. Its built-in body, signed off as
+drafted (operator, 27 November 2026; [R1324](../rulings.md)), is "Good
+{greeting}, Unfortunately we are unable to accept this instruction for
+{registration}. Reason: {reason} Kind Regards", each on its own line. A body naming any other placeholder
 is refused, and the message names it. Save acts on the click with the rendered version. A
 stale save is refused and asks the Administrator to reload.
 
@@ -341,7 +349,8 @@ all empty is left out. The subject is not templated: a reply keeps
 "Re: {original subject}", a report delivery follows
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-sending-rules)
 (a reply keeps "Re:" the instruction's subject, and a new message is
-"{REG} Report"), and a chaser opens with the registration and the claimant.
+"{REG} Report"), and a chaser opens with the registration and the claimant,
+as a rejection sent as a new message does ([R1327](../rulings.md)).
 Until an Administrator saves a template, its built-in body is used.
 Staff can edit the rendered text before it is sent. Each save
 enters the Action logs.

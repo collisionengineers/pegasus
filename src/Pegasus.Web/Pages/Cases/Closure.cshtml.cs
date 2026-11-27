@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Email;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -21,8 +23,19 @@ public sealed class ClosureModel(
     IArchiveCase archiveCase,
     ICaseWorkflowQueries workflows,
     CaseEditLeases leases,
+    IStaffMailSend staffMailSend,
+    ICaseInstructionEmailQueries instructionEmails,
     ILogger<ClosureModel> logger) : CaseMutationPageModel(logger), Pegasus.Web.Presentation.IShellFreeGet
 {
+    /// <summary>
+    /// The landing values that open the Case's e-mail dialogue on the Case
+    /// rejection template: <c>compose</c> is <see cref="RejectionReply"/> with
+    /// <c>open</c> naming the instruction e-mail, else
+    /// <see cref="RejectionNewMessage"/>.
+    /// </summary>
+    public const string RejectionReply = "reply";
+    public const string RejectionNewMessage = "new";
+
     /// <summary>
     /// An action taken inside the edit session keeps it unless the Case is
     /// now terminal or archived (operator, 9 October 2026).
@@ -39,30 +52,67 @@ public sealed class ClosureModel(
     /// the current state is Core's decision and is applied by
     /// <see cref="ICloseCase"/> itself.
     /// </summary>
-    public Task<IActionResult> OnPostCloseAsync(
+    /// <remarks>
+    /// <paramref name="emailPrincipal"/> is the dialog's tick (operator,
+    /// 27 November 2026; R1321 to R1323): once a Case is closed as Collision
+    /// Engineers rejected, it returns to the Case with the e-mail dialogue
+    /// opening on the Case rejection template, as a reply to the instruction
+    /// e-mail or, for a Case with none, as a new message. The close has
+    /// already been recorded; the e-mail is sent, or not, in the dialogue. A
+    /// refused close, another outcome or no tick returns as it always did.
+    /// </remarks>
+    public async Task<IActionResult> OnPostCloseAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string reason,
         string? editLeaseToken,
         CaseClosureOutcome? outcome,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandUnderLeaseAsync(
+        bool emailPrincipal,
+        CancellationToken cancellationToken)
+    {
+        var closed = false;
+        var result = await ExecuteCaseCommandUnderLeaseAsync(
             id,
             expectedVersion,
             editLeaseToken,
             "close",
-            (actor, lease) => closeCase.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    lease,
-                    RequireOutcome(outcome)),
-                cancellationToken),
+            async (actor, lease) =>
+            {
+                await closeCase.ExecuteAsync(
+                    new(
+                        id,
+                        expectedVersion,
+                        actor,
+                        operationKey,
+                        reason,
+                        lease,
+                        RequireOutcome(outcome)),
+                    cancellationToken);
+                closed = true;
+            },
             "The selected terminal outcome was recorded.");
+        if (!closed
+            || !emailPrincipal
+            || outcome != CaseClosureOutcome.CollisionEngineersRejected
+            || staffMailSend is UnavailableStaffMailSend)
+        {
+            return result;
+        }
+
+        var instruction = await instructionEmails.GetAsync(id, cancellationToken);
+        return RedirectToPage(
+            "/Cases/Details",
+            new
+            {
+                id,
+                view = ReturnView,
+                section = ReturnSection,
+                open = instruction?.RetainedMessageId,
+                compose = instruction is null ? RejectionNewMessage : RejectionReply,
+                template = instruction is null ? null : nameof(EmailTemplatePurpose.CaseRejection)
+            });
+    }
 
     private static CaseClosureOutcome RequireOutcome(CaseClosureOutcome? outcome) =>
         outcome is { } selected && Enum.IsDefined(selected)

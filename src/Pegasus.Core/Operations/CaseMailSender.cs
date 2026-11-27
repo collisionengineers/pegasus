@@ -249,6 +249,20 @@ public sealed record CaseMailSenderOptions(
 }
 
 /// <summary>
+/// The subject a new message about a Case opens with where no other is ruled:
+/// the registration and the claimant, the two facts the other party knows the
+/// matter by, joined with an en dash. An absent part is left out, and both
+/// absent gives an empty subject for staff to write.
+/// </summary>
+public static class CaseMailSubject
+{
+    public static string RegistrationAndClaimant(string? registration, string? claimant) =>
+        string.Join(" – ", new[] { registration, claimant }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim()));
+}
+
+/// <summary>
 /// A reply's subject: the original's with one "Re:"; a Collision Engineers
 /// staff forward's own "FW:" is dropped first, since the reply answers the
 /// forwarded sender.

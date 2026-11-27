@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 
 namespace Pegasus.Core.Tests.Operations;
@@ -24,8 +25,55 @@ public sealed class EmailTemplatesTests
 
         Assert.Equal("AB12CDE|Roadworthy|Repairable|Minor damage.", rendered);
         Assert.Equal(
-            new[] { EmailTemplates.Registration, EmailTemplates.Roadworthiness, EmailTemplates.RepairOutcome, EmailTemplates.FindingReason },
+            new[] { EmailTemplates.Registration, EmailTemplates.Roadworthiness, EmailTemplates.RepairOutcome, EmailTemplates.Reason },
             EmailTemplates.Placeholders(Purpose));
+    }
+
+    private static readonly string[] CaseRejectionPlaceholders =
+    [
+        EmailTemplates.Greeting, EmailTemplates.Registration, EmailTemplates.Claimant,
+        EmailTemplates.CaseReference, EmailTemplates.PrincipalName, EmailTemplates.Reason
+    ];
+
+    /// <summary>
+    /// The Case rejection (operator, 27 November 2026; R1324): its six
+    /// placeholders, and its built-in body rendered from a Case's facts with
+    /// the reason the close gave. A new message's subject is the registration
+    /// and the claimant (R1327).
+    /// </summary>
+    [Fact]
+    public void TheCaseRejectionRendersItsBuiltInBodyFromTheCasesFacts()
+    {
+        const EmailTemplatePurpose rejection = EmailTemplatePurpose.CaseRejection;
+        var facts = new CaseRejectionFacts(
+            "morning", "AB12CDE", "Jo Bloggs", "QDOS26001", "QDOS", "Outside the area we cover.");
+
+        Assert.Equal(CaseRejectionPlaceholders, EmailTemplates.Placeholders(rejection));
+        Assert.Equal(
+            "Good morning,\n\nUnfortunately we are unable to accept this instruction for AB12CDE.\n\n"
+                + "Reason: Outside the area we cover.\n\nKind Regards",
+            EmailTemplates.Render(EmailTemplates.DefaultBody(rejection), facts.Values()));
+        Assert.Equal(
+            EmailTemplates.DefaultBody(rejection),
+            EmailTemplates.Validate(rejection, EmailTemplates.DefaultBody(rejection)));
+        Assert.Equal(
+            "QDOS26001 for Jo Bloggs (QDOS)",
+            EmailTemplates.Render("{case reference} for {claimant} ({principal name})", facts.Values()));
+        Assert.Equal("AB12CDE – Jo Bloggs", facts.Subject());
+    }
+
+    /// <summary>A rejection whose reason is not held leaves the Reason line out.</summary>
+    [Fact]
+    public void ACaseRejectionWithNoReasonLeavesItsLineOut()
+    {
+        var facts = new CaseRejectionFacts("afternoon", "AB12CDE", null, "QDOS26001", "QDOS", null);
+
+        var rendered = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.CaseRejection), facts.Values());
+
+        Assert.StartsWith("Good afternoon,\n", rendered, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reason", rendered, StringComparison.Ordinal);
+        Assert.Equal("AB12CDE", facts.Subject());
     }
 
     [Fact]
@@ -300,7 +348,7 @@ public sealed class EmailTemplatesTests
         [EmailTemplates.Registration] = registration,
         [EmailTemplates.Roadworthiness] = roadworthiness,
         [EmailTemplates.RepairOutcome] = repairOutcome,
-        [EmailTemplates.FindingReason] = reason
+        [EmailTemplates.Reason] = reason
     };
 
     private sealed class TemplateStore : IEmailTemplateStore

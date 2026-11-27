@@ -7,9 +7,10 @@ namespace Pegasus.Core.Operations;
 /// The staff message whose body an Administrator may edit (FRD-17 E-mail
 /// templates). Each purpose has its own placeholder set and built-in body.
 /// <see cref="EmailTemplatePurpose.PhotoLinkText"/> is the photo link's text message, edited on the
-/// same page (R919).
+/// same page (R919). <see cref="EmailTemplatePurpose.CaseRejection"/> is the
+/// e-mail to the Principal that Close case offers for a rejection (R1324).
 /// </summary>
-public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser, PhotoLink, PhotoLinkText }
+public enum EmailTemplatePurpose { TriageOutcomeReply, CaseReportDelivery, CaseChaser, PhotoLink, PhotoLinkText, CaseRejection }
 
 /// <summary>
 /// One purpose's body as it stands: the saved text, or the built-in body at
@@ -46,7 +47,7 @@ public static partial class EmailTemplates
     public const string Registration = "registration";
     public const string Roadworthiness = "roadworthiness";
     public const string RepairOutcome = "repair outcome";
-    public const string FindingReason = "reason";
+    public const string Reason = "reason";
     public const string CaseReference = "case reference";
     public const string Outcome = "outcome";
     public const string PrincipalName = "principal name";
@@ -58,7 +59,7 @@ public static partial class EmailTemplates
     public const string LinkExpiry = "link expiry";
 
     private static readonly string[] TriageOutcomeReplyPlaceholders =
-        [Registration, Roadworthiness, RepairOutcome, FindingReason];
+        [Registration, Roadworthiness, RepairOutcome, Reason];
 
     /// <summary>
     /// The Triage outcome reply's built-in body, one dimension per line.
@@ -145,6 +146,29 @@ public static partial class EmailTemplates
         + "{photo link}\n"
         + "The link works until {link expiry}.";
 
+    /// <summary>
+    /// The Case rejection (FRD-13 Close case; R1324): <c>{reason}</c> is the
+    /// reason staff gave when they closed the Case as Collision Engineers
+    /// rejected. <c>{greeting}</c> is the report delivery's.
+    /// </summary>
+    private static readonly string[] CaseRejectionPlaceholders =
+        [Greeting, Registration, Claimant, CaseReference, PrincipalName, Reason];
+
+    /// <summary>
+    /// The Case rejection's built-in body, the agent's draft signed off as
+    /// drafted (operator, 27 November 2026; R1324). <c>{claimant}</c>,
+    /// <c>{case reference}</c> and <c>{principal name}</c> are available but
+    /// not used.
+    /// </summary>
+    private const string CaseRejectionDefault =
+        "Good {greeting},\n"
+        + "\n"
+        + "Unfortunately we are unable to accept this instruction for {registration}.\n"
+        + "\n"
+        + "Reason: {reason}\n"
+        + "\n"
+        + "Kind Regards";
+
     public static IReadOnlyList<string> Placeholders(EmailTemplatePurpose purpose) => purpose switch
     {
         EmailTemplatePurpose.TriageOutcomeReply => TriageOutcomeReplyPlaceholders,
@@ -152,6 +176,7 @@ public static partial class EmailTemplates
         EmailTemplatePurpose.CaseChaser => CaseChaserPlaceholders,
         EmailTemplatePurpose.PhotoLink => PhotoLinkPlaceholders,
         EmailTemplatePurpose.PhotoLinkText => PhotoLinkPlaceholders,
+        EmailTemplatePurpose.CaseRejection => CaseRejectionPlaceholders,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 
@@ -162,6 +187,7 @@ public static partial class EmailTemplates
         EmailTemplatePurpose.CaseChaser => CaseChaserDefault,
         EmailTemplatePurpose.PhotoLink => PhotoLinkDefault,
         EmailTemplatePurpose.PhotoLinkText => PhotoLinkTextDefault,
+        EmailTemplatePurpose.CaseRejection => CaseRejectionDefault,
         _ => throw new ArgumentOutOfRangeException(nameof(purpose))
     };
 

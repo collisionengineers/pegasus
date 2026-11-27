@@ -182,6 +182,35 @@ public sealed class EmailTemplateAdministrationWebTests
         Assert.DoesNotContain("data-insert-placeholder=\"{case reference}\"", dialog, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The Case rejection template is one more row of the same area (operator,
+    /// 27 November 2026; R1324): its name, its built-in body and its six
+    /// placeholders, the Close case reason among them.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseRejectionTemplateIsARowWithItsOwnBodyAndPlaceholders()
+    {
+        const EmailTemplatePurpose rejection = EmailTemplatePurpose.CaseRejection;
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetHtmlAsync(client, Page);
+
+        Assert.Contains($"data-email-template=\"{rejection}\"", html, StringComparison.Ordinal);
+        Assert.Equal("Case rejection", OperatorLabels.EmailTemplates.Name(rejection));
+        Assert.Contains(OperatorLabels.EmailTemplates.Name(rejection), html, StringComparison.Ordinal);
+        var dialog = Dialog(html, rejection);
+        Assert.Contains(
+            EmailTemplates.DefaultBody(rejection),
+            WebUtility.HtmlDecode(dialog).Replace("\r\n", "\n", StringComparison.Ordinal),
+            StringComparison.Ordinal);
+        Assert.Equal(6, EmailTemplates.Placeholders(rejection).Count);
+        foreach (var placeholder in EmailTemplates.Placeholders(rejection))
+        {
+            Assert.Contains($"data-insert-placeholder=\"{{{placeholder}}}\"", dialog, StringComparison.Ordinal);
+        }
+        Assert.Contains("data-insert-placeholder=\"{reason}\"", dialog, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AStaleSaveIsRefusedAndAsksToReload()
     {

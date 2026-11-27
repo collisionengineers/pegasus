@@ -81,7 +81,7 @@ exclusion.
 | CASE-19 | Hold/release behavior that preserves the chase interval | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
 | CASE-20 | General Case tasks: a Tasks dialog from the Case record's Actions menu (add, assign, complete, cancel), after-send tasks created from the list the report send recorded when Report sent is recorded, and open tasks listed in Next action after the send and blocking Archive (no due date yet) | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing); [Tasks](frd/frd-16-case-record-workspace.md#tasks) |
 | CASE-21 | Replay-safe Case export history | [Export case](frd/frd-07-case-export.md#export-case) |
-| CASE-24 | Principal cancellation and Collision Engineers rejection outcomes | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
+| CASE-24 | Principal cancellation and Collision Engineers rejection outcomes; a rejection may e-mail the Principal from the Case rejection template (R1321) | [Close case](frd/frd-13-case-lifecycle-and-workflow.md#close-case) |
 | CASE-25 | Reasoned return to engineering through normal destination gates | [Actions](frd/frd-13-case-lifecycle-and-workflow.md#actions) |
 | CASE-26 | Archive without permanent case deletion | [Archive](frd/frd-13-case-lifecycle-and-workflow.md#archive) |
 | CASE-27 | Exclusive edit lease and stale-write protection | [Case edit lease](frd/frd-14-record-edit-leases.md#case-edit-lease) |

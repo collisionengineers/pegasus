@@ -239,6 +239,11 @@ public static partial class OperatorLabels
         // progression actions it must never sit among.
         public const string CloseCase = "Close case";
         public const string ClosureOutcome = "Outcome";
+        /// <summary>
+        /// Close case's tick for a rejection: the e-mail dialogue opens once the
+        /// Case is closed (operator, 27 November 2026; R1325).
+        /// </summary>
+        public const string EmailThePrincipal = "E-mail the Principal";
         // end review point 12
 
         // C08 labels batch: Stream B's documents/chase port.

@@ -492,7 +492,12 @@ Return to Engineer needs no session. The rules behind each action are in
   view with no success notice; a refusal shows its reason.
 - **Close case**, after a separator and in red. Its compact dialog offers
   only the outcomes Core permits and needs an outcome and a reason
-  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case)).
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case)). While the
+  outcome is Collision Engineers rejected it shows one tick under the
+  reason, **E-mail the Principal**; ticked, the Case closes and the page
+  returns with the e-mail dialogue open on the Case rejection template
+  (operator, 27 November 2026; [R1321](../rulings.md),
+  [R1325](../rulings.md)).
 
 ### Overview
 

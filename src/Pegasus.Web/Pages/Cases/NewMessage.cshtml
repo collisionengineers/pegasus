@@ -1,0 +1,27 @@
+@page "/Cases/{id:guid}/NewMessage"
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.NewMessageModel
+@{
+    ViewData["Title"] = OperatorLabels.StaffMail.NewMessage;
+}
+
+@* The new message as a page: what the Case's e-mail dialogue falls back to,
+   and where a refused send returns (FRD-21; R1323). The Send chaser page's
+   frame. *@
+<div class="mail-compose-standalone">
+    <section id="mail-compose-content" class="dialog mail-compose-dialog" role="dialog"
+             aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1">
+        <header class="dialog-head">
+            <div>
+                <p class="eyebrow">@Model.Case?.Summary.Reference</p>
+                <h1 id="mail-compose-title">@OperatorLabels.StaffMail.NewMessage</h1>
+            </div>
+            <a class="dialog-close" asp-page="/Cases/Details" asp-route-id="@Model.Id" aria-label="Close composer">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+            </a>
+        </header>
+        <div class="dialog-body mail-compose-body">
+            <partial name="Shared/_CaseNewMessageForm" model="Model" />
+        </div>
+    </section>
+</div>
