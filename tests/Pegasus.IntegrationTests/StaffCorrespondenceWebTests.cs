@@ -1178,8 +1178,6 @@ public sealed class StaffCorrespondenceWebTests
             ["compose"] = InputValue(html, "compose"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
             ["ExpectedCorrespondenceCaseVersion"] = InputValue(html, "ExpectedCorrespondenceCaseVersion"),
-            ["CorrespondenceTo"] = Recipients(html, "CorrespondenceTo"),
-            ["CorrespondenceCc"] = Recipients(html, "CorrespondenceCc"),
             ["CorrespondenceCaseReference"] = associatedReference,
             ["CorrespondenceCaseQuery"] = selectedReference,
             ["CorrespondenceTo"] = "selected@example.invalid",
