@@ -1219,10 +1219,13 @@ public sealed class QdosAllocationRecoveryTests
             initializeDevelopmentOffline: false,
             mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        // The existing Case is the same claim the follow-up e-mail names.
         var original = await AllocationTestData.StoreDefinitiveReceiptAsync(
             factory.Services,
             CaseType.Inspection,
-            "QDOS");
+            "QDOS",
+            claimantName: "Mail Association",
+            claimNumber: "MAIL-09");
         Guid existingCaseId;
         await using (var allocationScope = factory.Services.CreateAsyncScope())
         {
@@ -2082,7 +2085,9 @@ internal static class AllocationTestData
         string principalCode,
         MailRouteEvaluationResult? routeDecision = null,
         MailClassificationResult? classificationDecision = null,
-        CaseMatchEvaluationResult? caseMatchDecision = null)
+        CaseMatchEvaluationResult? caseMatchDecision = null,
+        string claimantName = "Allocation Claimant",
+        string claimNumber = "ALLOC-1")
     {
         var token = Guid.NewGuid().ToString("N");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -2100,13 +2105,30 @@ internal static class AllocationTestData
                 IntakeDecision.CaseCreated,
                 "Eligible for case allocation.",
                 [],
-                [new(
-                    "Vehicle registration",
-                    "AB12CDE",
-                    [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
-                    false,
-                    false)],
-                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
+                // A definitive instruction names its claim: without its
+                // claimant and claim number the Case would start with its
+                // instruction incomplete (R1331, R1334).
+                [
+                    new(
+                        "Claimant name",
+                        claimantName,
+                        [new(claimantName, IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false),
+                    new(
+                        "Claim number",
+                        claimNumber,
+                        [new(claimNumber, IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false),
+                    new(
+                        "Vehicle registration",
+                        "AB12CDE",
+                        [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false)
+                ],
+                new(principalCode, claimantName, claimNumber, "AB12CDE", null, null, null, null, null, null),
                 [],
                 null,
                 null,

@@ -94,7 +94,7 @@ describe("recordOutcomes (#1915)", () => {
     const store = new MemoryReviewedStore();
     const run = harness([candidate(detail)]);
     run.outcomes.failed.set(detail.summary.id, "an earlier refusal");
-    await run.call("classify_email", { messageId: detail.summary.id, category: "cancellation", reason: "The sender cancels." });
+    await run.call("classify_email", { messageId: detail.summary.id, category: "pre-pegasus-case", reason: "The sender chases an old-system job." });
     assert.equal(run.outcomes.failed.size, 0);
     await recordOutcomes(run.batch, run.outcomes, true, store, run.pegasus, quiet);
     assert.equal((await store.get(detail.summary.id))?.outcome, "reviewed");
@@ -104,7 +104,7 @@ describe("recordOutcomes (#1915)", () => {
     const detail = mail();
     const store = new MemoryReviewedStore();
     const run = harness([candidate(detail)]);
-    await run.call("classify_email", { messageId: detail.summary.id, category: "cancellation", reason: "The sender cancels." });
+    await run.call("classify_email", { messageId: detail.summary.id, category: "pre-pegasus-case", reason: "The sender chases an old-system job." });
     await recordOutcomes(run.batch, run.outcomes, true, store, run.pegasus, quiet);
     const after = fingerprint((await run.pegasus.get(detail.summary.id)).summary);
     assert.notEqual(after, fingerprint(detail.summary));

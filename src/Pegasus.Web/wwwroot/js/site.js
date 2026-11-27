@@ -1796,15 +1796,12 @@
         var triageOption = select.querySelector('option[value="' + triageValue + '"]');
         var privateCustomer = form.querySelector('[data-manual-private-customer]');
         var fields = form.querySelectorAll(
-            '[data-triage-hidden], [data-private-hidden], [data-private-only], [data-private-optional]');
+            '[data-triage-hidden], [data-private-hidden], [data-private-only], [data-private-required]');
         fields.forEach(function (field) {
             field.querySelectorAll('input, select, textarea').forEach(function (control) {
                 if (control.required) {
                     control.setAttribute('data-required', '');
                 }
-            });
-            field.querySelectorAll('label.req').forEach(function (label) {
-                label.setAttribute('data-req', '');
             });
         });
         function sync() {
@@ -1820,14 +1817,19 @@
                 var hidden = (triage && field.hasAttribute('data-triage-hidden'))
                     || (isPrivate && field.hasAttribute('data-private-hidden'))
                     || (!isPrivate && field.hasAttribute('data-private-only'));
-                var optional = isPrivate && field.hasAttribute('data-private-optional');
+                // A one-off's customer name is asked of a private customer only
+                // (R577); a Case for a Principal is created without it (R1331).
+                var privateRequired = field.hasAttribute('data-private-required');
                 field.hidden = hidden;
                 field.querySelectorAll('input, select, textarea').forEach(function (control) {
-                    control.required = control.hasAttribute('data-required') && !hidden && !optional;
+                    control.required = !hidden
+                        && (privateRequired ? isPrivate : control.hasAttribute('data-required'));
                 });
-                field.querySelectorAll('label[data-req]').forEach(function (label) {
-                    label.classList.toggle('req', !optional);
-                });
+                if (privateRequired) {
+                    field.querySelectorAll('label').forEach(function (label) {
+                        label.classList.toggle('req', isPrivate);
+                    });
+                }
             });
         }
         select.addEventListener('change', sync);

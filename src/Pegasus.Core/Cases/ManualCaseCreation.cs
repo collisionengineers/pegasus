@@ -24,7 +24,8 @@ public sealed record CreateManualCaseRequest(
 /// Case type: a Triage its registration; a one-off for a private customer
 /// the claimant's name and the registration, with no claim number
 /// (operator, 31 October and 1 November 2026; R577, R578); every other Case
-/// its identity-critical fields.
+/// its registration. A missing claimant name or claim number does not refuse
+/// it: its instruction starts incomplete (operator, 27 November 2026, R1331).
 /// </summary>
 public static class ManualCaseCreationPolicy
 {

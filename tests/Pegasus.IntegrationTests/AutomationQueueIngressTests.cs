@@ -42,9 +42,10 @@ public sealed class AutomationQueueIngressTests
             var detail = await ReadStructuredContentAsync(response);
             Assert.Equal("case_created", detail.GetProperty("decision").GetString());
             Assert.Equal("Inspection", detail.GetProperty("classifiedCaseType").GetString());
-            Assert.Contains(
-                detail.GetProperty("missingIdentityFields").EnumerateArray(),
-                field => field.GetString() == "Claimant name");
+            // The registration is the one identity-critical fact, and the
+            // item has it; a missing claimant name or claim number refuses
+            // nothing (R1331).
+            Assert.Empty(detail.GetProperty("missingIdentityFields").EnumerateArray());
             version = detail.GetProperty("version").GetInt64();
         }
 
@@ -67,18 +68,6 @@ public sealed class AutomationQueueIngressTests
         // instruction is not held back for one.
         await (await factory.DatabaseAsync).ExecuteAsync(
             $"UPDATE Principals SET InspectionMode = N'{PrincipalInspectionModePolicy.ImageBasedAssessmentCode}' WHERE Code = N'{QdosPrincipal.Code}'");
-
-        // The identity-critical facts are refused by name while missing.
-        using (var refused = await PostMcpAsync(client, token, ToolCallPayload(4, "pegasus_intake_action", new
-        {
-            receiptId = receipt.Id,
-            action = "accept",
-            expectedReceiptVersion = version,
-            operationKey = "mcp:intake-accept-missing"
-        })))
-        {
-            Assert.Contains("Claimant name", await ReadErrorTextAsync(refused), StringComparison.Ordinal);
-        }
 
         Guid caseId;
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(5, "pegasus_intake_action", new

@@ -35,14 +35,17 @@ CLASSIFIER_DRY_RUN=true
 CLASSIFIER_BATCH=20
 CLASSIFIER_SCAN_PAGES=10
 CLASSIFIER_MAX_BUDGET_USD=2
+CLASSIFIER_REVIEWED_FILE=<run root>/state/classifier-reviewed.json
 ```
 
 Both URLs use the public origin: OpenIddict issues tokens for the host a
 request arrived on, so a token fetched on one origin is refused on another.
-Leave `CLASSIFIER_STORAGE_ACCOUNT` and `AZURE_CLIENT_ID` unset: the reviewed
-record is kept in memory for the run, which means every sweep re-reads all
-eligible mail. That is the cost of having no storage account, and it is the
-right cost here.
+Leave `CLASSIFIER_STORAGE_ACCOUNT` and `AZURE_CLIENT_ID` unset. The timer
+runs one sweep per process, so the reviewed record is kept in
+`CLASSIFIER_REVIEWED_FILE` between sweeps: a message the agent left alone is
+read again only once it changes (R1335). Unset, it is kept in memory for the
+one sweep and every sweep re-reads, and pays again for, all eligible mail. A
+dry run always keeps it in memory.
 
 ## Run
 
@@ -54,8 +57,8 @@ npm test             # the unit tests CI runs; no model call
 ```
 
 The hidden-list counter (`warning: candidates hidden`) lives in the reviewed
-table, so without a storage account each sweep warns on its own and never
-reaches `failed: candidates hidden`.
+record, so without a storage account or a reviewed file each sweep warns on
+its own and never reaches `failed: candidates hidden`.
 
 Dry run logs each proposal and writes nothing to Pegasus. Turning
 `CLASSIFIER_DRY_RUN` to `false` is the operator's call; in write mode the agent

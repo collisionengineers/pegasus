@@ -139,6 +139,8 @@ export const BodyLimit = 6000;
 /** Characters of one attachment's extracted text the model may read at once. */
 export const AttachmentTextLimit = 8000;
 const ReasonPrefix = "Classifier agent: ";
+/** Pegasus takes a classification correction's reason of 1 to 500 characters. */
+const CorrectionReasonLimit = 500;
 const NotListed = "That message is not in this run's eligible list.";
 
 function text(value: unknown, isError = false) {
@@ -457,7 +459,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
 
   const classify = tool(
     "classify_email",
-    "Gives one listed e-mail its mail category, with a one-sentence reason naming the evidence. new-instruction also needs workType.",
+    "Gives one listed e-mail its mail category, with a one-sentence reason naming the evidence. new-instruction also needs workType. cancellation is refused until the e-mail is linked to the Case it cancels.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
       category: z.enum([CorrespondenceCode, ...MailCategoryCodes]),
@@ -473,6 +475,10 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text(read, true);
       }
       const { detail, expected } = read;
+      // A cancellation belongs with the Case it cancels (R1333).
+      if (args.category === "cancellation" && detail.summary.caseId == null) {
+        return text("A cancellation is given only with the Case it cancels linked: link that Case first. A cancellation of a job Pegasus holds no Case for, with other mail about the job in the firm's mailboxes, is pre-pegasus-case; otherwise it is correspondence.", true);
+      }
       if (hasType(detail, args.category, args.workType)) {
         verdict(args.messageId);
         act(args.messageId, { action: "left", category: args.category, reason: args.reason });
@@ -625,9 +631,47 @@ export function createClassifierTools(options: ClassifierToolOptions) {
     },
     { annotations: { readOnlyHint: true, openWorldHint: false } });
 
+  /**
+   * No Case, no type (operator, 27 November 2026, R1332): every type but
+   * pre-pegasus-case belongs with a Case, so a new instruction the agent cannot
+   * make a Case for ends with none. Its type becomes correspondence, which
+   * unlinked is No Case Found, with the agent's reason and Pegasus's refusal for
+   * staff. The agent is then its decider, so it is not listed again.
+   */
+  async function leaveWithoutType(messageId: string, reason: string, refusal: string): Promise<void> {
+    const note = `${reason} ${refusal}`.slice(0, CorrectionReasonLimit - ReasonPrefix.length);
+    const untyped: RunAct = { action: "classified", category: CorrespondenceCode, reason, refusal };
+    log("left without a type", { messageId, refusal, dryRun });
+    if (dryRun) {
+      verdict(messageId);
+      proposed.set(messageId, { category: CorrespondenceCode });
+      act(messageId, untyped);
+      return;
+    }
+    const state = known.get(messageId);
+    if (!state) {
+      return;
+    }
+    try {
+      const corrected = await pegasus.correct({
+        messageId,
+        expectedClassificationVersion: state.classificationVersion,
+        classificationKey: CorrespondenceCode,
+        reason: ReasonPrefix + note,
+        operationKey: operationKey("cls", messageId, state.classificationVersion),
+      });
+      known.set(messageId, { ...state, classificationVersion: corrected.version });
+      wrote(messageId);
+      act(messageId, untyped);
+    } catch (error) {
+      failed(messageId, messageOf(error));
+      log("left without a type failed", { messageId, error: messageOf(error) });
+    }
+  }
+
   const createCase = tool(
     "create_case",
-    "Creates the Case for a listed e-mail that is classified new-instruction and has no Case, as staff Create case does on the received item: the e-mail becomes the Case's instruction. The work type is the classification's and the Principal is the one Pegasus knows for the e-mail; you never name one. Give claimantName, claimNumber, vehicleRegistration or incidentDate only when the instruction states them and Pegasus's draft lacks them; Pegasus keeps the values it extracted. Pegasus refuses the Case while an identity fact is missing or it knows no Principal for the sender, and the e-mail then waits for staff. A missing inspection address does not stop the Case: it starts Not ready and staff record the address. A website enquiry becomes a one-off Case for a private customer, linked to the e-mail: it needs claimantName and vehicleRegistration exactly as the enquiry writes them. A Case is never deleted.",
+    "Creates the Case for a listed e-mail that is classified new-instruction and has no Case, as staff Create case does on the received item: the e-mail becomes the Case's instruction. The work type is the classification's and the Principal is the one Pegasus knows for the e-mail; you never name one. Give claimantName, claimNumber, vehicleRegistration or incidentDate only when the instruction states them and Pegasus's draft lacks them; Pegasus keeps the values it extracted. Pegasus refuses the Case while the vehicle registration is missing or it knows no Principal for the sender; the e-mail then loses its type and waits in No Case Found for staff, with your reason and the refusal. A missing claimant name, claim number or inspection address does not stop the Case: it starts Not ready and staff record them. A website enquiry becomes a one-off Case for a private customer, linked to the e-mail: it needs claimantName and vehicleRegistration exactly as the enquiry writes them. A Case is never deleted.",
     {
       messageId: z.guid().describe("messageId from list_eligible_emails"),
       reason: z.string().min(1).max(450),
@@ -642,8 +686,8 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         return text(read, true);
       }
       const { detail, expected } = read;
-      const leftForStaff = (refusal: string) =>
-        act(args.messageId, { action: "left_for_staff", category: "new-instruction", reason: args.reason, refusal });
+      // No Case, no type (R1332): a refused Case leaves the e-mail without one.
+      const leftForStaff = (refusal: string) => leaveWithoutType(args.messageId, args.reason, refusal);
       if (detail.summary.caseId != null) {
         return text("The e-mail already has a Case.", true);
       }
@@ -670,20 +714,20 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           : undefined;
         if (intake.establishedPrincipalCode == null && senderPrincipal === undefined) {
           const refusal = "Pegasus knows no Principal for this e-mail: its sender matched no route and belongs to no one active Principal Contact. The e-mail waits for staff.";
-          verdict(args.messageId);
-          leftForStaff(refusal);
+          await leftForStaff(refusal);
           log("create case left for staff", { messageId: args.messageId, missing: ["Principal"] });
           return text(refusal, true);
         }
         const fields = missingOnly(intake.draft, args);
         // Nothing is written while an identity fact stays missing: the
-        // address would be settled for a Case Pegasus then refuses.
-        const supplied = (["claimantName", "claimNumber", "vehicleRegistration"] as const)
-          .filter((key) => fields[key] !== undefined).length;
-        if ((intake.missingIdentityFields ?? []).length > supplied) {
+        // address would be settled for a Case Pegasus then refuses. Only the
+        // registration is one; a missing claimant name or claim number does
+        // not refuse the Case (R1331).
+        const stillMissing = (intake.missingIdentityFields ?? [])
+          .filter((name) => !(name === "Vehicle registration" && fields.vehicleRegistration !== undefined));
+        if (stillMissing.length > 0) {
           const refusal = `Pegasus would refuse the Case: ${intake.missingIdentityFields.join(", ")} missing. The e-mail waits for staff.`;
-          verdict(args.messageId);
-          leftForStaff(refusal);
+          await leftForStaff(refusal);
           log("create case left for staff", { messageId: args.messageId, missing: intake.missingIdentityFields });
           return text(refusal, true);
         }
@@ -696,10 +740,18 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           act(args.messageId, { action: "case_created", category: "new-instruction", reason: args.reason });
           return text("Dry run: would create the Case.");
         }
+        // A failed allocation is retried, not created again: Pegasus answers a
+        // second Create case with the recorded failure, so once its cause is
+        // corrected, a Principal made active for one, only allocate makes the
+        // Case, from the recorded command, as staff Retry does.
+        const failedAttempt = intake.allocation?.status === "Failed" ? intake.allocation : undefined;
+        if (failedAttempt && !failedAttempt.canRetry) {
+          throw new Error(failedAttempt.safeReason ?? "The item's failed allocation cannot be retried.");
+        }
         // Pegasus's own suggested inspection address is accepted, as staff
         // accept it on Create case; the agent never supplies or corrects one.
         // With none suggested the Case is created without it (R965).
-        if (["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
+        if (!failedAttempt && ["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
           await pegasus.intakeAction({
             receiptId,
             action: "resolve_inspection_address",
@@ -710,14 +762,23 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           intake = await pegasus.intakeGet(receiptId);
         }
         try {
-          const created = await pegasus.intakeAction({
-            receiptId,
-            action: "accept",
-            expectedReceiptVersion: intake.version,
-            operationKey: operationKey("case", args.messageId, intake.version),
-            ...(senderPrincipal ? { principalCode: senderPrincipal } : {}),
-            ...fields,
-          });
+          const created = failedAttempt
+            ? await pegasus.intakeAction({
+              receiptId,
+              action: "allocate",
+              expectedReceiptVersion: intake.version,
+              expectedAttemptId: failedAttempt.attemptId,
+              reason: ReasonPrefix + args.reason,
+              operationKey: operationKey("case-retry", args.messageId, intake.version, newAttempt()),
+            })
+            : await pegasus.intakeAction({
+              receiptId,
+              action: "accept",
+              expectedReceiptVersion: intake.version,
+              operationKey: operationKey("case", args.messageId, intake.version),
+              ...(senderPrincipal ? { principalCode: senderPrincipal } : {}),
+              ...fields,
+            });
           if (!created.caseId) {
             throw new Error(created.safeReason ?? `The Case was not created (${created.allocationStatus ?? "no allocation"}).`);
           }
@@ -744,8 +805,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
         // create_case follows an accepted new-instruction verdict; a refused
         // Case leaves the e-mail for staff Create case, which is that verdict's
         // outcome, not a failed attempt to retry every run.
-        verdict(args.messageId);
-        leftForStaff(messageOf(error));
+        await leftForStaff(messageOf(error));
         log("create case refused", { messageId: args.messageId, error: messageOf(error) });
         return text(`Pegasus refused the Case: ${messageOf(error)}. The e-mail waits for staff.`, true);
       }
@@ -764,15 +824,14 @@ export function createClassifierTools(options: ClassifierToolOptions) {
     detail: MailDetail,
     expected: MessageState,
     intakeVersion: number,
-    leftForStaff: (refusal: string) => void,
+    leftForStaff: (refusal: string) => Promise<void>,
   ) {
     const workType = typeOf(args.messageId, detail).workType;
     const claimantName = args.claimantName?.trim();
     const registration = args.vehicleRegistration ? normalizeRegistration(args.vehicleRegistration) : "";
     if (!workType || !claimantName || !registration) {
       const refusal = "A website enquiry becomes a one-off Case only with the customer's name and the vehicle's registration; the enquiry does not give both, so the e-mail waits for staff.";
-      verdict(args.messageId);
-      leftForStaff(refusal);
+      await leftForStaff(refusal);
       log("create case left for staff", { messageId: args.messageId, missing: ["website enquiry name or registration"] });
       return text(refusal, true);
     }
@@ -785,8 +844,7 @@ export function createClassifierTools(options: ClassifierToolOptions) {
     }
     if (!detail.canLinkCase || detail.intakeVersion == null) {
       const refusal = "The e-mail cannot be linked to a Case, so no one-off Case is made for it; it waits for staff.";
-      verdict(args.messageId);
-      leftForStaff(refusal);
+      await leftForStaff(refusal);
       return text(refusal, true);
     }
     log("create one-off case", { messageId: args.messageId, registration, reason: args.reason, dryRun });

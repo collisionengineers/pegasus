@@ -75,18 +75,40 @@ public sealed class InstructionDraftCompletenessTests
 
     /// <summary>
     /// The allocation gate is narrower than the completeness rule on purpose:
-    /// FRD-22 (pre-Case gates) fails closed on identity-critical
-    /// route facts, then requires allocation with thin ordinary detail retained
-    /// as `Not ready`.
+    /// FRD-22 (pre-Case gates) fails closed on the vehicle registration, then
+    /// requires allocation with a missing claimant name or claim number and
+    /// thin ordinary detail retained as `Not ready` (R1331).
     /// </summary>
+    [Fact]
+    public void AMissingRegistrationStopsAllocation() =>
+        Assert.Equal(
+            ["Vehicle registration"],
+            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(Without("Vehicle registration")));
+
     [Theory]
     [InlineData("Claimant name")]
     [InlineData("Claim number")]
-    [InlineData("Vehicle registration")]
-    public void AMissingIdentityCriticalFieldStopsAllocation(string fieldName) =>
+    public void AMissingClaimFactDoesNotStopAllocationButIsNamed(string fieldName)
+    {
+        var draft = Without(fieldName);
+
+        Assert.Empty(InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft));
+        Assert.Equal([fieldName], InstructionDraftCompleteness.MissingClaimFieldNames(draft));
+        Assert.False(InstructionDraftCompleteness.IsComplete(draft));
+    }
+
+    [Fact]
+    public void AOneOffStillNeedsTheCustomersNameAndIsAskedNoClaimNumber()
+    {
+        var draft = Without("Claimant name") with { ClaimNumber = null };
+
         Assert.Equal(
-            [fieldName],
-            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(Without(fieldName)));
+            ["Claimant name"],
+            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft, privateCustomer: true));
+        Assert.Equal(
+            ["Claimant name"],
+            InstructionDraftCompleteness.MissingClaimFieldNames(draft, privateCustomer: true));
+    }
 
     [Theory]
     [InlineData("Vehicle make")]
@@ -102,14 +124,17 @@ public sealed class InstructionDraftCompletenessTests
         // Still incomplete — the case will carry the gap and sit in `Not ready`.
         Assert.False(InstructionDraftCompleteness.IsComplete(draft));
         Assert.Empty(InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft));
+        Assert.Empty(InstructionDraftCompleteness.MissingClaimFieldNames(draft));
     }
 
     [Fact]
-    public void AnEmptyDraftNamesEveryIdentityCriticalFieldAndNoOther() =>
-        Assert.Equal(
-            ["Claimant name", "Claim number", "Vehicle registration"],
-            InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(
-                new(null, null, null, null, null, null, null, null, null, null)));
+    public void AnEmptyDraftNamesOnlyTheRegistrationAsIdentityCriticalAndBothClaimFacts()
+    {
+        var empty = new InstructionDraft(null, null, null, null, null, null, null, null, null, null);
+
+        Assert.Equal(["Vehicle registration"], InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(empty));
+        Assert.Equal(["Claimant name", "Claim number"], InstructionDraftCompleteness.MissingClaimFieldNames(empty));
+    }
 
     /// <summary>The Case's Received date is its instruction date (operator, 24 September 2026), so no profile reads one, and a label kept only as a boundary is never a field with a role.</summary>
     [Fact]

@@ -202,6 +202,30 @@ public sealed class ManualCaseCreationTests
         Assert.Null(store.Request);
     }
 
+    /// <summary>
+    /// A Case for a Principal is created without its claimant name or claim
+    /// number: its instruction starts incomplete instead (operator,
+    /// 27 November 2026, R1331).
+    /// </summary>
+    [Fact]
+    public async Task APrincipalCaseWithoutItsClaimFactsIsStillCreated()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await useCase.ExecuteAsync(new(
+            Staff,
+            "manual-no-claim-facts",
+            "CE",
+            CaseType.Inspection,
+            new(VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+
+        Assert.NotNull(store.Request);
+        Assert.Null(store.Request!.Data.ClaimantName);
+        Assert.Null(store.Request.Data.ClaimNumber);
+    }
+
     /// <summary>A one-off is never a Triage (R577).</summary>
     [Fact]
     public async Task AOneOffTriageIsRefused()
@@ -241,7 +265,7 @@ public sealed class ManualCaseCreationTests
     }
 
     [Theory]
-    [InlineData(CaseType.Inspection, false, new[] { "Claimant name", "Claim number", "Vehicle registration" })]
+    [InlineData(CaseType.Inspection, false, new[] { "Vehicle registration" })]
     [InlineData(CaseType.Inspection, true, new[] { "Claimant name", "Vehicle registration" })]
     [InlineData(CaseType.Triage, false, new[] { "Vehicle registration" })]
     public void WhatACaseCreatedDirectlyNeedsDependsOnItsKind(CaseType caseType, bool privateCustomer, string[] expected)

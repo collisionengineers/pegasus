@@ -121,9 +121,19 @@ export interface IntakeDetail {
   websiteEnquiry: boolean;
   draft: InstructionDraft | null;
   missingIdentityFields: string[];
+  /** The item's latest allocation attempt, when one was made. */
+  allocation?: IntakeAllocation | null;
   inspectionAddressState: string;
   inspectionAddressSuggestion: string | null;
   inspectionAddressSuggestionFingerprint: string | null;
+}
+
+/** A received item's latest allocation attempt, as pegasus_intake_get names it. */
+export interface IntakeAllocation {
+  attemptId: string;
+  status: string;
+  safeReason: string | null;
+  canRetry: boolean;
 }
 
 /** What pegasus_case_create answers. */
@@ -323,9 +333,12 @@ export class PegasusMail {
    */
   intakeAction(args: {
     receiptId: string;
-    action: "accept" | "resolve_inspection_address" | "open_triage";
+    action: "accept" | "allocate" | "resolve_inspection_address" | "open_triage";
     expectedReceiptVersion: number;
     operationKey: string;
+    /** allocate: the failed attempt it retries, and why. */
+    expectedAttemptId?: string;
+    reason?: string;
     principalCode?: string;
     claimantName?: string;
     claimNumber?: string;

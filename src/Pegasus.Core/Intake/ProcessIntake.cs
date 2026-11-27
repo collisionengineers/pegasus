@@ -1321,15 +1321,16 @@ public sealed class ProcessIntake(
             ]
             : [.. readerEvidence, PrincipalInstructionPolicy.DeclarationEvidence(instruction.CaseType)];
 
-        // The identity-critical fields are the only ones that may withhold a
-        // reference; ordinary detail missing from a declaration leaves the case
-        // Not ready exactly as it does for an e-mail (FRD-22).
+        // The identity-critical field, the vehicle registration, is the only
+        // one that may withhold a reference; a missing claimant name or claim
+        // number, like ordinary detail, leaves the case Not ready exactly as it
+        // does for an e-mail (FRD-22, R1331).
         var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
         var decision = missingIdentity.Count > 0 || isTriage
             ? IntakeDecision.NeedsSorting
             : IntakeDecision.CaseCreated;
         var reason = missingIdentity.Count > 0
-            ? $"The declared instruction does not identify the claim: {string.Join(", ", missingIdentity)}."
+            ? $"The declared instruction does not identify the vehicle: {string.Join(", ", missingIdentity)}."
             : isTriage
                 ? "A Triage request is pre-case work; no case is created from it."
                 : "The authenticated Principal declared a definitive instruction.";

@@ -170,9 +170,11 @@ already holds the fields, so it states them.
   submission's body is retained, a retry is compared on its declaration, so
   one whose earlier attempt was not retained may resend its files.
 - **Validation.** A malformed or out-of-bounds field is 400, naming the
-  field. Only the identity-critical fields withhold a reference: claimant
-  name, claim number and vehicle registration. Ordinary detail missing from
-  a declaration leaves the Case `Not ready`, exactly as for an email.
+  field. Only the identity-critical field, the vehicle registration,
+  withholds a reference. A missing claimant name or claim number, and
+  ordinary detail missing from a declaration, leave the Case `Not ready`,
+  exactly as for an email (operator, 27 November 2026,
+  [R1331](../rulings.md)).
 - **No instruction date.** The Case's Received date, which is its
   instruction date, is the day Pegasus received the submission
   ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
