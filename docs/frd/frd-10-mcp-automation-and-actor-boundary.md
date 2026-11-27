@@ -793,7 +793,7 @@ assessment values. Every scope has a consent description on the
 Administrator consent page, which prints it without the scope's identifier
 (operator, 15 and 19 October 2026).
 
-The whole inventory, 85 tools, by scope, for the Actor and for a member of
+The whole inventory, 86 tools, by scope, for the Actor and for a member of
 staff signed in from Pegasus Desktop alike. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
@@ -856,6 +856,7 @@ its one command when none is given.
 | `automation.mail` | `pegasus_mail_attachment_text` | Read-only: the text the intake reader extracted from one attachment of a retained message, by the attachment's position, cut at the caller's cap (at most 20,000 characters); null when the reader produced none; never the bytes (#1891) | none |
 | `automation.mail` | `pegasus_mail_photo_registrations` | Read-only: the plate reads recorded for a retained message's photographs and the registration they agree on at the accepted bar; no image (R732 to R734) | none |
 | `automation.mail` | `pegasus_old_system_folder_search` | Read-only: folder names and identities matching a term below the old system's Box folder; a reference-shaped term matches a folder name only as a whole token (R592); unavailable until that folder is configured (R561) | none |
+| `automation.mail` | `pegasus_classifier_run_record` | The mail classifier's record of one run ([FRD-08](frd-08-email-mailbox-and-background-processing.md); R1318): `open` with the settings it runs with, `close` with how it ended and one row per e-mail of its batch; a close whose open never arrived opens the run too, and a repeated stage changes nothing. The Automation Actor's only: a member of staff signed in from Pegasus Desktop is refused it. Changes no mail, Case or classification | key only |
 | `automation.jobs` | `pegasus_ai_job_list`, `pegasus_ai_job_create`, `pegasus_ai_job_transition`, `pegasus_ai_job_complete_market_research` | The AI job ledger above | job version and key |
 | `automation.send` | `pegasus_report_send` | Send a generated report to the Principal, as **Send report** does, with `deleteCaseCorrespondence` | one-command lease |
 | `automation.send` | `pegasus_photo_link_send` | Send a new link (`send`) or a live one again (`resend`) by `email`, the Photo link staff send, or by `text` | key only |

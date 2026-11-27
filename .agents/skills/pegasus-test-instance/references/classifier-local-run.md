@@ -137,6 +137,12 @@ scopes. A run started before the line went in needs Stop and
 
 ## What to watch
 
+- Administration › Mail classifier lists each sweep the agent recorded
+  through `pegasus_classifier_run_record` (R1318): its outcome, cost and
+  what it did with each e-mail. A sweep that found Pegasus unavailable
+  records nothing. With no storage account the agent writes no `runs`
+  table here; the live runs beside the instance's own are read from
+  production's (section 2 of the skill, R1319).
 - The Web log shows the token request and the MCP calls on the public origin.
 - `CLASSIFIER_MAX_BUDGET_USD` bounds one sweep's Anthropic spend; the key is
   the operator's and the spend is theirs.

@@ -21,3 +21,17 @@ durable owner.
   a separate decision (operator, 9 November 2026, R779); EXT-19 stays
   retired, so a custom domain would take a new capability identity. Links
   already sent keep the hostname they were sent with until they expire.
+
+## Mail classifier: how long its runs are kept
+
+- **Owner**: the operator.
+- **Affected contract**: [FRD-08](frd/frd-08-email-mailbox-and-background-processing.md)
+  (the classifier's run record, R1318), the `ClassifierRuns` and
+  `ClassifierRunItems` tables, and the live classifier's `runs` table that
+  the hosted test instance reads (R1319).
+- **Decision needed**: whether runs are deleted after a period, and which.
+  The task proposed 90 days. Nothing deletes a log-like row today: the only
+  age purge is the staff notifications' 30 days, an hourly step on the
+  Worker's one-minute sweep, which a run purge would join, with a Worker
+  delete grant on the two tables. Until this is decided, runs are kept; at
+  one run every 15 minutes the database gains about 96 runs a day.
