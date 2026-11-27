@@ -16,16 +16,17 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Integrations administration page (operator, 26 November 2026; R1289):
-/// the automatic requests panel with its five switches and one Save, and one
-/// panel per integration login whose integration the host composes, showing
-/// the account and when it was replaced and never a typed value.
+/// The Integrations administration page (operator, 26 November 2026; R1289,
+/// R1296): one table of the five integrations with their automatic switches
+/// and one Save, and a Settings dialog per login showing the account and when
+/// it was replaced and never a typed value.
 /// </summary>
 /// <remarks>
-/// The test host composes no valuation or Experian provider, so the tests that
-/// need a login's panel compose a provider for every integration that is never
-/// asked (<see cref="WithEveryIntegration"/>), as the valuation section's web
-/// tests compose theirs.
+/// The test host composes no valuation or Experian provider; every row and
+/// dialog is drawn all the same. The Brego tests compose a provider for every
+/// integration that is never asked and a fake sign-in
+/// (<see cref="WithEveryIntegration"/>), as the valuation section's web tests
+/// compose theirs.
 /// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed partial class IntegrationsAdministrationWebTests
@@ -37,10 +38,43 @@ public sealed partial class IntegrationsAdministrationWebTests
     private const string PastedToken = "pasted-token-never-shown-58";
     private const string PastedLink = "https://app.brego.io/#magic-link=" + PastedToken;
     private const string EnteredCode = "908172";
+    private const string BregoOpenRoute = Route + "?open=Brego";
 
     private static readonly ActionActor Administrator = ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
+
+    /// <summary>The table's rows, in the page's order.</summary>
+    private static readonly IntegrationLogin[] LoginOrder =
+    [
+        IntegrationLogin.GlassValuation,
+        IntegrationLogin.Brego,
+        IntegrationLogin.Cazana,
+        IntegrationLogin.ExperianHistory,
+        IntegrationLogin.ExperianCap,
+    ];
+
+    /// <summary>The Brego sign-in steps' own forms.</summary>
+    private static readonly string[] StepFormIds =
+        ["brego-refresh-form", "brego-send-form", "brego-link-form", "brego-code-form"];
+
+    /// <summary>Each sign-in step's button, by the form it submits.</summary>
+    private static readonly (string Form, string Label)[] StepButtons =
+    [
+        ("brego-refresh-form", OperatorLabels.Integrations.RefreshBregoLogin),
+        ("brego-send-form", OperatorLabels.Integrations.SendBregoLink),
+        ("brego-link-form", OperatorLabels.Integrations.LinkBrego),
+        ("brego-code-form", OperatorLabels.Integrations.ConfirmBregoCode),
+    ];
+
+    /// <summary>The table's visible column headers.</summary>
+    private static readonly string[] ColumnHeaders =
+    [
+        OperatorLabels.Integrations.Integration,
+        OperatorLabels.Integrations.Account,
+        OperatorLabels.Integrations.Updated,
+        OperatorLabels.Integrations.Automatic,
+    ];
 
     private static readonly ValuationSource[] GuideSources =
         [ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.Cazana, ValuationSource.Cap];
@@ -64,42 +98,61 @@ public sealed partial class IntegrationsAdministrationWebTests
     }
 
     /// <summary>
+    /// One table of the five integrations, in every deployment, on a host that
+    /// composes none of them (R1296): each row its account, when it was
+    /// updated, its automatic switch, labelled for a screen reader, and a
+    /// Settings button for its dialog; every dialog is hidden on a plain GET.
     /// On a fresh database the Glass's switch is on and the four added on 26
     /// November 2026 are off (R1287). The page is listed after Unroadworthy
-    /// reasons in the rail and the hub, and where the host composes no
-    /// integration it draws no login panel.
+    /// reasons in the rail and the hub.
     /// </summary>
     [Fact]
-    public async Task OnAFreshDatabaseOnlyTheGlassesSwitchIsOnAndNoUncomposedLoginIsDrawn()
+    public async Task TheTableListsTheFiveIntegrationsWithTheirSwitchesAndHiddenDialogs()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, Route);
 
-        var labels = new[]
+        var rows = TableRows(html);
+        Assert.Equal(LoginOrder.Length, rows.Count);
+        for (var index = 0; index < LoginOrder.Length; index++)
         {
-            OperatorLabels.Integrations.AutomaticGlassValuation,
-            OperatorLabels.Integrations.AutomaticBregoValuation,
-            OperatorLabels.Integrations.AutomaticCazanaValuation,
-            OperatorLabels.Integrations.AutomaticCapValuation,
-            OperatorLabels.Integrations.AutomaticExperianCheck,
-        };
-        var positions = labels
-            .Select(label => html.IndexOf($"<span>{HtmlEncoder.Default.Encode(label)}</span>", StringComparison.Ordinal))
-            .ToList();
-        Assert.All(positions, position => Assert.True(position >= 0));
-        Assert.Equal(positions.Order().ToList(), positions);
-        Assert.True(CheckboxIsChecked(html, "GlassesValuationEnabled"));
-        Assert.False(CheckboxIsChecked(html, "BregoValuationEnabled"));
-        Assert.False(CheckboxIsChecked(html, "CazanaValuationEnabled"));
-        Assert.False(CheckboxIsChecked(html, "CapValuationEnabled"));
-        Assert.False(CheckboxIsChecked(html, "VehicleHistoryCheckEnabled"));
-        Assert.Contains($">{OperatorLabels.Integrations.SaveAutomatic}</span>", html, StringComparison.Ordinal);
+            var login = LoginOrder[index];
+            var kind = IntegrationsModel.AutomaticKind(login);
+            var cells = Cells(rows[index]);
+            Assert.Equal(5, cells.Count);
+            Assert.Equal(
+                $"<strong>{HtmlEncoder.Default.Encode(OperatorLabels.Integrations.Heading(login))}</strong>",
+                cells[0].Trim());
+            Assert.Equal(OperatorLabels.Integrations.NotSet, WebUtility.HtmlDecode(cells[1]).Trim());
+            Assert.Equal("—", WebUtility.HtmlDecode(cells[2]).Trim());
+            Assert.Contains(
+                $"name=\"{IntegrationsModel.AutomaticFieldName(kind)}\"",
+                cells[3],
+                StringComparison.Ordinal);
+            Assert.Contains(
+                $"<span class=\"sr-only\">{HtmlEncoder.Default.Encode(OperatorLabels.Integrations.AutomaticSwitch(kind))}</span>",
+                cells[3],
+                StringComparison.Ordinal);
+            Assert.Equal(kind == AutomaticRequestKind.GlassesValuation, CheckboxIsChecked(cells[3], IntegrationsModel.AutomaticFieldName(kind)));
+            Assert.Contains($"data-dialog-open=\"integration-login-{login}\"", cells[4], StringComparison.Ordinal);
+            Assert.Contains($">{OperatorLabels.Integrations.Settings}</button>", cells[4], StringComparison.Ordinal);
 
-        // A capability this host does not carry is absent, never an inert panel.
-        Assert.DoesNotContain("handler=SaveLogin", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.Integrations.Save, html, StringComparison.Ordinal);
+            var dialog = DialogTag(html, login);
+            Assert.Contains("hidden=\"hidden\"", dialog, StringComparison.Ordinal);
+            // Razor writes a data- attribute even for a null value, as an empty
+            // one; only "true" opens a dialog on load.
+            Assert.DoesNotContain("data-dialog-open-on-load=\"true\"", dialog, StringComparison.Ordinal);
+        }
+
+        foreach (var header in ColumnHeaders)
+        {
+            Assert.Contains($"<th scope=\"col\">{header}</th>", html, StringComparison.Ordinal);
+        }
+
+        var foot = html[html.IndexOf("class=\"panel-foot admin-actions-end\"", StringComparison.Ordinal)..];
+        Assert.Contains($">{OperatorLabels.Integrations.SaveAutomatic}</span>", foot, StringComparison.Ordinal);
 
         var nav = html[html.IndexOf("class=\"admin-nav panel\"", StringComparison.Ordinal)..];
         var reasonsEntry = nav.IndexOf("href=\"/Administration/UnroadworthyReasons\"", StringComparison.Ordinal);
@@ -156,7 +209,7 @@ public sealed partial class IntegrationsAdministrationWebTests
     /// <summary>
     /// R546 (29 October 2026): the automatic Glass's valuation at Case creation
     /// is an Administrator switch, on until it is turned off; since R1289 it is
-    /// on Integrations, and the automatic requests panel's one Save turns it off.
+    /// on Integrations, and the table's one Save turns it off.
     /// </summary>
     [Fact]
     public async Task TheOneSaveTurnsTheAutomaticGlassValuationOff()
@@ -166,7 +219,7 @@ public sealed partial class IntegrationsAdministrationWebTests
 
         var html = await GetHtmlAsync(client, Route);
         Assert.Contains(
-            $"<span>{HtmlEncoder.Default.Encode(OperatorLabels.Integrations.AutomaticGlassValuation)}</span>",
+            $"<span class=\"sr-only\">{HtmlEncoder.Default.Encode(OperatorLabels.Integrations.AutomaticGlassValuation)}</span>",
             html,
             StringComparison.Ordinal);
         Assert.True(CheckboxIsChecked(html, "GlassesValuationEnabled"));
@@ -211,11 +264,11 @@ public sealed partial class IntegrationsAdministrationWebTests
     }
 
     /// <summary>
-    /// Every composed integration has its panel, in the page's order, with
-    /// exactly its own fields, every box empty.
+    /// Every login has its dialog, in the page's order, with exactly its own
+    /// fields, every box empty.
     /// </summary>
     [Fact]
-    public async Task EachComposedLoginHasItsPanelWithItsOwnEmptyFields()
+    public async Task EachLoginHasItsDialogWithItsOwnEmptyFields()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithEveryIntegration(baseFactory);
@@ -407,6 +460,11 @@ public sealed partial class IntegrationsAdministrationWebTests
             glass,
             StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.Integrations.Unreadable, Panel(html, IntegrationLogin.Cazana), StringComparison.Ordinal);
+
+        // The row says the same in its Account cell.
+        var rows = TableRows(html);
+        Assert.Equal(OperatorLabels.Integrations.Unreadable, WebUtility.HtmlDecode(Cells(rows[0])[1]).Trim());
+        Assert.Equal(OperatorLabels.Integrations.NotSet, WebUtility.HtmlDecode(Cells(rows[2])[1]).Trim());
     }
 
     /// <summary>
@@ -525,6 +583,7 @@ public sealed partial class IntegrationsAdministrationWebTests
         using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, PastedLink)))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(Route, response.Headers.Location?.OriginalString);
         }
 
         Assert.Equal(PastedLink, Assert.Single(link.Links));
@@ -550,9 +609,11 @@ public sealed partial class IntegrationsAdministrationWebTests
         using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, PastedLink)))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(BregoOpenRoute, response.Headers.Location?.OriginalString);
         }
 
-        var waiting = await GetHtmlAsync(client, Route);
+        var waiting = await GetHtmlAsync(client, BregoOpenRoute);
+        Assert.True(DialogOpens(waiting, IntegrationLogin.Brego));
         var panel = Panel(waiting, IntegrationLogin.Brego);
         Assert.Contains(
             HtmlEncoder.Default.Encode($"Brego e-mailed a six-digit code to {BregoEmail}."),
@@ -719,6 +780,7 @@ public sealed partial class IntegrationsAdministrationWebTests
         using (var response = await client.PostAsync($"{Route}?handler=RefreshBregoLogin", RefreshForm(html)))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(Route, response.Headers.Location?.OriginalString);
         }
 
         Assert.Equal(1L, Assert.Single(link.RefreshVersions));
@@ -738,9 +800,12 @@ public sealed partial class IntegrationsAdministrationWebTests
         using (var response = await client.PostAsync($"{Route}?handler=RefreshBregoLogin", RefreshForm(html)))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(BregoOpenRoute, response.Headers.Location?.OriginalString);
         }
 
-        var panel = Panel(await GetHtmlAsync(client, Route), IntegrationLogin.Brego);
+        var waiting = await GetHtmlAsync(client, BregoOpenRoute);
+        Assert.True(DialogOpens(waiting, IntegrationLogin.Brego));
+        var panel = Panel(waiting, IntegrationLogin.Brego);
         Assert.Contains(
             HtmlEncoder.Default.Encode($"Brego e-mailed a six-digit code to {BregoEmail}."),
             panel,
@@ -820,6 +885,124 @@ public sealed partial class IntegrationsAdministrationWebTests
             after,
             StringComparison.Ordinal);
         Assert.Equal(BregoEmail, FactValue(Panel(after, IntegrationLogin.Brego), OperatorLabels.Integrations.Account));
+    }
+
+    /// <summary>
+    /// A Brego save that leaves a sign-in waiting for its code opens Brego's
+    /// dialog on the code prompt (R1296); a save that links does not.
+    /// </summary>
+    [Theory]
+    [InlineData("code", BregoLinkStep.CodeSent, true)]
+    [InlineData("linked", BregoLinkStep.Linked, false)]
+    public async Task ABregoSaveWaitingForACodeOpensItsDialog(string row, BregoLinkStep step, bool opens)
+    {
+        Assert.NotEmpty(row);
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true, Step = step };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Brego, field => field == IntegrationLoginField.Email ? BregoEmail : " "));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(opens ? BregoOpenRoute : Route, response.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>
+    /// A refused save is drawn again with its own dialog open on load and its
+    /// errors inside it, every other dialog hidden, and no summary on the page
+    /// behind it.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSaveOpensItsOwnDialogWithItsErrors()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+
+        using var response = await client.PostAsync(
+            $"{Route}?handler=SaveLogin",
+            LoginForm(html, IntegrationLogin.Cazana, field => field == IntegrationLoginField.Email ? TypedName : " "));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var refused = await response.Content.ReadAsStringAsync();
+        foreach (var login in LoginOrder)
+        {
+            Assert.Equal(login == IntegrationLogin.Cazana, DialogOpens(refused, login));
+        }
+
+        var cazana = Panel(refused, IntegrationLogin.Cazana);
+        Assert.Contains($"<li>{OperatorLabels.Integrations.PasswordRequired}</li>", cazana, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{TypedName}\"", cazana, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(refused, "class=\"validation-summary\"", RegexOptions.CultureInvariant));
+        Assert.DoesNotContain("hidden=\"hidden\"", DialogTag(refused, IntegrationLogin.Cazana), StringComparison.Ordinal);
+    }
+
+    /// <summary>Only a login's own name in <c>open</c> opens its dialog.</summary>
+    [Theory]
+    [InlineData("brego", "Brego", true)]
+    [InlineData("unknown", "Nothing", false)]
+    [InlineData("number", "1", false)]
+    [InlineData("lower", "brego", false)]
+    public async Task TheOpenQueryOpensOnlyANamedLoginsDialog(string row, string open, bool opensBrego)
+    {
+        Assert.NotEmpty(row);
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"{Route}?open={Uri.EscapeDataString(open)}");
+
+        foreach (var login in LoginOrder)
+        {
+            Assert.Equal(opensBrego && login == IntegrationLogin.Brego, DialogOpens(html, login));
+        }
+    }
+
+    /// <summary>
+    /// Brego's sign-in steps are each their own form outside the credential
+    /// form; their boxes and buttons join it by the form attribute, so Enter in
+    /// a box submits that box's step.
+    /// </summary>
+    [Fact]
+    public async Task EachBregoSignInStepIsItsOwnFormOutsideTheCredentialForm()
+    {
+        var link = new FakeBregoAccountLink { ReadsSignInMail = true, Step = BregoLinkStep.CodeSent };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = WithEveryIntegration(baseFactory, link);
+        await SeedBregoLoginAsync(factory);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, Route);
+        using (var response = await client.PostAsync($"{Route}?handler=LinkBrego", LinkForm(html, PastedLink)))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        var panel = Panel(await GetHtmlAsync(client, BregoOpenRoute), IntegrationLogin.Brego);
+
+        var credentialFormEnd = panel.IndexOf("</form>", panel.IndexOf("handler=SaveLogin", StringComparison.Ordinal), StringComparison.Ordinal);
+        var section = panel.IndexOf("class=\"contact-section\"", StringComparison.Ordinal);
+        Assert.True(credentialFormEnd >= 0 && section > credentialFormEnd, "The sign-in steps must sit outside the credential form.");
+        Assert.Contains($">{OperatorLabels.Integrations.SignIn}</h3>", panel, StringComparison.Ordinal);
+        Assert.Matches("<input(?=[^>]*name=\"link\")(?=[^>]*form=\"brego-link-form\")[^>]*>", panel);
+        Assert.Matches("<input(?=[^>]*name=\"code\")(?=[^>]*form=\"brego-code-form\")[^>]*>", panel);
+        foreach (var (form, label) in StepButtons)
+        {
+            Assert.Matches(
+                $"<button type=\"submit\" form=\"{form}\" class=\"btn\" data-busy-label=\"[^\"]+\">{Regex.Escape(label)}</button>",
+                panel);
+        }
+
+        foreach (var form in StepFormIds)
+        {
+            Assert.Matches($"<form id=\"{form}\"[^>]*method=\"post\"", panel);
+        }
+
+        Assert.Contains("type=\"submit\" form=\"integration-login-form-Brego\"", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("formaction", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(PastedToken, panel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -934,7 +1117,7 @@ public sealed partial class IntegrationsAdministrationWebTests
         return match.Value;
     }
 
-    /// <summary>The password box of one panel.</summary>
+    /// <summary>The password box of one dialog.</summary>
     private static string PasswordInput(string panel) =>
         InputRegex().Matches(panel)
             .Select(match => match.Value)
@@ -959,8 +1142,8 @@ public sealed partial class IntegrationsAdministrationWebTests
     }
 
     /// <summary>
-    /// A provider for every integration, never asked, so the host composes each
-    /// login's integration and the page draws its panel.
+    /// A provider for every integration, never asked, and optionally the Brego
+    /// sign-in, so the host composes each login's integration.
     /// </summary>
     private static WebApplicationFactory<Program> WithEveryIntegration(
         WebApplicationFactory<Program> factory,
@@ -996,7 +1179,7 @@ public sealed partial class IntegrationsAdministrationWebTests
             ("CapValuationEnabled", "false"),
             ("VehicleHistoryCheckEnabled", "false"));
 
-    /// <summary>One login's form as its panel was drawn, with each field typed by <paramref name="value"/>.</summary>
+    /// <summary>One login's form as its dialog was drawn, with each field typed by <paramref name="value"/>.</summary>
     private static FormUrlEncodedContent LoginForm(
         string html,
         IntegrationLogin login,
@@ -1024,16 +1207,47 @@ public sealed partial class IntegrationsAdministrationWebTests
             .ToArrayAsync();
     }
 
-    /// <summary>One login's panel, by its heading's id.</summary>
+    /// <summary>One login's dialog, from its backdrop to the end of its foot.</summary>
     private static string Panel(string html, IntegrationLogin login)
+    {
+        var start = html.IndexOf($"data-dialog=\"integration-login-{login}\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"The page must draw the {login} dialog.");
+        var foot = html.IndexOf("<div class=\"dialog-foot\">", start, StringComparison.Ordinal);
+        var end = html.IndexOf("</section>", foot, StringComparison.Ordinal);
+        return html[start..(end + "</section>".Length)];
+    }
+
+    /// <summary>The opening tag of one login's dialog backdrop.</summary>
+    private static string DialogTag(string html, IntegrationLogin login)
     {
         var match = Regex.Match(
             html,
-            $"<section class=\"panel\" aria-labelledby=\"login-{login}-title\">[\\s\\S]*?</section>",
+            $"<div class=\"dialog-backdrop\" data-dialog=\"integration-login-{login}\"[^>]*>",
             RegexOptions.CultureInvariant);
-        Assert.True(match.Success, $"The page must draw the {login} panel.");
+        Assert.True(match.Success, $"The page must draw the {login} dialog.");
         return match.Value;
     }
+
+    /// <summary>Whether one login's dialog opens on load.</summary>
+    private static bool DialogOpens(string html, IntegrationLogin login) =>
+        DialogTag(html, login).Contains("data-dialog-open-on-load=\"true\"", StringComparison.Ordinal);
+
+    /// <summary>The integrations table's body rows, in order.</summary>
+    private static List<string> TableRows(string html)
+    {
+        var table = Regex.Match(
+            html,
+            "<table class=\"table table--compact integrations-table\">[\\s\\S]*?</table>",
+            RegexOptions.CultureInvariant);
+        Assert.True(table.Success, "The page must draw the integrations table.");
+        var body = table.Value[table.Value.IndexOf("<tbody>", StringComparison.Ordinal)..];
+        return [.. Regex.Matches(body, "<tr>[\\s\\S]*?</tr>", RegexOptions.CultureInvariant).Select(match => match.Value)];
+    }
+
+    /// <summary>The cells of one table row, in order.</summary>
+    private static List<string> Cells(string row) =>
+        [.. Regex.Matches(row, "<td[^>]*>(?<cell>[\\s\\S]*?)</td>", RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["cell"].Value)];
 
     /// <summary>The value of one fact, by its label.</summary>
     private static string FactValue(string html, string label)

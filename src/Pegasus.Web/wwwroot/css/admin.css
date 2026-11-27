@@ -67,3 +67,9 @@
 .workflow-day .field-error:empty { display: none; }
 .workflow-day.is-invalid input { border-color: var(--danger); }
 .workflow-rates .input-money input { width: 150px; margin-left: auto; }
+
+/* Integrations (R1296): a switch in the table keeps a checkbox's size; the
+   table's own input rule (.table input: 30px high, 60px wide) is for text
+   boxes. Brego's link and code boxes grow beside their buttons. */
+.integrations-table .choice input { width: 15px; height: 15px; min-width: 0; min-height: 0; padding: 0; accent-color: var(--red); }
+.integrations-sign-in-row input { flex: 1 1 240px; width: auto; }

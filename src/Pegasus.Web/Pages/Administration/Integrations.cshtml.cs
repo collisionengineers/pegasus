@@ -4,29 +4,28 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Vehicle;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration;
 
 /// <summary>
-/// The Integrations administration page (operator, 26 November 2026; R1289):
-/// the automatic requests panel, whose one Save drives the five switches a new
-/// Case reads (R546, R1286, R1287), and one panel per integration login
-/// (R1288), showing the account and when it was replaced, with fields that are
-/// only ever typed, never shown back.
+/// The Integrations administration page (operator, 26 November 2026; R1289,
+/// R1296): one table of the five integrations, each row its account, when its
+/// login was replaced and its automatic switch (R546, R1286, R1287), with one
+/// Save for the switches, and a Settings dialog per login (R1288) whose fields
+/// are only ever typed, never shown back. Brego's dialog carries its sign-in
+/// steps (R1290, R1294).
 /// </summary>
 /// <remarks>
-/// The page is every deployment's. A login's panel is drawn only where this
-/// host composes its integration: a capability the host does not carry is
-/// absent, never an inert panel.
+/// The logins are stored whatever this host composes, so all five rows show
+/// in every deployment. A dialog opens by itself only for a refused save,
+/// which it then shows, or for a Brego sign-in that waits for its code
+/// (<c>?open=Brego</c>).
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed partial class IntegrationsModel(
     IAutomaticRequestControl automaticRequests,
     IIntegrationLoginAdministration logins,
-    IFetchGuideValuation guideValuations,
-    RunVehicleHistoryCheck vehicleHistoryCheck,
     ILogger<IntegrationsModel> logger) : AdministrationPageModel
 {
     /// <summary>The automatic request switches, in the panel's order.</summary>
@@ -39,7 +38,7 @@ public sealed partial class IntegrationsModel(
         AutomaticRequestKind.VehicleHistoryCheck,
     ];
 
-    /// <summary>The login panels, in the page's order.</summary>
+    /// <summary>The table's rows, in the page's order.</summary>
     private static readonly IntegrationLogin[] LoginOrder =
     [
         IntegrationLogin.GlassValuation,
@@ -67,11 +66,11 @@ public sealed partial class IntegrationsModel(
     [BindProperty]
     public bool VehicleHistoryCheckEnabled { get; set; }
 
-    /// <summary>The logins whose integration this host composes, in the page's order.</summary>
+    /// <summary>Every login, in the page's order.</summary>
     public IReadOnlyList<IntegrationLoginStatus> Logins { get; private set; } = [];
 
     /// <summary>
-    /// Whether the Brego panel offers its sign-in steps: the host composes the
+    /// Whether Brego's dialog offers its sign-in steps: the host composes the
     /// link and the account's e-mail is saved (R1290). An action that cannot
     /// work is absent.
     /// </summary>
@@ -81,7 +80,7 @@ public sealed partial class IntegrationsModel(
     public BregoPendingCode? BregoPending { get; private set; }
 
     /// <summary>
-    /// Whether the Brego panel offers Refresh login: the steps are offered
+    /// Whether Brego's dialog offers Refresh login: the steps are offered
     /// and this host reads Brego's sign-in e-mail from the account's mailbox
     /// (R1294).
     /// </summary>
@@ -90,13 +89,24 @@ public sealed partial class IntegrationsModel(
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
 
+    /// <summary>
+    /// The login whose dialog was refused and is drawn again, open, with its
+    /// errors inside it; null otherwise.
+    /// </summary>
+    public IntegrationLogin? RefusedLogin => _refusedLogin;
+
     // A refused login form is drawn again with the version it was posted with
     // and the account name typed into it; nothing else typed is written back.
     private IntegrationLogin? _refusedLogin;
     private long _refusedExpectedVersion;
     private string? _refusedAccountName;
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    // The login whose dialog the page was asked to open (?open=), and whether
+    // a Brego step left a sign-in waiting for its code.
+    private IntegrationLogin? _openLogin;
+    private bool _bregoCodeWaiting;
+
+    public async Task<IActionResult> OnGetAsync(string? open, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -104,7 +114,15 @@ public sealed partial class IntegrationsModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        await LoadAsync(actor, cancellationToken);
+        // Only a login's own name opens its dialog; anything else opens none.
+        if (open is not null
+            && Enum.GetNames<IntegrationLogin>().Contains(open, StringComparer.Ordinal)
+            && Enum.TryParse<IntegrationLogin>(open, ignoreCase: false, out var requested))
+        {
+            _openLogin = requested;
+        }
+
+        await LoadAsync(actor, keepPostedSwitches: false, cancellationToken);
         return Page();
     }
 
@@ -125,7 +143,7 @@ public sealed partial class IntegrationsModel(
         {
             ModelState.AddModelError(string.Empty, OperatorLabels.Integrations.Expired);
             OperationKey = NewOperationKey();
-            await LoadAsync(actor, cancellationToken);
+            await LoadAsync(actor, keepPostedSwitches: true, cancellationToken);
             return Page();
         }
 
@@ -150,8 +168,8 @@ public sealed partial class IntegrationsModel(
     }
 
     /// <summary>
-    /// Replaces one login with the values typed into its panel, at the version
-    /// the panel was drawn with.
+    /// Replaces one login with the values typed into its dialog, at the
+    /// version the dialog was drawn with.
     /// </summary>
     public async Task<IActionResult> OnPostSaveLoginAsync(
         string? login,
@@ -221,7 +239,7 @@ public sealed partial class IntegrationsModel(
             _refusedAccountName = IntegrationLoginFields.AccountNameField(target) == IntegrationLoginField.Email
                 ? email?.Trim()
                 : username?.Trim();
-            await LoadAsync(actor, cancellationToken);
+            await LoadAsync(actor, keepPostedSwitches: false, cancellationToken);
             return Page();
         }
 
@@ -272,7 +290,7 @@ public sealed partial class IntegrationsModel(
             }
         }
 
-        return RedirectToPage();
+        return RedirectAfterBrego();
     }
 
     /// <summary>
@@ -307,7 +325,7 @@ public sealed partial class IntegrationsModel(
             email,
             passwordSignIn: false,
             async () => await accountLink.RefreshAsync(actor, version, OperationKey, cancellationToken));
-        return RedirectToPage();
+        return RedirectAfterBrego();
     }
 
     /// <summary>Send sign-in link: Brego e-mails a sign-in link to the saved account.</summary>
@@ -373,7 +391,7 @@ public sealed partial class IntegrationsModel(
             email,
             passwordSignIn: false,
             async () => await accountLink.LinkAsync(actor, pasted, version, OperationKey, cancellationToken));
-        return RedirectToPage();
+        return RedirectAfterBrego();
     }
 
     /// <summary>Confirm code: enters the six-digit code a waiting sign-in asked for.</summary>
@@ -409,8 +427,40 @@ public sealed partial class IntegrationsModel(
             email,
             passwordSignIn: false,
             async () => await accountLink.ConfirmCodeAsync(actor, entered, version, OperationKey, cancellationToken));
-        return RedirectToPage();
+        return RedirectAfterBrego();
     }
+
+    /// <summary>
+    /// Whether a login's dialog opens on load: its save was refused and is
+    /// drawn again, or the page was asked to open it for a waiting code.
+    /// </summary>
+    public bool IsDialogOpen(IntegrationLogin login) =>
+        _refusedLogin is { } refused ? refused == login : _openLogin == login;
+
+    /// <summary>The automatic request switch a login's row carries.</summary>
+    public static AutomaticRequestKind AutomaticKind(IntegrationLogin login) => login switch
+    {
+        IntegrationLogin.GlassValuation => AutomaticRequestKind.GlassesValuation,
+        IntegrationLogin.Brego => AutomaticRequestKind.BregoValuation,
+        IntegrationLogin.Cazana => AutomaticRequestKind.CazanaValuation,
+        IntegrationLogin.ExperianHistory => AutomaticRequestKind.VehicleHistoryCheck,
+        IntegrationLogin.ExperianCap => AutomaticRequestKind.CapValuation,
+        _ => throw new ArgumentOutOfRangeException(nameof(login), login, "The integration login is unknown."),
+    };
+
+    /// <summary>The bound property a switch's checkbox posts as.</summary>
+    public static string AutomaticFieldName(AutomaticRequestKind kind) => kind switch
+    {
+        AutomaticRequestKind.GlassesValuation => nameof(GlassesValuationEnabled),
+        AutomaticRequestKind.BregoValuation => nameof(BregoValuationEnabled),
+        AutomaticRequestKind.CazanaValuation => nameof(CazanaValuationEnabled),
+        AutomaticRequestKind.CapValuation => nameof(CapValuationEnabled),
+        AutomaticRequestKind.VehicleHistoryCheck => nameof(VehicleHistoryCheckEnabled),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The automatic request kind is unknown."),
+    };
+
+    /// <summary>Whether a switch's checkbox opens checked.</summary>
+    public bool IsAutomaticChecked(AutomaticRequestKind kind) => Posted(kind);
 
     /// <summary>The form field a login value is posted as.</summary>
     public static string FieldName(IntegrationLoginField field) => field switch
@@ -453,25 +503,25 @@ public sealed partial class IntegrationsModel(
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The automatic request kind is unknown."),
     };
 
-    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task LoadAsync(
+        ActionActor actor,
+        bool keepPostedSwitches,
+        CancellationToken cancellationToken)
     {
-        // The login forms do not post the checkboxes. Seed them from the
-        // stored state; ModelState still wins for a redisplayed automatic
-        // requests form.
+        // The login forms do not post the checkboxes, so they open on the
+        // stored state; a refused switch save keeps what was posted.
         var automatic = await automaticRequests.ReadAsync(cancellationToken);
-        GlassesValuationEnabled = automatic[AutomaticRequestKind.GlassesValuation];
-        BregoValuationEnabled = automatic[AutomaticRequestKind.BregoValuation];
-        CazanaValuationEnabled = automatic[AutomaticRequestKind.CazanaValuation];
-        CapValuationEnabled = automatic[AutomaticRequestKind.CapValuation];
-        VehicleHistoryCheckEnabled = automatic[AutomaticRequestKind.VehicleHistoryCheck];
+        if (!keepPostedSwitches)
+        {
+            GlassesValuationEnabled = automatic[AutomaticRequestKind.GlassesValuation];
+            BregoValuationEnabled = automatic[AutomaticRequestKind.BregoValuation];
+            CazanaValuationEnabled = automatic[AutomaticRequestKind.CazanaValuation];
+            CapValuationEnabled = automatic[AutomaticRequestKind.CapValuation];
+            VehicleHistoryCheckEnabled = automatic[AutomaticRequestKind.VehicleHistoryCheck];
+        }
 
         var statuses = await logins.ListAsync(actor, cancellationToken);
-        Logins =
-        [
-            .. LoginOrder
-                .Where(IsComposed)
-                .Select(login => statuses.First(status => status.Login == login))
-        ];
+        Logins = [.. LoginOrder.Select(login => statuses.First(status => status.Login == login))];
 
         var link = BregoLink();
         var brego = Logins.FirstOrDefault(status => status.Login == IntegrationLogin.Brego);
@@ -481,6 +531,16 @@ public sealed partial class IntegrationsModel(
             ? await link!.ReadPendingAsync(actor, cancellationToken)
             : null;
     }
+
+    /// <summary>
+    /// The page after a Brego step: with Brego's dialog open when a sign-in
+    /// now waits for its code, so the code prompt is in front of the
+    /// Administrator; otherwise with the page's notice and no dialog open.
+    /// </summary>
+    private RedirectToPageResult RedirectAfterBrego() =>
+        _bregoCodeWaiting
+            ? RedirectToPage(new { open = nameof(IntegrationLogin.Brego) })
+            : RedirectToPage();
 
     /// <summary>The Brego sign-in steps, where this host composes Brego; null elsewhere.</summary>
     private IBregoAccountLink? BregoLink() =>
@@ -521,11 +581,13 @@ public sealed partial class IntegrationsModel(
     {
         try
         {
-            if (await step() == BregoLinkStep.Linked)
+            var answer = await step();
+            if (answer == BregoLinkStep.Linked)
             {
                 StatusMessage = OperatorLabels.Integrations.BregoLinked;
             }
 
+            _bregoCodeWaiting = answer == BregoLinkStep.CodeSent;
             return true;
         }
         catch (BregoLinkRefusedException refusal)
@@ -546,17 +608,6 @@ public sealed partial class IntegrationsModel(
 
         return false;
     }
-
-    /// <summary>Whether this host composes the integration the login signs in to.</summary>
-    private bool IsComposed(IntegrationLogin login) => login switch
-    {
-        IntegrationLogin.GlassValuation => guideValuations.IsConnected(ValuationSource.Glasses),
-        IntegrationLogin.Brego => guideValuations.IsConnected(ValuationSource.Brego),
-        IntegrationLogin.Cazana => guideValuations.IsConnected(ValuationSource.Cazana),
-        IntegrationLogin.ExperianHistory => vehicleHistoryCheck.IsConnected,
-        IntegrationLogin.ExperianCap => guideValuations.IsConnected(ValuationSource.Cap),
-        _ => false,
-    };
 
     [LoggerMessage(
         EventId = 1289,

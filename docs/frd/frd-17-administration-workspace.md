@@ -376,40 +376,48 @@ entry.
 
 **Integrations** (`/Administration/Integrations`), in the Configuration group
 after Unroadworthy reasons, is listed in every deployment (operator, 26
-November 2026; [R1289](../rulings.md)). It holds:
+November 2026; [R1289](../rulings.md)). It is one table of the five
+integrations, in this order: Glass's valuation, Brego, Cazana, Experian
+vehicle history and Experian CAP (operator, 26 November 2026;
+[R1296](../rulings.md)). All five rows show in every deployment, because the
+logins are stored whatever the host carries.
 
-- **Automatic requests**: five checkboxes, Automatic Glass's valuation,
-  Automatic Brego valuation, Automatic Cazana valuation, Automatic CAP
-  valuation and Automatic Experian check
+- Each row shows the integration, its **Account** (the account's name, Not
+  set, or that the stored login cannot be read and is saved again), when the
+  login was last **Updated**, its **Automatic** switch and **Settings**. The
+  switches are Automatic Glass's valuation, Automatic Brego valuation,
+  Automatic Cazana valuation, Automatic Experian check (the Experian vehicle
+  history row) and Automatic CAP valuation
   ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources);
-  [FRD-06](frd-06-vehicle-and-engineering-evidence.md)), and one Save. A Save
-  writes a switch only when its checkbox differs from the stored state, so one
-  that changes nothing writes no history; each change is attributed and kept
-  in permanent history. The switches moved here from Automation & AI,
-  superseding R546's placement of the Glass's switch.
-- One panel per integration login, in this order: Glass's valuation, Brego,
-  Cazana, the Experian vehicle history check and Experian CAP
-  ([FRD-04](frd-04-parties-accounts-and-access.md); R1288). Each shows the
-  account and when it was last updated, and offers the login's fields, which
-  are only replaced: no stored value is shown back in them, and a password or
-  client secret typed into a refused form is not either. A login whose stored
-  value cannot be read says so and is saved again. A save made after another
-  Administrator's is not accepted. A panel is absent where the host does not
-  carry the integration.
-- The Brego valuation account (operator, 26 November 2026;
-  [R1290](../rulings.md), #2180) takes its e-mail and, optionally, its
-  password; saving it with a password signs the account in at once, and a
-  refusal is stated while the credential stays saved. Below the form, **Send
-  sign-in link** has Brego e-mail a sign-in link to the account, and the
-  pasted **Sign-in link** with **Link account** signs it in. When Brego asks
-  for a six-digit code, the panel shows where it was sent, a **Code** box and
-  **Confirm code**, only while a sign-in waits for one. The link, the code and
-  the password are never shown back. These controls are absent until the
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md)), with one Save under
+  the table. A Save writes a switch only when its checkbox differs from the
+  stored state, so one that changes nothing writes no history; each change is
+  attributed and kept in permanent history. The switches moved here from
+  Automation & AI, superseding R546's placement of the Glass's switch.
+- **Settings** opens the login's dialog
+  ([FRD-04](frd-04-parties-accounts-and-access.md); R1288): the account and
+  when it was last updated, and the login's fields, which are only replaced:
+  no stored value is shown back in them, and a password or client secret
+  typed into a refused form is not either. A login whose stored value cannot
+  be read says so and is saved again. A save made after another
+  Administrator's is not accepted. A dialog opens by itself only for a save
+  it refused, showing why, or for a Brego sign-in that waits for its code;
+  every other outcome is a notice on the page.
+- Brego's dialog (operator, 26 November 2026; [R1290](../rulings.md), #2180)
+  takes the account's e-mail and, optionally, its password; saving it with a
+  password signs the account in at once, and a refusal is stated while the
+  credential stays saved. Its **Sign-in** section holds **Send sign-in link**,
+  which has Brego e-mail a sign-in link to the account, and the pasted
+  **Sign-in link** with **Link account**, which signs it in. When Brego asks
+  for a six-digit code, the section shows where it was sent, a **Code** box
+  and **Confirm code**, only while a sign-in waits for one. Each step is its
+  own form, so Enter in a box submits that box's step. The link, the code and
+  the password are never shown back. The section is absent until the
   account's e-mail is saved, and where the host does not carry the sign-in.
-  Where the host can read the account's mailbox, **Refresh login**, above
-  them, signs the account in from Brego's e-mail in one press, and saving the
-  e-mail without a password does the same; Send sign-in link, the pasted link
-  and the typed code remain as the fallback (operator, 26 November 2026;
+  Where the host can read the account's mailbox, **Refresh login** signs the
+  account in from Brego's e-mail in one press, and saving the e-mail without
+  a password does the same; Send sign-in link, the pasted link and the typed
+  code remain as the fallback (operator, 26 November 2026;
   [R1294](../rulings.md)). Refresh login is absent where this host's
   composition cannot read the mailbox.
 
