@@ -458,9 +458,9 @@ internal sealed class EfIntakeMutationStore(
                         nameof(request));
                 ApplyResolvedDraft(receipt, correctedDraft);
                 ApplyDraftToReviewFields(receipt, correctedDraft);
-                // Missing identity-critical facts leave the material in
-                // Unidentified for a person to resolve; ordinary thin detail
-                // can travel with an allocated Case as Not ready.
+                // A missing registration leaves the material for a person to
+                // resolve; a missing claimant name or claim number and ordinary
+                // thin detail travel with an allocated Case as Not ready (R1331).
                 var missing = InstructionDraftCompleteness
                     .MissingIdentityCriticalFieldNames(correctedDraft);
                 var canBecomeCase = missing.Count == 0;
@@ -468,7 +468,7 @@ internal sealed class EfIntakeMutationStore(
                     canBecomeCase ? IntakeDecision.CaseCreated : IntakeDecision.NeedsSorting);
                 receipt.DecisionReason = canBecomeCase
                     ? "The intake correction produced a reviewable instruction draft."
-                    : "The intake correction was retained but the instruction does not say which claim it is about.";
+                    : "The intake correction was retained but the instruction does not name the vehicle.";
                 receipt.FailureCode = null;
                 receipt.FailureReason = canBecomeCase
                     ? null

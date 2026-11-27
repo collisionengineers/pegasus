@@ -913,6 +913,39 @@ public sealed partial class CaseCreateWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A missing claimant name or claim number does not refuse the Case: it is
+    /// created with its instruction incomplete and the fields named as missing
+    /// (operator, 27 November 2026, R1331).
+    /// </summary>
+    [Fact]
+    public async Task CreateAllocatesWithoutClaimFactsAndLeavesTheInstructionIncomplete()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        var fields = KeyedFields();
+        fields["ClaimantName"] = string.Empty;
+        fields["ClaimNumber"] = string.Empty;
+
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.False(await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.InstructionComplete)
+            .SingleAsync());
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        var html = await record.Content.ReadAsStringAsync();
+        Assert.Contains("Instructions incomplete", html, StringComparison.Ordinal);
+        Assert.Contains("Claimant name", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task FinalCreateFailurePersistsAttemptAndOpensReasonedRecovery()
     {

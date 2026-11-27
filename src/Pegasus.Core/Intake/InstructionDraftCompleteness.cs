@@ -28,23 +28,21 @@ public static class InstructionDraftCompleteness
         Missing(draft, field => field.Required);
 
     /// <summary>
-    /// The identity-critical fields this draft has not answered — the ones that
-    /// say which claim the case is about, and the only ones that may stop a
-    /// reference being allocated.
+    /// The identity-critical fields this draft has not answered: the only ones
+    /// that may stop a reference being allocated. That is the vehicle
+    /// registration, and for a one-off Case for a private customer the
+    /// customer's name as well, which its report and fee note are made out to
+    /// (R576, R577). The claimant name and claim number of any other Case no
+    /// longer withhold it (operator, 27 November 2026, R1331): see
+    /// <see cref="MissingClaimFieldNames"/>.
     /// </summary>
     /// <remarks>
     /// A complete draft and an allocatable one are different questions, and
     /// answering the second with the first refuses real work.
-    /// FRD-22 (pre-Case gates) is explicit: fail closed before
-    /// allocation when identity-critical route facts are incomplete or
-    /// ambiguous, but "once safe processing establishes Principal and Case type,
-    /// allocate the Case/PO and retain incomplete ordinary detail, images, or
-    /// checks as `Not ready`".
-    /// Vehicle make, model and mileage, the accident circumstances and the
-    /// incident date are that ordinary detail: an instruction that arrives
-    /// without them is a case waiting for detail, not a case that cannot exist.
-    /// The inspection address is settled separately by the EXT-18 resolution
-    /// flow rather than here.
+    /// FRD-22 (pre-Case gates): once safe processing establishes Principal and
+    /// Case type, allocate the Case/PO and retain incomplete detail, images or
+    /// checks as `Not ready`. The inspection address is settled separately by
+    /// the EXT-18 resolution flow rather than here.
     ///
     /// <see cref="MissingFieldNames"/> keeps the fuller list because it answers
     /// the other question — whether a corrected draft is complete enough to be
@@ -57,7 +55,20 @@ public static class InstructionDraftCompleteness
     public static IReadOnlyList<string> MissingIdentityCriticalFieldNames(
         InstructionDraft draft,
         bool privateCustomer = false) =>
-        Missing(draft, field => field.IdentityCritical && Asked(field, privateCustomer));
+        Missing(draft, field => field.IdentityCritical
+            || (privateCustomer && field.CaseDataFieldName == CaseDataFieldNames.ClaimantName));
+
+    /// <summary>
+    /// The claim facts (claimant name, claim number) this draft has not
+    /// answered. A Case is created without them, and its instruction starts
+    /// incomplete with them named as missing, on every path (operator,
+    /// 27 November 2026, R1331; FRD-22).
+    /// </summary>
+    /// <param name="privateCustomer">See <see cref="MissingIdentityCriticalFieldNames"/>.</param>
+    public static IReadOnlyList<string> MissingClaimFieldNames(
+        InstructionDraft draft,
+        bool privateCustomer = false) =>
+        Missing(draft, field => field.ClaimFact && Asked(field, privateCustomer));
 
     /// <summary>
     /// Whether every required instruction field carries a value. Nothing about
@@ -74,23 +85,32 @@ public static class InstructionDraftCompleteness
     /// (FRD-13). An empty list means the Case's instruction is complete.
     /// </summary>
     /// <param name="privateCustomer">See <see cref="MissingIdentityCriticalFieldNames"/>.</param>
-    public static IReadOnlyList<string> MissingCaseFieldNames(CaseEditableData data, bool privateCustomer)
+    public static IReadOnlyList<string> MissingCaseFieldNames(CaseEditableData data, bool privateCustomer) =>
+        Missing(DraftOf(data), field => field.Required && Asked(field, privateCustomer));
+
+    /// <summary>
+    /// The claim facts a Case's own data has not answered (<see cref="MissingClaimFieldNames"/>):
+    /// while any is missing the Case's instruction is incomplete (R1331).
+    /// </summary>
+    /// <param name="privateCustomer">See <see cref="MissingIdentityCriticalFieldNames"/>.</param>
+    public static IReadOnlyList<string> MissingCaseClaimFieldNames(CaseEditableData data, bool privateCustomer) =>
+        MissingClaimFieldNames(DraftOf(data), privateCustomer);
+
+    private static InstructionDraft DraftOf(CaseEditableData data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        return Missing(
-            new(
-                null,
-                data.ClaimantName,
-                data.ClaimNumber,
-                data.VehicleRegistration,
-                data.VehicleMake,
-                data.VehicleModel,
-                data.VehicleMileage,
-                data.AccidentCircumstances,
-                data.IncidentDate,
-                data.InspectionAddress,
-                data.InspectionDate),
-            field => field.Required && Asked(field, privateCustomer));
+        return new(
+            null,
+            data.ClaimantName,
+            data.ClaimNumber,
+            data.VehicleRegistration,
+            data.VehicleMake,
+            data.VehicleModel,
+            data.VehicleMileage,
+            data.AccidentCircumstances,
+            data.IncidentDate,
+            data.InspectionAddress,
+            data.InspectionDate);
     }
 
     private static bool Asked(InstructionDraftField field, bool privateCustomer) =>

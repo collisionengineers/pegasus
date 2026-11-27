@@ -135,14 +135,14 @@
                         </select>
                         <span asp-validation-for="CaseType" class="field-error"></span>
                     </div>
-                    <div class="field" data-triage-hidden>
-                        <label class="req" asp-for="ClaimantName">Claimant</label>
-                        <input asp-for="ClaimantName" maxlength="300" required />
+                    <div class="field" data-triage-hidden data-private-required>
+                        <label asp-for="ClaimantName">Claimant</label>
+                        <input asp-for="ClaimantName" maxlength="300" />
                         <span asp-validation-for="ClaimantName" class="field-error"></span>
                     </div>
-                    <div class="field" data-triage-hidden data-private-optional>
-                        <label class="req" asp-for="ClaimNumber">Claim number</label>
-                        <input asp-for="ClaimNumber" maxlength="100" required />
+                    <div class="field" data-triage-hidden>
+                        <label asp-for="ClaimNumber">Claim number</label>
+                        <input asp-for="ClaimNumber" maxlength="100" />
                         <span asp-validation-for="ClaimNumber" class="field-error"></span>
                     </div>
                     <div class="field">

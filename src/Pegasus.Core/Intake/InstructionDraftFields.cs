@@ -8,7 +8,12 @@ namespace Pegasus.Core.Intake;
 /// operator reads on the intake item.
 /// </summary>
 /// <param name="Required">The draft is not complete without it.</param>
-/// <param name="IdentityCritical">It says which claim the case is about, so it alone may withhold a reference.</param>
+/// <param name="IdentityCritical">It alone may withhold a reference: only the vehicle registration (R1331).</param>
+/// <param name="ClaimFact">
+/// It says which claim the Case is about. A Case is created without it, with
+/// its instruction incomplete and the field named as missing (operator,
+/// 27 November 2026, R1331).
+/// </param>
 /// <param name="StaffKeyed">A staff correction states it, so the correction is written back to its review field.</param>
 public sealed record InstructionDraftField(
     string Label,
@@ -16,7 +21,8 @@ public sealed record InstructionDraftField(
     Func<InstructionDraft, string?> Value,
     bool Required = false,
     bool IdentityCritical = false,
-    bool StaffKeyed = false);
+    bool StaffKeyed = false,
+    bool ClaimFact = false);
 
 /// <summary>
 /// The instruction draft's fields in one list: their labels, the case field
@@ -30,9 +36,9 @@ public static class InstructionDraftFields
     public static readonly IReadOnlyList<InstructionDraftField> All =
     [
         new("Claimant name", CaseDataFieldNames.ClaimantName, draft => draft.ClaimantName,
-            Required: true, IdentityCritical: true, StaffKeyed: true),
+            Required: true, StaffKeyed: true, ClaimFact: true),
         new("Claim number", CaseDataFieldNames.ClaimNumber, draft => draft.ClaimNumber,
-            Required: true, IdentityCritical: true, StaffKeyed: true),
+            Required: true, StaffKeyed: true, ClaimFact: true),
         new("Vehicle registration", CaseDataFieldNames.VehicleRegistration, draft => draft.VehicleRegistration,
             Required: true, IdentityCritical: true, StaffKeyed: true),
         new("Vehicle make", CaseDataFieldNames.VehicleMake, draft => draft.VehicleMake,

@@ -307,8 +307,16 @@ public sealed class EfCaseAcceptanceStore(
         // accepted data answers it, not the command. A lookup, a staff edit
         // or the original report's stated mileage (R930) that fills the
         // mileage moves the Case on once it has its registration.
+        // A Case without its claimant name or claim number starts with its
+        // instruction incomplete on every route, the automatic one included,
+        // and the Case names the field as missing (R1331, R1334). The accepted data
+        // answers it, as it does the vehicle gate.
+        var completeness = CaseInstructionCompleteness.MissingClaimFacts(dataSnapshot, principal).Count > 0
+            ? request.Completeness with { InstructionComplete = false }
+            : request.Completeness;
+        caseEntity.InstructionComplete = completeness.InstructionComplete;
         var completenessEvaluation = CaseCompletenessPolicy.Evaluate(
-            request.Completeness,
+            completeness,
             workflowConfiguration,
             CaseInstructionCompleteness.VehicleGate(dataSnapshot, null, CaseGarage.ForNewCase(caseEntity)));
         var initialState = completenessEvaluation.SatisfiesPolicy

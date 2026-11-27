@@ -114,7 +114,8 @@ info:
 
     | Declared | Effect |
     | --- | --- |
-    | `claimNumber`, `claimant.name` and `vehicle.registration` | These identify the claim. If any is missing the submission is still accepted (`201`), but processing ends with `decision: NeedsSorting` and no reference, and staff sort it by hand. |
+    | `vehicle.registration` | Identifies the vehicle. If it is missing the submission is still accepted (`201`), but processing ends with `decision: NeedsSorting` and no reference, and staff sort it by hand. |
+    | `claimNumber`, `claimant.name` | Identify the claim. If either is missing the Case is still created, and stays **Not ready** until it is supplied. |
     | `vehicle.registration` (for `triage`) | A Triage is opened from the registration. Without it the material is kept for staff rather than opening a Triage. |
     | Vehicle make and model, mileage, incident date and circumstances, inspection location | Required detail. Anything missing leaves the Case **Not ready** until it is supplied. |
     | Every other field | Optional detail, recorded when given. |

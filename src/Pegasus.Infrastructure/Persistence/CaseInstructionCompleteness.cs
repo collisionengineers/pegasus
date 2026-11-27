@@ -21,6 +21,17 @@ internal static class CaseInstructionCompleteness
             CaseDataFieldWriter.ReadEditable(snapshot),
             snapshot.Work.Case.Principal.ReferenceScheme == PrincipalReferenceSchemes.Registration);
 
+    /// <summary>
+    /// The claim facts (claimant name, claim number) the snapshot's accepted
+    /// data does not answer. A Case created without them starts with its
+    /// instruction incomplete, on every route (R1331).
+    /// </summary>
+    /// <param name="principal">The Case's Principal: a registration-referenced one-off is asked no claim number (R578).</param>
+    internal static IReadOnlyList<string> MissingClaimFacts(CaseDataSnapshotEntity snapshot, PrincipalEntity principal) =>
+        InstructionDraftCompleteness.MissingCaseClaimFieldNames(
+            CaseDataFieldWriter.ReadEditable(snapshot),
+            principal.ReferenceScheme == PrincipalReferenceSchemes.Registration);
+
     /// <summary>The Case's own mileage, as its accepted data answers it.</summary>
     internal static long? Mileage(CaseDataSnapshotEntity snapshot) =>
         CaseDataFieldWriter.ReadEditable(snapshot).VehicleMileage;
