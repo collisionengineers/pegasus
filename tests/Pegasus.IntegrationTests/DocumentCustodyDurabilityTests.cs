@@ -2360,12 +2360,31 @@ public sealed class DocumentCustodyDurabilityTests
     [Fact]
     public async Task ASubmissionsPackAndScreenshotAreWrittenAndReadThroughTheSubfolderAndAreNotTheCasesDocuments()
     {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.IntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            await SubmitAndReadThroughTheSubfolderAsync(root);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static async Task SubmitAndReadThroughTheSubfolderAsync(string root)
+    {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var caseId = await SeedCaseAsync(database);
         await using var scope = database.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var content = new ManagedOnlyDocumentContentStore(services.GetRequiredService<IDocumentContentStore>());
+        var content = new ManagedOnlyDocumentContentStore(new LocalDocumentContentStore(root));
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var record = new MarketResearchRecord(
             MarketResearchSubmissionPolicy.SchemaVersion,
