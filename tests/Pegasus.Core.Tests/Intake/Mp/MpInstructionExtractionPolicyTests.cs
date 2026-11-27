@@ -83,6 +83,49 @@ public sealed class MpInstructionExtractionPolicyTests
         }
     }
 
+    // The vehicle line shapes of MP's live letters (test instance, MP26001 to MP26010).
+    [Theory]
+    [InlineData("comma", "LV67 UDJ, Jaecoo 4 (Private Hire)", "LV67UDJ", "Jaecoo 4 (Private Hire)")]
+    [InlineData("spaced-comma", "MX21 UFK , Toyota Voxy (Private Hire)", "MX21UFK", "Toyota Voxy (Private Hire)")]
+    [InlineData("dash-middle", "Toyota Prius Plus – DG70 FFU – Private Hire", "DG70FFU", "Toyota Prius Plus, Private Hire")]
+    [InlineData("unspaced-hyphen", "Ford Freedom-SF17 CKP Hackney", "SF17CKP", "Ford Freedom, Hackney")]
+    [InlineData("reg-only", "AL16 JEE", "AL16JEE", null)]
+    [InlineData("suffix-model", "AL16 JEE, BMW 530E", "AL16JEE", "BMW 530E")]
+    [InlineData("dateless-first", "NEK 1A , Audi A6", "NEK1A", "Audi A6")]
+    [InlineData("unreadable-first", "A8I2 CDE, Toyota Prius", null, "Toyota Prius")]
+    [InlineData("tbc-first", "TBC, BMW 520D", null, "BMW 520D")]
+    public void TheRegistrationIsReadWhereverTheVehicleLinePutsIt(
+        string row, string line, string? registration, string? vehicle)
+    {
+        Assert.NotEmpty(row);
+        var draft = Assert.IsType<InstructionDraft>(Extract(Instruction($"Vehicle Reg: {line}", "Date of Accident: 25/11/2026")).InstructionDraft);
+
+        Assert.Equal(registration, draft.VehicleRegistration);
+        Assert.Equal(vehicle, draft.VehicleMake);
+    }
+
+    [Fact]
+    public void ASubjectPlateWithoutALabelFillsAnUnreadableRegistration()
+    {
+        var result = Extract(UnreadableInstruction, "New Instruction - GJ20 XFG - Our Ref RA6459004");
+
+        Assert.Equal("GJ20XFG", Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+        Assert.Equal(IntakeEvidenceSource.Subject, Assert.Single(Field(result, "Vehicle registration").Candidates).Source);
+    }
+
+    [Fact]
+    public void ADocumentRegistrationBeatsAnUnlabelledSubjectPlate()
+    {
+        var result = Extract(
+            Instruction("Vehicle Reg: Toyota Prius Plus – DG70 FFU – Private Hire", "Date of Accident: 25/11/2026"),
+            "New Instruction - GJ20 XFG - Our Ref RA6459004");
+
+        var field = Field(result, "Vehicle registration");
+        Assert.Equal("DG70 FFU", field.SuggestedValue);
+        Assert.False(field.HasConflict);
+        Assert.Equal(2, field.Candidates.Count);
+    }
+
     [Theory]
     [InlineData("blank", "   ")]
     [InlineData("bare", "New Instruction - Montreal Prestige")]
