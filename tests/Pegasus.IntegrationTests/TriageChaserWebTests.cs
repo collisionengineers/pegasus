@@ -989,7 +989,7 @@ public sealed partial class QdosTriageIntegrationTests
             var html = await page.Content.ReadAsStringAsync();
             Assert.Matches(
                 new Regex(
-                    $"<select id=\"triage-reply-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
+                    $"<select id=\"triage-compose-dialog-from\" name=\"fromMailboxId\"[^>]*>.*?<option value=\"{forwarderId:D}\" selected=\"selected\">{Regex.Escape(forwarder)}</option>",
                     RegexOptions.Singleline | RegexOptions.CultureInvariant),
                 html);
         }

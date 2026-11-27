@@ -465,7 +465,9 @@ Return to Engineer needs no session. The rules behind each action are in
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 - **Send chaser**, on any open Case where staff mail is composed in
   (operator, 5 October 2026). It is a link, not a dialog, and needs no lease:
-  it opens the chaser composer (`/Cases/{id}/Chaser`), a reply to the
+  it opens the chaser composer in the one send-e-mail dialogue over the
+  Case (operator, 27 November 2026; [R1330](../rulings.md); without script
+  its page, `/Cases/{id}/Chaser`), a reply to the
   Case's instruction email, or, with no instruction email, a new message,
   from the Outgoing mailbox staff choose as From (operator, 12 October 2026;
   4 November 2026, R655). From starts on the mailbox the instruction

@@ -1,0 +1,51 @@
+@model Pegasus.Web.Presentation.MailComposerView
+@using Pegasus.Web.Presentation
+@using Labels = Pegasus.Web.Presentation.MailComposerView.Labels
+@*
+    The one send-e-mail dialogue (operator, 27 November 2026; R1329, R1330):
+    the Send report composer's frame (v48), drawn for every staff send. In a
+    dialogue it is a backdrop the page's dialog script opens; as a page it is
+    the same card on its own, which is where a link goes without script and
+    where a refused send returns. The form is _MailComposeForm.
+*@
+@{
+    var titleId = Model.Part("title");
+}
+@if (Model.InDialog && Model.OwnBackdrop)
+{
+    <div id="@Model.Id" class="dialog-backdrop" data-dialog="@Model.Id"
+         data-dialog-open-on-load="@(Model.OpenOnLoad ? "true" : null)"@(MailComposerView.Write(Model.BackdropAttributes)) hidden>
+        <partial name="/Pages/Shared/_MailComposeCard.cshtml" model="Model" />
+    </div>
+}
+else if (Model.InDialog)
+{
+    <partial name="/Pages/Shared/_MailComposeCard.cshtml" model="Model" />
+}
+else
+{
+    <div class="mail-compose-standalone">
+        <section id="@Model.Id" class="dialog mail-compose-dialog dialog--send" role="dialog"
+                 aria-modal="true" aria-labelledby="@titleId" tabindex="-1"@(MailComposerView.Write(Model.BackdropAttributes))>
+            <header class="dialog-head">
+                <div>
+                    @if (Model.EyebrowContent is { } eyebrow)
+                    {
+                        <p class="eyebrow">@eyebrow(null)</p>
+                    }
+                    else if (Model.Eyebrow is { Length: > 0 } words)
+                    {
+                        <p class="eyebrow">@words</p>
+                    }
+                    <h1 id="@titleId">@Model.Title</h1>
+                </div>
+                <a class="dialog-close" href="@Model.BackHref" aria-label="@Labels.CloseDialog">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                </a>
+            </header>
+            <div class="dialog-body mail-compose-body">
+                <partial name="/Pages/Shared/_MailComposeForm.cshtml" model="Model" />
+            </div>
+        </section>
+    </div>
+}

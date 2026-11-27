@@ -1,0 +1,57 @@
+@model Pegasus.Web.Pages.Cases.ChaserModel
+@using Pegasus.Web.Presentation
+@*
+    Send chaser (operator, 12 October 2026) in the one send-e-mail dialogue
+    (R1330): over the Case in the e-mail dialogue's mount, opened from the
+    Actions menu, and as the page without script or after a refused send.
+    Nothing is e-mailed until Send (R915).
+*@
+@{
+    Func<object?, object> status = @<text>
+        @if (TempData["SendNotice"] is string sendNotice)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-check")" /></svg>
+                <span>@sendNotice</span>
+            </div>
+        }
+        <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+        @if (Model.Operation is { } operation)
+        {
+            <partial name="/Pages/Shared/_MailSendStatus.cshtml" model="operation" />
+        }
+    </text>;
+    var hidden = new List<KeyValuePair<string, string?>>
+    {
+        new(nameof(Model.OperationKey), Model.OperationKey),
+        new(nameof(Model.ExpectedContextVersion), Model.ExpectedContextVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+    };
+    if (Model.InDialog)
+    {
+        hidden.Add(new(nameof(Model.Dialog), "true"));
+    }
+    var composer = new MailComposerView
+    {
+        Id = "mailMessageDialog",
+        InDialog = Model.InDialog,
+        Eyebrow = Model.Case?.Summary.Reference,
+        Title = CaseWorkspaceLabels.Frame.SendChaser,
+        BackHref = Model.InDialog ? null : Url.Page("/Cases/Details", new { id = Model.Id }),
+        Status = status,
+        OffersForm = Model.OffersForm,
+        Action = Url.Page("/Cases/Chaser", "Send", new { id = Model.Id })!,
+        FormAttributes = new Dictionary<string, string?> { ["data-send-chaser-form"] = null },
+        Hidden = hidden,
+        FromChoices = [.. Model.Senders.Mailboxes.Select(mailbox => new MailComposerSender(mailbox.Id, mailbox.Address))],
+        FromSelected = Model.FromMailboxId,
+        To = Model.To,
+        Cc = Model.Cc,
+        Subject = Model.Subject,
+        Body = Model.Body,
+        BodyRows = 8,
+        Attachments = Model.AvailableAttachments,
+        SelectedAttachments = Model.SelectedAttachments,
+        SendLabel = CaseWorkspaceLabels.Frame.SendChaser,
+    };
+}
+<partial name="/Pages/Shared/_MailComposer.cshtml" model="composer" />

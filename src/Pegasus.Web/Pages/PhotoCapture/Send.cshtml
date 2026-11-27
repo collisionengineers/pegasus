@@ -104,11 +104,8 @@ else if (facts.IsClosed)
 }
 else
 {
-    @* The composer, one channel at a time (v51 L; R948): the page the Case's
-       dialog falls back to without script, and answers a refusal with. *@
-    <div class="panel pc-composer-page">
-        <div class="panel-body">
-            <partial name="_PhotoLinkComposer" model="Model" view-data="@(new ViewDataDictionary(ViewData) { ["PhotoLinkComposerOnPage"] = true })" />
-        </div>
-    </div>
+    @* The composer, one channel at a time (v51 L; R948), in the one
+       send-e-mail dialogue's card (R1330): the page the Case's dialog falls
+       back to without script, and answers a refusal with. *@
+    <partial name="_PhotoLinkComposer" model="Model" />
 }

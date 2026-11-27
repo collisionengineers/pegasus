@@ -172,7 +172,9 @@ page does not offer it.
 finding's Reply with finding tickbox offer it when the Triage came by e-mail
 and a mailbox may answer it
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence),
-R651). It opens the composer with the
+R651). It opens the composer (the one send-e-mail dialogue, whose To and Cc
+staff change; operator, 27 November 2026; [R1329](../rulings.md),
+[R1330](../rulings.md)) with the
 Triage outcome template from Administration
 ([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
 user can edit, and offers the **Delete case correspondence** tick, which the

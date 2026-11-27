@@ -29,7 +29,6 @@
 
 /* Send a photo link: who it is for and how it goes beside the link's settings. */
 .photo-link-send { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
-.photo-link-send-actions { justify-content: flex-end; }
 
 /* A link's page: facts and what they told us beside the photos and history. */
 .photo-link-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 14px; }
@@ -202,9 +201,6 @@ a.photo-link-file:hover { border-color: var(--line-strong); text-decoration: non
 .pc-capture-options > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
 .pc-capture-options .cluster { margin-top: 8px; gap: 16px; }
 /* The page: one bounded column (v51 S1); the dialog sizes to its channel. */
-.pc-composer-page { max-width: 820px; }
-.pc-composer-page .mail-compose-form-fields { overflow: visible; margin: 0; padding: 0; }
-.pc-composer-page .photo-link-send-actions { margin-top: 12px; }
 .dialog.mail-compose-dialog.pc-composer-dialog { height: auto; max-height: calc(100vh - 32px); }
 .pc-composer-dialog .dialog-body.mail-compose-body { flex: 0 1 auto; overflow: auto; }
 @media (forced-colors: active) {

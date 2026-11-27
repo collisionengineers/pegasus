@@ -1,0 +1,204 @@
+@model Pegasus.Web.Presentation.MailComposerView
+@using Pegasus.Web.Presentation
+@using Labels = Pegasus.Web.Presentation.MailComposerView.Labels
+@*
+    The one composer's form (operator, 27 November 2026; R1329, R1330), the
+    Send report composer's (v48): the scrolling fields, then the pinned
+    footer. From, To, Cc (and the e-mail dialogue's Case / PO) in two
+    columns; To and Cc are boxes staff change, each after the first To with
+    its ×, with Add To recipient and Add Cc recipient (site.js); Subject,
+    Message, the attachments as Files rows, then Cancel and Send. Each
+    composer's own fields are its slots.
+*@
+@{
+    var required = Model.FieldsRequired;
+    var emailField = MailComposerView.Write(Model.EmailFieldAttributes);
+    var formClass = Model.FormClass is { Length: > 0 } extra ? "mail-compose-form " + extra : "mail-compose-form";
+
+    void Recipients(string name, IReadOnlyList<string> values, string label, string aria, bool keepOne, string addLabel)
+    {
+        var stackId = Model.Part(name + "-recipients");
+        <span class="lbl" id="@(stackId)-label">@label</span>
+        <div id="@stackId" class="stack" data-mail-recipients="@name" data-mail-recipients-keep-one="@(keepOne ? "" : null)">
+            @foreach (var recipient in values.DefaultIfEmpty(string.Empty))
+            {
+                <span class="recip-box">
+                    <input name="@name" type="email" value="@recipient" autocomplete="email" list="@Model.AddressBookId"
+                           aria-label="@aria" required="@(keepOne && required)" />
+                    <button type="button" class="btn btn--small btn--icon" data-remove-mail-recipient aria-label="@Labels.RemoveRecipient">
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg>
+                    </button>
+                </span>
+            }
+        </div>
+        @if (Model.OffersMoreRecipients)
+        {
+            <button type="button" class="btn btn--small" data-add-mail-recipient="@stackId" data-mail-recipient-name="@name"
+                    data-mail-recipient-label="@aria">@addLabel</button>
+        }
+        @Html.ValidationMessage(name)
+    }
+}
+@if (Model.Status is { } status)
+{
+    @status(null)
+}
+@if (Model.OffersForm)
+{
+    <form method="post" action="@Model.Action" asp-antiforgery="true" id="@Model.FormId" class="@formClass"@(MailComposerView.Write(Model.FormAttributes))>
+        @foreach (var (name, value) in Model.Hidden)
+        {
+            <input type="hidden" name="@name" value="@value" />
+        }
+        <div class="mail-compose-form-fields">
+            @if (Model.BeforeFields is { } before)
+            {
+                @before(null)
+            }
+            @if (Model.BeforeAddresses is { } beforeAddresses)
+            {
+                @beforeAddresses(null)
+            }
+            <div class="mail-compose-addresses"@(emailField)>
+                <div class="field mail-compose-from">
+                    @if (Model.FixedFrom is { } fixedFrom)
+                    {
+                        @* A forward leaves the mailbox that holds the original (R655). *@
+                        <span class="lbl">@Labels.From</span>
+                        <span class="fv" data-mail-fixed-from>@fixedFrom</span>
+                    }
+                    else
+                    {
+                        <label for="@Model.Part("from")">@Labels.From</label>
+                        <select id="@Model.Part("from")" name="@Model.FromName" required="@required"@(MailComposerView.Write(Model.FromAttributes))>
+                            <option value=""></option>
+                            @foreach (var mailbox in Model.FromChoices)
+                            {
+                                <option value="@mailbox.Id" selected="@(mailbox.Id == Model.FromSelected)">@mailbox.Address</option>
+                            }
+                        </select>
+                        @Html.ValidationMessage(Model.FromName)
+                    }
+                </div>
+                <div class="field mail-compose-to">
+                    @if (Model.ToReadOnly)
+                    {
+                        <label for="@Model.Part("to")">@Labels.To</label>
+                        <input id="@Model.Part("to")" type="text" value="@Model.To.FirstOrDefault()" readonly />
+                    }
+                    else
+                    {
+                        Recipients(Model.ToName, Model.To, Labels.To, Labels.Recipient, keepOne: true, Labels.AddTo);
+                    }
+                </div>
+                @if (Model.CcName is { } ccName)
+                {
+                    <div class="field mail-compose-cc">
+                        @{ Recipients(ccName, Model.Cc, Labels.Cc, Labels.CopyRecipient, keepOne: false, Labels.AddCc); }
+                    </div>
+                }
+                @if (Model.AddressCell is { } cell)
+                {
+                    @cell(null)
+                }
+            </div>
+            @if (Model.AddressBookId is { } bookId && Model.AddressBook.Count > 0)
+            {
+                @* The addresses this Case already knows, offered by the browser's
+                   own picker on every recipient box (P21). *@
+                <datalist id="@bookId" data-mail-address-book>
+                    @foreach (var candidate in Model.AddressBook)
+                    {
+                        <option value="@candidate.Address" label="@candidate.Source"></option>
+                    }
+                </datalist>
+            }
+            @if (Model.AfterAddresses is { } afterAddresses)
+            {
+                @afterAddresses(null)
+            }
+            <div class="field mail-compose-subject"@(emailField)>
+                <label for="@Model.Part("subject")">@Labels.Subject</label>
+                <input id="@Model.Part("subject")" name="@Model.SubjectName" type="text" value="@Model.Subject" required="@required"
+                       maxlength="@Model.SubjectMaxLength"@(MailComposerView.Write(Model.SubjectAttributes)) />
+                @Html.ValidationMessage(Model.SubjectName)
+            </div>
+            @if (Model.BeforeMessage is { } beforeMessage)
+            {
+                @beforeMessage(null)
+            }
+            <div class="field mail-compose-message"@(emailField)@(MailComposerView.Write(Model.BodyFieldAttributes))>
+                <label for="@Model.Part("message")">@Labels.Message</label>
+                <textarea id="@Model.Part("message")" name="@Model.BodyName" rows="@Model.BodyRows" required="@required"
+                          maxlength="@Model.BodyMaxLength"@(MailComposerView.Write(Model.BodyAttributes))>@Model.Body</textarea>
+                @Html.ValidationMessage(Model.BodyName)
+                @if (Model.BodyExtra is { } bodyExtra)
+                {
+                    @bodyExtra(null)
+                }
+            </div>
+            @if (Model.AfterMessage is { } afterMessage)
+            {
+                @afterMessage(null)
+            }
+            @if (Model.HasAttachments)
+            {
+                <fieldset class="field mail-compose-attachments"@(MailComposerView.Write(Model.AttachmentsAttributes))>
+                    <legend>@Model.AttachmentsLegend</legend>
+                    <div class="send-files">
+                        @if (Model.AttachmentRows is { } rows)
+                        {
+                            @rows(null)
+                        }
+                        else
+                        {
+                            @for (var index = 0; index < Model.Attachments.Count; index++)
+                            {
+                                var attachment = Model.Attachments[index];
+                                var tickId = Model.Part("file-" + index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                                <div class="send-file" data-send-file="@attachment.Selection">
+                                    <span class="send-file-tick">
+                                        <label class="choice" for="@tickId">
+                                            <input type="checkbox" id="@tickId" name="@Model.AttachmentName" value="@attachment.Selection"
+                                                   checked="@Model.SelectedAttachments.Contains(attachment.Selection)" aria-label="@attachment.FileName" />
+                                        </label>
+                                    </span>
+                                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-file-text")" /></svg>
+                                    <div class="send-file-name">
+                                        <b>@attachment.FileName</b>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                    @Html.ValidationMessage(Model.AttachmentName)
+                </fieldset>
+            }
+            @if (Model.AfterAttachments is { } afterAttachments)
+            {
+                @afterAttachments(null)
+            }
+        </div>
+        <footer class="mail-compose-footer">
+            @if (Model.InDialog && Model.BackHref is null)
+            {
+                <button type="button" class="btn" data-dialog-close @(MailComposerView.Write(Model.CancelAttributes))>@Labels.Cancel</button>
+            }
+            else
+            {
+                <a class="btn" href="@Model.BackHref"@(MailComposerView.Write(Model.CancelAttributes))>@Labels.Cancel</a>
+            }
+            @if (Model.SendButtons is { } sendButtons)
+            {
+                @sendButtons(null)
+            }
+            else if (Model.OffersSend)
+            {
+                <button type="submit" data-busy-label="@OperatorLabels.Busy.Sending" class="btn btn--primary">
+                    <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-send")" /></svg>
+                    <span>@Model.SendLabel</span>
+                </button>
+            }
+        </footer>
+    </form>
+}

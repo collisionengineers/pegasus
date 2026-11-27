@@ -295,7 +295,9 @@ taken in it (a reply, Dismiss, a change of Type, Link, Change or Unlink)
 leaves the operator on the Case, at the section the message was opened from,
 and Previous message and Next message walk that section's messages. Reply,
 Reply all and Forward open the composer in place with that Case chosen
-([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)):
+the one send-e-mail dialogue, Send report's, whose To and Cc staff change
+(operator, 27 November 2026; [R1329](../rulings.md), [R1330](../rulings.md)).
 Close case's **E-mail the Principal** opens this same dialog on the Case
 page: on the Case's instruction e-mail as a Reply whose Message is the Case
 rejection template, or, for a Case with no instruction e-mail, as a new

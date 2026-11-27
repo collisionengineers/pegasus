@@ -194,11 +194,19 @@
    closed as Collision Engineers rejected also names where its new message is
    drawn, which Close case's landing opens when there is no instruction
    e-mail to answer (R1323). *@
-@if (workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.CollisionEngineersRejected)
+@{
+    // The composers that answer no message reopen here after a send (R1330):
+    // a rejected Case's new message (R1323) and Send chaser.
+    var newMessageAddress = workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.CollisionEngineersRejected
+        ? Url.Page("/Cases/NewMessage", new { id = summary.CaseId })
+        : null;
+    var chaserAddress = Model.StaffMailAvailable ? Url.Page("/Cases/Chaser", new { id = summary.CaseId }) : null;
+}
+@if (newMessageAddress is null && chaserAddress is null)
 {
-    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId" data-mail-new-message="@Url.Page("/Cases/NewMessage", new { id = summary.CaseId })"></div>
+    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId"></div>
 }
 else
 {
-    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId"></div>
+    <div data-mail-dialog-root data-mail-return-case="@summary.CaseId" data-mail-new-message="@newMessageAddress" data-mail-chaser="@chaserAddress"></div>
 }

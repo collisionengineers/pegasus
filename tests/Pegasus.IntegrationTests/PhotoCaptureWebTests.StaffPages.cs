@@ -383,7 +383,7 @@ public sealed partial class PhotoCaptureWebTests
         Assert.Contains($">{OperatorLabels.PhotoCapture.Resend}</h1>", html, StringComparison.Ordinal);
         var from = Regex.Match(html, "<option value=\"(?<id>[^\"]+)\"[^>]*>photo-link-sender@collisionengineers.co.uk</option>");
         Assert.True(from.Success, "From does not offer the sending mailbox.");
-        Assert.Matches("<input id=\"photo-link-to\" type=\"text\" value=\"sam.taylor@example.com\" readonly", html);
+        Assert.Matches("<input id=\"photo-link-compose-to\" type=\"text\" value=\"sam.taylor@example.com\" readonly", html);
         var subject = InputValue(html, "Subject");
         Assert.Equal("Photos of AB12 CDE for Collision Engineers", subject);
         var body = TextareaValue(html, "Body");
