@@ -4,12 +4,12 @@
 
 ## Short version
 
-- `/Administration` has fifteen areas: Accounts, Contacts, Workflow
+- `/Administration` has sixteen areas: Accounts, Contacts, Workflow
   configuration, Photo links (while photo capture is on), Mail settings,
   E-mail templates, Valuation presets, Unroadworthy reasons, Integrations,
-  Service health, Logs, Management Reports, Release notes, Problem reports
-  and Automation & AI, which holds the AI jobs list. Its Automation panels
-  appear only when composed.
+  Service health, Mail classifier, Logs, Management Reports, Release notes,
+  Problem reports and Automation & AI, which holds the AI jobs list. Its
+  Automation panels appear only when composed.
 - Administration buttons act on the click. There is no confirmation dialog,
   except Delete access
   ([v41 A14](https://github.com/collisionengineers/pegasus-design-archive/blob/main/v41_planning/notes/v41-notes.md)).
@@ -44,8 +44,9 @@ November 2026; [R911](../rulings.md)), **Mail settings**, **E-mail templates**,
 **Valuation presets**, **Unroadworthy reasons** (operator, 11 November 2026;
 [R952](../rulings.md)), **Integrations** (operator, 26 November 2026;
 [R1289](../rulings.md)), **Service
-health**, **Logs**, **Management Reports**, **Release notes**, **Problem reports** and
-**Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
+health**, **Mail classifier** (operator, 27 November 2026;
+[R1318](../rulings.md)), **Logs**, **Management Reports**, **Release notes**,
+**Problem reports** and **Automation & AI**. Automation & AI is one page (operator, 28 October 2026;
 R467): the Automation panel and the AI settings panel, which carries the Send
 to AI switch
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch)),
@@ -450,6 +451,53 @@ warning (operator, 22 October 2026; R414). It carries no notice that the
 external-work queue is cut short (operator, 16 and 22 October 2026; R159,
 R415).
 
+### Mail classifier
+
+**Mail classifier** (`/Administration/Classifier`), in Operations and
+oversight after Service health, is listed in every deployment and is
+Administrators only (operator, 27 November 2026; [R1318](../rulings.md)). It
+shows the runs the mail classifier records of itself
+([FRD-08](frd-08-email-mailbox-and-background-processing.md)). Production
+shows production's runs alone. The hosted test instance shows its own runs
+and, where it has been given the read, the live classifier's beside them,
+each row carrying its environment, Live or Test, and an Environment filter
+(Both, Test, Live); without that read it says in one sentence that live runs
+are not shown and why: not switched on here, access not given, or not
+readable just now ([R1319](../rulings.md);
+[ADR-0088](../adr/0088-one-hosted-test-instance.md)). Live runs are read when
+the page opens and never kept (R696), and production never reads the
+instance.
+
+- **Health** is one table, one row per environment shown: the last run's
+  time and outcome, runs in the last 24 hours, failed in a row (the newest
+  finished runs that failed or did not finish, past a run still running),
+  and the cost spent today and this month in London, summed from the runs'
+  recorded costs. A deployment with no run says No run recorded. When the
+  newest finished run found the mail list hiding mail Pegasus counts as
+  awaiting a decision, a warning above says how many e-mails and for how
+  many runs.
+- **Runs** lists the runs started in a period of London dates, the last 7
+  days unless chosen, up to 31 days, newest first with the Started header
+  turning the order, 50 a page with Previous and Next, as Action logs pages.
+  The filters are From, To, Outcome and Runs (All runs, Runs that acted).
+  Each row shows when it started, its outcome as a chip (Running, Did not
+  finish, Completed, Nothing to do, Mail hidden, Cut short, Failed) with
+  Dry run beneath it for a dry run, its e-mails, what it did as counts by
+  act, its cost and how long it took. A run with no close reads Running for 15
+  minutes and then Did not finish.
+- **Open** shows the run in a dialog, as the Intake log opens a received
+  file: its facts (started, finished, how long, outcome, mode, e-mails,
+  awaiting a decision, cost, spending cap, turns, model, batch, list pages
+  read, version and any error), the classifier's summary, and one row per
+  e-mail: when, the e-mail by its subject and sender, linked to its message
+  where this deployment holds it, what the run did with it (a dry run's
+  acts read as what it would have done), the type it gave, the Case, linked
+  where this deployment holds it, its reason and Pegasus's refusal. A run of
+  this deployment also opens Action logs at the Automation Actor's calls
+  from the run's start to its close.
+- A fresh install with no run recorded shows only "No classifier runs are
+  recorded yet." The page's words are R1320's.
+
 ### Logs
 
 **Logs** (`/Administration/Logs`) has two tabs.
@@ -659,7 +707,9 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the fifteen areas and their routes, the on-click actions
+Acceptance covers the sixteen areas and their routes, the Mail classifier's
+health, runs, filters, run dialog, empty state and live runs on the test
+instance, the on-click actions
 without confirmation (Delete access confirms), the Action logs actor
 resolution and filter, the Intake log columns and actions, the six workflow
 settings and their ranges, and the Management Reports with each report's CSV

@@ -55,6 +55,9 @@ public static partial class OperatorLabels
 
         /// <summary>The automatic requests and the integrations' logins (operator, 26 November 2026; R1289).</summary>
         public const string Integrations = "Integrations";
+
+        /// <summary>The mail classifier's runs and what it did (operator, 27 November 2026; R1318, R1320).</summary>
+        public const string Classifier = "Mail classifier";
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ Tailscale network. It is the `DevelopmentOffline` lifecycle the runbook owns
 ([local live-integration run](../../../docs/runbook.md#local-live-integration-run))
 with every opt-in on, so the procedure here is the order of the runbook's
 commands and the approvals between them. [ADR-0088](../../../docs/adr/0088-one-hosted-test-instance.md)
-and rulings R623 to R629, R675 to R680, R693 to R696, R708, R709 and R931 decided its shape; this skill
+and rulings R623 to R629, R675 to R680, R693 to R696, R708, R709, R931 and R1319 decided its shape; this skill
 invents none of it.
 
 What it is for (R624): the operator's and agents' QA walks, staff UAT rounds,
@@ -52,10 +52,11 @@ together, with a ruling.
   the operator names, and enable a production mailbox on the instance for
   the window the operator names.
 - **No Azure spend but OCR.** Key Vault secret reads, Graph calls, the
-  SqlPackage extract to a local file and, with `Features__LiveOcr`, the OCR
-  calls charged to production's Document Intelligence account (R931) are the
-  only Azure touches (R623). A step that would create or run anything else in
-  Azure is a question to the operator first.
+  SqlPackage extract to a local file, with `Features__LiveOcr` the OCR
+  calls charged to production's Document Intelligence account (R931), and
+  with `Features__LiveClassifierRuns` the reads of the live classifier's
+  `runs` table (R1319) are the only Azure touches (R623). A step that would
+  create or run anything else in Azure is a question to the operator first.
 - **Funnel for the public origin, the Graph webhook path and, with photo
   capture on, its three paths.** `tailscale funnel` on 443 exposes the whole
   origin, behind password sign-in, so a claude.ai custom connector reaches
@@ -86,6 +87,7 @@ together, with a ruling.
 | `tailscale funnel` of the webhook path | the operator | the webhook's public path on the machine |
 | OCR role assignment, once | the operator; approved 11 November 2026 (R931) | `Cognitive Services User` on production's Document Intelligence resource `pegasus-prod-ocr-252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write OCR needs; recorded in operations |
 | `tailscale funnel` of `/c`, `/s` and `/capture` | the operator, with `Features__PhotoCapture` on | the photo capture paths, public while photo capture is on (R785) |
+| Live classifier runs role assignment, once | the operator's word; not yet given (R1319) | `Storage Table Data Reader` on the live classifier's storage account `pegclass252ow37gij` for the `CollisionSpike Graph Intake` registration, the one Azure write the Mail classifier page's live runs need: `az role assignment create --assignee-object-id e25ca6f2-3eb2-4ea8-9953-229efcfd8893 --assignee-principal-type ServicePrincipal --role "Storage Table Data Reader" --scope /subscriptions/e6076573-23a5-46a8-acef-7e22d264e5db/resourceGroups/rg-pegasus-prod/providers/Microsoft.Storage/storageAccounts/pegclass252ow37gij`; recorded in operations |
 | Seeding the Brego session (section 2) | the operator's word, and a blob read role on `pegcustody252ow37gij` for their `az` account | reads production's `authentication-ring/brego-session.json` (R933) |
 | `Copy-ProductionDatabaseToRun.ps1 -Approve` | the operator's word per copy | a live read of production SQL, into this run on this host alone |
 | `Invoke-LocalDevelopment.ps1 -Action Reset -Approve` | the operator's word for this run | removes the database and the run root; nothing brings the data back (R696) |
@@ -207,6 +209,21 @@ The Worker reads production's Document Intelligence account with the Graph
 registration's secret; a missing endpoint or Graph key fails the start
 naming it. Without the flag, the endpoint line is refused as a
 Production-only setting.
+
+For the live classifier's runs on the Mail classifier page (R1319), once the
+live classifier runs role assignment in Approvals exists, the Graph lines are
+in and a release has put the `runs` table in production, also append:
+
+```text
+Features__LiveClassifierRuns=true
+ClassifierRuns__TableEndpoint=https://pegclass252ow37gij.table.core.windows.net/
+```
+
+The Web reads the live classifier's `runs` table with the Graph
+registration's secret when the page opens and keeps nothing it reads (R696);
+a missing endpoint or Graph key fails the start naming it. Without the flag,
+or before the role exists, the page says in one sentence that live runs are
+not shown and why, and shows the instance's own runs.
 
 The Graph lines wait until the identity exists (section 4); start without
 them if it does not yet, and the run uses the folder mailbox adapters. The two

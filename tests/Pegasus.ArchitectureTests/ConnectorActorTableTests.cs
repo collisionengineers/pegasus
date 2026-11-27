@@ -44,6 +44,7 @@ public sealed partial class ConnectorActorTableTests
         ("Pegasus.Core/Intake/ReconcileUnidentifiedDestinations.cs", 1, "Names a system recorder, not a caller."),
         ("Pegasus.Core/Intake/RetainedMail.cs", 1, "The kind's prefix in a recorded actor string; a member of staff is written staff."),
         ("Pegasus.Core/Intake/Unidentified/UnidentifiedContracts.cs", 2, "Admits both kinds."),
+        ("Pegasus.Core/Operations/ClassifierRuns.cs", 1, "The classifier's record of its own runs is the Automation Actor's alone; a member of staff is refused it."),
         ("Pegasus.Core/Operations/StaffMailSendEngine.cs", 2, "Admits both kinds; a member of staff's send re-reads their account, the Automation Actor's its kill switch."),
         ("Pegasus.Core/Reports/CaseReportDelivery.cs", 1, "Admits both kinds."),
         ("Pegasus.Core/Triage/TriageLifecycle.cs", 1, "Admits both kinds."),

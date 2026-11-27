@@ -69,6 +69,11 @@ public static class DependencyInjection
         services.AddLogging();
         services.AddScoped<IActionLogQueries, EfActionLogQueries>();
         services.AddScoped<ListActionLogs>();
+        // The classifier's runs (FRD-08, FRD-17; R1318). The live runs' read
+        // is the hosted test instance's alone and is added by its Web.
+        services.AddScoped<IClassifierRunStore, EfClassifierRunStore>();
+        services.AddScoped<RecordClassifierRun>();
+        services.AddScoped<ListClassifierRuns>();
         services.AddScoped<IV1ActivityReportQueries, EfV1ActivityReportQueries>();
         services.AddScoped<GetV1ActivityReport>();
         services.AddScoped<IMonthlyReportActivityQueries, EfMonthlyReportActivityQueries>();

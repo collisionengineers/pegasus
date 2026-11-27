@@ -147,6 +147,7 @@ var liveGuideValuation = builder.Configuration.GetValue<bool>("Features:LiveGuid
 var liveExperian = builder.Configuration.GetValue<bool>("Features:LiveExperian");
 var passwordSignIn = builder.Configuration.GetValue<bool>("Features:PasswordSignIn");
 var liveGraphMail = builder.Configuration.GetValue<bool>(LocalGraphCredential.FeatureKey);
+var liveClassifierRuns = builder.Configuration.GetValue<bool>(Pegasus.Infrastructure.Operations.LiveClassifierRuns.FeatureKey);
 foreach (var (featureKey, enabled) in new[]
 {
     ("Features:LiveVehicleLookup", liveVehicleLookup),
@@ -156,6 +157,7 @@ foreach (var (featureKey, enabled) in new[]
     ("Features:LiveExperian", liveExperian),
     ("Features:PasswordSignIn", passwordSignIn),
     (LocalGraphCredential.FeatureKey, liveGraphMail),
+    (Pegasus.Infrastructure.Operations.LiveClassifierRuns.FeatureKey, liveClassifierRuns),
 })
 {
     if (enabled && !developmentOfflineProfile)
@@ -908,6 +910,15 @@ if (developmentOfflineProfile)
     builder.Services.AddSingleton(liveVehicleLookup
         ? VehicleLookupAvailability.ProductionLive
         : VehicleLookupAvailability.DevelopmentOfflineReplay);
+    if (liveClassifierRuns)
+    {
+        // The hosted test instance reads the live classifier's runs from its
+        // storage account, beside its own (ADR-0088 as amended; R1319).
+        // Production never reads the instance (ADR-0014 OPS-11).
+        Pegasus.Infrastructure.Operations.LiveClassifierRuns.AddLiveClassifierRuns(
+            builder.Services,
+            key => builder.Configuration[key]);
+    }
     if (liveGraphMail)
     {
         // The hosted test instance (ADR-0088 as amended, R675) composes the Web's

@@ -34,6 +34,10 @@ Amended 11 November 2026 (R931, amending R677): the Worker opt-in
 `Features:LiveOcr` reads scanned pages on the instance with production's
 Document Intelligence account, as a rehearsal; production remains the
 proof of record; see Decision.
+Amended 27 November 2026 (R1318, R1319): the Web opt-in
+`Features:LiveClassifierRuns` reads the live classifier's runs from its own
+storage account, so the instance's Mail classifier page shows them beside
+its own; it reads and never writes or keeps a row; see Decision.
 
 Accepted on the operator's rulings of 2 November 2026 (R623 to R628). It
 supersedes one clause of [ADR-0014](0014-local-to-production-deployment.md),
@@ -138,6 +142,18 @@ their Tailscale network, at no Azure cost (R623).
   registration and secret as the Graph mail side, granted `Cognitive
   Services User` on that account (`pegasus-prod-ocr-252ow37gij`) alone, so
   scanned reports are read and re-filed on the instance as in production.
+- The live classifier's runs are read on the instance under
+  `Features:LiveClassifierRuns` (27 November 2026, R1318, R1319): the Web
+  reads the `runs` table the live classifier writes in its own storage
+  account, named by `ClassifierRuns:TableEndpoint`, when the Mail classifier
+  page opens, and shows them beside the instance's own runs; nothing read is
+  kept (R696), and the instance writes nothing there. It authenticates with
+  the same `CollisionSpike Graph Intake` registration and secret, granted
+  `Storage Table Data Reader` on that one storage account
+  (`pegclass252ow37gij`) alone, the second production read after OCR's. The
+  grant is the operator's to make; until it exists, or with the flag off,
+  the page says that live runs are not shown and why. Production never reads
+  the instance (ADR-0014 OPS-11).
 - The instance proves local behaviour at the Linux runtime production uses.
   The evidence tiers in [engineering](../engineering.md#required-evidence-tiers)
   are unchanged: staff send, Graph subscriptions and OCR can be rehearsed on
@@ -158,7 +174,8 @@ their Tailscale network, at no Azure cost (R623).
   skill. Its tooling is the lifecycle's `-PublicOrigin` and Reset's
   `-Approve`, the host gate in `scripts/PegasusPlatform.ps1`, the
   `Features:LiveGraphMail` opt-in with the two webhook keys, the
-  `Features:LiveOcr` opt-in with its endpoint, Funnel on the webhook path and
+  `Features:LiveOcr` opt-in with its endpoint, the
+  `Features:LiveClassifierRuns` opt-in with its table endpoint, Funnel on the webhook path and
   the photo capture paths, and
   `scripts/Copy-ProductionDatabaseToRun.ps1`.
 - The fences are no longer in the grant. They are the test mailbox being
@@ -173,6 +190,6 @@ their Tailscale network, at no Azure cost (R623).
 
 - Superseded clause: [ADR-0014](0014-local-to-production-deployment.md).
 - Workstations: [ADR-0039](0039-windows-and-linux-release-workstations.md).
-- Rulings: R623 to R629, R675 to R680, R693 to R696, R785 and R931 in
+- Rulings: R623 to R629, R675 to R680, R693 to R696, R785, R931, R1318 and R1319 in
   [rulings](../rulings.md).
 - Procedure: [runbook, local live-integration run](../runbook.md#local-live-integration-run).

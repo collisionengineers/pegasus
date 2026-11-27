@@ -239,6 +239,63 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
         Assert.Equal("Graph:ClientSecret is required for Features:LiveGraphMail.", configurationException.Message);
     }
 
+    /// <summary>
+    /// Features:LiveClassifierRuns has the instance read the live
+    /// classifier's runs from its storage account (R1319): it names the
+    /// account's table endpoint, and a missing one fails the start naming it.
+    /// </summary>
+    [Fact]
+    public void LiveClassifierRunsWithoutTheTableEndpointFailsAtStartNamingIt()
+    {
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), "pegasus-live-classifier-runs-no-endpoint"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveClassifierRuns"] = "true"
+            });
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        var configurationException = Assert.IsType<InvalidOperationException>(exception.GetBaseException());
+
+        Assert.Equal(
+            "ClassifierRuns:TableEndpoint is required for Features:LiveClassifierRuns.",
+            configurationException.Message);
+    }
+
+    /// <summary>
+    /// With its endpoint and the Graph registration's keys, the instance
+    /// composes the live runs' read, which the Classifier page reads beside
+    /// its own (R1319); the registration's credential is the read's alone.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task LiveClassifierRunsComposesTheLiveRunsRead()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Development",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "DevelopmentOffline",
+                ["ConnectionStrings:Pegasus"] = database.ConnectionString,
+                ["Intake:LocalArtifactPath"] = Path.Combine(Path.GetTempPath(), $"pegasus-live-classifier-runs-{Guid.NewGuid():N}"),
+                ["Features:LocalIntake"] = "false",
+                ["Features:LiveClassifierRuns"] = "true",
+                ["ClassifierRuns:TableEndpoint"] = "https://pegclassexample.table.core.windows.net",
+                ["Graph:TenantId"] = "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e",
+                ["Graph:ClientId"] = "4f0d4c7e-1b2a-4c3d-9e8f-0a1b2c3d4e5f",
+                ["Graph:ClientSecret"] = "integration-test-secret"
+            });
+
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        Assert.IsType<Pegasus.Infrastructure.Operations.TableProductionClassifierRuns>(
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Operations.IProductionClassifierRuns>());
+    }
+
     [Fact]
     public void LiveBoxCustodyAndLocalDocumentCustodyTogetherFailAtStartNamingBoth()
     {
@@ -269,6 +326,7 @@ public sealed partial class DevelopmentOfflineLiveOptInTests
     [InlineData("Features:LiveExperian")]
     [InlineData("Features:PasswordSignIn")]
     [InlineData("Features:LiveGraphMail")]
+    [InlineData("Features:LiveClassifierRuns")]
     public void ProductionRefusesTheLocalLiveOptIns(string key)
     {
         using var factory = new ConfiguredWebApplicationFactory(

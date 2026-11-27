@@ -1230,6 +1230,14 @@ bounds.
   warning with its statement and how long it ran, once.
   Query:
   `AppTraces | where Message startswith "SQL deadlock victim" | project TimeGenerated, AppRoleName, Message`.
+- **Classifier runs.** Each run the mail classifier records of itself
+  (R1318) is on Administration › Mail classifier: its outcome, cost, what it
+  did with each e-mail and the Automation Actor's calls in its window in
+  Action logs, kept in the database rather than in Application Insights'
+  31 days. A run that found Pegasus unavailable records nothing and is in the
+  traces alone; a record the classifier could not write logs
+  `run record failed`. Query:
+  `AppTraces | where AppRoleName startswith "pegasus-prod-classifier" and (Message startswith "run complete" or Message startswith "run record failed" or Message startswith "pegasus unavailable") | project TimeGenerated, Message, Properties`.
 
 Some requests are no longer recorded. Readiness probes (`/health`), the
 version endpoint (`/diagnostics`), static files (`/css`, `/js`, `/fonts`,

@@ -34,6 +34,8 @@ pegasus_web_runtime_role,D,DELETE,CaseWorkflowEvents
 pegasus_web_runtime_role,D,DELETE,CaseWorkflows
 pegasus_web_runtime_role,D,DELETE,CaseWorks
 pegasus_web_runtime_role,D,DELETE,Cases
+pegasus_web_runtime_role,D,DELETE,ClassifierRunItems
+pegasus_web_runtime_role,D,DELETE,ClassifierRuns
 pegasus_web_runtime_role,D,DELETE,DocumentContentCacheEntries
 pegasus_web_runtime_role,D,DELETE,DocumentOccurrences
 pegasus_web_runtime_role,D,DELETE,DocumentVersions
@@ -101,6 +103,7 @@ pegasus_web_runtime_role,D,DELETE,WorkCentreDismissals
 pegasus_web_runtime_role,D,DELETE,WorkflowConfigurations
 pegasus_web_runtime_role,D,INSERT,ApprovedMailboxSubscriptions
 pegasus_web_runtime_role,D,UPDATE,ApprovedMailboxSubscriptions
+pegasus_web_runtime_role,D,UPDATE,ClassifierRunItems
 pegasus_web_runtime_role,D,UPDATE,ContactPrincipalLinks
 pegasus_web_runtime_role,D,UPDATE,DocumentOccurrenceTags
 pegasus_web_runtime_role,D,UPDATE,ImageIntakeLifecycleEvents
@@ -163,6 +166,8 @@ pegasus_web_runtime_role,G,INSERT,CaseWorkflowEvents
 pegasus_web_runtime_role,G,INSERT,CaseWorkflows
 pegasus_web_runtime_role,G,INSERT,CaseWorks
 pegasus_web_runtime_role,G,INSERT,Cases
+pegasus_web_runtime_role,G,INSERT,ClassifierRunItems
+pegasus_web_runtime_role,G,INSERT,ClassifierRuns
 pegasus_web_runtime_role,G,INSERT,ContactPrincipalLinks
 pegasus_web_runtime_role,G,INSERT,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,INSERT,DocumentOccurrenceTags
@@ -273,6 +278,8 @@ pegasus_web_runtime_role,G,SELECT,CaseWorkflowEvents
 pegasus_web_runtime_role,G,SELECT,CaseWorkflows
 pegasus_web_runtime_role,G,SELECT,CaseWorks
 pegasus_web_runtime_role,G,SELECT,Cases
+pegasus_web_runtime_role,G,SELECT,ClassifierRunItems
+pegasus_web_runtime_role,G,SELECT,ClassifierRuns
 pegasus_web_runtime_role,G,SELECT,ContactPrincipalLinks
 pegasus_web_runtime_role,G,SELECT,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,SELECT,DocumentOccurrenceTags
@@ -380,6 +387,7 @@ pegasus_web_runtime_role,G,UPDATE,CaseValuations
 pegasus_web_runtime_role,G,UPDATE,CaseWorkflows
 pegasus_web_runtime_role,G,UPDATE,CaseWorks
 pegasus_web_runtime_role,G,UPDATE,Cases
+pegasus_web_runtime_role,G,UPDATE,ClassifierRuns
 pegasus_web_runtime_role,G,UPDATE,DocumentContentCacheEntries
 pegasus_web_runtime_role,G,UPDATE,DocumentOccurrences
 pegasus_web_runtime_role,G,UPDATE,DocumentVersions
@@ -467,6 +475,8 @@ pegasus_worker_runtime_role,D,DELETE,CaseWorkflowEvents
 pegasus_worker_runtime_role,D,DELETE,CaseWorkflows
 pegasus_worker_runtime_role,D,DELETE,CaseWorks
 pegasus_worker_runtime_role,D,DELETE,Cases
+pegasus_worker_runtime_role,D,DELETE,ClassifierRunItems
+pegasus_worker_runtime_role,D,DELETE,ClassifierRuns
 pegasus_worker_runtime_role,D,DELETE,ContactPrincipalLinks
 pegasus_worker_runtime_role,D,DELETE,DocumentOccurrenceTags
 pegasus_worker_runtime_role,D,DELETE,DocumentOccurrences
