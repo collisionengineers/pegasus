@@ -31,7 +31,7 @@ public sealed record ImportRawEstimateRequest(
 
     /// <summary>
     /// An import that lands as a Draft whoever made it: the connector's, which
-    /// a member of staff puts in use in Pegasus itself (R1302).
+    /// a member of staff puts in use in Pegasus itself (R1306).
     /// </summary>
     public bool AwaitsUse { get; init; }
 

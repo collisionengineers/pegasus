@@ -436,7 +436,7 @@ public sealed class EstimateTests
         Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(Client));
 
         // So does what the assistant in Pegasus Desktop files under a member of
-        // staff's name (R1302): an AI draft, and an import marked to await use.
+        // staff's name (R1306): an AI draft, and an import marked to await use.
         Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
             Engineer, RepairSpecificationSourceRoute.Manual, awaitsUse: false));
         Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(

@@ -93,7 +93,7 @@ internal sealed record CaseGetToolResult(
 
 /// <summary>
 /// Who the connection acts as: every other tool acts as this actor and
-/// records its work under it (R1300).
+/// records its work under it (R1304).
 /// </summary>
 internal sealed record SessionToolResult(
     [property: Description("Staff for a member of staff signed in from Pegasus Desktop; Automation for the Automation Actor.")] string ActorKind,

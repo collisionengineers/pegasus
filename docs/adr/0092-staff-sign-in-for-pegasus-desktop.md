@@ -23,7 +23,7 @@ Automation client, its Administrator consent and its tokens are unchanged.
 [ADR-0011](0011-restrict-mcp-to-automation-actor.md) was unchanged by this
 record as first accepted, when no tool acted for a member of staff.
 
-Amended 26 November 2026 (R1300, R1302 to R1304): decision 7 is built. A Pegasus Desktop
+Amended 26 November 2026 (R1304, R1306 to R1308): decision 7 is built. A Pegasus Desktop
 token now resolves to the member of staff it names, every connector tool acts
 as that person, and ADR-0011's "ordinary staff have no MCP access" is amended
 for this one client.
@@ -105,7 +105,7 @@ one registered with a port matches that port only.
    access token stays ten minutes. The application's own sign-out revokes its
    refresh token at `/connect/revoke` (RFC 7009); the Automation client holds
    no permission for that endpoint.
-7. **Every tool acts as the member of staff (R1300; built 26 November
+7. **Every tool acts as the member of staff (R1304; built 26 November
    2026).** As first accepted this record delivered the sign-in alone, and
    every tool and both content routes refused a Pegasus Desktop token. Now
    the token resolves to the member of staff it names, at every tool and both
@@ -118,10 +118,10 @@ one registered with a port matches that port only.
    tool reaches. Each call is recorded under their name, in Pegasus Desktop's
    area of the Action logs, and what the assistant files stays marked AI: a
    document keeps the Automation source, and an estimate is an AI draft that
-   waits for Use repair spec in Pegasus (R1302). A call the check refuses is
+   waits for Use repair spec in Pegasus (R1306). A call the check refuses is
    recorded as `desktop_access_denied` under the person, which is not counted
    as Automation activity. The Automation client's Stop switch is not read
-   for a Pegasus Desktop token (R1303). `pegasus_session_get` answers who a connection
+   for a Pegasus Desktop token (R1307). `pegasus_session_get` answers who a connection
    acts as. Pegasus Desktop puts each change on a card that names the person,
    which they confirm before it is made; that is the application's rule, and
    Pegasus marks each tool that only reads as read-only so the application
@@ -139,7 +139,7 @@ one registered with a port matches that port only.
   each mark to the tool's inputs and body.
 - Case details a member of staff reaches this way may be sent by Pegasus
   Desktop to its AI providers, which the operator accepted on 26 November
-  2026 (R1301). That is the application's behaviour, not Pegasus's.
+  2026 (R1305). That is the application's behaviour, not Pegasus's.
 - A public native client cannot prove which program it is. Another program on
   the same computer could start the same sign-in; the page is what stands
   between it and a token, which is why the page always asks and never signs
@@ -180,7 +180,7 @@ The staff session's absolute lifetime is also eight hours.
 
 ## Links
 
-- Rulings: R1237 and R1297 to R1304 in [rulings](../rulings.md).
+- Rulings: R1237, R1297 to R1299 and R1304 to R1308 in [rulings](../rulings.md).
 - [FRD-04](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix),
   [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md),

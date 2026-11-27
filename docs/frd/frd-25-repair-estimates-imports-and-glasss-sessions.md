@@ -52,7 +52,7 @@ proposes: it stays a Draft until a staff member presses **Use repair spec**.
 That holds whoever the draft is recorded under: what the assistant in Pegasus
 Desktop types in or imports for a member of staff is recorded as theirs,
 typed as an AI draft, and stays a Draft the same way (operator, 26 November
-2026; [R1302](../rulings.md);
+2026; [R1306](../rulings.md);
 [FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop)).
 The Automation Actor may edit any live spec in place, the Current one
 included, but never puts a spec in use (operator, 7 October 2026;
@@ -131,7 +131,7 @@ occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new spec is
 guarded again in the save transaction. A staff import becomes the Current
 spec; an import through MCP stays a Draft, for the Automation Actor and for a
-member of staff signed in from Pegasus Desktop alike ([R1302](../rulings.md)).
+member of staff signed in from Pegasus Desktop alike ([R1306](../rulings.md)).
 
 **An import fills an empty VIN.** The VIN a Glass's export or calculation
 sheet, or an Audatex report, names fills the Case's VIN in the import's

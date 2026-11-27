@@ -8,7 +8,7 @@ namespace Pegasus.ArchitectureTests;
 /// <summary>
 /// Pegasus Desktop's assistant treats a tool as one that only looks when its
 /// MCP annotation says read-only, and puts every other tool on a card the
-/// member of staff confirms before the change is made (R1300). A wrong mark
+/// member of staff confirms before the change is made (R1304). A wrong mark
 /// is therefore a change with no card. The marks are held here to what can
 /// be checked without running a tool: the tools marked read-only are the
 /// listed reads and no others, a read takes nothing a write takes, and its

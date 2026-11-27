@@ -53,7 +53,7 @@ internal sealed record DocumentBatchDownloadToolResult(
 /// automation.documents scope. Retained content is provenance-labelled with
 /// the Automation document source, which the context carries for the
 /// Automation Actor and for a member of staff signed in from Pegasus Desktop
-/// alike (<see cref="AutomationActorContext.DocumentSource"/>, R1302); a
+/// alike (<see cref="AutomationActorContext.DocumentSource"/>, R1306); a
 /// mutation presents the case edit lease
 /// and expected version like any staff save, or holds the lease for its one
 /// command when none is presented. A download hands the content back as

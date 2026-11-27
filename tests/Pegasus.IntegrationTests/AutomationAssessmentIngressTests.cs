@@ -272,7 +272,7 @@ public sealed class AutomationAssessmentIngressTests
         }
         var request = Assert.IsType<ImportRawEstimateRequest>(importer.Request);
         Assert.Equal(ActorKind.Automation, request.Actor.Kind);
-        // An import through the connector waits for Use repair spec (R1302).
+        // An import through the connector waits for Use repair spec (R1306).
         Assert.True(request.AwaitsUse);
         Assert.Equal(caseId, request.CaseId);
         Assert.Equal(occurrenceId, request.OccurrenceId);

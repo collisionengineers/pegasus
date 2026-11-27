@@ -12,10 +12,10 @@ using static Pegasus.IntegrationTests.DesktopSignInTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The connector as the member of staff (R1300, ADR-0092): a token issued by
+/// The connector as the member of staff (R1304, ADR-0092): a token issued by
 /// a Pegasus Desktop sign-in resolves to that person, every tool acts with
 /// their rights, and what they do is recorded under their name, never the
-/// Automation Actor's, with what is filed still marked AI (R1302). Each fact
+/// Automation Actor's, with what is filed still marked AI (R1306). Each fact
 /// is driven over real HTTP with a token from the real sign-in.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -107,7 +107,7 @@ public sealed class DesktopConnectorIngressTests
     }
 
     /// <summary>
-    /// Under their name, but marked AI (R1302): an estimate typed in is the
+    /// Under their name, but marked AI (R1306): an estimate typed in is the
     /// person's and an AI draft that waits for Use repair spec, a document
     /// added is the person's act and keeps the Automation source that draws
     /// its AI tag, and a staged upload belongs to the person who staged it.

@@ -117,7 +117,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     /// <summary>
     /// What the assistant in Pegasus Desktop files under a member of staff's
-    /// name only proposes (R1302): an import marked to await use and a typed
+    /// name only proposes (R1306): an import marked to await use and a typed
     /// AI draft are recorded as that person's and stay Drafts, where the same
     /// person's own import or typed estimate is in use at once.
     /// </summary>

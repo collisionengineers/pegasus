@@ -19,7 +19,7 @@ namespace Pegasus.Web.Mcp;
 /// <para>
 /// What the assistant in Pegasus Desktop does for a member of staff is
 /// recorded under their name and marked AI (operator, 26 November 2026;
-/// R1300, R1302): the actor is the person, everywhere, and what a tool files
+/// R1304, R1306): the actor is the person, everywhere, and what a tool files
 /// keeps the provenance mark the Automation Actor's carries, the document
 /// source, its identity prefix, the AI-draft route and an estimate's wait for
 /// Use repair spec. Each is decided here, in one place. A field that holds
@@ -110,22 +110,22 @@ internal sealed class AutomationActorContext
     /// <summary>
     /// The provenance a document added through the connector carries, which
     /// draws its AI tag: the Automation source, whoever the call is made for
-    /// (R1302).
+    /// (R1306).
     /// </summary>
     public DocumentSource DocumentSource { get; } = DocumentSource.Automation;
 
-    /// <summary>The prefix of such a document's source-occurrence identity, for either kind (R1302).</summary>
+    /// <summary>The prefix of such a document's source-occurrence identity, for either kind (R1306).</summary>
     public string SourceIdentityPrefix { get; } = "automation:";
 
     /// <summary>
     /// The route an estimate typed in through the connector lands on: an AI
-    /// draft, whoever it is recorded under (R1302).
+    /// draft, whoever it is recorded under (R1306).
     /// </summary>
     public RepairSpecificationSourceRoute EstimateRoute { get; } = RepairSpecificationSourceRoute.AiDraft;
 
     /// <summary>
     /// Whether an estimate made through the connector waits for Use repair
-    /// spec in Pegasus itself: always, for either kind (R1302). The
+    /// spec in Pegasus itself: always, for either kind (R1306). The
     /// Automation Actor's waits by its kind; a member of staff's by this mark.
     /// </summary>
     public bool EstimateAwaitsUse { get; } = true;
@@ -135,7 +135,7 @@ internal sealed class AutomationActorContext
 /// Resolves the authenticated principal of a connector call into the Core
 /// actor before any tool touches a use case: the Automation Actor for the
 /// Automation client's tokens, and the member of staff for a token issued by
-/// a Pegasus Desktop sign-in (ADR-0092, R1300). Fails closed on a missing
+/// a Pegasus Desktop sign-in (ADR-0092, R1304). Fails closed on a missing
 /// principal, a disabled registration (the immediate kill switch, which is the
 /// Automation client's alone), a member of staff whose account could no
 /// longer sign in to Pegasus or whose security stamp has moved since the
@@ -244,7 +244,7 @@ internal sealed class AutomationActorResolver(
     }
 
     /// <summary>
-    /// A Pegasus Desktop token acts as the member of staff it names (R1300),
+    /// A Pegasus Desktop token acts as the member of staff it names (R1304),
     /// and only while that account could still sign in to Pegasus: the read
     /// the staff cookie makes on every request (<see cref="StaffAccountReader"/>)
     /// must show it enabled, not waiting on a password change, holding exactly
@@ -254,7 +254,7 @@ internal sealed class AutomationActorResolver(
     /// account's now, never one a token carries.
     /// <para>
     /// Stopping the Automation client does not stop a member of staff signed
-    /// in from Pegasus Desktop (operator, 26 November 2026; R1303): the kill
+    /// in from Pegasus Desktop (operator, 26 November 2026; R1307): the kill
     /// switch is the Automation client's and is not read here. A sign-in ends
     /// when the account is disabled, its password is reset, an Administrator
     /// signs the person out, or after 8 hours.

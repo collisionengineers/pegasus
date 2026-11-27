@@ -1213,7 +1213,7 @@ public static partial class OperatorLabels
         "ai_job" => "AI job",
         Pegasus.Web.Mcp.AutomationMcpAuditor.AutomationAggregateType => "Automation",
         // The product's own name, for a sign-in decision made on its page and
-        // for what a member of staff then does from it (ADR-0092, R1300).
+        // for what a member of staff then does from it (ADR-0092, R1304).
         Pegasus.Web.Mcp.AutomationClientRegistry.DesktopAggregateType =>
             Pegasus.Web.Mcp.AutomationMcp.DesktopClientDisplayName,
         "email_template" => EmailTemplates.ActionLogArea,
@@ -1233,7 +1233,7 @@ public static partial class OperatorLabels
     /// </summary>
     public static string ActionLogAction(string operation) => operation switch
     {
-        // The two decisions on the Pegasus Desktop sign-in page, in the operator's words (R1304).
+        // The two decisions on the Pegasus Desktop sign-in page, in the operator's words (R1308).
         Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInEvent => DesktopSignIn.SignedInAction,
         Pegasus.Web.Mcp.AutomationClientRegistry.DesktopSignInRefusedEvent => DesktopSignIn.RefusedAction,
         _ => string.Join(' ', Humanise(operation).Split(' ').Select(word => word.ToLowerInvariant() switch

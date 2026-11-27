@@ -1233,7 +1233,7 @@ public sealed record SaveEstimateRequest(
     /// <summary>
     /// A new specification that waits for Use repair spec whoever recorded it:
     /// what the assistant in Pegasus Desktop files under a member of staff's
-    /// name (R1302; <see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated(ActionActor, RepairSpecificationSourceRoute, bool)"/>).
+    /// name (R1306; <see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated(ActionActor, RepairSpecificationSourceRoute, bool)"/>).
     /// Left out of the request's replay identity unless it is set, so a save
     /// recorded before the mark existed still replays.
     /// </summary>

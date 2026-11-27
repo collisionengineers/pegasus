@@ -104,7 +104,7 @@ public static class RepairSpecificationPolicy
     /// The same rule for one specification as it is written. What the
     /// assistant in Pegasus Desktop files under a member of staff's name is
     /// recorded as theirs and still only proposes (operator, 26 November 2026;
-    /// R1302): an AI draft, and an import the caller marks as awaiting use
+    /// R1306): an AI draft, and an import the caller marks as awaiting use
     /// (<paramref name="awaitsUse"/>), wait for Use repair spec whoever
     /// recorded them.
     /// </summary>

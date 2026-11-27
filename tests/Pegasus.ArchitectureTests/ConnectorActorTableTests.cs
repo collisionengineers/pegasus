@@ -4,9 +4,9 @@ namespace Pegasus.ArchitectureTests;
 
 /// <summary>
 /// The connector acts for the Automation Actor or for a member of staff
-/// signed in from Pegasus Desktop (R1300, ADR-0092), so no tool may assume
+/// signed in from Pegasus Desktop (R1304, ADR-0092), so no tool may assume
 /// which. A tool reads the actor, and every label and AI mark that goes with
-/// it (R1302), from the resolved context, never naming one itself; and each place in Core and Infrastructure that names
+/// it (R1306), from the resolved context, never naming one itself; and each place in Core and Infrastructure that names
 /// the Automation actor kind is listed here with what it does for a member of
 /// staff, so a new one is settled when it is written and not found later.
 /// </summary>

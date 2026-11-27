@@ -8,8 +8,8 @@
   staff use the Web UI.
 - A member of staff signed in from Pegasus Desktop reaches the same tools as
   themselves: what they do is recorded under their name, what the assistant
-  files stays marked AI, and their own role decides what is allowed (R1300,
-  R1302).
+  files stays marked AI, and their own role decides what is allowed (R1304,
+  R1306).
 - Every tool calls the same Core command a staff member would. The Actor has
   its own identity and history and no management powers.
 - The tools are served by one MCP server, `pegasus-automation`, at `/mcp`. A
@@ -64,14 +64,14 @@ operator, 24 and 26 November 2026; R1237, R1297;
 [ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)). The token that
 sign-in issues names the member of staff and is never read as the Actor. A
 call that presents it is made as that person (operator, 26 November 2026;
-R1300): signed in from Pegasus Desktop, a member of staff may do through the
+R1304): signed in from Pegasus Desktop, a member of staff may do through the
 connector everything they could do in Pegasus itself, sending e-mail and
 reports included, and every action is recorded under their name, not the
 AI's and not the Automation Actor's. The token holds all seven scopes, so
 `tools/list` holds every tool, and the person's own role decides what a call
 may do: every role does casework, and no tool reaches a right only an
 Administrator holds; an action the account's role does not allow is refused
-with "Your account is not allowed to do this." (R1304). Each call first reads
+with "Your account is not allowed to do this." (R1308). Each call first reads
 the account, as the staff cookie
 does on every request: enabled, not waiting on a password change, holding one
 staff role, and with the security stamp it had at the sign-in. A disabled
@@ -85,7 +85,7 @@ the scopes the token holds.
 Wherever this document says what the Actor does or how its work is recorded,
 a member of staff signed in from Pegasus Desktop does the same through the
 same Core command, under their name, but marked AI (operator, 26 November
-2026; R1302): the actor is the member of staff everywhere, for history,
+2026; R1306): the actor is the member of staff everywhere, for history,
 attribution and rights, and what the assistant files keeps the AI mark the
 Actor's carries.
 
@@ -112,7 +112,7 @@ Actor's carries.
   create a job, cancel one and confirm one.
 - The Automation client's Stop switch does not stop them. A sign-in from
   Pegasus Desktop ends when the account is disabled, its password is reset,
-  an Administrator signs the person out, or after 8 hours (R1303).
+  an Administrator signs the person out, or after 8 hours (R1307).
 - Edit leases follow the staff rules of
   [FRD-14](frd-14-record-edit-leases.md#pegasus-desktop), not the Actor's;
   that rule is built to the answer recommended to the operator, whose ruling
@@ -123,7 +123,7 @@ of staff, which they confirm before it is made; that is the application's
 rule, not Pegasus's. So that the application can tell a change from a read,
 every tool that only reads is marked read-only and no other tool is. Case
 details reached this way may be sent by the application to its AI providers,
-which the operator accepted on 26 November 2026 (R1301).
+which the operator accepted on 26 November 2026 (R1305).
 
 **Casework parity.** Within casework the Actor may do anything a staff member
 with `PerformCasework` can, with two exceptions: it never puts an estimate in
@@ -730,7 +730,7 @@ authority and the exact retained source tuple. An unsupported estimate
 document is refused without OCR or partial rows. A staff Import on the Case
 is the Current repair spec at once; the MCP import stays a Draft until a
 staff member uses it, whether it runs as the Automation actor or for a member
-of staff signed in from Pegasus Desktop (R1302).
+of staff signed in from Pegasus Desktop (R1306).
 
 **Estimate saves.** `pegasus_estimate_save` saves through the same Core
 command as the Case's Repair Spec editor (operator, 7 October 2026). A new

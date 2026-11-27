@@ -41,7 +41,7 @@ internal static class AutomationMcpErrors
         }
         catch (StaffAuthorizationException)
         {
-            // A member of staff reads the operator's sentence (R1304); the
+            // A member of staff reads the operator's sentence (R1308); the
             // Automation Actor the one that names it.
             throw new McpException(context.IsStaff
                 ? Pegasus.Web.Presentation.OperatorLabels.DesktopSignIn.ActionNotAllowed

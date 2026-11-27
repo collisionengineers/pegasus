@@ -99,7 +99,7 @@ public sealed class DesktopSignInTests
               AND Reason = N'http://127.0.0.1:{DesktopPorts[0]}'
             """));
 
-        // The token is the member of staff's (R1300): the connector names
+        // The token is the member of staff's (R1304): the connector names
         // them, and a call is recorded under their name in Pegasus Desktop's
         // area, never read as the Automation Actor.
         using (var session = await PostMcpAsync(desktop, accessToken, ToolCallPayload(1, "pegasus_session_get", new { })))

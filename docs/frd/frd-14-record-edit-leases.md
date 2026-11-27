@@ -151,7 +151,7 @@ Warning without the exception, and an authority still held lapses by itself
 **From Pegasus Desktop.** <a id="pegasus-desktop"></a> A member of staff
 signed in from Pegasus Desktop
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#staff-through-pegasus-desktop);
-R1300) is that member of staff to every lease and scope: the staff rules of
+R1304) is that member of staff to every lease and scope: the staff rules of
 this document apply to their calls, never the Automation Actor's (26 November
 2026; built to the answer recommended to the operator, whose ruling is owed
 under issue #2166).
@@ -178,7 +178,7 @@ under issue #2166).
   rules for staff: the call resumes a scope the person holds, and its write
   ends the scope.
 - Stopping the Automation client releases the Automation Actor's leases and
-  scopes only (R1303).
+  scopes only (R1307).
 
 **What goes in history.** A takeover, a deliberate recovery, and a refused or
 failed save that matters are permanent, attributable history. Routine

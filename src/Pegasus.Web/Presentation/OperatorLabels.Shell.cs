@@ -271,7 +271,7 @@ public static partial class OperatorLabels
 
     /// <summary>
     /// The Pegasus Desktop sign-in page (ADR-0092) and what follows from it,
-    /// in the operator's words (26 November 2026; R1299, R1304).
+    /// in the operator's words (26 November 2026; R1299, R1308).
     /// </summary>
     public static class DesktopSignIn
     {
@@ -283,14 +283,14 @@ public static partial class OperatorLabels
         public const string SignIn = "Sign in";
         public const string Refuse = "Refuse";
 
-        /// <summary>The Action logs' words for the page's two decisions (R1304).</summary>
+        /// <summary>The Action logs' words for the page's two decisions (R1308).</summary>
         public const string SignedInAction = "Signed in from Pegasus Desktop";
         public const string RefusedAction = "Refused sign-in from Pegasus Desktop";
 
         /// <summary>
         /// What a member of staff signed in from Pegasus Desktop is told when
         /// their account's role does not allow an action attempted through
-        /// the connector (R1304).
+        /// the connector (R1308).
         /// </summary>
         public const string ActionNotAllowed = "Your account is not allowed to do this.";
     }

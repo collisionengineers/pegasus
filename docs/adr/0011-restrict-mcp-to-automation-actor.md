@@ -11,7 +11,7 @@ tags: [mcp, auth]
 
 # ADR-0011: Restrict MCP to a vendor-neutral Automation Actor
 
-Amended 26 November 2026 (R1237, R1300;
+Amended 26 November 2026 (R1237, R1304;
 [ADR-0092](0092-staff-sign-in-for-pegasus-desktop.md)): "Ordinary staff have
 no MCP access" and "not a staff interface" no longer hold for one client,
 Pegasus Desktop. A member of staff who signs in from it reaches the same
