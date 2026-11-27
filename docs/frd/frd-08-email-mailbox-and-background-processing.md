@@ -115,7 +115,7 @@ later corrections.
 | --- | --- | --- | --- |
 | New instruction | Accepted Principal Audit, diminution or Inspection instruction evidence; initial work from a client with no accepted route; website-origin evidence meeting the accepted independent fingerprints. A body keyword or quoted old instruction is not enough | route predicate or staff | Carries a work type: Inspection, Audit, or Inspection and Audit. Offers **Create case**; automatic case allocation goes by the work type |
 | Triage request | Accepted Triage request; with a missing VRM it waits in No Case Found under FRD-03. A request for a report is not one, nor is a website enquiry (R967, R972) | route predicate or staff | No automatic case: opens the Triage workflow on its accepted Triage match evidence ([FRD-03](frd-03-triage.md)); it gets no Unidentified item |
-| Cancellation | Explicit cancellation; it wins over quoted old instructions | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
+| Cancellation | Explicit cancellation; it wins over quoted old instructions. The classifier agent gives it only with the Case it cancels linked; a cancellation of a job Pegasus holds no Case for, with other mail about the job in the approved mailboxes, is a Pre-Pegasus case (operator, 27 November 2026, [R1333](../rulings.md)) | route predicate or staff | The Case aside's Cancellation received row and the Cancellation received staff notice |
 | Pre-Pegasus case | Mail about a case still run in the old system, which has no Case in Pegasus: the e-mail chases or refers to a case Pegasus does not hold, and other mail about it in the approved mailboxes, in its own conversation or another, is evidence enough (operator, 30 October, 2 and 11 November 2026, [R561](../rulings.md), R583, R968) | staff, the Automation actor or the classifier agent; no predicate assigns it | Leaves No Case Found and is listed in All with its Type chip; the message record's outcome chip reads Pre-Pegasus case; Link to case, Create case and the other acts are unchanged ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) |
 | Correspondence | Everything else. Not a category. Garage allocation, repairs authorised, report chase and automatic replies are correspondence | route predicate or staff | Linked, it is Case correspondence. Unlinked, it is No Case Found, and its Type reads No Case Found until it is linked (operator, 30 October 2026, [R571](../rulings.md)). Register images is offered only while the message is unlinked, image-only and has no category ([FRD-19](frd-19-image-led-intake-and-pairing.md)) |
 
@@ -178,15 +178,20 @@ the received item (`pegasus_intake_action` `accept`), with the classified work
 type, the Principal the item established, and identity facts the instruction
 states only where the draft lacks them; it accepts the inspection address
 Pegasus suggested and never supplies or corrects one. When Pegasus refuses
-the Case for a missing fact, the e-mail stays New instruction in No Case
-Found for staff (operator, 5 November 2026, [R714](../rulings.md)). An
+the Case, or knows no Principal for the e-mail, the agent takes the type
+away: every type but Pre-Pegasus case belongs with a Case, so the e-mail
+waits in No Case Found as correspondence, its reason naming the refusal, and
+staff create the Case (operator, 27 November 2026, [R1332](../rulings.md),
+superseding R714's "stays New instruction"). A missing claimant name or
+claim number does not refuse the Case ([R1331](../rulings.md)). An
 unsettled inspection address does not refuse the Case: it starts Not ready
 with Inspection address named as missing (operator, 11 November 2026,
 [R965](../rulings.md)). The Principal is never the model's choice. Where the
 item established none, the agent gives `accept` the one active Principal
 Contact the sender belongs to by the Contacts directory, as
 `pegasus_intake_get` names it; where that names none, the e-mail waits for
-staff (operator, 11 November 2026, [R969](../rulings.md)). An enquiry from
+staff with no type (operator, 11 November 2026, [R969](../rulings.md);
+R1332). An enquiry from
 the firm's website form that asks for work is a New instruction and never a
 Triage request. When it writes the customer's name and the vehicle's
 registration the agent creates the private customer's one-off Case with

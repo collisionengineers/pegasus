@@ -65,17 +65,23 @@ extraction alone never allocates or reserves a Case/PO. Missing ordinary
 detail or images keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
-The identity-critical fields are the claimant name, the claim number and the
-vehicle registration. They must be given before a person or a caller creates
-the Case: staff New case and Create case from a received item, a corrected
-draft, the MCP `accept`, and a Principal API submission
+The identity-critical field is the vehicle registration, and for a private
+customer's one-off Case the customer's name as well (R577). It must be given
+before a person or a caller creates the Case: staff New case and Create case
+from a received item, a corrected draft, the MCP `accept`, and a Principal
+API submission
 ([FRD-09](frd-09-principal-and-intermediary-routes.md#accepted-api-01-submission-contract)).
 An instruction that an accepted e-mail route's profile reads is not held to
-them. Its Principal comes from the route and its Case type from the
-classification, so a letter that leaves one out, the registration included,
-still creates its Case, which starts `Not ready` with the field named as
-missing (operator, 12 November 2026, [R981](../rulings.md) and
-[R987](../rulings.md)).
+it. Its Principal comes from the route and its Case type from the
+classification, so a letter that leaves the registration out still creates
+its Case, which starts `Not ready` with the registration named as missing
+(operator, 12 November 2026, [R981](../rulings.md) and
+[R987](../rulings.md)). A missing claimant name or claim number refuses
+nothing on any of these paths: the Case is created with its instruction
+incomplete and the field named as missing, held by the instruction gate
+([FRD-13](frd-13-case-lifecycle-and-workflow.md)) until staff enter it and
+the rest of the instruction (operator, 27 November 2026,
+[R1331](../rulings.md), [R1334](../rulings.md)).
 
 A Triage Case is allocated only once the Principal is established (the
 draft's suggested Principal, else the accepted mail route's, R966), before

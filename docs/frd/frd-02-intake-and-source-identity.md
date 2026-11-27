@@ -107,7 +107,10 @@ this way starts with **Original report missing** until a filed document is
 recorded as the original report
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity);
 operator, 30 October 2026, [R595](../rulings.md)). The creator must
-supply the identity-critical Case facts. The principal code box offers the
+supply the identity-critical Case facts
+([FRD-22](frd-22-pre-case-gates-matching-and-association.md)); a Case for a
+Principal created without its claimant name or claim number starts with its
+instruction incomplete (operator, 27 November 2026, [R1331](../rulings.md)). The principal code box offers the
 active Principals' codes as completions while it is typed; a code it does not
 offer can still be entered and is checked on create (operator, 30 October
 2026, [R597](../rulings.md)). The standing Private customer record is not
