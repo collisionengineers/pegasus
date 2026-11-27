@@ -749,6 +749,19 @@ The result is filed without the Case edit lease, so it returns while the
 Engineer is still editing and does not end the edit; the card says so
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 
+Under the calculation stands the market research space (operator, 26 and 27
+November 2026; R1313, R1316, R1317): one sub-panel headed **Market research**
+holding the research submitted to the Case from Pegasus Desktop, newest
+first, and not drawn while the Case has none. Each submission is the line
+"Submitted by {name}, {date}", its **Proposed value**, its adverts as one
+dense table (**No.**, **Site**, **Vehicle**, **Year**, **Mileage**,
+**Price**, **Seller**, **Comment**) and links to its files: **Market
+Valuation Evidence**, with the AI source tag, **Advert Evidence Pack**, and a
+**Screenshot** link in an advert's row. The links open in the Case viewer.
+The space holds no control, says nothing of acceptance or review, and is the
+same while reading and editing and in both views
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+
 A click anywhere on a card with a retail, or Enter or Space on it, is the
 Engineer's decision to use it (operator, 8 October 2026): its name, labels,
 figures, boxes and padding all count; only the card's own buttons and links do

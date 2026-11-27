@@ -603,6 +603,34 @@ market research request waiting on the Case
 R1312). The same submission sent again changes nothing and answers as the
 first did.
 
+**The market research space** (operator, 26 and 27 November 2026; R1313,
+R1316, R1317; issue 2166). The Valuation section shows the Case's submissions
+in a space of their own under the valuation calculation
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)), newest first, and
+draws nothing while the Case has none. Each submission shows:
+
+- who submitted it and when, as "Submitted by {name}, {date}";
+- its **Proposed value**;
+- its adverts as one table headed **No.**, **Site**, **Vehicle**, **Year**,
+  **Mileage**, **Price**, **Seller** and **Comment**, the comment being the
+  person's own;
+- links named **Market Valuation Evidence**, while the report is one of the
+  Case's documents, **Advert Evidence Pack**, and **Screenshot** in the row of
+  each advert that has one.
+
+The space says who submitted the research and nothing of acceptance or
+review: which way a submission came (R1310) is kept and not shown (R1316).
+The words are the operator's (R1317), and dates and money read as they do
+elsewhere on the Case page. Each link opens its file in the Case viewer by
+the route every Case document is read by, under the same authorization. The
+Advert Evidence Pack and the screenshots are listed nowhere else (R1313), so
+the space is the way to them. It is read-only, the same while reading and
+editing and in both views of an Inspection + Audit Case; the report's Change
+type and Remove stay on its row in Files. A submission whose record cannot be
+read keeps its line and its links and has no table. The record's search
+summary, the basis of its proposed value and its free valuation figure are
+kept and not shown.
+
 ### Valuation readiness
 
 No circular readiness gate is acceptable (operator, 16 October 2026).

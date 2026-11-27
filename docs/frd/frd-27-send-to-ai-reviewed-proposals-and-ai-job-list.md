@@ -115,7 +115,11 @@ waiting on that Case, whether it is `Queued` or `Taken`, with the reason
 2026; R1312). That is the one way a queued job is completed; no transition a
 client asks for reaches it, and a client holding the job finds it Completed
 at its next call. An automated agent's own report is still filed as finished
-evidence with no staff accept or reject (R28, R1309).
+evidence with no staff accept or reject (R28, R1309). What a member of staff
+submitted is shown in the Valuation section's market research space, which
+says who submitted it and nothing of acceptance or review (operator, 26 and
+27 November 2026; R1316, R1317;
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
 
 - `Queued`: created and claimable. Creation records the kind, the target
   record and *started by* (a staff username or the connector client name).
