@@ -740,10 +740,18 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           act(args.messageId, { action: "case_created", category: "new-instruction", reason: args.reason });
           return text("Dry run: would create the Case.");
         }
+        // A failed allocation is retried, not created again: Pegasus answers a
+        // second Create case with the recorded failure, so once its cause is
+        // corrected, a Principal made active for one, only allocate makes the
+        // Case, from the recorded command, as staff Retry does.
+        const failedAttempt = intake.allocation?.status === "Failed" ? intake.allocation : undefined;
+        if (failedAttempt && !failedAttempt.canRetry) {
+          throw new Error(failedAttempt.safeReason ?? "The item's failed allocation cannot be retried.");
+        }
         // Pegasus's own suggested inspection address is accepted, as staff
         // accept it on Create case; the agent never supplies or corrects one.
         // With none suggested the Case is created without it (R965).
-        if (["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
+        if (!failedAttempt && ["Unresolved", "Suggested"].includes(intake.inspectionAddressState) && intake.inspectionAddressSuggestionFingerprint) {
           await pegasus.intakeAction({
             receiptId,
             action: "resolve_inspection_address",
@@ -754,14 +762,23 @@ export function createClassifierTools(options: ClassifierToolOptions) {
           intake = await pegasus.intakeGet(receiptId);
         }
         try {
-          const created = await pegasus.intakeAction({
-            receiptId,
-            action: "accept",
-            expectedReceiptVersion: intake.version,
-            operationKey: operationKey("case", args.messageId, intake.version),
-            ...(senderPrincipal ? { principalCode: senderPrincipal } : {}),
-            ...fields,
-          });
+          const created = failedAttempt
+            ? await pegasus.intakeAction({
+              receiptId,
+              action: "allocate",
+              expectedReceiptVersion: intake.version,
+              expectedAttemptId: failedAttempt.attemptId,
+              reason: ReasonPrefix + args.reason,
+              operationKey: operationKey("case-retry", args.messageId, intake.version, newAttempt()),
+            })
+            : await pegasus.intakeAction({
+              receiptId,
+              action: "accept",
+              expectedReceiptVersion: intake.version,
+              operationKey: operationKey("case", args.messageId, intake.version),
+              ...(senderPrincipal ? { principalCode: senderPrincipal } : {}),
+              ...fields,
+            });
           if (!created.caseId) {
             throw new Error(created.safeReason ?? `The Case was not created (${created.allocationStatus ?? "no allocation"}).`);
           }

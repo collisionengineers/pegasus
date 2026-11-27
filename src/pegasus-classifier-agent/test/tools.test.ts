@@ -314,6 +314,29 @@ describe("create_case", () => {
     assert.equal((await run.pegasus.get(detail.summary.id)).classification?.current.category, null);
   });
 
+  it("retries a failed allocation once its cause is corrected, rather than accepting again", async () => {
+    const receiptId = randomUUID();
+    const attemptId = randomUUID();
+    const detail = mail({ outcome: "Classified", category: "new-instruction", caseType: "Inspection", receiptId });
+    const actions: Record<string, unknown>[] = [];
+    class Recording extends FixturePegasus {
+      override async intakeAction(args: Parameters<FixturePegasus["intakeAction"]>[0]) {
+        actions.push(args);
+        return super.intakeAction(args);
+      }
+    }
+    const candidates = [candidate(detail)];
+    const pegasus = new Recording({
+      candidates,
+      intake: { [receiptId]: { allocation: { attemptId, status: "Failed", safeReason: "The selected Principal is not available.", canRetry: true } } },
+    });
+    const run = harness(candidates, { pegasus });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "Park House instructs an inspection." });
+    assert.equal(result.isError, false, result.text);
+    assert.deepEqual(actions.map((item) => item.action), ["allocate"]);
+    assert.equal(actions[0]?.expectedAttemptId, attemptId);
+  });
+
   it("does not hold back a Case for a missing claimant name or claim number (R1331)", async () => {
     const { detail, run } = instruction({
       draft: { claimantName: null, claimNumber: null, vehicleRegistration: "AB12CDE", dateOfIncident: null },

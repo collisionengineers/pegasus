@@ -244,9 +244,11 @@ export class FixturePegasus implements ClassifierPegasus {
 
   async intakeAction(args: {
     receiptId: string;
-    action: "accept" | "resolve_inspection_address" | "open_triage";
+    action: "accept" | "allocate" | "resolve_inspection_address" | "open_triage";
     expectedReceiptVersion: number;
     operationKey: string;
+    expectedAttemptId?: string;
+    reason?: string;
     principalCode?: string;
     claimantName?: string;
     claimNumber?: string;
