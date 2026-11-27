@@ -75,9 +75,12 @@ public sealed class CaseExportImageReader(
                     version.CustodyStatus,
                     version.IsCurrent,
                     version.IsLogicallyRemoved,
-                    document.CustodyFolder == CaseCustodyFolders.Audit
-                        ? caseEntity.AuditCustodyRemoteId
-                        : caseEntity.CustodyRootRemoteId,
+                    CaseCustodyFolders.RootOf(
+                        document.CustodyFolder,
+                        document.CustodySubfolder,
+                        caseEntity.CustodyRootRemoteId,
+                        caseEntity.AuditCustodyRemoteId,
+                        caseEntity.MarketResearchCustodyRemoteId),
                     version.BoxFileId,
                     version.BoxVersionId))
             .ToArrayAsync(cancellationToken);

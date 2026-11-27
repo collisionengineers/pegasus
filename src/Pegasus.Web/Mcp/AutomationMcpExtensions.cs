@@ -195,6 +195,7 @@ public static class AutomationMcpExtensions
             .WithTools<UploadGroupMcpTools>()
             .WithTools<TriageMcpTools>()
             .WithTools<AiJobMcpTools>()
+            .WithTools<MarketResearchMcpTools>()
             .WithTools<WorkCentreMcpTools>()
             .WithTools<PhotoCaptureMcpTools>()
             .WithTools<SendMcpTools>();

@@ -831,6 +831,9 @@ public static class DependencyInjection
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
             // A document staged in parts for the call that adds it (R203).
             services.AddScoped<DocumentUploads>();
+            // Market research submitted from Pegasus Desktop (issue 2166).
+            services.AddScoped<IMarketResearchSubmissionStore, EfMarketResearchSubmissionStore>();
+            services.AddScoped<SubmitMarketResearch>();
         }
         return services;
     }

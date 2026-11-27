@@ -110,6 +110,19 @@ Actor's carries.
   Take, Progress, Complete, Fail and Release, and
   `pegasus_ai_job_complete_market_research`, as in Pegasus itself. They may
   create a job, cancel one and confirm one.
+- Market research is theirs to submit, and only theirs:
+  `pegasus_market_research_submit` files the research record, the advert
+  screenshots, the Advert Evidence Pack and, when one was written, the
+  Market Valuation Evidence report on a Case in one act (operator, 26
+  November 2026; R1305 to R1311;
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
+  Each file is staged first with `pegasus_upload_begin` and
+  `pegasus_upload_part`, and the call names the Case, the guide month, which
+  way the submission came (`Accepted` or `NotReviewed`), the record and each
+  file's upload, name, type and kind. It takes no Case edit lease and no
+  Case version, is refused on a closed Case, and its replay answers with the
+  first submission. The Automation Actor is refused it and files its
+  research through the AI job list.
 - The Automation client's Stop switch does not stop them. A sign-in from
   Pegasus Desktop ends when the account is disabled, its password is reset,
   an Administrator signs the person out, or after 8 hours (R1307).
@@ -215,7 +228,8 @@ and the parts already received. `pegasus_upload_part` sends one part of
 is refused by its hash before it is stored, and the same bytes sent again
 change nothing. `pegasus_document_add` and
 `pegasus_ai_job_complete_market_research` take the `uploadId` instead of
-`contentBase64`. Only that call writes custody, once the staged document
+`contentBase64`, and `pegasus_market_research_submit` takes one for each of
+its files. Only that call writes custody, once the staged document
 matches its declared size and SHA-256, and its replay returns the original
 record. Staging writes no Case record, and no history row unless it is
 refused. An upload lives 24 hours. `pegasus_intake_submit` takes no
@@ -779,7 +793,7 @@ assessment values. Every scope has a consent description on the
 Administrator consent page, which prints it without the scope's identifier
 (operator, 15 and 19 October 2026).
 
-The whole inventory, 84 tools, by scope, for the Actor and for a member of
+The whole inventory, 85 tools, by scope, for the Actor and for a member of
 staff signed in from Pegasus Desktop alike. "One-command lease" means
 the tool takes `expectedVersion` and `operationKey`, accepts an
 `editLeaseToken` from `pegasus_edit_begin`, and holds the record's lease for
@@ -820,7 +834,7 @@ its one command when none is given.
 | `automation.intake` | `pegasus_triage_case_link` | Link or unlink the Triage and an instruction Case; both records' versions and leases | one-command lease on each record |
 | `automation.intake` | `pegasus_triage_assign`, `pegasus_triage_note_add` | Assign or unassign the Triage; add a Triage note | one-command lease |
 | `automation.documents` | `pegasus_document_add` | Retain one document in Case custody, Automation-sourced, from `contentBase64` or a staged `uploadId` | one-command lease |
-| `automation.documents` | `pegasus_upload_begin`, `pegasus_upload_part` | Stage one document in parts for `pegasus_document_add` or `pegasus_ai_job_complete_market_research` | none |
+| `automation.documents` | `pegasus_upload_begin`, `pegasus_upload_part` | Stage one document in parts for `pegasus_document_add`, `pegasus_ai_job_complete_market_research` or `pegasus_market_research_submit` | none |
 | `automation.documents` | `pegasus_document_download`, `pegasus_document_download_batch` | One exact document version, or 1 to 25 versions sharing the inline budget, as native content | none |
 | `automation.documents` | `pegasus_document_action` | One document act with an `action`: tag, untag, set_in_report, mark_original_report, set_type, remove, retry_custody; create_image_tag changes no Case and takes no version | one-command lease |
 | `automation.documents` | `pegasus_report_list` | A work's report generations and artifacts, its report approval and its report-Sent evidence | none |
@@ -831,6 +845,7 @@ its one command when none is given.
 | `automation.assessment` | `pegasus_assessment_update`, `pegasus_valuation_save`, `pegasus_estimate_save`, `pegasus_estimate_import` | The assessment, valuation and estimate writes above | one-command lease |
 | `automation.assessment` | `pegasus_estimate_act` | One Repair Spec act with an `action`: duplicate or discard (each with a reason; the estimate in use cannot be discarded, and a discard deletes the estimate, so the result carries none), scale to a percentage of the Engineer's Value, remove_scaling, or restore a snapshot | one-command lease |
 | `automation.assessment` | `pegasus_valuation_get` | Get valuation for one guide source, recording its card as the Valuation section's Save does | one-command lease |
+| `automation.assessment` | `pegasus_market_research_submit` | Market research from Pegasus Desktop in one act, for a member of staff only: the record, the report with the Case's documents, the pack and the screenshots in the `market-research` subfolder, and one retail-only AI market research card; completes a waiting market research request | key only |
 | `automation.mail` | `pegasus_mail_list`, `pegasus_mail_get` | The retained mail workspace; one message with classification and history | none |
 | `automation.mail` | `pegasus_mail_correct_classification` | Correct a classification to a mail category or Unclassified through the staff command | version and key |
 | `automation.mail` | `pegasus_mail_link_destinations` | The Cases and Triage Cases the message may be linked to, with their versions | none |

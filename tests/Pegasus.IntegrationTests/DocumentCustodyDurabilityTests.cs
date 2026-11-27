@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -2349,6 +2350,125 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    /// <summary>
+    /// R1238: the Advert Evidence Pack and a screenshot of a submission are
+    /// addressed to the Case's market-research subfolder, for the write and
+    /// for the read back, and the report to the Case's own folder. What is in
+    /// the subfolder is no document of the Case's list and no source of its
+    /// report (R1309).
+    /// </summary>
+    [Fact]
+    public async Task ASubmissionsPackAndScreenshotAreWrittenAndReadThroughTheSubfolderAndAreNotTheCasesDocuments()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.IntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            await SubmitAndReadThroughTheSubfolderAsync(root);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private static async Task SubmitAndReadThroughTheSubfolderAsync(string root)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var content = new ManagedOnlyDocumentContentStore(new LocalDocumentContentStore(root));
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var record = new MarketResearchRecord(
+            MarketResearchSubmissionPolicy.SchemaVersion,
+            null,
+            null,
+            null,
+            null,
+            42000,
+            null,
+            null,
+            null,
+            [
+                new MarketResearchRecordAdvert(
+                    1, "search", null, null, null, null, null, 9800m, null, "Close match.", true, 90, null, ["advert-1.jpg"], null)
+            ],
+            new MarketResearchRecordValue(1, null, null, null, null, null, 9900m, "average", null),
+            "pack.pdf");
+        var command = new SubmitMarketResearchCommand(
+            caseId,
+            actor,
+            "mcp:durability-research",
+            MarketResearchReview.Accepted,
+            new DateOnly(2031, 5, 1),
+            record,
+            [
+                new(Guid.NewGuid(), "report.pdf", "application/pdf", MarketResearchFileKind.Report),
+                new(Guid.NewGuid(), "pack.pdf", "application/pdf", MarketResearchFileKind.EvidencePack),
+                new(Guid.NewGuid(), "advert-1.jpg", "image/jpeg", MarketResearchFileKind.Screenshot)
+            ],
+            "staff:durability");
+        MarketResearchSubmissionPolicy.Validate(command);
+        var recordJson = MarketResearchSubmissionPolicy.RecordJson(record);
+        var screenshotBytes = "advert screenshot"u8.ToArray();
+
+        var submission = await new EfMarketResearchSubmissionStore(factory, content, TimeProvider.System).SubmitAsync(
+            new(
+                command,
+                MarketResearchSubmissionPolicy.InputHash(command, recordJson),
+                recordJson,
+                ["market valuation evidence"u8.ToArray(), "advert evidence pack"u8.ToArray(), screenshotBytes]),
+            CancellationToken.None);
+
+        const string subfolder = "case-root-id/market-research";
+        Assert.Equal(
+            "report.pdf=case-root-id pack.pdf=" + subfolder + " advert-1.jpg=" + subfolder,
+            string.Join(' ', submission.Files.Select(file =>
+                $"{file.FileName}={content.Addresses.Single(address => address.VersionId == file.VersionId).CaseRootRemoteId}")));
+
+        // The read back goes through the subfolder too.
+        var screenshot = submission.Files.Single(file => file.Kind == MarketResearchFileKind.Screenshot);
+        IDownloadCaseDocument download = new EfDocumentCustodyStore(
+            factory,
+            content,
+            TimeProvider.System,
+            new MemoryCache(new MemoryCacheOptions()));
+        await using (var downloaded = await download.ExecuteAsync(
+            new(caseId, screenshot.OccurrenceId, screenshot.VersionId, actor, $"download:{Guid.NewGuid():N}"),
+            CancellationToken.None))
+        {
+            Assert.NotNull(downloaded);
+            using var copy = new MemoryStream();
+            await downloaded!.Content.CopyToAsync(copy);
+            Assert.Equal(screenshotBytes, copy.ToArray());
+        }
+        Assert.Equal(subfolder, Assert.Single(content.ReadAddresses).CaseRootRemoteId);
+
+        // The Documents list and the report's sources hold the report alone.
+        var listed = await services.GetRequiredService<ICaseDocumentQueries>().ListAsync(caseId, CancellationToken.None);
+        Assert.Equal("report.pdf", Assert.Single(listed.SelectMany(document => document.Versions)).FileName);
+        await using var context = await database.CreateContextAsync();
+        Assert.Equal(subfolder, await context.Cases
+            .Where(value => value.Id == caseId)
+            .Select(value => value.MarketResearchCustodyRemoteId)
+            .SingleAsync());
+        Assert.Equal(
+            "report.pdf",
+            Assert.Single(await EfAssessmentReportProjectionSource.ConfirmedDocumentsAsync(
+                context, caseId, CancellationToken.None)).FileName);
+        Assert.Equal(
+            2,
+            await context.Set<CaseDocumentEntity>().CountAsync(document =>
+                document.CaseId == caseId && document.CustodySubfolder == CaseCustodyFolders.MarketResearch));
+    }
+
     private static async Task<Guid> SeedCaseAsync(
         LocalDbTestDatabase database,
         string caseType = "inspection",
@@ -2549,6 +2669,8 @@ public sealed class DocumentCustodyDurabilityTests
     {
         public List<ManagedDocumentContentAddress> Addresses { get; } = [];
 
+        public List<ManagedDocumentContentAddress> ReadAddresses { get; } = [];
+
         public Task StoreAsync(
             Guid caseId,
             string caseReference,
@@ -2564,7 +2686,11 @@ public sealed class DocumentCustodyDurabilityTests
             string expectedSha256,
             CancellationToken cancellationToken)
         {
-            Addresses.Add(address);
+            // A submission writes several files at the same time.
+            lock (Addresses)
+            {
+                Addresses.Add(address);
+            }
             return await inner.StoreVersionAsync(
                 address,
                 content,
@@ -2602,6 +2728,16 @@ public sealed class DocumentCustodyDurabilityTests
                 expectedSha256,
                 expectedLength,
                 cancellationToken);
+
+        public Task<Stream> OpenReadVersionAsync(
+            ManagedDocumentContentAddress address,
+            string expectedSha256,
+            long expectedLength,
+            CancellationToken cancellationToken)
+        {
+            ReadAddresses.Add(address);
+            return inner.OpenReadVersionAsync(address, expectedSha256, expectedLength, cancellationToken);
+        }
 
         public Task DeleteAsync(
             Guid caseId,

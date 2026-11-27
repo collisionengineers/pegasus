@@ -170,8 +170,13 @@ internal sealed class EfAssessmentReportProjectionSource(
                     new ManagedDocumentContentAddress(
                         caseId,
                         workspace.Header.Reference,
+                        // A report source is never kept in a subfolder (ConfirmedDocumentsAsync).
                         CaseCustodyFolders.RootOf(
-                            pair.Row.Folder, workflow.CustodyRootRemoteId, workflow.AuditCustodyRemoteId),
+                            pair.Row.Folder,
+                            subfolder: null,
+                            workflow.CustodyRootRemoteId,
+                            workflow.AuditCustodyRemoteId,
+                            marketResearchRootRemoteId: null),
                         pair.Row.OccurrenceId,
                         pair.Row.Ordinal,
                         pair.Row.DocumentId,
@@ -354,6 +359,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                && version.IsCurrent
                && !version.IsLogicallyRemoved
                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+               // What is kept in a subfolder is not one of the Case's own
+               // documents, so it is no source of the report (R1309).
+               && document.CustodySubfolder == null
                && !context.Set<GeneratedCaseArtifactEntity>().Any(
                    artifact => artifact.OperationKey == occurrence.OperationKey)
          orderby occurrence.Ordinal
