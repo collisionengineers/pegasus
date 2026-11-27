@@ -13,6 +13,12 @@ export interface ClassifierConfig {
   scanPages: number;
   maxBudgetUsd: number;
   storageAccount: string | undefined;
+  /**
+   * A local run's reviewed record, kept in this JSON file between runs so a
+   * message left alone is read again only once it changes. Unset, a local run
+   * keeps it in memory for the one run.
+   */
+  reviewedFile?: string;
 }
 
 function required(name: string): string {
@@ -48,5 +54,6 @@ export function readConfig(): ClassifierConfig {
     scanPages: Math.floor(positive("CLASSIFIER_SCAN_PAGES", 10)),
     maxBudgetUsd: positive("CLASSIFIER_MAX_BUDGET_USD", 2),
     storageAccount: process.env.CLASSIFIER_STORAGE_ACCOUNT?.trim() || undefined,
+    reviewedFile: process.env.CLASSIFIER_REVIEWED_FILE?.trim() || undefined,
   };
 }

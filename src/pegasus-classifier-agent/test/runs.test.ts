@@ -48,7 +48,7 @@ describe("the run's items", () => {
     const run = harness([
       candidate(classified), candidate(linked, { destinations: [suggested] }), candidate(left), candidate(deferred), candidate(unreached),
     ]);
-    await run.call("classify_email", { messageId: classified.summary.id, category: "cancellation", reason: "The sender cancels." });
+    await run.call("classify_email", { messageId: classified.summary.id, category: "pre-pegasus-case", reason: "The sender chases an old-system job." });
     await run.call("link_case", { messageId: linked.summary.id, caseId: suggested.caseId, reason: "The registration matches." });
     await run.call("leave_email", { messageId: left.summary.id, reason: "No registration." });
     await run.call("search_mailboxes", { messageId: deferred.summary.id, query: "QDOS26001" });
@@ -61,8 +61,8 @@ describe("the run's items", () => {
     const { run } = await fiveMessages();
     const items = buildItems(run.batch, run.outcomes, false, new Set());
     assert.deepEqual(items.map((item) => item.action), ["classified", "linked", "left", "deferred", "not_reached"]);
-    assert.equal(items[0]?.category, "cancellation");
-    assert.equal(items[0]?.reason, "The sender cancels.");
+    assert.equal(items[0]?.category, "pre-pegasus-case");
+    assert.equal(items[0]?.reason, "The sender chases an old-system job.");
     assert.ok(items[0]?.at);
     assert.equal(items[1]?.caseReference, "QDOS26002");
     assert.equal(items[2]?.reason, "No registration.");
@@ -77,7 +77,7 @@ describe("the run's items", () => {
     assert.equal(buildItems(run.batch, run.outcomes, true, new Set([unreached]))[4]?.action, "set_aside");
   });
 
-  it("keeps a classification the later Case refusal left for staff, with the refusal", async () => {
+  it("records a refused Case as the type taken away, with the refusal (R1332)", async () => {
     const receiptId = randomUUID();
     const detail = mail({ receiptId });
     const candidates = [candidate(detail)];
@@ -92,9 +92,11 @@ describe("the run's items", () => {
     assert.equal(refused.isError, true);
     const [item] = buildItems(run.batch, run.outcomes, true, new Set());
     assert.equal(item?.action, "classified");
-    assert.equal(item?.category, "new-instruction");
-    assert.equal(item?.reason, "The letter instructs an inspection.");
+    assert.equal(item?.category, "correspondence");
+    assert.equal(item?.reason, "The instruction is complete.");
     assert.match(item?.refusal ?? "", /knows no Principal/);
+    const after = await run.pegasus.get(detail.summary.id);
+    assert.equal(after.classification?.current.category ?? null, null);
   });
 });
 
@@ -156,7 +158,7 @@ describe("production's runs table", () => {
   it("closes it with the outcome, the counts and the items with each e-mail's subject and sender", async () => {
     const detail = mail({ subject: "Cancel the inspection" });
     const harnessed = harness([candidate(detail)]);
-    await harnessed.call("classify_email", { messageId: detail.summary.id, category: "cancellation", reason: "The sender cancels." });
+    await harnessed.call("classify_email", { messageId: detail.summary.id, category: "pre-pegasus-case", reason: "The sender chases an old-system job." });
     const items = buildItems(harnessed.batch, harnessed.outcomes, true, new Set());
     const { writes, table } = fakeTable();
     await new TableRunStore(table).close(run, new Date("2026-11-28T01:31:00Z"), {

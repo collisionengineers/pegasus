@@ -13,6 +13,7 @@ import { SystemPrompt } from "./prompt.js";
 import {
   attemptsAt,
   isClosedAt,
+  FileReviewedStore,
   MemoryReviewedStore,
   reviewedAt,
   TableReviewedStore,
@@ -283,9 +284,13 @@ export async function runAgent(
 
 export async function runClassifier(log: Logger): Promise<RunSummary> {
   const config = readConfig();
-  const reviewed: ReviewedStore = config.storageAccount && !config.dryRun
-    ? new TableReviewedStore(config.storageAccount)
-    : new MemoryReviewedStore();
+  const reviewed: ReviewedStore = config.dryRun
+    ? new MemoryReviewedStore()
+    : config.storageAccount
+      ? new TableReviewedStore(config.storageAccount)
+      : config.reviewedFile
+        ? new FileReviewedStore(config.reviewedFile)
+        : new MemoryReviewedStore();
   const pegasus = new PegasusMail(config);
   try {
     await pegasus.connect();

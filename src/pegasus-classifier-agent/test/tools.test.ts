@@ -74,6 +74,25 @@ describe("classify_email", () => {
   });
 });
 
+describe("classify_email cancellation (R1333)", () => {
+  it("refuses a cancellation on an e-mail with no Case", async () => {
+    const detail = mail();
+    const run = harness([candidate(detail)]);
+    const result = await run.call("classify_email", { messageId: detail.summary.id, category: "cancellation", reason: "The sender cancels." });
+    assert.equal(result.isError, true);
+    assert.match(result.text, /link that Case first/);
+    assert.deepEqual(run.pegasus.writes, []);
+  });
+
+  it("gives a cancellation once the e-mail is linked to the Case it cancels", async () => {
+    const detail = mail({ caseId: randomUUID() });
+    const run = harness([candidate(detail)]);
+    const result = await run.call("classify_email", { messageId: detail.summary.id, category: "cancellation", reason: "The sender cancels." });
+    assert.equal(result.isError, false, result.text);
+    assert.equal(result.text, "Classified as cancellation.");
+  });
+});
+
 describe("leave_email (#1915)", () => {
   it("is a verdict for an e-mail that already has a type", async () => {
     const detail = mail({ outcome: "Classified", category: "triage-request" });
@@ -267,13 +286,42 @@ describe("create_case", () => {
     assert.equal(JSON.parse(run.pegasus.writes[0]?.detail ?? "{}").principalCode, "ABRAHAMS");
   });
 
-  it("leaves the e-mail for staff when Pegasus knows no Principal for it", async () => {
+  it("takes the type away when Pegasus knows no Principal for it (R1332)", async () => {
     const { detail, run } = instruction({ establishedPrincipalCode: null, senderDirectoryPrincipalCode: null, draft: null });
     const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection.", ...facts });
     assert.equal(result.isError, true);
     assert.match(result.text, /knows no Principal/);
-    assert.deepEqual(run.pegasus.writes, []);
+    assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["classify"]);
+    assert.match(run.pegasus.writes[0]?.detail ?? "", /^correspondence: Classifier agent: The letter instructs an inspection\. Pegasus knows no Principal/);
+    assert.equal((await run.pegasus.get(detail.summary.id)).classification?.current.category, null);
     assert.ok(run.outcomes.verdicts.has(detail.summary.id));
+  });
+
+  it("takes the type away when Pegasus refuses the Case (R1332)", async () => {
+    const receiptId = randomUUID();
+    const detail = mail({ outcome: "Classified", category: "new-instruction", caseType: "Inspection", receiptId });
+    class Refusing extends FixturePegasus {
+      override async intakeAction(): Promise<never> {
+        throw new Error("Vehicle registration is needed before this item can become a case.");
+      }
+    }
+    const candidates = [candidate(detail)];
+    const run = harness(candidates, { pegasus: new Refusing({ candidates, intake: { [receiptId]: {} } }) });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection." });
+    assert.equal(result.isError, true);
+    assert.match(result.text, /Pegasus refused the Case: Vehicle registration is needed/);
+    assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["classify"]);
+    assert.equal((await run.pegasus.get(detail.summary.id)).classification?.current.category, null);
+  });
+
+  it("does not hold back a Case for a missing claimant name or claim number (R1331)", async () => {
+    const { detail, run } = instruction({
+      draft: { claimantName: null, claimNumber: null, vehicleRegistration: "AB12CDE", dateOfIncident: null },
+      missingIdentityFields: [],
+    });
+    const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The letter instructs an inspection." });
+    assert.equal(result.isError, false, result.text);
+    assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["case"]);
   });
 
   describe("a website enquiry (R972)", () => {
@@ -293,12 +341,12 @@ describe("create_case", () => {
       assert.ok(run.outcomes.written.has(detail.summary.id));
     });
 
-    it("waits for staff when the enquiry gives no registration", async () => {
+    it("waits for staff with no type when the enquiry gives no registration (R1332)", async () => {
       const { detail, run } = instruction(website, enquiry);
       const result = await run.call("create_case", { messageId: detail.summary.id, reason: "The enquiry asks for an inspection.", claimantName: "Pat Example" });
       assert.equal(result.isError, true);
       assert.match(result.text, /waits for staff/);
-      assert.deepEqual(run.pegasus.writes, []);
+      assert.deepEqual(run.pegasus.writes.map((write) => write.kind), ["classify"]);
     });
 
     it("refuses a name or a registration the enquiry does not write", async () => {
