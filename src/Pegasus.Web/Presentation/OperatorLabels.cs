@@ -1114,6 +1114,12 @@ public static partial class OperatorLabels
 
             // Service health and request operations
             "running" => "blue",
+
+            // The mail classifier's runs (R1320): a run that stopped without
+            // its close failed; one cut short, or that found the list hiding
+            // mail, needs a look.
+            "did not finish" => "red",
+            "cut short" or "mail hidden" => "amber",
             "working" => "green",
             "review required" => "amber",
             "needs attention" or "not set" => "amber",

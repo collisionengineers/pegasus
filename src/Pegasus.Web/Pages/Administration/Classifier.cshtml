@@ -1,0 +1,386 @@
+@page
+@model Pegasus.Web.Pages.Administration.ClassifierModel
+@using Pegasus.Core.Operations
+@{
+    ViewData["Title"] = OperatorLabels.Admin.Classifier;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "classifier";
+    var listing = Model.Listing;
+    var detail = Model.Detail;
+    var showEnvironments = Model.ShowsEnvironments;
+    var nothingRecorded = listing is not null
+        && listing.Runs.Count == 0
+        && listing.Health.All(health => health.LastRun is null);
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
+}
+<partial name="Shared/_PageHeader" />
+<partial name="Shared/_ErrorSummary" />
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        @if (Model.DetailMessage is { } detailMessage)
+        {
+            <div class="notice notice--warning" role="status"><span>@detailMessage</span></div>
+        }
+        @if (listing is not null)
+        {
+            @* The test instance says in one sentence why the live runs are not beside its own. *@
+            @if (listing.LiveRuns is ClassifierLiveRunsState.Off or ClassifierLiveRunsState.Refused or ClassifierLiveRunsState.Unavailable)
+            {
+                <div class="notice notice--warning" role="status" data-classifier-live="@listing.LiveRuns">
+                    <span>@(listing.LiveRuns switch
+                    {
+                        ClassifierLiveRunsState.Off => OperatorLabels.ClassifierRuns.LiveOff,
+                        ClassifierLiveRunsState.Refused => OperatorLabels.ClassifierRuns.LiveRefused,
+                        _ => OperatorLabels.ClassifierRuns.LiveUnavailable
+                    })</span>
+                </div>
+            }
+            @foreach (var health in listing.Health.Where(health => health.HiddenAwaiting is not null))
+            {
+                <div class="notice notice--warning" role="status" data-classifier-hidden="@health.Environment">
+                    <span>@(showEnvironments ? OperatorLabels.ClassifierRuns.Environment(health.Environment) + ": " : null)@OperatorLabels.ClassifierRuns.Hidden(health.HiddenAwaiting!.Value, health.HiddenRuns)</span>
+                </div>
+            }
+
+            @if (nothingRecorded)
+            {
+                <section class="panel" aria-label="@OperatorLabels.ClassifierRuns.Runs" data-classifier-empty>
+                    <div class="empty"><p>@OperatorLabels.ClassifierRuns.None</p></div>
+                </section>
+            }
+            else
+            {
+                <section class="panel" aria-labelledby="classifier-health-title" data-classifier-health>
+                    <div class="panel-head"><h2 id="classifier-health-title">@OperatorLabels.ClassifierRuns.Health</h2></div>
+                    <div class="table-wrap no-border">
+                        <table class="table table--compact">
+                            <thead>
+                                <tr>
+                                    @if (showEnvironments)
+                                    {
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.EnvironmentHeading</th>
+                                    }
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.LastRun</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.OutcomeHeading</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.RunsLast24Hours</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.FailedInARow</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.SpentToday</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.SpentThisMonth</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var health in listing.Health)
+                            {
+                                <tr data-classifier-health-row="@health.Environment">
+                                    @if (showEnvironments)
+                                    {
+                                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(health.Environment)" /></td>
+                                    }
+                                    @if (health.LastRun is { } last && health.LastOutcome is { } lastOutcome)
+                                    {
+                                        <td><time datetime="@last.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(last.StartedAtUtc)</time></td>
+                                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(lastOutcome)" /></td>
+                                    }
+                                    else
+                                    {
+                                        <td>@OperatorLabels.ClassifierRuns.NoRunRecorded</td>
+                                        <td>—</td>
+                                    }
+                                    <td>@health.RunsLast24Hours</td>
+                                    <td>@OperatorLabels.ClassifierRuns.FailuresInARow(health.FailuresInARow, health.FailuresAtLeast)</td>
+                                    <td>@OperatorLabels.ClassifierRuns.Usd(health.SpendToday)</td>
+                                    <td>@OperatorLabels.ClassifierRuns.Usd(health.SpendThisMonth)</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        }
+
+        @if (!nothingRecorded)
+        {
+            <section class="panel" aria-labelledby="classifier-runs-title">
+                <div class="panel-head">
+                    <h2 id="classifier-runs-title">@OperatorLabels.ClassifierRuns.Runs</h2>
+                    <span class="meta">@(Model.OldestFirst ? OperatorLabels.ClassifierRuns.OldestFirst : OperatorLabels.ClassifierRuns.NewestFirst)</span>
+                </div>
+                <div class="panel-body panel-body--compact">
+                    <form method="get" class="compact-log-filter" aria-label="@OperatorLabels.ClassifierRuns.Runs">
+                        <div class="field"><label for="classifier-from">@OperatorLabels.ClassifierRuns.From</label><input id="classifier-from" name="From" type="date" value="@Model.From?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></div>
+                        <div class="field"><label for="classifier-to">@OperatorLabels.ClassifierRuns.To</label><input id="classifier-to" name="To" type="date" value="@Model.To?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></div>
+                        <div class="field">
+                            <label for="classifier-outcome">@OperatorLabels.ClassifierRuns.OutcomeHeading</label>
+                            <select id="classifier-outcome" name="Outcome">
+                                <option value="">@OperatorLabels.ClassifierRuns.AllOutcomes</option>
+                                @foreach (var outcome in Enum.GetValues<ClassifierRunOutcome>())
+                                {
+                                    <option value="@outcome" selected="@(Model.Outcome == outcome)">@OperatorLabels.ClassifierRuns.Outcome(outcome)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="classifier-acted">@OperatorLabels.ClassifierRuns.Which</label>
+                            <select id="classifier-acted" name="Acted">
+                                <option value="">@OperatorLabels.ClassifierRuns.AllRuns</option>
+                                <option value="acted" selected="@Model.OnlyActed">@OperatorLabels.ClassifierRuns.RunsThatActed</option>
+                            </select>
+                        </div>
+                        @if (showEnvironments)
+                        {
+                            <div class="field">
+                                <label for="classifier-environment">@OperatorLabels.ClassifierRuns.EnvironmentHeading</label>
+                                <select id="classifier-environment" name="Environment">
+                                    <option value="">@OperatorLabels.ClassifierRuns.BothEnvironments</option>
+                                    @foreach (var environment in Enum.GetValues<ClassifierRunEnvironment>())
+                                    {
+                                        <option value="@environment" selected="@(Model.Environment == environment)">@OperatorLabels.ClassifierRuns.Environment(environment)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        <div class="button-row">
+                            <button class="btn btn--primary" type="submit">@OperatorLabels.ClassifierRuns.Apply</button>
+                            <a class="btn" href="/Administration/Classifier">@OperatorLabels.ClassifierRuns.Clear</a>
+                        </div>
+                    </form>
+                </div>
+                @if (listing is { Runs.Count: > 0 })
+                {
+                    <div class="table-wrap no-border">
+                        <table class="table table--compact" data-classifier-runs>
+                            <caption class="sr-only">@OperatorLabels.ClassifierRuns.Runs</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col"><a href="@Model.ListUrl(page: 1, oldestFirst: !Model.OldestFirst)">@OperatorLabels.ClassifierRuns.Started @(Model.OldestFirst ? "↑" : "↓")</a></th>
+                                    @if (showEnvironments)
+                                    {
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.EnvironmentHeading</th>
+                                    }
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.OutcomeHeading</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.Mode</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.Eligible</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.Actions</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.Cost</th>
+                                    <th scope="col">@OperatorLabels.ClassifierRuns.Took</th>
+                                    <th scope="col"><span class="sr-only">@OperatorLabels.ClassifierRuns.Open</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var run in listing.Runs)
+                            {
+                                <tr data-classifier-run="@run.Id" data-classifier-run-environment="@run.Environment" aria-selected="@(detail?.Summary.Id == run.Id ? "true" : null)">
+                                    <td class="nowrap"><time datetime="@run.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(run.StartedAtUtc)</time></td>
+                                    @if (showEnvironments)
+                                    {
+                                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(run.Environment)" /></td>
+                                    }
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(Model.OutcomeOf(run))" /></td>
+                                    <td>@ClassifierModel.Mode(run.DryRun)</td>
+                                    <td>@ClassifierModel.Count(run.Eligible)</td>
+                                    <td>@Model.Actions(run)</td>
+                                    <td class="nowrap">@ClassifierModel.Cost(run.CostUsd)</td>
+                                    <td class="nowrap">@ClassifierModel.Took(run.DurationMs)</td>
+                                    <td class="row-actions"><a class="btn btn--small" href="@Model.ListUrl(run: run)">@OperatorLabels.ClassifierRuns.Open</a></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else if (listing is not null)
+                {
+                    <div class="empty"><p role="status">@OperatorLabels.ClassifierRuns.NoneMatch</p></div>
+                }
+                @if (listing is not null && (Model.CurrentPage > 1 || listing.HasMore))
+                {
+                    <div class="panel-foot">
+                        <nav class="pagination" aria-label="@OperatorLabels.ClassifierRuns.Runs">
+                            @if (Model.CurrentPage > 1)
+                            {
+                                <a class="btn btn--small" href="@Model.ListUrl(page: Model.CurrentPage - 1)">@OperatorLabels.ClassifierRuns.Previous</a>
+                            }
+                            <span>@OperatorLabels.ClassifierRuns.Page(Model.CurrentPage)</span>
+                            @if (listing.HasMore)
+                            {
+                                <a class="btn btn--small" href="@Model.ListUrl(page: Model.CurrentPage + 1)">@OperatorLabels.ClassifierRuns.Next</a>
+                            }
+                        </nav>
+                    </div>
+                }
+            </section>
+        }
+    </div>
+</div>
+
+@if (detail is not null)
+{
+    var summary = detail.Summary;
+    var outcome = Model.OutcomeOf(summary);
+    var isHere = summary.Environment == Model.LocalEnvironment;
+    var actionLogs = Model.ActionLogsUrl(detail);
+    <div class="dialog-backdrop" data-dialog="classifier-run" data-dialog-open-on-load="true">
+        <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="classifier-run-title" data-classifier-run-detail="@summary.Id">
+            <div class="dialog-head">
+                <h2 id="classifier-run-title" tabindex="-1" data-dialog-initial-focus>@OperatorLabels.ClassifierRuns.RunTitle</h2>
+                <a class="dialog-close" href="@Model.ListUrl()" aria-label="@OperatorLabels.ClassifierRuns.Close"><svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-x")" /></svg></a>
+            </div>
+            <div class="dialog-body stack">
+                <dl class="logs-facts">
+                    @if (showEnvironments)
+                    {
+                        <dt>@OperatorLabels.ClassifierRuns.EnvironmentHeading</dt>
+                        <dd><partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Environment(summary.Environment)" /></dd>
+                    }
+                    <dt>@OperatorLabels.ClassifierRuns.Started</dt>
+                    <dd><time datetime="@summary.StartedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.StartedAtUtc)</time></dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Finished</dt>
+                    <dd>
+                        @if (summary.FinishedAtUtc is { } finished)
+                        {
+                            <time datetime="@finished.ToString("O")">@OperatorLabels.OfficeTime(finished)</time>
+                        }
+                        else
+                        {
+                            @(outcome == ClassifierRunOutcome.Running ? OperatorLabels.ClassifierRuns.StillRunning : OperatorLabels.ClassifierRuns.NotFinished)
+                        }
+                    </dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Took</dt>
+                    <dd>@ClassifierModel.Took(summary.DurationMs)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.OutcomeHeading</dt>
+                    <dd>
+                        <partial name="Shared/_StatusChip" model="@OperatorLabels.ClassifierRuns.Outcome(outcome)" />
+                        @if (outcome == ClassifierRunOutcome.CutShort)
+                        {
+                            <span class="logs-reason">@OperatorLabels.ClassifierRuns.CutShortBecause(summary.RawOutcome)</span>
+                        }
+                    </dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Mode</dt>
+                    <dd>@ClassifierModel.Mode(detail.Facts.DryRun)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Eligible</dt>
+                    <dd>@ClassifierModel.Count(summary.Eligible)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.AwaitingDecision</dt>
+                    <dd>@ClassifierModel.Count(summary.AwaitingDecision)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Cost</dt>
+                    <dd>@ClassifierModel.Cost(summary.CostUsd)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.SpendingCap</dt>
+                    <dd>@OperatorLabels.ClassifierRuns.Usd(detail.Facts.MaxBudgetUsd)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Turns</dt>
+                    <dd>@ClassifierModel.Count(detail.Turns)</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Model</dt>
+                    <dd class="mono">@detail.Facts.Model</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Batch</dt>
+                    <dd>@detail.Facts.Batch</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.ScanPages</dt>
+                    <dd>@detail.Facts.ScanPages</dd>
+                    <dt>@OperatorLabels.ClassifierRuns.Version</dt>
+                    <dd class="mono">@detail.Facts.AgentVersion</dd>
+                    @if (detail.Error is { Length: > 0 } error)
+                    {
+                        <dt>@OperatorLabels.ClassifierRuns.Error</dt>
+                        <dd>@error</dd>
+                    }
+                </dl>
+                @if (ClassifierModel.Paragraphs(detail.ModelSummary) is { Count: > 0 } paragraphs)
+                {
+                    <section class="panel" aria-labelledby="classifier-run-summary">
+                        <div class="panel-head"><h3 id="classifier-run-summary">@OperatorLabels.ClassifierRuns.Summary</h3></div>
+                        <div class="panel-body stack">
+                            @foreach (var paragraph in paragraphs)
+                            {
+                                <p>@paragraph</p>
+                            }
+                        </div>
+                    </section>
+                }
+                <section class="panel" aria-labelledby="classifier-run-messages">
+                    <div class="panel-head"><h3 id="classifier-run-messages">@OperatorLabels.ClassifierRuns.Messages</h3></div>
+                    @if (detail.Items.Count == 0)
+                    {
+                        <div class="empty"><p>@OperatorLabels.ClassifierRuns.NoMessages</p></div>
+                    }
+                    else
+                    {
+                        <div class="table-wrap no-border">
+                            <table class="table table--compact" data-classifier-run-items>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.Time</th>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.Email</th>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.Actions</th>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.CategoryHeading</th>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.Case</th>
+                                        <th scope="col">@OperatorLabels.ClassifierRuns.Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var view in detail.Items)
+                                {
+                                    var item = view.Item;
+                                    <tr data-classifier-run-item="@item.MessageId">
+                                        <td class="nowrap">@OperatorLabels.OfficeTime(item.OccurredAtUtc, "—")</td>
+                                        <td class="logs-item">
+                                            @if (view.MessageIsHere)
+                                            {
+                                                <a href="@Pegasus.Core.Notifications.StaffNotificationPolicy.MessageRoute(item.MessageId)">@(view.Subject ?? OperatorLabels.ClassifierRuns.NoSubject)</a>
+                                            }
+                                            else if (view.Subject is not null || view.Sender is not null)
+                                            {
+                                                @(view.Subject ?? OperatorLabels.ClassifierRuns.NoSubject)
+                                            }
+                                            else
+                                            {
+                                                <span class="muted">@OperatorLabels.ClassifierRuns.NoLongerHeld</span>
+                                            }
+                                            @if (view.Sender is { Length: > 0 } sender)
+                                            {
+                                                <span class="logs-reason">@sender</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @OperatorLabels.ClassifierRuns.Action(item.Action, detail.Facts.DryRun)
+                                            @if (item.Refusal is { Length: > 0 } refusal)
+                                            {
+                                                <span class="logs-reason">@refusal</span>
+                                            }
+                                        </td>
+                                        <td>@OperatorLabels.ClassifierRuns.Category(item.Category)</td>
+                                        <td class="mono">
+                                            @if (isHere && item.CaseId is { } caseId)
+                                            {
+                                                <a asp-page="/Cases/Details" asp-route-id="@caseId">@(item.CaseReference ?? OperatorLabels.ClassifierRuns.Case)</a>
+                                            }
+                                            else
+                                            {
+                                                @(item.CaseReference ?? "—")
+                                            }
+                                        </td>
+                                        <td>@(item.Reason ?? "—")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    @if (detail.ItemsCut)
+                    {
+                        <p class="muted panel-body">@OperatorLabels.ClassifierRuns.ItemsCut</p>
+                    }
+                </section>
+            </div>
+            @if (actionLogs is not null)
+            {
+                <div class="dialog-foot">
+                    <a class="btn" href="@actionLogs" data-classifier-action-logs>
+                        <svg class="icon" aria-hidden="true"><use href="@IconSprite.Href("icon-scroll-text")" /></svg><span>@OperatorLabels.ClassifierRuns.OpenInActionLogs</span>
+                    </a>
+                </div>
+            }
+        </section>
+    </div>
+}

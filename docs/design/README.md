@@ -607,7 +607,7 @@ record. It is one fingerprinted static file of `<symbol viewBox="0 0 24 24">`
 elements; pages reference glyphs as
 `<svg class="icon"><use href="<file>#icon-…"/></svg>`. The `.icon` rule
 applies the stroke and caps because a `<use>` clone does not inherit them. The
-file holds the seventy-eight glyphs in the two tables below; each glyph
+file holds the seventy-nine glyphs in the two tables below; each glyph
 checksum is the SHA-256 of the glyph's UTF-8 `<symbol id="icon-…">…</symbol>`
 element in that file.
 
@@ -679,8 +679,8 @@ sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`.
 | `reply` (undefined) | `reply` | `375ED4D581B49E8229371F88865AE3443A367891A401DDE63D810BDB7AB9AB38` | Reply; Triage Reply with finding |
 | `flag` (undefined) | `flag` | `708EC43687246B094825BB270B7183154D6193FC2F7763FBE6FED4D9ED32CBDA` | Flag message |
 
-The v26 shell and Case record glyphs below complete the file's seventy-eight
-symbols: the fifty-three above plus these twenty-five.
+The v26 shell and Case record glyphs below complete the file's seventy-nine
+symbols: the fifty-three above plus these twenty-six.
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
 | --- | --- | --- | --- |
@@ -709,6 +709,7 @@ symbols: the fifty-three above plus these twenty-five.
 | — | `camera` | `08402EEB94664F771FCAFBDDF9E0D122B27CA3113245262C898599F72F60BB0C` | Photo links (`Send photo link`, Administration nav and hub) |
 | — | `aperture` | `876FA54FB306FC79253303BBA33CFFF3544B66EA6B038DDD4B61F87C9692D242` | Case viewer: Take snapshot on video evidence (R964) |
 | — | `text` | `34D0476D663BE4F0ED14BDF8542B0F64D0F11B37D5C77B989521FA05F4E215E1` | Message dialog: Plain text, the switch from an e-mail as sent (R1277) |
+| — | `mail-search` | `196F212500D2766A00FDD03AFBC1A79B6EB8E3726B2EB62BCFC034366CD90CED` | Administration nav and hub: Mail classifier, the classifier's runs (R1318, R1320) |
 
 The v26 rail no longer draws the prototype's rail glyphs for two routes:
 Cases uses `list-checks` and Administration `settings` (`list` and
