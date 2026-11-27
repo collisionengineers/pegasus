@@ -24,7 +24,9 @@
     A card with no retail answers the click with the approved sentence. AI
     market research is a card of its own (6 October 2026): its figures, the
     Valuation month it is asked for and its own Get valuation, which starts
-    the existing research job.
+    the existing research job. Research submitted from Pegasus Desktop has
+    its own space under the calculation, the same in both modes
+    (_CaseMarketResearch, 27 November 2026).
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -270,6 +272,9 @@
         </div>
 
         <partial name="Cases/Shared/_CaseValuationCalculation" model="Model" />
+        @* Market research submitted from Pegasus Desktop, under the other
+           valuations (issue 2166): nothing while the Case has none. *@
+        <partial name="Cases/Shared/_CaseMarketResearch" model="Model" />
     </div>
 </section>
 

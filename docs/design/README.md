@@ -922,7 +922,13 @@ condition deduction and the previous total loss tick box with its
 stands, with the basis it starts from beside it; each adjustment's amount
 shows beside its control, and the box's label carries a recorded
 calculation's source as one `src-tag` word. AI market research is a card of
-its own with its Valuation month and Get valuation. What the report includes
+its own with its Valuation month and Get valuation. Under the calculation,
+research submitted from Pegasus Desktop has a space of its own (operator, 26
+and 27 November 2026; R1316, R1317): a `sub-panel` headed Market research,
+absent while the Case has none, with one "Submitted by {name}, {date}" line,
+a Proposed value, one dense adverts table and its file links per submission,
+no control, and no word of acceptance or review
+([FRD-16](../frd/frd-16-case-record-workspace.md)). What the report includes
 is not here: it is Report wording's settings on the Report section (v45,
 operator, 2 November 2026; R640).
 There is no separate Add valuation

@@ -244,6 +244,40 @@ public sealed class MarketResearchSubmissionTests
         Assert.Single(store.Filings);
     }
 
+    /// <summary>
+    /// The market research space reads the adverts of the record as it is
+    /// kept (R1317): by number, with a field schema version 1 does not name
+    /// ignored. A record that cannot be read, or of another schema version,
+    /// has none, so it never stops the Case page.
+    /// </summary>
+    [Fact]
+    public void TheKeptRecordsAdvertsAreReadByNumberAndAnUnreadableRecordHasNone()
+    {
+        var kept = MarketResearchSubmissionPolicy.RecordJson(
+            Record("pack.pdf") with { Adverts = [Advert(2, "advert-2.jpg"), Advert(1, "advert-1.jpg")] });
+
+        var adverts = MarketResearchSubmissionPolicy.StoredAdverts(kept);
+
+        Assert.Equal([1, 2], adverts.Select(advert => advert.Number));
+        Assert.Equal(Advert(1, "advert-1.jpg") with { Screenshots = null }, adverts[0] with { Screenshots = null });
+        Assert.Equal("advert-1.jpg", Assert.Single(adverts[0].Screenshots!));
+
+        // A later application may send more than schema version 1 names.
+        Assert.StartsWith("{\"schemaVersion\":1,", kept, StringComparison.Ordinal);
+        Assert.Equal(
+            [1, 2],
+            MarketResearchSubmissionPolicy.StoredAdverts(kept.Insert(1, "\"later\":{\"field\":true},"))
+                .Select(advert => advert.Number));
+
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts("{\"schemaVersion\":1,\"adverts\":["));
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts("{\"schemaVersion\":1,\"adverts\":\"none\"}"));
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts("{\"schemaVersion\":1}"));
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts("null"));
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts(string.Empty));
+        Assert.Empty(MarketResearchSubmissionPolicy.StoredAdverts(
+            kept.Replace("{\"schemaVersion\":1,", "{\"schemaVersion\":2,", StringComparison.Ordinal)));
+    }
+
     private static SubmitMarketResearchCommand Whole() =>
         Command(Record("pack.pdf"), [Report, Pack, First, Second]);
 

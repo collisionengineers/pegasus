@@ -88,6 +88,7 @@ public sealed partial class DetailsModel(
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
     IListAppliedValuations listAppliedValuations,
+    ListCaseMarketResearch listMarketResearch,
     Pegasus.Core.Vehicle.RunVehicleHistoryCheck runVehicleHistoryCheck,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
@@ -1153,6 +1154,9 @@ public sealed partial class DetailsModel(
         var valuationReads = rendered.Contains("valuation")
             ? reads.Start(token => ReadValuationSectionAsync(id, actor, work, token))
             : null;
+        var marketResearch = rendered.Contains("valuation")
+            ? reads.Start(token => listMarketResearch.ExecuteAsync(id, token))
+            : null;
         await reads.WhenAllAsync();
 
         if (vehicle is not null)
@@ -1191,6 +1195,10 @@ public sealed partial class DetailsModel(
         if (valuationReads is not null)
         {
             ApplyValuationSection(await valuationReads);
+        }
+        if (marketResearch is not null)
+        {
+            MarketResearchSubmissions = await marketResearch;
         }
     }
 

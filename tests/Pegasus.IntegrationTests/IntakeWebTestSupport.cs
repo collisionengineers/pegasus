@@ -324,6 +324,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         CaseWebTestSupport.Substitute<ISendToAiControl>(services, reads);
         CaseWebTestSupport.Substitute<IListCaseValuations>(services, reads);
         CaseWebTestSupport.Substitute<IListAppliedValuations>(services, reads);
+        CaseWebTestSupport.Substitute<IMarketResearchSubmissionQueries>(services, reads);
         CaseWebTestSupport.Substitute<IValuationPresetStore>(services, reads);
         CaseWebTestSupport.Substitute<IContactDirectoryQueries>(services, reads);
         CaseWebTestSupport.Substitute<ILeaseCaseForEdit>(services, reads);

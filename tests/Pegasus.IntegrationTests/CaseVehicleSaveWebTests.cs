@@ -232,11 +232,14 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
     /// reference data the page reads is already kept: the labour-rate cards,
     /// the unroadworthy bank, the sign-off list, the Claim Source list, the
     /// Repairer list and the Send to AI switch (six statements) are no longer
-    /// sent, so 37 - 6 = 31. It is a ceiling; if a reference read still runs,
-    /// the failure's <see cref="SqlStatementCounter.Describe"/> output in CI
-    /// names it and corrects this figure.
+    /// sent, so 37 - 6 = 31. The Valuation section, drawn in an edit session,
+    /// reads the Case's market research submissions in one statement when it
+    /// has none (issue 2166, 27 November 2026): 31 + 1 = 32. It is a ceiling;
+    /// if a reference read still runs, the failure's
+    /// <see cref="SqlStatementCounter.Describe"/> output in CI names it and
+    /// corrects this figure.
     /// </summary>
-    private const int CasePageCommands = 31;
+    private const int CasePageCommands = 32;
 
     /// <summary>
     /// #1950: a read-only open of a Case sends no reference read once the first
@@ -281,10 +284,12 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
 
     /// <summary>
     /// A ceiling set by arithmetic, not measured: the edit-session figure
-    /// (<see cref="CasePageCommands"/>, 31), less the Claim Source and Repairer
-    /// lists the read-only page does not read (29), plus one for the signature
-    /// read the fixture's sign-off Engineer adds to a cold page (30). The first
-    /// CI run's <see cref="SqlStatementCounter.Describe"/> output corrects it.
+    /// (<see cref="CasePageCommands"/>, 32), less the Claim Source and Repairer
+    /// lists the read-only page does not read (30), less the market research
+    /// submissions of the Valuation section it does not draw until it is
+    /// reached (29), plus one for the signature read the fixture's sign-off
+    /// Engineer adds to a cold page (30). The first CI run's
+    /// <see cref="SqlStatementCounter.Describe"/> output corrects it.
     /// </summary>
     private const int ReadOnlyCasePageCommands = 30;
 
@@ -1223,7 +1228,7 @@ public sealed class CaseVehicleSaveWebTests(ITestOutputHelper output)
         ("storageLocation", InputValue(html, "storageLocation"))
     ];
 
-    private static async Task ClaimLeaseAsync(HttpClient client, Guid caseId, string html)
+    internal static async Task ClaimLeaseAsync(HttpClient client, Guid caseId, string html)
     {
         using var claim = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=ClaimLease",

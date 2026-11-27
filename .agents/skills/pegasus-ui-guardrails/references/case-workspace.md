@@ -112,7 +112,7 @@ Important ownership decisions:
   longer recorded (operator, 9 October 2026).
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
-- Valuation owns the guide cards, the valuation calculation, the Engineer's Value box and the On the report content switches.
+- Valuation owns the guide cards, the valuation calculation, the Engineer's Value box, the On the report content switches and the market research space.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
 - Report owns generation/preview/finality controls, report wording, report date, commentary and the Fee pane. Its head keeps the one **Not ready** label; the blocker list is the aside's Report not ready card (below).
@@ -214,7 +214,13 @@ The sources are guide cards in a grid (operator, 8 October 2026). In order:
    switch (the field's radios on the `case-layout-switch` look);
 4. the Engineer's Value: the one box, with "from {source} retail", "None yet" or Core's reason
    beside it;
-5. On the report, as one line.
+5. On the report, as one line;
+6. the market research space (operator, 26 and 27 November 2026; R1316, R1317): one sub-panel
+   headed Market research, only when research has been submitted from Pegasus Desktop. Each
+   submission is "Submitted by {name}, {date}", its Proposed value, one dense table of its adverts
+   (No., Site, Vehicle, Year, Mileage, Price, Seller, Comment) and the links Market Valuation
+   Evidence, Advert Evidence Pack and Screenshot, which open in the Case viewer. It is read-only
+   and the same in both modes and both views.
 
 One route per guide source. Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in
 read and edit, containing:
@@ -282,6 +288,9 @@ Do not reintroduce:
 - a separate writer path for fetched vs typed values.
 - a Use this value button, or Retail value and Trade value boxes;
 - the calculation moving under the chosen source.
+
+Do not add to the market research space a word of acceptance or review, a control or form, or
+cards in place of its adverts table; the report's own actions stay on its Documents row.
 
 ## Repair Spec
 

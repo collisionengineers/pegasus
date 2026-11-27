@@ -55,6 +55,16 @@ public sealed partial class DetailsModel
     /// <summary>The Market research job still in progress, so the card reads as pending.</summary>
     public AiJobRecord? PendingMarketResearch { get; private set; }
 
+    /// <summary>
+    /// The market research submitted to the Case from Pegasus Desktop, newest
+    /// first: the section's market research space (issue 2166; R1313, R1316,
+    /// R1317). It is the Case's, so both views of an Inspection + Audit Case
+    /// show it. It is read where the section's body is drawn, on the page and
+    /// as a mounted section, and not for a commit's answer, which draws no
+    /// section body.
+    /// </summary>
+    public IReadOnlyList<CaseMarketResearchSubmission> MarketResearchSubmissions { get; private set; } = [];
+
     /// <summary>The month the Get valuation buttons run for: the pending job's, else the current month.</summary>
     public string ValuationMonth
     {
@@ -313,9 +323,11 @@ public sealed partial class DetailsModel
     {
         var section = ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken);
         var pending = aiJobs.GetPendingMarketResearchAsync(caseId, cancellationToken);
-        await Task.WhenAll(section, pending);
+        var marketResearch = listMarketResearch.ExecuteAsync(caseId, cancellationToken);
+        await Task.WhenAll(section, pending, marketResearch);
         ApplyValuationSection(section.Result);
         PendingMarketResearch = pending.Result;
+        MarketResearchSubmissions = marketResearch.Result;
     }
 
     private async Task<ValuationSectionReads> ReadValuationSectionAsync(
