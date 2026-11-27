@@ -18,7 +18,7 @@ internal static class MarketResearchFiling
     /// <summary>
     /// The findings or report document of a research result: Valuation
     /// Evidence in the Case's folder with the Automation source, which draws
-    /// its AI tag in the Documents list, whoever files it (R1302). It claims
+    /// its AI tag in the Documents list, whoever files it (R1306). It claims
     /// no Case version and no edit lease.
     /// </summary>
     public static AddCaseDocumentCommand ReportDocument(

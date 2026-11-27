@@ -8,11 +8,11 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
-/// Which way a submission came (operator, 26 November 2026; R1305, R1306):
+/// Which way a submission came (operator, 26 November 2026; R1309, R1310):
 /// the member of staff accepted the report in Pegasus Desktop, or nobody
 /// reviewed it there, which is both a report filed as soon as it was written
 /// and research filed with no report. Pegasus keeps the mark with the
-/// submission and does not check or show it (R1309).
+/// submission and does not check or show it (R1313).
 /// </summary>
 public enum MarketResearchReview
 {
@@ -106,7 +106,7 @@ public sealed record MarketResearchSubmissionFile(
 
 /// <summary>
 /// Market research submitted to a Case in one act from Pegasus Desktop (issue
-/// 2166; R1238, R1242 to R1244, R1305 to R1311): the record, the advert
+/// 2166; R1238, R1242 to R1244, R1309 to R1315): the record, the advert
 /// screenshots, the Advert Evidence Pack and, when one was written, the
 /// report. Like a research result from the AI job list it takes no Case
 /// version and no edit lease, so the Engineer's session is left as it was.
@@ -197,12 +197,12 @@ public static class MarketResearchSubmissionPolicy
     /// </summary>
     public const string SubmittedEventType = "market_research_submitted";
 
-    /// <summary>The Case history line of a submission (operator, 26 November 2026; R1310).</summary>
+    /// <summary>The Case history line of a submission (operator, 26 November 2026; R1314).</summary>
     public const string HistoryReason = "Market research submitted from Pegasus Desktop";
 
     /// <summary>
     /// The reason shown on a market research request that a submission
-    /// completed (operator, 26 November 2026; R1308).
+    /// completed (operator, 26 November 2026; R1312).
     /// </summary>
     public const string RequestAnsweredReason = "Answered by market research from Pegasus Desktop";
 
@@ -211,7 +211,7 @@ public static class MarketResearchSubmissionPolicy
     /// <summary>
     /// Refuses a submission Pegasus cannot file as sent. Only a member of
     /// staff submits: an automated agent files its research through the AI
-    /// job list (R28, R1305). The record carries a proposed retail value above
+    /// job list (R28, R1309). The record carries a proposed retail value above
     /// zero, there is at most one report and one pack, every screenshot an
     /// advert names is exactly one of the files, and no file is left unnamed.
     /// </summary>
@@ -320,7 +320,7 @@ public static class MarketResearchSubmissionPolicy
     /// The one card a submission writes: AI market research for the guide
     /// month, its retail value the record's proposed value and no trade value
     /// (R185, R311, R1243), recorded at the office's date and time. It is
-    /// written whether or not a report came with the research (R1307), and it
+    /// written whether or not a report came with the research (R1311), and it
     /// never sets the Engineer's Value (FRD-27).
     /// </summary>
     public static ValuationDetails Card(SubmitMarketResearchCommand command, DateOnly date, TimeOnly time)

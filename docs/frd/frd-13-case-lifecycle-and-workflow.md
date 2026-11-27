@@ -66,7 +66,7 @@ except for `Created in error`, can be returned to work with a reason.
 Market research submitted from Pegasus Desktop is accepted in every state
 except `Closed`, `Report sent` included, and refused on a Case closed in any
 of the four dispositions (operator, 24 and 26 November 2026; R1242, R1244,
-R1311). It moves no Case and never sets the Engineer's Value
+R1315). It moves no Case and never sets the Engineer's Value
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
 
 Every state change and disposition is a Core transition. It records who did

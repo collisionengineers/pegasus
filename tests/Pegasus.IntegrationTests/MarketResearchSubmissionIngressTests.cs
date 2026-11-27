@@ -24,7 +24,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// Market research submitted from Pegasus Desktop (issue 2166; R1238, R1242
-/// to R1244, R1305 to R1311): one call files the record, the screenshots,
+/// to R1244, R1309 to R1315): one call files the record, the screenshots,
 /// the Advert Evidence Pack and the report under the member of staff's name,
 /// writes the one research card and completes a waiting request. Each fact
 /// is driven over real HTTP with a token from the real sign-in.
@@ -239,7 +239,7 @@ public sealed class MarketResearchSubmissionIngressTests
     /// <summary>
     /// Research with no report still writes the card, and it completes the
     /// request waiting on the Case, queued or taken, with the reason the AI
-    /// job list shows (R1307, R1308). Research for the same month replaces
+    /// job list shows (R1311, R1312). Research for the same month replaces
     /// the card.
     /// </summary>
     [Theory]

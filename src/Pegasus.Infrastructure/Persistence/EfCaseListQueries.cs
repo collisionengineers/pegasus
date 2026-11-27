@@ -250,7 +250,7 @@ internal sealed class EfCaseListQueries(IDbContextFactory<PegasusDbContext> cont
             join version in db.Set<DocumentVersionEntity>().AsNoTracking() on occurrence.VersionId equals version.Id
             where !version.IsLogicallyRemoved
                 && EF.Parameter(caseIds).Contains(occurrence.CaseId)
-                // The Case's own documents: none kept in a subfolder (R1309).
+                // The Case's own documents: none kept in a subfolder (R1313).
                 && !db.Set<CaseDocumentEntity>().Any(document =>
                     document.Id == occurrence.DocumentId && document.CustodySubfolder != null)
             select occurrence;

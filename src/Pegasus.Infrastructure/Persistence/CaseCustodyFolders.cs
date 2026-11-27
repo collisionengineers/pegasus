@@ -19,7 +19,7 @@ internal static class CaseCustodyFolders
     /// <summary>
     /// The subfolder of a Case's folder that holds what Pegasus Desktop
     /// submits beside its report: the Advert Evidence Pack and the advert
-    /// screenshots (R1238, R1309). Its name in Box and its persisted code.
+    /// screenshots (R1238, R1313). Its name in Box and its persisted code.
     /// </summary>
     public const string MarketResearch = "market-research";
 
@@ -103,7 +103,7 @@ internal static class CaseCustodyFolders
     /// <summary>
     /// The occurrences that are the Case's own documents: every one but those
     /// kept in a subfolder, which belong to a space of their own and are
-    /// listed only there (R1309).
+    /// listed only there (R1313).
     /// </summary>
     public static IQueryable<DocumentOccurrenceEntity> OfCaseDocuments(
         this IQueryable<DocumentOccurrenceEntity> occurrences,

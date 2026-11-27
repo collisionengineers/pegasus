@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Assessment;
 
 /// <summary>
 /// The rules of a submission of market research from Pegasus Desktop (issue
-/// 2166; R1243, R1305 to R1311): only a member of staff submits, the record
+/// 2166; R1243, R1309 to R1315): only a member of staff submits, the record
 /// carries a proposed retail value, there is at most one report, and every
 /// screenshot an advert names is exactly one of the files.
 /// </summary>
@@ -33,7 +33,7 @@ public sealed class MarketResearchSubmissionTests
     public void AWholeSubmissionAndOneWithNoFilesAreBothAdmitted()
     {
         MarketResearchSubmissionPolicy.Validate(Whole());
-        // With no AI to write the report, research is filed without one (R1307).
+        // With no AI to write the report, research is filed without one (R1311).
         MarketResearchSubmissionPolicy.Validate(Command(Record(null) with { Adverts = [] }, []));
         MarketResearchSubmissionPolicy.Validate(Whole() with { Review = MarketResearchReview.NotReviewed });
     }
@@ -180,7 +180,7 @@ public sealed class MarketResearchSubmissionTests
 
     /// <summary>
     /// A submission completes a market research request that is queued or
-    /// taken (R1308), and nothing else: not another kind of job, and not one
+    /// taken (R1312), and nothing else: not another kind of job, and not one
     /// already closed.
     /// </summary>
     [Fact]

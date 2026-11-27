@@ -1482,7 +1482,7 @@ public sealed class EfCaseQueryStore(
         CancellationToken cancellationToken)
     {
         // The Case's own documents: what is kept in a subfolder is listed only
-        // in the space it belongs to (R1309).
+        // in the space it belongs to (R1313).
         var documentEntities = await context.Set<CaseDocumentEntity>()
             .AsNoTracking()
             .Where(item => item.CaseId == caseId && item.CustodySubfolder == null)

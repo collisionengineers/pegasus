@@ -134,7 +134,7 @@ internal static class CaseWorkflowModelConfiguration
             // exactly as operator_note and case_guidance_applied are. So is
             // what the two sent-mail tidies moved to Deleted Items or could
             // not (R959), and market research submitted from Pegasus Desktop
-            // (R1310).
+            // (R1314).
             entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique()
                 .HasFilter(
                     "[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' "

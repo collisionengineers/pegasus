@@ -950,7 +950,7 @@ public static partial class OperatorLabels
         "correspondence_move_failed" => StaffMail.CaseEmailsNotMoved,
         "instruction_moved_to_deleted_items" => StaffMail.InstructionMoved,
         "instruction_move_failed" => StaffMail.InstructionNotMoved,
-        // A submission from Pegasus Desktop (operator, 26 November 2026; R1310).
+        // A submission from Pegasus Desktop (operator, 26 November 2026; R1314).
         Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.SubmittedEventType =>
             Pegasus.Core.Assessment.MarketResearchSubmissionPolicy.HistoryReason,
         _ => Humanise(eventType)

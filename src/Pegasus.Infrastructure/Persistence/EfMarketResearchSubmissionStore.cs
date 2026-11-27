@@ -13,9 +13,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// Files a submission of market research from Pegasus Desktop (issue 2166)
 /// in one transaction under the Case's workflow lock: the report in the
 /// Case's folder, the Advert Evidence Pack and the screenshots in its
-/// <c>market-research</c> subfolder (R1238, R1309), the one research card for
+/// <c>market-research</c> subfolder (R1238, R1313), the one research card for
 /// the guide month, the submission's own rows with the Case history line, and
-/// the completion of a market research request waiting on the Case (R1308).
+/// the completion of a market research request waiting on the Case (R1312).
 /// <para>
 /// The files go to the document store inside the transaction, as every
 /// document add's does, so nothing else moves the Case between the check
@@ -363,7 +363,7 @@ internal sealed class EfMarketResearchSubmissionStore(
 
     /// <summary>
     /// Completes the market research request waiting on the Case, queued or
-    /// taken, with the reason the AI job list shows (R1308), and answers with
+    /// taken, with the reason the AI job list shows (R1312), and answers with
     /// its identifier. A request already expired is left as it is.
     /// </summary>
     private static async Task<Guid?> CompleteWaitingRequestAsync(

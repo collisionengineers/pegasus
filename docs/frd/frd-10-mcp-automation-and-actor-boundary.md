@@ -114,7 +114,7 @@ Actor's carries.
   `pegasus_market_research_submit` files the research record, the advert
   screenshots, the Advert Evidence Pack and, when one was written, the
   Market Valuation Evidence report on a Case in one act (operator, 26
-  November 2026; R1305 to R1311;
+  November 2026; R1309 to R1315;
   [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#market-research-requests)).
   Each file is staged first with `pegasus_upload_begin` and
   `pegasus_upload_part`, and the call names the Case, the guide month, which

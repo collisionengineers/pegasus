@@ -551,7 +551,7 @@ Job states and attribution are owned by
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 
 **Market research from Pegasus Desktop** (operator, 24 and 26 November 2026;
-R1239, R1241, R1305 to R1311; issue 2166). The research and its report are
+R1239, R1241, R1309 to R1315; issue 2166). The research and its report are
 now made in Pegasus Desktop. A member of staff signed in there with their own
 Pegasus details
 ([ADR-0092](../adr/0092-staff-sign-in-for-pegasus-desktop.md)) chooses the
@@ -563,14 +563,14 @@ automated agents (R1241), and an automated agent that takes a request files
 its result as described above (R28).
 
 By default the application shows the report to the person for accept or
-reject before anything goes to the Case (R1305). Accept files the research
+reject before anything goes to the Case (R1309). Accept files the research
 record, the advert screenshots, the Advert Evidence Pack and the report on
 the Case in one act. Reject sends nothing, and the agent writes the report
 again. A preference in the application alone lets the person file at once
 with no approval; Pegasus does not check it, and keeps with each submission
-which way it came (R1306). With no AI reachable, research may be filed
+which way it came (R1310). With no AI reachable, research may be filed
 without the report after a confirmation in the application, so a submission
-has at most one report and may have none (R1307). Pegasus has no draft state,
+has at most one report and may have none (R1311). Pegasus has no draft state,
 no review setting and no accept or reject step of its own.
 
 One submission
@@ -582,17 +582,17 @@ all:
   comments, the proposed value and its basis, and the search summary;
 - the report, when there is one, as Valuation Evidence in the Case's folder
   and its Documents list, marked as written by the AI as a job's findings
-  document is (R1302, R1309);
+  document is (R1306, R1313);
 - the Advert Evidence Pack and the screenshots in the `market-research`
   subfolder of the Case's Box folder, listed only in the market research
-  space and not in the Documents list (R1238, R1309;
+  space and not in the Documents list (R1238, R1313;
   [FRD-05](frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody));
 - one AI market research card for the guide month, retail only and with no
   trade value (R185, R311, R1243), its retail value the record's proposed
   value. It replaces an earlier research card for that month, and it is
   written whether or not a report came with the research;
 - the Case history line "Market research submitted from Pegasus Desktop"
-  (R1310).
+  (R1314).
 
 Like a job's result it needs no Case edit lease and no Case version, moves
 no Case and never sets the Engineer's Value. It is accepted in every Case
@@ -600,7 +600,7 @@ state except Closed, Report sent included (R1242, R1244;
 [FRD-13](frd-13-case-lifecycle-and-workflow.md)). A submission completes a
 market research request waiting on the Case
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list);
-R1308). The same submission sent again changes nothing and answers as the
+R1312). The same submission sent again changes nothing and answers as the
 first did.
 
 ### Valuation readiness

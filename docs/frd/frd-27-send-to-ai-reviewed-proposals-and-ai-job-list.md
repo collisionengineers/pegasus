@@ -98,7 +98,7 @@ is how an external agent on an automated run picks up work.
 | Unidentified resolution | The Unidentified record's `Send Unidentified to AI` for that item's U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | **Draft reply with AI** on the retained Query e-mail's record only, while the Case is in post-report work; while the job is Queued or Taken the record reads "AI draft · {state}" in its place | The message reference only | Draft reply text, at most 4,000 characters | **Reply with AI draft** (the Case's Next action, the Work Centre row and the message record) opens that message's reply composer on the draft: Message holds the text, one AI line above it says when and by which client it was written, and Mark query done starts ticked. **Send** from that composer completes the job once the provider accepts the send; a refused send leaves it Draft ready. A send that has gone but leaves the job as it was reads "The AI draft job was not completed by this send: {reason}.", the reason being "it was cancelled", "it was already completed" or "it changed while the reply was being sent" (operator, 16 October 2026). **Complete job** closes it unused. Never sent automatically (operator, 14 October 2026) |
 | Unidentified-queue pass | The Automation Actor's `create` tool only, for example from an external scheduler; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
-| MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card. The result is filed without the Case edit lease or version, so it returns while the Engineer is still editing | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value. Market research a member of staff submits from Pegasus Desktop for the Case completes the job instead, queued or taken (R1308) |
+| MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month. The section shows a "Researching · {month}" card while the job is Queued or Taken; a re-run replaces the card. The result is filed without the Case edit lease or version, so it returns while the Engineer is still editing | The Case and its valuation context. External Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment. No staff completion gate and no automatic adoption as the Engineer's Value. Market research a member of staff submits from Pegasus Desktop for the Case completes the job instead, queued or taken (R1312) |
 
 **States.** Reviewed proposals go `Queued` → `Taken` → `Draft ready` →
 `Completed`. MarketResearch goes `Queued` → `Taken` → `Completed` once its
@@ -112,10 +112,10 @@ and the job list is primarily for automated agents. Market research a member
 of staff submits from Pegasus Desktop completes the MarketResearch job
 waiting on that Case, whether it is `Queued` or `Taken`, with the reason
 "Answered by market research from Pegasus Desktop" (operator, 26 November
-2026; R1308). That is the one way a queued job is completed; no transition a
+2026; R1312). That is the one way a queued job is completed; no transition a
 client asks for reaches it, and a client holding the job finds it Completed
 at its next call. An automated agent's own report is still filed as finished
-evidence with no staff accept or reject (R28, R1305).
+evidence with no staff accept or reject (R28, R1309).
 
 - `Queued`: created and claimable. Creation records the kind, the target
   record and *started by* (a staff username or the connector client name).
@@ -131,7 +131,7 @@ evidence with no staff accept or reject (R28, R1305).
   MarketResearch, the Automation Actor completes the taken job after the
   connector attaches its files; no staff act and no acceptance of a value is
   implied. A job completed by a submission from Pegasus Desktop carries the
-  reason above and names the member of staff (R1308).
+  reason above and names the member of staff (R1312).
 - `Failed`: the client reported failure with a reason; not re-queued
   automatically.
 - `Cancelled`: staff cancelled, with an optional reason

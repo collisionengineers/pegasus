@@ -43,7 +43,7 @@ internal sealed class EfEstimateRecognitionCandidates(
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
                     // An estimate is one of the Case's own documents, never a
-                    // file kept in a subfolder (R1309).
+                    // file kept in a subfolder (R1313).
                     && document.CustodySubfolder == null
                     && (version.IsRecognisedEstimate == null
                         || (version.IsRecognisedEstimate == true

@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
-/// Market research submitted from Pegasus Desktop (issue 2166; R1238, R1305
-/// to R1311): a table of submissions and one of their files, the Case's
+/// Market research submitted from Pegasus Desktop (issue 2166; R1238, R1309
+/// to R1315): a table of submissions and one of their files, the Case's
 /// market-research subfolder, and the subfolder a document is kept in. The
 /// folder check on CaseDocuments is left as it is; the subfolder has a check
 /// of its own. A submission's Case history event changes nothing on the Case

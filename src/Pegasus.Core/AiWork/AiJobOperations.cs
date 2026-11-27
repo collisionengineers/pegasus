@@ -97,7 +97,7 @@ public static class AiJobPolicy
     /// <summary>
     /// A submission of market research from Pegasus Desktop completes the
     /// request waiting on its Case, whether a client has taken it or not
-    /// (operator, 26 November 2026; R1308). It is the one way a queued job is
+    /// (operator, 26 November 2026; R1312). It is the one way a queued job is
     /// completed, and no transition a client asks for reaches it.
     /// </summary>
     public static bool IsAnsweredByMarketResearchSubmission(AiJobKind kind, AiJobState effectiveState) =>
