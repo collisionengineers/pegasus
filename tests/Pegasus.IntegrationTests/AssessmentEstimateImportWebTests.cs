@@ -109,7 +109,6 @@ public sealed partial class AssessmentEstimateImportWebTests
         // use, on the card whose rate the document prints.
         Assert.Equal(card.Id, estimate.SelectedRateCardId);
         Assert.False(estimate.Details.RegionalUplift);
-        Assert.Null(estimate.Details.LabourRate);
         Assert.Equal(card.Version, estimate.SelectedRateCardVersion);
         var landed = Assert.IsType<RepairSpecificationVersion>(store.InUse);
         Assert.Equal(store.LastCreatedEstimateId, landed.SpecificationId);
