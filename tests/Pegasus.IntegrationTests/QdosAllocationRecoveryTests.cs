@@ -2100,13 +2100,30 @@ internal static class AllocationTestData
                 IntakeDecision.CaseCreated,
                 "Eligible for case allocation.",
                 [],
-                [new(
-                    "Vehicle registration",
-                    "AB12CDE",
-                    [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
-                    false,
-                    false)],
-                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
+                // A definitive instruction names its claim: without its
+                // claimant and claim number the Case would start with its
+                // instruction incomplete (R1331, R1334).
+                [
+                    new(
+                        "Claimant name",
+                        "Allocation Claimant",
+                        [new("Allocation Claimant", IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false),
+                    new(
+                        "Claim number",
+                        "ALLOC-1",
+                        [new("ALLOC-1", IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false),
+                    new(
+                        "Vehicle registration",
+                        "AB12CDE",
+                        [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
+                        false,
+                        false)
+                ],
+                new(principalCode, "Allocation Claimant", "ALLOC-1", "AB12CDE", null, null, null, null, null, null),
                 [],
                 null,
                 null,
