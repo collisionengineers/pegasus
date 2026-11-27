@@ -563,8 +563,11 @@ itself, never the e-mail it arrived in:
   same document is not read twice; only when intake recorded no reading is the
   retained report read, once (operator, 11 October 2026). A scan's reading is
   its OCR recording when intake made one. Custody then files that report as
-  the Case's Audit report, and the other attachments as instruction
-  documents;
+  the Case's Audit report, and the other attachments as
+  [FRD-05](frd-05-documents-extraction-and-custody.md#document-types) types
+  a new Case's mailed attachments: instruction documents, unless what one
+  prints makes it an External estimate or Other (27 November 2026;
+  [R1336](../rulings.md), [R1337](../rulings.md));
 - when files reach an open Audit that lists **Original report missing** —
   through Add evidence, through Upload and Add to an existing case, or by
   e-mail, matched or linked by staff — and exactly one of them is a report

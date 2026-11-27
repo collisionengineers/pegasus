@@ -6,6 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.PhotoCapture;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -302,6 +303,9 @@ internal sealed class EfQueuedCustodyProcessor(
     /// acceptance). That file is filed as the Audit report: nothing later
     /// recognises it, because a Case that already holds its report does not
     /// await one, so its role is given here with every other attachment's.
+    /// Every other attachment is an Instruction unless what it prints gives
+    /// it another type (<see cref="IntakeAttachmentTypePolicy"/>), read from
+    /// the text intake kept for it when it read the e-mail.
     /// </summary>
     private async Task<IReadOnlyList<RetainedCaseFile>> RetainInstructionAttachmentsAsync(
         CaseCustodyRoot root,
@@ -332,6 +336,17 @@ internal sealed class EfQueuedCustodyProcessor(
                 evidence => evidence.Id,
                 (item, evidence) => (Guid?)evidence.OriginalReportAssetId)
             .SingleOrDefaultAsync(cancellationToken);
+        var attachmentTexts = await context.IntakeSearchDocuments
+            .AsNoTracking()
+            .Where(document => document.IntakeReceiptId == receiptId && document.AttachmentOrdinal != null)
+            .Select(document => new { document.SourceLabel, document.Text })
+            .ToListAsync(cancellationToken);
+        var filingTypes = attachmentTexts
+            .GroupBy(document => document.SourceLabel, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => IntakeAttachmentTypePolicy.FilingType(group.First().Text),
+                StringComparer.Ordinal);
         retained.AddRange(await RetainTogetherAsync(
             attachments,
             leaseGuard,
@@ -359,7 +374,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     // The standalone Audit's original report is the Audit report.
                     attachment.Id == originalReportAssetId
                         ? DocumentSemanticRole.AuditReport
-                        : DocumentSemanticRole.Instruction,
+                        : filingTypes.GetValueOrDefault(attachment.SourceLabel) ?? DocumentSemanticRole.Instruction,
                     $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
                     version.RemoteId,
                     version.BoxVersionId,

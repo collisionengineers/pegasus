@@ -579,6 +579,20 @@ the split therefore reads External estimate until staff change it. The
 migration is non-additive and forward-only, and Case history keeps the type
 name each earlier change recorded.
 
+A new Case's mailed attachments are filed as Instruction, but for the
+Audit report a standalone Audit names and an attachment whose own text
+gives it another type (operator, 27 November 2026; [R1336](../rulings.md),
+[R1337](../rulings.md), [R1338](../rulings.md)). Read from the text intake
+kept for a mailbox receipt's attachment, never its file name: an Audatex
+costing that prints no assessment number, the invoice form Exclusive Repair
+Network sends, is an External estimate; a photo sheet, a PDF whose pages
+carry only photographs, is Other, and each photograph in it is still filed
+as an Image. A document a report signature names is neither, and an
+Audatex report that prints its assessment number is filed as Instruction
+for the Worker to type by its header, below. Files filed before this
+rule keep their types; staff correct them with Change type. The estimate
+reader does not read the invoice form yet (#2239).
+
 A filed Audatex estimate takes its type from the company page one names
 above its assessment number (operator, 17 and 26 November 2026;
 [R1140](../rulings.md), [R1281](../rulings.md), [R1285](../rulings.md)):
